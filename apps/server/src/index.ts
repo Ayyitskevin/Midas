@@ -4,11 +4,14 @@ import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
 import { startAlertLoop } from './alerts/engine';
 import { createNotifier } from './alerts/notify';
+import { UserRepo } from './auth/users';
 
 async function main(): Promise<void> {
   const provider = createProvider(config.provider);
   const alertRepo = new AlertRepo(config.alertsFile);
-  const app = await buildApp(provider, { alertRepo });
+  const userRepo = new UserRepo(config.usersFile);
+  const app = await buildApp(provider, { alertRepo, userRepo });
+  if (config.authEnabled) app.log.info('auth enabled — login required');
   app.log.info(
     { provider: provider.name, live: provider.live },
     `Midas server using "${provider.name}" data provider`,

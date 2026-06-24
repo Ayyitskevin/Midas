@@ -30,6 +30,10 @@ services:
       MIDAS_ALERT_INTERVAL_MS: ${MIDAS_ALERT_INTERVAL_MS:-15000}
       # Optional: deliver fired alerts to a webhook (Discord/Slack/custom).
       MIDAS_ALERT_WEBHOOK: ${MIDAS_ALERT_WEBHOOK:-}
+      # Optional multi-user auth (off by default; users persist in the volume).
+      MIDAS_AUTH_ENABLED: ${MIDAS_AUTH_ENABLED:-false}
+      MIDAS_AUTH_ALLOW_SIGNUP: ${MIDAS_AUTH_ALLOW_SIGNUP:-true}
+      MIDAS_AUTH_SECRET: ${MIDAS_AUTH_SECRET:-}
     expose:
       - "4000"
     volumes:

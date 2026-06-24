@@ -249,3 +249,6 @@ export function isRange(value: string): value is Range {
 
 // Alert data contract + pure evaluator, shared by client and server.
 export * from './alerts';
+
+// Auth data contract, shared by client and server.
+export * from './auth';
