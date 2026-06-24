@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPortfolioExport, parsePortfolioExport } from '@/lib/portfolioFile';
+import { buildPortfolioExport, parsePortfolioExport, parsePortfolioSnapshot } from '@/lib/portfolioFile';
 
 describe('parsePortfolioExport', () => {
   it('round-trips a built export', () => {
@@ -51,5 +51,37 @@ describe('parsePortfolioExport', () => {
     });
     expect(parsed.positions[0].symbol).toBe('ETH/USDT');
     expect(parsed.realized).toBe(0);
+  });
+});
+
+describe('parsePortfolioSnapshot', () => {
+  it('coerces a server blob without requiring a magic marker', () => {
+    const snap = parsePortfolioSnapshot({
+      realized: 12.5,
+      positions: [{ symbol: 'btc/usdt', quantity: 2, entryPrice: 100, openedAt: 1 }],
+      transactions: [{ symbol: 'BTC/USDT', quantity: 2, price: 100, realized: 0, at: 1 }],
+    });
+    expect(snap).not.toBeNull();
+    expect(snap!.realized).toBe(12.5);
+    expect(snap!.positions[0].symbol).toBe('BTC/USDT');
+    expect(snap!.transactions).toHaveLength(1);
+  });
+
+  it('accepts an empty book (a cleared portfolio is still valid)', () => {
+    const snap = parsePortfolioSnapshot({ realized: 0, positions: [], transactions: [] });
+    expect(snap).toEqual({ realized: 0, positions: [], transactions: [] });
+  });
+
+  it('returns null for non-objects and drops malformed rows', () => {
+    expect(parsePortfolioSnapshot(null)).toBeNull();
+    expect(parsePortfolioSnapshot('nope')).toBeNull();
+    const snap = parsePortfolioSnapshot({
+      positions: [
+        { symbol: 'BTC/USDT', quantity: 1, entryPrice: 100 },
+        { symbol: 'X', quantity: 0, entryPrice: 1 }, // qty 0 → dropped
+      ],
+    });
+    expect(snap!.positions).toHaveLength(1);
+    expect(snap!.realized).toBe(0); // missing realized → 0
   });
 });

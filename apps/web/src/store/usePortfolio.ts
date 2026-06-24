@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { foldTrade } from '@/lib/portfolio';
-import { buildPortfolioExport, parsePortfolioExport, type PortfolioExport } from '@/lib/portfolioFile';
+import {
+  buildPortfolioExport,
+  parsePortfolioExport,
+  parsePortfolioSnapshot,
+  type PortfolioExport,
+  type PortfolioSnapshot,
+} from '@/lib/portfolioFile';
 
 /** A netted paper position in one symbol. */
 export interface Position {
@@ -51,6 +57,12 @@ interface PortfolioState {
   exportBook: () => PortfolioExport;
   /** Replace the book from a parsed import payload. Throws on malformed input. */
   importBook: (data: unknown) => void;
+
+  // Server sync (per-user, across devices).
+  /** Capture the book to push to the server. */
+  snapshot: () => PortfolioSnapshot;
+  /** Replace the book from a server snapshot. Ignores malformed blobs. */
+  restore: (blob: unknown) => void;
 }
 
 const TX_CAP = 500;
@@ -147,6 +159,18 @@ export const usePortfolio = create<PortfolioState>()(
       importBook: (data) => {
         const { realized, positions, transactions } = parsePortfolioExport(data);
         set({ realized, positions, transactions });
+      },
+
+      snapshot: () => ({
+        realized: get().realized,
+        positions: get().positions,
+        transactions: get().transactions,
+      }),
+
+      restore: (blob) => {
+        const snap = parsePortfolioSnapshot(blob);
+        if (!snap) return;
+        set({ realized: snap.realized, positions: snap.positions, transactions: snap.transactions });
       },
     }),
     {

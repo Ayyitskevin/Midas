@@ -1,8 +1,8 @@
 import { UserSnapshotRepo } from '../snapshots/repo';
 
 /**
- * Per-user workspace layout snapshots (panels, saved layouts, active symbol).
+ * Per-user paper-portfolio snapshots (positions, transactions, realized P&L).
  * An opaque blob the client owns — see {@link UserSnapshotRepo} for the storage
  * model (owner scoping, `@local` when auth is off, optional file backing).
  */
-export class WorkspaceRepo extends UserSnapshotRepo {}
+export class PortfolioRepo extends UserSnapshotRepo {}

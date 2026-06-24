@@ -11,7 +11,8 @@ import { createStreamHub, registerStream } from './streaming';
 import { AlertRepo } from './alerts/repo';
 import { registerAlertRoutes } from './alerts/routes';
 import { WorkspaceRepo } from './workspaces/repo';
-import { registerWorkspaceRoutes } from './workspaces/routes';
+import { PortfolioRepo } from './portfolio/repo';
+import { registerSnapshotRoutes } from './snapshots/routes';
 import { UserRepo } from './auth/users';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
 import { installAuthGuard } from './auth/guard';
@@ -21,6 +22,8 @@ export interface BuildAppOptions {
   alertRepo?: AlertRepo;
   /** Per-user workspace snapshot store; defaults to in-memory (tests). */
   workspaceRepo?: WorkspaceRepo;
+  /** Per-user portfolio snapshot store; defaults to in-memory (tests). */
+  portfolioRepo?: PortfolioRepo;
   /** User store; defaults to an in-memory repo (tests). */
   userRepo?: UserRepo;
   /** Auth overrides (tests); falls back to config. */
@@ -54,7 +57,8 @@ export async function buildApp(
 
   registerRoutes(app, provider);
   registerAlertRoutes(app, opts.alertRepo ?? new AlertRepo());
-  registerWorkspaceRoutes(app, opts.workspaceRepo ?? new WorkspaceRepo());
+  registerSnapshotRoutes(app, opts.workspaceRepo ?? new WorkspaceRepo(), '/api/workspaces');
+  registerSnapshotRoutes(app, opts.portfolioRepo ?? new PortfolioRepo(), '/api/portfolio');
   registerStream(app, createStreamHub(provider));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {

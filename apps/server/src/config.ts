@@ -24,6 +24,8 @@ export interface Config {
   usersFile: string;
   /** JSON file backing the per-user workspace snapshot store. */
   workspacesFile: string;
+  /** JSON file backing the per-user portfolio snapshot store. */
+  portfolioFile: string;
   version: string;
 }
 
@@ -48,6 +50,10 @@ export const config: Config = {
   workspacesFile: env(
     'MIDAS_WORKSPACES_FILE',
     `${env('MIDAS_DATA_DIR', './data')}/workspaces.json`,
+  ),
+  portfolioFile: env(
+    'MIDAS_PORTFOLIO_FILE',
+    `${env('MIDAS_DATA_DIR', './data')}/portfolio.json`,
   ),
   version: '0.1.0',
 };

@@ -23,8 +23,8 @@ import { authToken } from './authToken';
 /** Optional base URL for the API (e.g. when web and server are on different hosts). */
 const BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 
-/** Server-stored workspace snapshot — `blob` is the opaque client layout. */
-export interface WorkspaceSnapshotResponse {
+/** Server-stored per-user snapshot — `blob` is the opaque client payload. */
+export interface SnapshotResponse {
   snapshot: { blob: unknown; updatedAt: number } | null;
 }
 
@@ -148,9 +148,15 @@ export const api = {
 
   // Per-user workspace sync — the layout blob is opaque to the server.
   getWorkspaces: (signal?: AbortSignal) =>
-    apiGet<WorkspaceSnapshotResponse>('/api/workspaces', signal),
+    apiGet<SnapshotResponse>('/api/workspaces', signal),
   putWorkspaces: (blob: unknown, signal?: AbortSignal) =>
     apiSend<{ ok: boolean; updatedAt: number }>('PUT', '/api/workspaces', blob, signal),
+
+  // Per-user portfolio sync — the book blob is opaque to the server.
+  getPortfolio: (signal?: AbortSignal) =>
+    apiGet<SnapshotResponse>('/api/portfolio', signal),
+  putPortfolio: (blob: unknown, signal?: AbortSignal) =>
+    apiSend<{ ok: boolean; updatedAt: number }>('PUT', '/api/portfolio', blob, signal),
 
   // Auth.
   authStatus: (signal?: AbortSignal) => apiGet<AuthStatus>('/api/auth/status', signal),

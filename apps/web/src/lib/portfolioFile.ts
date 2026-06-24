@@ -62,6 +62,41 @@ function sanitizeTransaction(raw: unknown, index: number): Transaction | null {
   };
 }
 
+/** The portfolio slice synced to the server (one opaque blob per user). */
+export interface PortfolioSnapshot {
+  realized: number;
+  positions: Position[];
+  transactions: Transaction[];
+}
+
+/**
+ * Coerce an untrusted server blob into a PortfolioSnapshot, or null if unusable.
+ * Unlike a file import this needs no magic marker and accepts an empty book — a
+ * user who has cleared their positions still has a valid, syncable state.
+ */
+export function parsePortfolioSnapshot(data: unknown): PortfolioSnapshot | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+
+  const positions: Position[] = [];
+  if (Array.isArray(d.positions)) {
+    for (const raw of d.positions) {
+      const p = sanitizePosition(raw, positions.length);
+      if (p) positions.push(p);
+    }
+  }
+
+  const transactions: Transaction[] = [];
+  if (Array.isArray(d.transactions)) {
+    for (const raw of d.transactions) {
+      const t = sanitizeTransaction(raw, transactions.length);
+      if (t) transactions.push(t);
+    }
+  }
+
+  return { realized: num(d.realized, 0), positions, transactions };
+}
+
 /** Validate and normalise a parsed import payload. Throws a friendly error. */
 export function parsePortfolioExport(data: unknown): {
   realized: number;
