@@ -20,6 +20,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   DES: mod(() => import('./DescriptionModule'), 'DescriptionModule'),
   GP: mod(() => import('./ChartModule'), 'ChartModule'),
   COMP: mod(() => import('./ComparisonModule'), 'ComparisonModule'),
+  RATIO: mod(() => import('./RatioModule'), 'RatioModule'),
   BOOK: mod(() => import('./OrderBookModule'), 'OrderBookModule'),
   TAS: mod(() => import('./TradesModule'), 'TradesModule'),
   ALLQ: mod(() => import('./MultiExchangeModule'), 'MultiExchangeModule'),
