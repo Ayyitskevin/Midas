@@ -73,6 +73,14 @@ export function conditionMet(actual: number, op: AlertOp, value: number): boolea
 }
 
 /**
+ * Direction to arm when a user clicks a level on the chart: `above` if the
+ * level sits at/above the current price, otherwise `below`.
+ */
+export function alertOpForLevel(level: number, reference: number): AlertOp {
+  return level >= reference ? 'above' : 'below';
+}
+
+/**
  * Fold fresh readings into the alert set, firing on the *edge* where an armed
  * alert's condition first becomes true. Returns the next alert array and the
  * triggers that fired this pass. Repeatable alerts re-arm once their condition

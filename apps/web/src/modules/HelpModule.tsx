@@ -76,6 +76,10 @@ HELP              this panel`}
             or imports a <span className="text-term-text">.midas.json</span> file;{' '}
             <span className="text-term-amber">⤓</span> exports the current one.
           </li>
+          <li>
+            On a price chart, toggle <span className="text-term-amber">⚑ alert</span> and click a
+            level to arm a price alert there — armed alerts show as lines on the chart.
+          </li>
           <li>Your layout and watchlist are saved in this browser.</li>
         </ul>
       </section>
