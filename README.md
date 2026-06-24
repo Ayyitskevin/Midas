@@ -34,6 +34,31 @@ workspace. Inspired by [Gödel Terminal](https://godelterminal.com).
 
 ## Quickstart
 
+### Option A — Docker (one command, recommended)
+
+Self-host the whole stack with [Docker](https://docs.docker.com/get-docker/):
+
+```bash
+cp .env.example .env     # optional — defaults run the offline mock feed
+docker compose up -d     # build + run web + API
+```
+
+Open <http://localhost:8080> and start typing: `BTC/USDT`, then `BTC/USDT GP`,
+then `BTC/USDT BOOK`.
+
+The **web** container (nginx) serves the built UI and reverse-proxies `/api`
+(REST **and** the `/api/stream` WebSocket) to the **server** container, so the
+browser talks to a single origin. Edit `.env` to switch providers or add your
+`ANTHROPIC_API_KEY`, then `docker compose up -d --build` to apply.
+
+```bash
+docker compose logs -f      # tail logs
+docker compose down         # stop
+MIDAS_DATA_PROVIDER=ccxt MIDAS_WEB_PORT=9000 docker compose up -d --build   # live crypto on :9000
+```
+
+### Option B — local dev
+
 ```bash
 # 1. Install (Node 20+ and pnpm)
 pnpm install
@@ -192,7 +217,8 @@ The foundation is intentionally small and extensible. Likely next steps:
 - **Workspaces:** multiple named layouts, panel linking (a symbol typed in one
   panel updates linked panels), command-driven panel targeting.
 - **Charts:** drawing tools, indicators (MA/RSI/MACD), multiple series.
-- **Platform:** auth for multi-user self-hosting, Docker compose, tests + CI.
+- **Platform:** multi-user auth for self-hosting, automated tests. _(Docker
+  Compose deploy + typecheck/build CI already shipped.)_
 
 ---
 

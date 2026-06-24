@@ -1,0 +1,40 @@
+# Midas — one-command self-hosted deploy.
+#
+#   cp .env.example .env     # optional: set provider / API keys
+#   docker compose up -d     # build + run
+#   open http://localhost:8080
+#
+# The web container (nginx) serves the SPA and reverse-proxies /api to the
+# server container, so the browser only ever talks to one origin.
+
+services:
+  server:
+    build:
+      context: .
+      target: server
+    environment:
+      # mock (default, offline) | yahoo | ccxt
+      MIDAS_DATA_PROVIDER: ${MIDAS_DATA_PROVIDER:-mock}
+      # ccxt: which exchange to pull market data from
+      MIDAS_CCXT_EXCHANGE: ${MIDAS_CCXT_EXCHANGE:-binance}
+      # ccxt: venues compared in the ALLQ multi-exchange module
+      MIDAS_CCXT_COMPARE: ${MIDAS_CCXT_COMPARE:-binance,coinbase,kraken,bitfinex,okx,kucoin}
+      # AI copilot (optional) — without a key the AI panel returns 503
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      MIDAS_AI_MODEL: ${MIDAS_AI_MODEL:-claude-sonnet-4-6}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      HOST: 0.0.0.0
+      PORT: "4000"
+    expose:
+      - "4000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "${MIDAS_WEB_PORT:-8080}:80"
+    depends_on:
+      - server
+    restart: unless-stopped
