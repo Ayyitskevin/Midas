@@ -40,6 +40,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
   DCA: mod(() => import('./DcaModule'), 'DcaModule'),
+  LOG: mod(() => import('./JournalModule'), 'JournalModule'),
   ACCT: mod(() => import('./AccountModule'), 'AccountModule'),
   PREF: mod(() => import('./SettingsModule'), 'SettingsModule'),
   N: mod(() => import('./NewsModule'), 'NewsModule'),

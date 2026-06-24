@@ -229,6 +229,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Average-cost calculator — blend fills into an average entry, P&L and a target-average solver.',
   },
   {
+    code: 'LOG',
+    aliases: ['JOURNAL', 'TJ', 'TRADELOG'],
+    title: 'Trade Journal',
+    module: 'LOG',
+    requiresSymbol: false,
+    description: 'Trade journal — log entries/exits, score R-multiples, and track win rate, expectancy and total R.',
+  },
+  {
     code: 'ACCT',
     aliases: ['ACCOUNT'],
     title: 'Account',
