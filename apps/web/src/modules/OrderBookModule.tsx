@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import type { OrderBookLevel } from '@midas/shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { OrderBook, OrderBookLevel } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useStream } from '@/lib/stream';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -35,11 +36,22 @@ function cumulate(levels: OrderBookLevel[]): Row[] {
 
 export function OrderBookModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  const { data, error, loading } = useFetch(
+  // REST for instant first paint; the live WebSocket stream takes over once connected.
+  const { data: fetched, error, loading } = useFetch(
     (signal) => api.orderbook(symbol as string, 25, signal),
     [symbol],
-    { intervalMs: 1500, enabled: Boolean(symbol) },
+    { enabled: Boolean(symbol) },
   );
+
+  const [live, setLive] = useState<OrderBook | null>(null);
+  useEffect(() => setLive(null), [symbol]);
+  useStream(
+    'orderbook',
+    symbol,
+    useCallback((d: unknown) => setLive(d as OrderBook), []),
+  );
+
+  const data = live ?? fetched;
 
   const view = useMemo(() => {
     if (!data) return null;
