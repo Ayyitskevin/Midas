@@ -10,7 +10,7 @@ interface WatchlistState {
   move: (symbol: string, direction: -1 | 1) => void;
 }
 
-const DEFAULT_SYMBOLS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'SPY', 'BTC-USD'];
+const DEFAULT_SYMBOLS = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'DOGE/USDT'];
 
 export const useWatchlist = create<WatchlistState>()(
   persist(

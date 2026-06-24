@@ -3,6 +3,7 @@ import type {
   HistoryResponse,
   MarketState,
   NewsItem,
+  OrderBook,
   Quote,
   SearchResult,
 } from '@midas/shared';
@@ -110,6 +111,15 @@ export class YahooProvider implements DataProvider {
       currency: result.meta.currency ?? 'USD',
       candles,
     };
+  }
+
+  async getOrderBook(symbol: string): Promise<OrderBook> {
+    // Yahoo's public endpoints don't expose Level-2 depth.
+    throw new ProviderError(
+      'Order book (Level 2) is not available from the Yahoo provider — use the ccxt provider for crypto depth',
+      501,
+      symbol,
+    );
   }
 
   async search(query: string): Promise<SearchResult[]> {

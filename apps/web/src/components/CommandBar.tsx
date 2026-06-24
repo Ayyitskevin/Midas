@@ -227,7 +227,7 @@ export function CommandBar() {
           onBlur={() => window.setTimeout(() => setOpen(false), 120)}
           spellCheck={false}
           autoComplete="off"
-          placeholder="Enter command — e.g.  AAPL DES   ·   NVDA GP   ·   HELP"
+          placeholder="Enter command — e.g.  BTC/USDT DES   ·   ETH/USDT BOOK   ·   HELP"
           className="w-full bg-transparent text-sm uppercase text-term-text outline-none placeholder:normal-case placeholder:text-term-dim"
         />
         {error && <span className="shrink-0 text-2xs text-term-down">{error}</span>}

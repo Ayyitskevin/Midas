@@ -137,6 +137,23 @@ export interface NewsItem {
   summary?: string;
 }
 
+/** A single price level in an order book. */
+export interface OrderBookLevel {
+  price: number;
+  amount: number;
+}
+
+/** Level-2 order book (depth of market) snapshot. */
+export interface OrderBook {
+  symbol: string;
+  /** Best (highest) bid first. */
+  bids: OrderBookLevel[];
+  /** Best (lowest) ask first. */
+  asks: OrderBookLevel[];
+  /** Epoch millis of the snapshot. */
+  timestamp: number;
+}
+
 // ---------------------------------------------------------------------------
 // API envelopes
 // ---------------------------------------------------------------------------

@@ -44,7 +44,7 @@ pnpm dev
 #   → api:  http://localhost:4000
 ```
 
-Open <http://localhost:5173> and start typing: `AAPL`, then `NVDA GP`, then `HELP`.
+Open <http://localhost:5173> and start typing: `BTC/USDT`, then `BTC/USDT GP`, then `BTC/USDT BOOK`.
 
 ### Use live market data
 
@@ -77,6 +77,7 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
 | `DES`   | `DESC`, `DS`   | yes          | Snapshot quote + key stats for a security.    |
 | `GP`    | `CHART`, `G`   | yes          | Historical price chart (daily candles).       |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
+| `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
@@ -84,7 +85,7 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |
 | `HELP`  | `H`, `?`       | no           | Command list and usage.                       |
 
-**Grammar:** `AAPL` → description · `AAPL GP` → chart · `AAPL N` → news ·
+**Grammar:** `BTC/USDT` → description · `BTC/USDT GP` → chart · `BTC/USDT BOOK` → order book ·
 bare `W`/`HELP` → symbol-less panels · unrecognized text → security search.
 
 **Keyboard:** start typing anywhere to focus the command line · `↑/↓` recall

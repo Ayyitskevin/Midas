@@ -12,11 +12,11 @@ export function HelpModule(_props: ModuleProps) {
           a symbol followed by a function code:
         </p>
         <pre className="mt-2 whitespace-pre-wrap rounded-sm bg-term-header p-2 text-2xs text-term-text">
-{`AAPL            open description for AAPL
-AAPL GP         price chart for AAPL
-AAPL N          news for AAPL
-W               your watchlist
-HELP            this panel`}
+{`BTC/USDT          open description
+BTC/USDT GP       price chart
+BTC/USDT BOOK     live order book (DOM)
+W                 your watchlist
+HELP              this panel`}
         </pre>
       </section>
 
@@ -40,7 +40,7 @@ HELP            this panel`}
       <section>
         <h3 className="term-label mb-1">Try it</h3>
         <div className="flex flex-wrap gap-1.5">
-          {['AAPL', 'NVDA', 'TSLA', 'BTC-USD', '^GSPC'].map((s) => (
+          {['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'DOGE/USDT'].map((s) => (
             <button
               key={s}
               onClick={() => openSymbol(s)}
@@ -50,10 +50,10 @@ HELP            this panel`}
             </button>
           ))}
           <button
-            onClick={() => openModule('GP', 'NVDA')}
+            onClick={() => openModule('BOOK', 'BTC/USDT')}
             className="no-drag rounded-sm border border-term-border px-2 py-1 text-2xs hover:border-term-amber hover:text-term-amber"
           >
-            NVDA GP
+            BTC/USDT BOOK
           </button>
         </div>
       </section>
