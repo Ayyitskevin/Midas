@@ -214,11 +214,19 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'ACCT',
-    aliases: ['ACCOUNT', 'SETTINGS'],
+    aliases: ['ACCOUNT'],
     title: 'Account',
     module: 'ACCT',
     requiresSymbol: false,
     description: 'Manage your account — change password, sessions, and (admin) users.',
+  },
+  {
+    code: 'PREF',
+    aliases: ['SETTINGS', 'SET', 'PREFS', 'CONFIG'],
+    title: 'Preferences',
+    module: 'PREF',
+    requiresSymbol: false,
+    description: 'Terminal preferences — display density, ticker, default chart timeframe, alert delivery.',
   },
   {
     code: 'SECF',

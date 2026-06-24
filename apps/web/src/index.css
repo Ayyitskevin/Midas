@@ -81,3 +81,12 @@
   border-right: 2px solid #4a4a52;
   border-bottom: 2px solid #4a4a52;
 }
+
+/* ----- reduced motion (Settings → Display) ----- */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
