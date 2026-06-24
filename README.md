@@ -78,6 +78,7 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
 | `GP`    | `CHART`, `G`   | yes          | Historical price chart (daily candles).       |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
+| `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |

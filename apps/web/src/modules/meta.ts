@@ -7,6 +7,7 @@ export type ModuleCode =
   | 'DES'
   | 'GP'
   | 'BOOK'
+  | 'TAS'
   | 'ALLQ'
   | 'FUND'
   | 'SCR'
@@ -32,6 +33,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DES: { code: 'DES', title: 'Security Description', w: 4, h: 9, minW: 3, minH: 6 },
   GP: { code: 'GP', title: 'Price Graph', w: 6, h: 11, minW: 4, minH: 8 },
   BOOK: { code: 'BOOK', title: 'Order Book', w: 4, h: 12, minW: 3, minH: 8 },
+  TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },
   ALLQ: { code: 'ALLQ', title: 'Multi-Exchange', w: 5, h: 8, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
   SCR: { code: 'SCR', title: 'Screener', w: 4, h: 11, minW: 3, minH: 6 },

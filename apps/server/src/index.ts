@@ -1,10 +1,12 @@
 import Fastify from 'fastify';
 import type { FastifyError } from 'fastify';
 import cors from '@fastify/cors';
+import websocket from '@fastify/websocket';
 import type { ApiError } from '@midas/shared';
 import { config } from './config';
 import { createProvider, ProviderError } from './providers';
 import { registerRoutes } from './routes';
+import { createStreamHub, registerStream } from './streaming';
 
 async function main(): Promise<void> {
   const app = Fastify({
@@ -14,6 +16,7 @@ async function main(): Promise<void> {
   });
 
   await app.register(cors, { origin: config.corsOrigin });
+  await app.register(websocket);
 
   const provider = createProvider(config.provider);
   app.log.info(
@@ -22,6 +25,7 @@ async function main(): Promise<void> {
   );
 
   registerRoutes(app, provider);
+  registerStream(app, createStreamHub(provider));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     const statusCode =
