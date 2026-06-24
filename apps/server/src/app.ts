@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { randomBytes } from 'node:crypto';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
@@ -9,10 +10,17 @@ import { registerRoutes } from './routes';
 import { createStreamHub, registerStream } from './streaming';
 import { AlertRepo } from './alerts/repo';
 import { registerAlertRoutes } from './alerts/routes';
+import { UserRepo } from './auth/users';
+import { registerAuthRoutes, type AuthDeps } from './auth/routes';
+import { installAuthGuard } from './auth/guard';
 
 export interface BuildAppOptions {
   /** Alert store; defaults to an in-memory repo (tests). index.ts injects a file-backed one. */
   alertRepo?: AlertRepo;
+  /** User store; defaults to an in-memory repo (tests). */
+  userRepo?: UserRepo;
+  /** Auth overrides (tests); falls back to config. */
+  auth?: { enabled?: boolean; allowSignup?: boolean; secret?: string };
 }
 
 /**
@@ -30,6 +38,15 @@ export async function buildApp(
 
   await app.register(cors, { origin: config.corsOrigin });
   await app.register(websocket);
+
+  const authDeps: AuthDeps = {
+    enabled: opts.auth?.enabled ?? config.authEnabled,
+    allowSignup: opts.auth?.allowSignup ?? config.authAllowSignup,
+    secret: opts.auth?.secret || config.authSecret || randomBytes(32).toString('hex'),
+    users: opts.userRepo ?? new UserRepo(),
+  };
+  installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
+  registerAuthRoutes(app, authDeps);
 
   registerRoutes(app, provider);
   registerAlertRoutes(app, opts.alertRepo ?? new AlertRepo());

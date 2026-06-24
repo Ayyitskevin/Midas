@@ -166,6 +166,9 @@ a panel type means writing a module component and registering it.
 | `GET /api/news?symbol=`            | `NewsItem[]`                     |
 | `GET/POST/PATCH/DELETE /api/alerts` | server-side alert rules (CRUD)  |
 | `GET /api/alerts/log`              | recent server-fired triggers     |
+| `GET /api/auth/status`             | whether auth is on / signup open |
+| `POST /api/auth/signup\|login`     | create a session (returns a token)|
+| `GET /api/auth/me`                 | the signed-in user (bearer token)|
 
 `/api/history` accepts `interval` (`1m`…`1mo`) and `range` (`1d`…`max`).
 
@@ -196,6 +199,9 @@ Server (environment variables):
 | `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
+| `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
+| `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
+| `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).

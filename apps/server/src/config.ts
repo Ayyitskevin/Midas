@@ -14,6 +14,14 @@ export interface Config {
   alertIntervalMs: number;
   /** Optional outbound webhook URL fired triggers are POSTed to (Discord/Slack/custom). */
   alertWebhook: string;
+  /** Require login for the API + terminal. Off by default (single-user). */
+  authEnabled: boolean;
+  /** Allow new accounts to register (the first user can always bootstrap). */
+  authAllowSignup: boolean;
+  /** HMAC secret for session tokens (a random one is used if unset). */
+  authSecret: string;
+  /** JSON file backing the user store. */
+  usersFile: string;
   version: string;
 }
 
@@ -31,5 +39,9 @@ export const config: Config = {
   alertsFile: env('MIDAS_ALERTS_FILE', `${env('MIDAS_DATA_DIR', './data')}/alerts.json`),
   alertIntervalMs: Number(env('MIDAS_ALERT_INTERVAL_MS', '15000')),
   alertWebhook: env('MIDAS_ALERT_WEBHOOK', ''),
+  authEnabled: env('MIDAS_AUTH_ENABLED', 'false').toLowerCase() === 'true',
+  authAllowSignup: env('MIDAS_AUTH_ALLOW_SIGNUP', 'true').toLowerCase() === 'true',
+  authSecret: env('MIDAS_AUTH_SECRET', ''),
+  usersFile: env('MIDAS_USERS_FILE', `${env('MIDAS_DATA_DIR', './data')}/users.json`),
   version: '0.1.0',
 };
