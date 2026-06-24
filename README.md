@@ -195,6 +195,7 @@ pnpm dev:web      # web only
 pnpm dev:server   # API only
 pnpm build        # build all packages
 pnpm typecheck    # typecheck all packages
+pnpm test         # run the unit + API test suite (Vitest)
 pnpm start        # run the API (after configuring a provider)
 ```
 
@@ -219,8 +220,9 @@ The foundation is intentionally small and extensible. Likely next steps:
 - **Workspaces:** multiple named layouts, panel linking (a symbol typed in one
   panel updates linked panels), command-driven panel targeting.
 - **Charts:** drawing tools, indicators (MA/RSI/MACD), multiple series.
-- **Platform:** multi-user auth for self-hosting, automated tests. _(Docker
-  Compose deploy + typecheck/build CI already shipped.)_
+- **Platform:** multi-user auth for self-hosting, broader test coverage (UI /
+  component tests). _(Docker Compose deploy + a Vitest suite wired into
+  typecheck/build/test CI already shipped.)_
 
 ---
 
