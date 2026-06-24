@@ -8,6 +8,7 @@ import { TradesModule } from './TradesModule';
 import { MultiExchangeModule } from './MultiExchangeModule';
 import { DerivativesModule } from './DerivativesModule';
 import { ScreenerModule } from './ScreenerModule';
+import { HeatmapModule } from './HeatmapModule';
 import { AiCopilotModule } from './AiCopilotModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
@@ -26,6 +27,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> =
   ALLQ: MultiExchangeModule,
   FUND: DerivativesModule,
   SCR: ScreenerModule,
+  HEAT: HeatmapModule,
   AI: AiCopilotModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
