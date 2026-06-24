@@ -133,4 +133,60 @@ describe('formatting', () => {
   it('describeThreshold reads naturally', () => {
     expect(describeThreshold(mk({ metric: 'price', op: 'above', value: 70000 }))).toContain('price ≥');
   });
+
+  it('opSymbol and formatActual cover the new op / metric', () => {
+    expect(opSymbol('cross')).toBe('⇄');
+    expect(formatActual('change', -5.234)).toBe('-5.23%');
+  });
+});
+
+describe('evaluateAlerts — 24h %-change metric', () => {
+  it('reads the change reading and fires below a negative threshold', () => {
+    let s = tick(mk({ metric: 'change', op: 'below', value: -5 }), { 'BTC/USDT': { change: -3 } });
+    expect(s.fired).toBe(0);
+    s = tick(s.a, { 'BTC/USDT': { change: -6 } });
+    expect(s.fired).toBe(1);
+  });
+});
+
+describe('evaluateAlerts — cross trigger', () => {
+  it('does not fire on the first tick (no previous reading)', () => {
+    const s = tick(mk({ op: 'cross', value: 70000 }), { 'BTC/USDT': { price: 80000 } });
+    expect(s.fired).toBe(0);
+    expect(s.a.lastValue).toBe(80000);
+  });
+
+  it('fires when crossing up through the level', () => {
+    let s = tick(mk({ op: 'cross', value: 70000 }), { 'BTC/USDT': { price: 69000 } });
+    expect(s.fired).toBe(0);
+    s = tick(s.a, { 'BTC/USDT': { price: 71000 } });
+    expect(s.fired).toBe(1);
+  });
+
+  it('fires when crossing down through the level', () => {
+    let s = tick(mk({ op: 'cross', value: 70000 }), { 'BTC/USDT': { price: 71000 } });
+    expect(s.fired).toBe(0);
+    s = tick(s.a, { 'BTC/USDT': { price: 69000 } });
+    expect(s.fired).toBe(1);
+  });
+
+  it('one-shot cross latches after firing', () => {
+    let s = tick(mk({ op: 'cross', value: 70000, repeat: false }), { 'BTC/USDT': { price: 69000 } });
+    s = tick(s.a, { 'BTC/USDT': { price: 71000 } }); // cross up → fire
+    expect(s.fired).toBe(1);
+    expect(s.a.status).toBe('triggered');
+    s = tick(s.a, { 'BTC/USDT': { price: 69000 } }); // cross back → latched, no fire
+    expect(s.fired).toBe(0);
+  });
+
+  it('repeatable cross fires on every crossing', () => {
+    let s = tick(mk({ op: 'cross', value: 70000, repeat: true }), { 'BTC/USDT': { price: 69000 } });
+    s = tick(s.a, { 'BTC/USDT': { price: 71000 } });
+    expect(s.fired).toBe(1);
+    expect(s.a.status).toBe('armed');
+    s = tick(s.a, { 'BTC/USDT': { price: 69000 } });
+    expect(s.fired).toBe(1);
+    s = tick(s.a, { 'BTC/USDT': { price: 71000 } });
+    expect(s.fired).toBe(1);
+  });
 });

@@ -16,11 +16,13 @@ import type { ModuleProps } from './types';
 const METRICS: { code: AlertMetric; label: string }[] = [
   { code: 'price', label: 'Price' },
   { code: 'funding', label: 'Funding %' },
+  { code: 'change', label: '24h %' },
 ];
 
 const OPS: { code: AlertOp; label: string }[] = [
   { code: 'above', label: 'rises ≥' },
   { code: 'below', label: 'falls ≤' },
+  { code: 'cross', label: 'crosses' },
 ];
 
 const inputCls =
@@ -85,7 +87,7 @@ export function AlertsModule({ panel }: ModuleProps) {
             onChange={(e) => setValue(e.target.value)}
             type="number"
             step="any"
-            placeholder={metric === 'funding' ? '0.05 (%)' : 'price'}
+            placeholder={metric === 'price' ? 'price' : '%'}
             className={`${inputCls} flex-1`}
           />
         </div>
@@ -134,7 +136,8 @@ export function AlertsModule({ panel }: ModuleProps) {
           <table className="w-full text-2xs">
             <tbody>
               {alerts.map((a) => {
-                const tone = a.op === 'above' ? 'text-term-up' : 'text-term-down';
+                const tone =
+                  a.op === 'cross' ? 'text-term-amber' : a.op === 'above' ? 'text-term-up' : 'text-term-down';
                 const dot = !a.enabled
                   ? 'text-term-dim'
                   : a.status === 'triggered'

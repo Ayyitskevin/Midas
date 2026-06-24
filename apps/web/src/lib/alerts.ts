@@ -8,8 +8,8 @@
 
 import { fmtPrice } from './format';
 
-export type AlertMetric = 'price' | 'funding';
-export type AlertOp = 'above' | 'below';
+export type AlertMetric = 'price' | 'funding' | 'change';
+export type AlertOp = 'above' | 'below' | 'cross';
 export type AlertStatus = 'armed' | 'triggered';
 
 export interface Alert {
@@ -49,6 +49,8 @@ export interface Reading {
   price?: number;
   /** Funding rate already scaled to percent (rate * 100). */
   funding?: number;
+  /** 24h price change, in percent. */
+  change?: number;
 }
 export type Readings = Record<string, Reading>;
 
@@ -59,11 +61,15 @@ export type Readings = Record<string, Reading>;
 function readingFor(alert: Alert, readings: Readings): number | undefined {
   const r = readings[alert.symbol];
   if (!r) return undefined;
-  return alert.metric === 'price' ? r.price : r.funding;
+  if (alert.metric === 'price') return r.price;
+  if (alert.metric === 'funding') return r.funding;
+  return r.change;
 }
 
 export function conditionMet(actual: number, op: AlertOp, value: number): boolean {
-  return op === 'above' ? actual >= value : actual <= value;
+  if (op === 'above') return actual >= value;
+  if (op === 'below') return actual <= value;
+  return false; // 'cross' is judged against the previous reading, not a single value
 }
 
 /**
@@ -79,26 +85,47 @@ export function evaluateAlerts(
 ): { next: Alert[]; fired: AlertTrigger[] } {
   const fired: AlertTrigger[] = [];
   let seq = 0;
+  const mkTrigger = (a: Alert, actual: number): AlertTrigger => ({
+    id: `trg_${now.toString(36)}_${(seq++).toString(36)}`,
+    alertId: a.id,
+    symbol: a.symbol,
+    metric: a.metric,
+    op: a.op,
+    value: a.value,
+    actual,
+    at: now,
+  });
 
   const next = alerts.map((a) => {
     if (!a.enabled) return a;
     const actual = readingFor(a, readings);
     if (actual == null || !Number.isFinite(actual)) return a;
 
+    // A "cross" fires when the value moves through the threshold from either
+    // side — judged against the previous reading, so it can't fire on the
+    // first tick. Repeatable crosses stay armed; one-shot crosses latch.
+    if (a.op === 'cross') {
+      const prev = a.lastValue;
+      const crossed =
+        prev != null &&
+        ((prev < a.value && actual >= a.value) || (prev > a.value && actual <= a.value));
+      if (a.status === 'armed' && crossed) {
+        fired.push(mkTrigger(a, actual));
+        return {
+          ...a,
+          status: a.repeat ? ('armed' as const) : ('triggered' as const),
+          lastValue: actual,
+          triggeredAt: now,
+        };
+      }
+      return { ...a, lastValue: actual };
+    }
+
     const met = conditionMet(actual, a.op, a.value);
 
     if (a.status === 'armed') {
       if (met) {
-        fired.push({
-          id: `trg_${now.toString(36)}_${(seq++).toString(36)}`,
-          alertId: a.id,
-          symbol: a.symbol,
-          metric: a.metric,
-          op: a.op,
-          value: a.value,
-          actual,
-          at: now,
-        });
+        fired.push(mkTrigger(a, actual));
         return { ...a, status: 'triggered' as const, lastValue: actual, triggeredAt: now };
       }
       return { ...a, lastValue: actual };
@@ -119,7 +146,7 @@ export function evaluateAlerts(
 // ---------------------------------------------------------------------------
 
 export function opSymbol(op: AlertOp): string {
-  return op === 'above' ? '≥' : '≤';
+  return op === 'above' ? '≥' : op === 'below' ? '≤' : '⇄';
 }
 
 export function formatThreshold(metric: AlertMetric, value: number): string {
@@ -128,7 +155,8 @@ export function formatThreshold(metric: AlertMetric, value: number): string {
 
 export function formatActual(metric: AlertMetric, value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—';
-  return metric === 'price' ? fmtPrice(value) : `${value.toFixed(4)}%`;
+  if (metric === 'price') return fmtPrice(value);
+  return `${value.toFixed(metric === 'funding' ? 4 : 2)}%`;
 }
 
 /** The condition clause, e.g. "price ≥ 70,000" or "funding ≤ 0.05%". */
