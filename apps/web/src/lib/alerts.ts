@@ -1,161 +1,38 @@
 /**
- * Alerts — types, the pure crossing evaluator, and the browser-side
- * notification helpers (toast text, Web Notification, audio beep).
+ * Browser-side alert helpers: formatting (uses the terminal price formatter)
+ * and notifications (toast text, Web Notification, audio beep).
  *
- * The evaluator is deliberately pure (no store / DOM access) so it can be
- * unit-reasoned and reused; the store calls it on every poll tick.
+ * The data contract and the pure evaluator now live in @midas/shared (shared
+ * with the server's background engine); they are re-exported here so existing
+ * imports from '@/lib/alerts' keep working unchanged.
  */
 
 import { fmtPrice } from './format';
+import { opSymbol } from '@midas/shared';
+import type { Alert, AlertMetric, AlertTrigger } from '@midas/shared';
 
-export type AlertMetric = 'price' | 'funding' | 'change';
-export type AlertOp = 'above' | 'below' | 'cross';
-export type AlertStatus = 'armed' | 'triggered';
-
-export interface Alert {
-  id: string;
-  /** Uppercase pair, e.g. BTC/USDT. */
-  symbol: string;
-  metric: AlertMetric;
-  op: AlertOp;
-  /** Threshold in the metric's units — quote currency for price, percent for funding. */
-  value: number;
-  note?: string;
-  /** Disabled alerts are skipped by the engine but kept in the list. */
-  enabled: boolean;
-  /** Re-arm automatically once the condition clears (otherwise one-shot). */
-  repeat: boolean;
-  status: AlertStatus;
-  /** Most recent observed value, for the live "now" column. */
-  lastValue: number | null;
-  createdAt: number;
-  triggeredAt: number | null;
-}
-
-/** A record of one moment an alert's condition was crossed. */
-export interface AlertTrigger {
-  id: string;
-  alertId: string;
-  symbol: string;
-  metric: AlertMetric;
-  op: AlertOp;
-  value: number;
-  actual: number;
-  at: number;
-}
-
-/** Per-symbol values gathered by the engine each tick. */
-export interface Reading {
-  price?: number;
-  /** Funding rate already scaled to percent (rate * 100). */
-  funding?: number;
-  /** 24h price change, in percent. */
-  change?: number;
-}
-export type Readings = Record<string, Reading>;
-
-// ---------------------------------------------------------------------------
-// Evaluation
-// ---------------------------------------------------------------------------
-
-function readingFor(alert: Alert, readings: Readings): number | undefined {
-  const r = readings[alert.symbol];
-  if (!r) return undefined;
-  if (alert.metric === 'price') return r.price;
-  if (alert.metric === 'funding') return r.funding;
-  return r.change;
-}
-
-export function conditionMet(actual: number, op: AlertOp, value: number): boolean {
-  if (op === 'above') return actual >= value;
-  if (op === 'below') return actual <= value;
-  return false; // 'cross' is judged against the previous reading, not a single value
-}
-
-/**
- * Direction to arm when a user clicks a level on the chart: `above` if the
- * level sits at/above the current price, otherwise `below`.
- */
-export function alertOpForLevel(level: number, reference: number): AlertOp {
-  return level >= reference ? 'above' : 'below';
-}
-
-/**
- * Fold fresh readings into the alert set, firing on the *edge* where an armed
- * alert's condition first becomes true. Returns the next alert array and the
- * triggers that fired this pass. Repeatable alerts re-arm once their condition
- * clears; one-shot alerts stay `triggered` until the user re-arms them.
- */
-export function evaluateAlerts(
-  alerts: Alert[],
-  readings: Readings,
-  now: number,
-): { next: Alert[]; fired: AlertTrigger[] } {
-  const fired: AlertTrigger[] = [];
-  let seq = 0;
-  const mkTrigger = (a: Alert, actual: number): AlertTrigger => ({
-    id: `trg_${now.toString(36)}_${(seq++).toString(36)}`,
-    alertId: a.id,
-    symbol: a.symbol,
-    metric: a.metric,
-    op: a.op,
-    value: a.value,
-    actual,
-    at: now,
-  });
-
-  const next = alerts.map((a) => {
-    if (!a.enabled) return a;
-    const actual = readingFor(a, readings);
-    if (actual == null || !Number.isFinite(actual)) return a;
-
-    // A "cross" fires when the value moves through the threshold from either
-    // side — judged against the previous reading, so it can't fire on the
-    // first tick. Repeatable crosses stay armed; one-shot crosses latch.
-    if (a.op === 'cross') {
-      const prev = a.lastValue;
-      const crossed =
-        prev != null &&
-        ((prev < a.value && actual >= a.value) || (prev > a.value && actual <= a.value));
-      if (a.status === 'armed' && crossed) {
-        fired.push(mkTrigger(a, actual));
-        return {
-          ...a,
-          status: a.repeat ? ('armed' as const) : ('triggered' as const),
-          lastValue: actual,
-          triggeredAt: now,
-        };
-      }
-      return { ...a, lastValue: actual };
-    }
-
-    const met = conditionMet(actual, a.op, a.value);
-
-    if (a.status === 'armed') {
-      if (met) {
-        fired.push(mkTrigger(a, actual));
-        return { ...a, status: 'triggered' as const, lastValue: actual, triggeredAt: now };
-      }
-      return { ...a, lastValue: actual };
-    }
-
-    // Already triggered: re-arm a repeatable alert once the condition clears.
-    if (a.repeat && !met) {
-      return { ...a, status: 'armed' as const, lastValue: actual };
-    }
-    return { ...a, lastValue: actual };
-  });
-
-  return { next, fired };
-}
+export {
+  alertOpForLevel,
+  conditionMet,
+  evaluateAlerts,
+  newAlert,
+  opSymbol,
+  parseAlertInput,
+} from '@midas/shared';
+export type {
+  Alert,
+  AlertInput,
+  AlertMetric,
+  AlertOp,
+  AlertStatus,
+  AlertTrigger,
+  Reading,
+  Readings,
+} from '@midas/shared';
 
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------
-
-export function opSymbol(op: AlertOp): string {
-  return op === 'above' ? '≥' : op === 'below' ? '≤' : '⇄';
-}
 
 export function formatThreshold(metric: AlertMetric, value: number): string {
   return metric === 'price' ? fmtPrice(value) : `${value}%`;

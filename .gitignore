@@ -23,6 +23,10 @@ pnpm-debug.log*
 # Test / coverage
 coverage/
 
+# Server state (alerts store)
+data/
+**/data/
+
 # Editor / OS
 .DS_Store
 .idea/

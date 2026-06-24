@@ -25,8 +25,13 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       HOST: 0.0.0.0
       PORT: "4000"
+      # Background alert engine — rules + triggers persist in the data volume.
+      MIDAS_DATA_DIR: /app/data
+      MIDAS_ALERT_INTERVAL_MS: ${MIDAS_ALERT_INTERVAL_MS:-15000}
     expose:
       - "4000"
+    volumes:
+      - midas-data:/app/data
     restart: unless-stopped
 
   web:
@@ -38,3 +43,6 @@ services:
     depends_on:
       - server
     restart: unless-stopped
+
+volumes:
+  midas-data:

@@ -7,13 +7,23 @@ import { config } from './config';
 import { ProviderError, type DataProvider } from './providers';
 import { registerRoutes } from './routes';
 import { createStreamHub, registerStream } from './streaming';
+import { AlertRepo } from './alerts/repo';
+import { registerAlertRoutes } from './alerts/routes';
+
+export interface BuildAppOptions {
+  /** Alert store; defaults to an in-memory repo (tests). index.ts injects a file-backed one. */
+  alertRepo?: AlertRepo;
+}
 
 /**
  * Build a fully-wired Fastify instance (routes, streaming, error handlers)
  * without starting it listening — so `index.ts` can `listen()` and tests can
  * drive it via `app.inject()`.
  */
-export async function buildApp(provider: DataProvider): Promise<FastifyInstance> {
+export async function buildApp(
+  provider: DataProvider,
+  opts: BuildAppOptions = {},
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
   });
@@ -22,6 +32,7 @@ export async function buildApp(provider: DataProvider): Promise<FastifyInstance>
   await app.register(websocket);
 
   registerRoutes(app, provider);
+  registerAlertRoutes(app, opts.alertRepo ?? new AlertRepo());
   registerStream(app, createStreamHub(provider));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
