@@ -6,6 +6,7 @@ import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
+import { LoginGate } from './components/LoginGate';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -29,16 +30,18 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col">
-      <TopBar />
-      <Ticker />
-      <WorkspaceTabs />
-      <main className="min-h-0 flex-1">
-        <Workspace />
-      </main>
-      <StatusBar />
-      <AlertsEngine />
-      <ToastHost />
-    </div>
+    <LoginGate>
+      <div className="flex h-full flex-col">
+        <TopBar />
+        <Ticker />
+        <WorkspaceTabs />
+        <main className="min-h-0 flex-1">
+          <Workspace />
+        </main>
+        <StatusBar />
+        <AlertsEngine />
+        <ToastHost />
+      </div>
+    </LoginGate>
   );
 }
