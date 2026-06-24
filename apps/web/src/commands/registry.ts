@@ -237,6 +237,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Trade journal — log entries/exits, score R-multiples, and track win rate, expectancy and total R.',
   },
   {
+    code: 'PNL',
+    aliases: ['FEE', 'FEES', 'ROE'],
+    title: 'P&L Calculator',
+    module: 'PNL',
+    requiresSymbol: false,
+    description: 'Trade P&L & fee calculator — gross/net P&L, ROE, fees paid and fee-inclusive break-even.',
+  },
+  {
     code: 'ACCT',
     aliases: ['ACCOUNT'],
     title: 'Account',
