@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "moduleResolution": "Bundler",
+    "useDefineForClassFields": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@midas/shared": ["../../packages/shared/src/index.ts"],
+      "@/*": ["src/*"]
+    }
+  },
+  "include": ["src"]
+}
