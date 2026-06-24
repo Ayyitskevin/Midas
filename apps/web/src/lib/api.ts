@@ -158,6 +158,12 @@ export const api = {
   putPortfolio: (blob: unknown, signal?: AbortSignal) =>
     apiSend<{ ok: boolean; updatedAt: number }>('PUT', '/api/portfolio', blob, signal),
 
+  // Per-user watchlist sync — the lists blob is opaque to the server.
+  getWatchlists: (signal?: AbortSignal) =>
+    apiGet<SnapshotResponse>('/api/watchlists', signal),
+  putWatchlists: (blob: unknown, signal?: AbortSignal) =>
+    apiSend<{ ok: boolean; updatedAt: number }>('PUT', '/api/watchlists', blob, signal),
+
   // Auth.
   authStatus: (signal?: AbortSignal) => apiGet<AuthStatus>('/api/auth/status', signal),
   me: (signal?: AbortSignal) => apiGet<User>('/api/auth/me', signal),

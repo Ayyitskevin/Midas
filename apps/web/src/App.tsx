@@ -10,6 +10,7 @@ import { LoginGate } from './components/LoginGate';
 import { CommandPalette } from './components/CommandPalette';
 import { WorkspaceSync } from './components/WorkspaceSync';
 import { PortfolioSync } from './components/PortfolioSync';
+import { WatchlistSync } from './components/WatchlistSync';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -47,6 +48,7 @@ export default function App() {
         <CommandPalette />
         <WorkspaceSync />
         <PortfolioSync />
+        <WatchlistSync />
       </div>
     </LoginGate>
   );

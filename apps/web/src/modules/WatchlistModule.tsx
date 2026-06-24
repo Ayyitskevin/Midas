@@ -11,7 +11,20 @@ export function WatchlistModule({ panel }: ModuleProps) {
   const symbols = useWatchlist((s) => s.symbols);
   const remove = useWatchlist((s) => s.remove);
   const add = useWatchlist((s) => s.add);
+  const lists = useWatchlist((s) => s.lists);
+  const activeId = useWatchlist((s) => s.activeId);
+  const switchList = useWatchlist((s) => s.switchList);
+  const addList = useWatchlist((s) => s.addList);
+  const renameList = useWatchlist((s) => s.renameList);
+  const removeList = useWatchlist((s) => s.removeList);
   const [input, setInput] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+
+  const commitRename = (id: string) => {
+    renameList(id, editName);
+    setEditingId(null);
+  };
 
   const { data, error, loading, refresh } = useFetch(
     (signal) => api.quotes(symbols, signal),
@@ -22,6 +35,67 @@ export function WatchlistModule({ panel }: ModuleProps) {
 
   return (
     <div className="flex h-full flex-col">
+      <div className="no-drag flex items-center gap-0.5 overflow-x-auto border-b border-term-border px-1 py-0.5 text-2xs scroll-term">
+        {lists.map((l) => {
+          const active = l.id === activeId;
+          if (editingId === l.id) {
+            return (
+              <input
+                key={l.id}
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={() => commitRename(l.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename(l.id);
+                  else if (e.key === 'Escape') setEditingId(null);
+                }}
+                placeholder={l.name}
+                className="w-20 rounded-sm border border-term-amber bg-transparent px-1 py-0.5 text-term-text outline-none"
+              />
+            );
+          }
+          return (
+            <span
+              key={l.id}
+              onClick={() => switchList(l.id)}
+              onDoubleClick={() => {
+                setEditingId(l.id);
+                setEditName(l.name);
+              }}
+              title="Click to switch · double-click to rename"
+              className={`group flex shrink-0 cursor-pointer items-center gap-1 rounded-sm px-1.5 py-0.5 ${
+                active ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'
+              }`}
+            >
+              {l.name}
+              {lists.length > 1 && (
+                <button
+                  className="text-term-dim opacity-0 transition-opacity hover:text-term-down group-hover:opacity-100"
+                  title="Remove list"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeList(l.id);
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </span>
+          );
+        })}
+        <button
+          className="shrink-0 px-1.5 py-0.5 text-term-dim hover:text-term-amber"
+          title="New list"
+          onClick={() => {
+            const id = addList();
+            setEditingId(id);
+            setEditName('');
+          }}
+        >
+          +
+        </button>
+      </div>
       <div className="scroll-term flex-1 overflow-auto">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-term-panel">
