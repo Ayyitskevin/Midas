@@ -101,6 +101,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Funding rates & open interest across the top perps — sortable board.',
   },
   {
+    code: 'LIQS',
+    aliases: ['LIQUIDATIONS', 'REKT'],
+    title: 'Liquidations',
+    module: 'LIQS',
+    requiresSymbol: false,
+    description: 'Market-wide liquidations feed across the top perps.',
+  },
+  {
     code: 'SCR',
     aliases: ['EQS', 'SCREEN', 'MOVERS'],
     title: 'Screener',

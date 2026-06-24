@@ -86,6 +86,23 @@ describe('GET /api/funding', () => {
   });
 });
 
+describe('GET /api/liquidations', () => {
+  it('returns a merged, newest-first feed with notional values', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const events = res.json();
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0]).toHaveProperty('symbol');
+    expect(events[0]).toHaveProperty('value');
+    expect(['buy', 'sell']).toContain(events[0].side);
+    // newest-first
+    for (let i = 1; i < events.length; i++) {
+      expect(events[i - 1].timestamp).toBeGreaterThanOrEqual(events[i].timestamp);
+    }
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });
