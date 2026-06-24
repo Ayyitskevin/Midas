@@ -246,3 +246,6 @@ export function isInterval(value: string): value is Interval {
 export function isRange(value: string): value is Range {
   return (RANGES as readonly string[]).includes(value);
 }
+
+// Alert data contract + pure evaluator, shared by client and server.
+export * from './alerts';

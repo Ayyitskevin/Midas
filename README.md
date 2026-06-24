@@ -163,8 +163,15 @@ a panel type means writing a module component and registering it.
 | `GET /api/history/:symbol`         | `HistoryResponse` (OHLCV candles)|
 | `GET /api/search?q=`               | `SearchResult[]`                 |
 | `GET /api/news?symbol=`            | `NewsItem[]`                     |
+| `GET/POST/PATCH/DELETE /api/alerts` | server-side alert rules (CRUD)  |
+| `GET /api/alerts/log`              | recent server-fired triggers     |
 
 `/api/history` accepts `interval` (`1m`…`1mo`) and `range` (`1d`…`max`).
+
+The server also runs a **background alert engine**: it evaluates the stored
+alert rules on a timer using the active provider and records fires — so alerts
+keep evaluating even with no browser open. Rules + triggers persist to
+`MIDAS_ALERTS_FILE` (the `midas-data` volume under Docker).
 
 ---
 
@@ -182,6 +189,8 @@ Server (environment variables):
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
+| `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts) is stored.|
+| `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).
