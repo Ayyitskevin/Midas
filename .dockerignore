@@ -1,0 +1,20 @@
+# Build artifacts & deps — installed fresh inside the image.
+**/node_modules
+**/dist
+**/.vite
+**/.turbo
+
+# VCS & local tooling
+.git
+.github
+**/*.log
+
+# Local env / secrets — never bake into an image.
+.env
+**/.env
+!**/.env.example
+
+# Editor / OS cruft
+.vscode
+.idea
+**/.DS_Store
