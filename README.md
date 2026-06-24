@@ -19,6 +19,7 @@ workspace. Inspired by [Gödel Terminal](https://godelterminal.com).
 
 - **Command-driven UI.** A Bloomberg-style command line with history,
   fuzzy autocomplete and "type anywhere to focus." `TICKER FUNCTION` grammar.
+  A **⌘K / Ctrl-K command palette** fuzzy-jumps to any command or symbol.
 - **Tiling panel workspace.** Drag, resize and arrange panels on a 12-column
   grid. Layout + watchlist persist in your browser.
 - **Starter modules:** Description/quote (`DES`), price chart (`GP`/`GIP`),
