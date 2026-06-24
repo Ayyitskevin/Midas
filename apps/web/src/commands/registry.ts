@@ -91,6 +91,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Treemap of the market — tiles sized by volume, colored by 24h change.',
   },
   {
+    code: 'CORR',
+    aliases: ['COR', 'CORREL'],
+    title: 'Correlation Matrix',
+    module: 'CORR',
+    requiresSymbol: false,
+    description: 'Return-correlation grid across your watchlist symbols.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
