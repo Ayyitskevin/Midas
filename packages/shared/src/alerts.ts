@@ -11,6 +11,8 @@ export type AlertStatus = 'armed' | 'triggered';
 
 export interface Alert {
   id: string;
+  /** Owning user id (server-side, multi-user); absent for single-user / local alerts. */
+  userId?: string;
   /** Uppercase pair, e.g. BTC/USDT. */
   symbol: string;
   metric: AlertMetric;
@@ -33,6 +35,8 @@ export interface Alert {
 export interface AlertTrigger {
   id: string;
   alertId: string;
+  /** Owning user id, copied from the alert (for per-user trigger logs). */
+  userId?: string;
   symbol: string;
   metric: AlertMetric;
   op: AlertOp;
@@ -166,6 +170,7 @@ export function evaluateAlerts(
   const mkTrigger = (a: Alert, actual: number): AlertTrigger => ({
     id: `trg_${now.toString(36)}_${(seq++).toString(36)}`,
     alertId: a.id,
+    userId: a.userId,
     symbol: a.symbol,
     metric: a.metric,
     op: a.op,

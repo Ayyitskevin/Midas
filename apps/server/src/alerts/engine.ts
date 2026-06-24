@@ -11,7 +11,7 @@ export async function evaluateOnce(
   provider: DataProvider,
   now: number,
 ): Promise<AlertTrigger[]> {
-  const all = repo.list();
+  const all = repo.all();
   const active = all.filter((a) => a.enabled);
   if (active.length === 0) return [];
 
