@@ -118,6 +118,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW`, `BREADTH` | no    | Market overview — top gainers, losers, most active + breadth.|
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
+| `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |

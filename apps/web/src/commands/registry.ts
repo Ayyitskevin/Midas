@@ -141,6 +141,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Return-correlation grid across your watchlist symbols.',
   },
   {
+    code: 'CAL',
+    aliases: ['CALENDAR', 'EVENTS', 'ECON'],
+    title: 'Market Calendar',
+    module: 'CAL',
+    requiresSymbol: false,
+    description: 'Upcoming market timing — funding settlements, options/futures expiries and candle closes.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
