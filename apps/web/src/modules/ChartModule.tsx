@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ColorType,
   CrosshairMode,
@@ -13,6 +13,7 @@ import { useFetch } from '@/lib/hooks';
 import { usePanels } from '@/store/usePanels';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { bollinger, ema, sma, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
 
 interface Preset {
@@ -49,6 +50,9 @@ export function ChartModule({ panel }: ModuleProps) {
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const indicatorSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
+
+  const [ind, setInd] = useState({ sma: true, ema: false, bb: false });
 
   // Create the chart once, on mount.
   useEffect(() => {
@@ -124,6 +128,36 @@ export function ChartModule({ panel }: ModuleProps) {
     chart.timeScale().fitContent();
   }, [data]);
 
+  // Indicator overlays — rebuilt when data or the enabled studies change.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !data) return;
+
+    for (const s of indicatorSeriesRef.current) chart.removeSeries(s);
+    indicatorSeriesRef.current = [];
+
+    const addLine = (points: LinePoint[], color: string) => {
+      const series = chart.addLineSeries({
+        color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      series.setData(points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+      indicatorSeriesRef.current.push(series);
+    };
+
+    if (ind.sma) addLine(sma(data.candles, 20), '#ffb000');
+    if (ind.ema) addLine(ema(data.candles, 50), '#4cc2ff');
+    if (ind.bb) {
+      const bands = bollinger(data.candles, 20, 2);
+      addLine(bands.upper, 'rgba(122,127,135,0.8)');
+      addLine(bands.lower, 'rgba(122,127,135,0.8)');
+      addLine(bands.middle, 'rgba(122,127,135,0.4)');
+    }
+  }, [data, ind]);
+
   const perf = useMemo(() => {
     if (!data || data.candles.length < 2) return null;
     const first = data.candles[0].close;
@@ -163,6 +197,24 @@ export function ChartModule({ panel }: ModuleProps) {
             );
           })}
         </div>
+      </div>
+      <div className="no-drag flex items-center gap-1 border-b border-term-border px-2 py-0.5 text-2xs">
+        <span className="mr-1 text-term-dim">studies</span>
+        {([
+          ['sma', 'SMA 20'],
+          ['ema', 'EMA 50'],
+          ['bb', 'BB 20'],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setInd((p) => ({ ...p, [key]: !p[key] }))}
+            className={`rounded-sm px-1.5 py-0.5 ${
+              ind[key] ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0" />
