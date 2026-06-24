@@ -11,6 +11,7 @@ export type ModuleCode =
   | 'ALLQ'
   | 'FUND'
   | 'SCR'
+  | 'HEAT'
   | 'AI'
   | 'W'
   | 'N'
@@ -39,6 +40,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   ALLQ: { code: 'ALLQ', title: 'Multi-Exchange', w: 5, h: 8, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
   SCR: { code: 'SCR', title: 'Screener', w: 4, h: 11, minW: 3, minH: 6 },
+  HEAT: { code: 'HEAT', title: 'Heatmap', w: 6, h: 9, minW: 4, minH: 5 },
   AI: { code: 'AI', title: 'Copilot', w: 4, h: 12, minW: 3, minH: 8 },
   W: { code: 'W', title: 'Watchlist', w: 3, h: 12, minW: 2, minH: 6 },
   N: { code: 'N', title: 'News', w: 4, h: 12, minW: 3, minH: 6 },

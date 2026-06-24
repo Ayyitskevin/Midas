@@ -83,6 +83,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Screen crypto markets by volume, 24h change or price.',
   },
   {
+    code: 'HEAT',
+    aliases: ['MAP', 'HM'],
+    title: 'Market Heatmap',
+    module: 'HEAT',
+    requiresSymbol: false,
+    description: 'Treemap of the market — tiles sized by volume, colored by 24h change.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
