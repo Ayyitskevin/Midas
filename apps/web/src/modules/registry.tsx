@@ -19,6 +19,7 @@ function mod(
 export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<ComponentType<ModuleProps>>> = {
   DES: mod(() => import('./DescriptionModule'), 'DescriptionModule'),
   GP: mod(() => import('./ChartModule'), 'ChartModule'),
+  COMP: mod(() => import('./ComparisonModule'), 'ComparisonModule'),
   BOOK: mod(() => import('./OrderBookModule'), 'OrderBookModule'),
   TAS: mod(() => import('./TradesModule'), 'TradesModule'),
   ALLQ: mod(() => import('./MultiExchangeModule'), 'MultiExchangeModule'),
