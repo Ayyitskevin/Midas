@@ -6,9 +6,18 @@ import type {
   OrderBook,
   Quote,
   Range,
+  ScreenerRow,
   SearchResult,
   VenueQuote,
 } from '@midas/shared';
+
+export interface ScreenerOptions {
+  /** Quote currency to screen, e.g. USDT. */
+  quote?: string;
+  /** Sort key: 'volume' (default) | 'change' | 'price'. */
+  sort?: string;
+  limit?: number;
+}
 
 export interface HistoryOptions {
   interval: Interval;
@@ -32,6 +41,7 @@ export interface DataProvider {
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
   getDerivatives(symbol: string): Promise<DerivativesInfo>;
+  screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
 }

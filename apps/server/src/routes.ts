@@ -86,6 +86,16 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getDerivatives(symbol);
   });
 
+  app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
+    '/api/screener',
+    async (req) => {
+      const limitRaw = Number(req.query.limit);
+      const limit =
+        Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 50;
+      return provider.screen({ quote: req.query.quote, sort: req.query.sort, limit });
+    },
+  );
+
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
     const q = (req.query.q ?? '').trim();
     if (q.length === 0) return [];

@@ -8,6 +8,7 @@ import type {
   OrderBook,
   Quote,
   Range,
+  ScreenerRow,
   SearchResult,
   VenueQuote,
 } from '@midas/shared';
@@ -61,6 +62,12 @@ export const api = {
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
+
+  screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
+    apiGet<ScreenerRow[]>(
+      `/api/screener?quote=${encodeURIComponent(quote)}&sort=${sort}&limit=${limit}`,
+      signal,
+    ),
 
   search: (query: string, signal?: AbortSignal) =>
     query.trim().length === 0
