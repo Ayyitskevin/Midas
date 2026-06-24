@@ -16,6 +16,7 @@ export {
   conditionMet,
   evaluateAlerts,
   newAlert,
+  newTriggersSince,
   opSymbol,
   parseAlertInput,
 } from '@midas/shared';

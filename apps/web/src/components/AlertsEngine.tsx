@@ -2,25 +2,71 @@ import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAlerts } from '@/store/useAlerts';
 import { useToasts } from '@/store/useToasts';
-import { notifyTrigger, playBeep, triggerHeadline, triggerBody, type Readings } from '@/lib/alerts';
+import {
+  newTriggersSince,
+  notifyTrigger,
+  playBeep,
+  triggerHeadline,
+  triggerBody,
+  type AlertTrigger,
+  type Readings,
+} from '@/lib/alerts';
 
 const POLL_MS = 4000;
 
+function toneFor(t: AlertTrigger): 'up' | 'down' | 'info' {
+  return t.op === 'cross' ? 'info' : t.op === 'above' ? 'up' : 'down';
+}
+
 /**
- * Invisible, app-mounted loop that evaluates alerts against fresh market data
- * even when no alerts panel is open. Polls quotes (and derivatives for funding
- * alerts) every few seconds, folds them through the store, and fires a toast /
- * Web Notification / beep for each crossing.
+ * Invisible, app-mounted loop. In **local** mode it evaluates alerts against
+ * fresh market data client-side; in **server** mode the server evaluates and
+ * this just polls the trigger log to surface fires the user hasn't seen yet.
+ * Either way a fire becomes a toast / Web Notification / beep.
  */
 export function AlertsEngine() {
   const inFlight = useRef(false);
+  const prevMode = useRef<string>('');
+  const lastSeen = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
-    async function tick() {
+    const announce = (fired: AlertTrigger[]): void => {
+      const push = useToasts.getState().push;
+      for (const t of fired) {
+        push({ title: triggerHeadline(t), body: triggerBody(t), tone: toneFor(t) });
+        notifyTrigger(t);
+      }
+      if (fired.length > 0 && useAlerts.getState().soundEnabled) playBeep();
+    };
+
+    async function tick(): Promise<void> {
       if (inFlight.current) return;
+      const mode = useAlerts.getState().mode;
+      // Re-baseline so re-entering server mode doesn't replay a backlog.
+      if (mode === 'server' && prevMode.current !== 'server') lastSeen.current = null;
+      prevMode.current = mode;
+
+      // ---- server mode: poll the trigger log ----
+      if (mode === 'server') {
+        inFlight.current = true;
+        try {
+          const log = await api.alertLog(controller.signal);
+          if (cancelled) return;
+          const fresh = newTriggersSince(log, lastSeen.current);
+          lastSeen.current = log[0]?.id ?? lastSeen.current;
+          announce(fresh);
+        } catch {
+          /* server unreachable this tick */
+        } finally {
+          inFlight.current = false;
+        }
+        return;
+      }
+
+      // ---- local mode: evaluate client-side ----
       const active = useAlerts.getState().alerts.filter((a) => a.enabled);
       if (active.length === 0) return;
 
@@ -33,7 +79,6 @@ export function AlertsEngine() {
 
         const readings: Readings = {};
         const tasks: Promise<void>[] = [];
-
         if (quoteSyms.length > 0) {
           tasks.push(
             api
@@ -61,20 +106,7 @@ export function AlertsEngine() {
 
         await Promise.all(tasks);
         if (cancelled) return;
-
-        const fired = useAlerts.getState().ingest(readings);
-        if (fired.length === 0) return;
-
-        const push = useToasts.getState().push;
-        for (const t of fired) {
-          push({
-            title: triggerHeadline(t),
-            body: triggerBody(t),
-            tone: t.op === 'cross' ? 'info' : t.op === 'above' ? 'up' : 'down',
-          });
-          notifyTrigger(t);
-        }
-        if (useAlerts.getState().soundEnabled) playBeep();
+        announce(useAlerts.getState().ingest(readings));
       } finally {
         inFlight.current = false;
       }

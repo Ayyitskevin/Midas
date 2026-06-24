@@ -12,11 +12,16 @@ export interface NewAlertInput {
   repeat: boolean;
 }
 
+/** Where alerts live: in this browser (client-evaluated) or on the server. */
+export type AlertsMode = 'local' | 'server';
+
 interface AlertsState {
   alerts: Alert[];
   /** Most recent triggers, newest first (capped). */
   log: AlertTrigger[];
   soundEnabled: boolean;
+  mode: AlertsMode;
+  setMode: (mode: AlertsMode) => void;
 
   addAlert: (input: NewAlertInput) => void;
   removeAlert: (id: string) => void;
@@ -45,6 +50,9 @@ export const useAlerts = create<AlertsState>()(
       alerts: [],
       log: [],
       soundEnabled: true,
+      mode: 'local',
+
+      setMode: (mode) => set({ mode }),
 
       addAlert: (input) => {
         const symbol = input.symbol.trim().toUpperCase();
@@ -99,7 +107,7 @@ export const useAlerts = create<AlertsState>()(
     {
       name: 'midas-alerts',
       version: 1,
-      partialize: (s) => ({ alerts: s.alerts, log: s.log, soundEnabled: s.soundEnabled }),
+      partialize: (s) => ({ alerts: s.alerts, log: s.log, soundEnabled: s.soundEnabled, mode: s.mode }),
     },
   ),
 );
