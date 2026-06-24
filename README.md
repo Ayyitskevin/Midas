@@ -63,6 +63,9 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
 # symbols use BASE/QUOTE, e.g. BTC/USDT, ETH/USDT
 ```
 
+With the `ccxt` provider, the live order book, trades tape and ticker also stream
+over **CCXT Pro** websockets (no API key needed for public market data).
+
 > Running on Claude Code on the web? The sandbox network policy may block
 > external finance hosts. Either run locally, or allowlist
 > `query1.finance.yahoo.com` / `query2.finance.yahoo.com` in your
