@@ -80,6 +80,12 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getExchangeQuotes(symbol);
   });
 
+  app.get<{ Params: { symbol: string } }>('/api/derivatives/:symbol', async (req) => {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    return provider.getDerivatives(symbol);
+  });
+
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
     const q = (req.query.q ?? '').trim();
     if (q.length === 0) return [];

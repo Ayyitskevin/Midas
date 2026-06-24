@@ -166,6 +166,34 @@ export interface VenueQuote {
   timestamp: number;
 }
 
+/** A single liquidation event. */
+export interface Liquidation {
+  /** 'sell' = a long was liquidated; 'buy' = a short was liquidated. */
+  side: 'buy' | 'sell';
+  price: number;
+  /** Base-asset amount. */
+  amount: number;
+  timestamp: number;
+}
+
+/** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
+export interface DerivativesInfo {
+  /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */
+  symbol: string;
+  /** Current funding rate as a fraction (0.0001 = 0.01%). */
+  fundingRate: number | null;
+  /** Epoch millis of the next funding. */
+  nextFundingTime: number | null;
+  markPrice: number | null;
+  indexPrice: number | null;
+  /** Open interest in base units. */
+  openInterest: number | null;
+  /** Open interest notional in quote units. */
+  openInterestValue: number | null;
+  recentLiquidations: Liquidation[];
+  timestamp: number;
+}
+
 // ---------------------------------------------------------------------------
 // API envelopes
 // ---------------------------------------------------------------------------

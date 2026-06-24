@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  DerivativesInfo,
   HealthResponse,
   HistoryResponse,
   Interval,
@@ -57,6 +58,9 @@ export const api = {
 
   exchangeQuotes: (symbol: string, signal?: AbortSignal) =>
     apiGet<VenueQuote[]>(`/api/exchange-quotes/${encodeURIComponent(symbol)}`, signal),
+
+  derivatives: (symbol: string, signal?: AbortSignal) =>
+    apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
 
   search: (query: string, signal?: AbortSignal) =>
     query.trim().length === 0

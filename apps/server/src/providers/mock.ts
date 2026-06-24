@@ -1,5 +1,6 @@
 import type {
   Candle,
+  DerivativesInfo,
   HistoryResponse,
   MarketState,
   NewsItem,
@@ -228,6 +229,41 @@ export class MockProvider implements DataProvider {
         timestamp: Date.now(),
       };
     });
+  }
+
+  async getDerivatives(symbol: string): Promise<DerivativesInfo> {
+    const entry = resolveEntry(symbol);
+    const mid = this.buildQuote(entry).price;
+    const hourBucket = Math.floor(Date.now() / 3_600_000);
+    const rng = seeded(entry.symbol, hourBucket, 'deriv');
+    const oiBase = Math.floor(uniform(rng, 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
+    // Next funding at the next 8-hour boundary.
+    const nextFunding = (Math.floor(Date.now() / (8 * 3_600_000)) + 1) * (8 * 3_600_000);
+
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const lrng = seeded(entry.symbol, minuteBucket, 'liq');
+    const recentLiquidations = Array.from({ length: 12 }, (_, i) => {
+      const side = lrng() > 0.5 ? ('buy' as const) : ('sell' as const);
+      const price = round(mid * (1 + (side === 'buy' ? 1 : -1) * uniform(lrng, 0, 0.012)), 6);
+      return {
+        side,
+        price,
+        amount: round(uniform(lrng, 0.05, 8) * (mid > 1000 ? 1 : 1000), 4),
+        timestamp: Date.now() - Math.floor(i * uniform(lrng, 4_000, 30_000)),
+      };
+    });
+
+    return {
+      symbol: entry.symbol.includes(':') ? entry.symbol : `${entry.symbol}:${entry.currency}`,
+      fundingRate: round(gaussian(rng) * 0.0001, 6),
+      nextFundingTime: nextFunding,
+      markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
+      indexPrice: mid,
+      openInterest: oiBase,
+      openInterestValue: Math.floor(oiBase * mid),
+      recentLiquidations,
+      timestamp: Date.now(),
+    };
   }
 
   async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {

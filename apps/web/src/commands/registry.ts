@@ -59,6 +59,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Compare a pair across exchanges — best bid/ask and cross-exchange spread.',
   },
   {
+    code: 'FUND',
+    aliases: ['OI', 'LIQ', 'PERP'],
+    title: 'Derivatives',
+    module: 'FUND',
+    requiresSymbol: true,
+    description: 'Perp funding rate, open interest and recent liquidations.',
+  },
+  {
     code: 'W',
     aliases: ['WATCH', 'WL'],
     title: 'Watchlist',

@@ -2,6 +2,7 @@ import * as ccxt from 'ccxt';
 import type { Exchange, Ticker } from 'ccxt';
 import type {
   Candle,
+  DerivativesInfo,
   HistoryResponse,
   Interval,
   NewsItem,
@@ -164,6 +165,67 @@ export class CcxtProvider implements DataProvider {
     return settled
       .filter((r): r is PromiseFulfilledResult<VenueQuote> => r.status === 'fulfilled')
       .map((r) => r.value);
+  }
+
+  async getDerivatives(symbol: string): Promise<DerivativesInfo> {
+    const spot = this.normalize(symbol);
+    // Derive the USDT-margined perp symbol from a spot pair (BTC/USDT -> BTC/USDT:USDT).
+    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    const out: DerivativesInfo = {
+      symbol: perp,
+      fundingRate: null,
+      nextFundingTime: null,
+      markPrice: null,
+      indexPrice: null,
+      openInterest: null,
+      openInterestValue: null,
+      recentLiquidations: [],
+      timestamp: Date.now(),
+    };
+
+    if (this.exchange.has['fetchFundingRate']) {
+      try {
+        const f = await this.exchange.fetchFundingRate(perp);
+        out.fundingRate = f.fundingRate ?? null;
+        out.nextFundingTime = f.fundingTimestamp ?? f.nextFundingTimestamp ?? null;
+        out.markPrice = f.markPrice ?? null;
+        out.indexPrice = f.indexPrice ?? null;
+      } catch {
+        // funding not available for this market
+      }
+    }
+
+    if (this.exchange.has['fetchOpenInterest']) {
+      try {
+        const oi = await this.exchange.fetchOpenInterest(perp);
+        out.openInterest = oi.openInterestAmount ?? null;
+        out.openInterestValue = oi.openInterestValue ?? null;
+      } catch {
+        // open interest not available
+      }
+    }
+
+    if (this.exchange.has['fetchLiquidations']) {
+      try {
+        const liqs = (await this.exchange.fetchLiquidations(perp, undefined, 20)) as unknown as Array<{
+          side?: string;
+          price?: number;
+          amount?: number;
+          contracts?: number;
+          timestamp?: number;
+        }>;
+        out.recentLiquidations = liqs.slice(0, 20).map((l) => ({
+          side: l.side === 'sell' ? ('sell' as const) : ('buy' as const),
+          price: num(l.price),
+          amount: num(l.amount ?? l.contracts),
+          timestamp: l.timestamp ?? Date.now(),
+        }));
+      } catch {
+        // public liquidations feed not available
+      }
+    }
+
+    return out;
   }
 
   async search(query: string): Promise<SearchResult[]> {
