@@ -51,6 +51,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Live Level-2 order book / depth of market (best on crypto).',
   },
   {
+    code: 'ALLQ',
+    aliases: ['XQ', 'VENUES'],
+    title: 'Multi-Exchange Quotes',
+    module: 'ALLQ',
+    requiresSymbol: true,
+    description: 'Compare a pair across exchanges — best bid/ask and cross-exchange spread.',
+  },
+  {
     code: 'W',
     aliases: ['WATCH', 'WL'],
     title: 'Watchlist',

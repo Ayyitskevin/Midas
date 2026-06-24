@@ -88,7 +88,7 @@ export function DescriptionModule({ panel }: ModuleProps) {
       </div>
 
       <div className="flex gap-1.5 pt-1">
-        {['GP', 'GIP', 'N'].map((code) => (
+        {['GP', 'BOOK', 'ALLQ', 'N'].map((code) => (
           <button
             key={code}
             onClick={() => openModule(code, symbol)}

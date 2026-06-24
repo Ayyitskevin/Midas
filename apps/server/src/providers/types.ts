@@ -6,6 +6,7 @@ import type {
   Quote,
   Range,
   SearchResult,
+  VenueQuote,
 } from '@midas/shared';
 
 export interface HistoryOptions {
@@ -28,6 +29,7 @@ export interface DataProvider {
   getQuotes(symbols: string[]): Promise<Quote[]>;
   getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse>;
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
+  getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
 }

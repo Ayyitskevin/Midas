@@ -154,6 +154,18 @@ export interface OrderBook {
   timestamp: number;
 }
 
+/** A single venue's top-of-book quote, for the multi-exchange compare view. */
+export interface VenueQuote {
+  exchange: string;
+  price: number;
+  bid: number | null;
+  ask: number | null;
+  changePercent: number;
+  /** Base-asset 24h volume. */
+  volume: number | null;
+  timestamp: number;
+}
+
 // ---------------------------------------------------------------------------
 // API envelopes
 // ---------------------------------------------------------------------------

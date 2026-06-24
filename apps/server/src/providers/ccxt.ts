@@ -8,6 +8,7 @@ import type {
   OrderBook,
   Quote,
   SearchResult,
+  VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions } from './types';
 import { ProviderError } from './types';
@@ -47,6 +48,7 @@ export class CcxtProvider implements DataProvider {
   readonly live = true;
   private readonly exchange: Exchange;
   private marketsPromise: Promise<unknown> | null = null;
+  private compareExchanges: Exchange[] | null = null;
 
   constructor() {
     const id = (process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
@@ -143,6 +145,27 @@ export class CcxtProvider implements DataProvider {
     }
   }
 
+  async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
+    const s = this.normalize(symbol);
+    const settled = await Promise.allSettled(
+      this.getCompareExchanges().map(async (ex): Promise<VenueQuote> => {
+        const t = await ex.fetchTicker(s);
+        return {
+          exchange: ex.name ?? ex.id,
+          price: num(t.last ?? t.close),
+          bid: t.bid ?? null,
+          ask: t.ask ?? null,
+          changePercent: num(t.percentage),
+          volume: t.baseVolume ?? null,
+          timestamp: t.timestamp ?? Date.now(),
+        };
+      }),
+    );
+    return settled
+      .filter((r): r is PromiseFulfilledResult<VenueQuote> => r.status === 'fulfilled')
+      .map((r) => r.value);
+  }
+
   async search(query: string): Promise<SearchResult[]> {
     const q = query.trim().toUpperCase();
     if (!q) return [];
@@ -222,6 +245,24 @@ export class CcxtProvider implements DataProvider {
       fiftyTwoWeekLow: null,
       asOf: t.timestamp ?? Date.now(),
     };
+  }
+
+  /** Lazily build the set of exchanges used for the multi-exchange compare. */
+  private getCompareExchanges(): Exchange[] {
+    if (!this.compareExchanges) {
+      const ids = (process.env.MIDAS_CCXT_COMPARE ?? 'binance,coinbase,kraken,bitfinex,okx,kucoin')
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
+      this.compareExchanges = ids
+        .map((id) => {
+          const Ctor = registry[id];
+          return typeof Ctor === 'function' ? new Ctor({ enableRateLimit: true }) : null;
+        })
+        .filter((e): e is Exchange => e !== null);
+    }
+    return this.compareExchanges;
   }
 
   private resolveTimeframe(interval: Interval): string {

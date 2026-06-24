@@ -8,6 +8,7 @@ import type {
   Quote,
   Range,
   SearchResult,
+  VenueQuote,
 } from '@midas/shared';
 
 /** Optional base URL for the API (e.g. when web and server are on different hosts). */
@@ -53,6 +54,9 @@ export const api = {
       `/api/orderbook/${encodeURIComponent(symbol)}?depth=${depth}`,
       signal,
     ),
+
+  exchangeQuotes: (symbol: string, signal?: AbortSignal) =>
+    apiGet<VenueQuote[]>(`/api/exchange-quotes/${encodeURIComponent(symbol)}`, signal),
 
   search: (query: string, signal?: AbortSignal) =>
     query.trim().length === 0
