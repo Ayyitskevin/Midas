@@ -1,11 +1,59 @@
 import { useState } from 'react';
 import { usePanels } from '@/store/usePanels';
+import { TEMPLATES, applyTemplate } from '@/commands/templates';
+
+function NewWorkspaceMenu() {
+  const addWorkspace = usePanels((s) => s.addWorkspace);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="New workspace"
+        className="px-2 py-1 text-sm leading-none text-term-muted hover:text-term-amber"
+      >
+        +
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-7 z-50 w-60 overflow-hidden rounded-sm border border-term-border bg-term-panel text-2xs shadow-lg shadow-black/40">
+            <div className="border-b border-term-border px-2 py-1 text-term-dim">New workspace</div>
+            <button
+              onClick={() => {
+                addWorkspace();
+                setOpen(false);
+              }}
+              className="flex w-full flex-col items-start gap-0.5 px-2 py-1.5 text-left hover:bg-term-header"
+            >
+              <span className="text-term-text">Blank</span>
+              <span className="text-term-dim">An empty workspace.</span>
+            </button>
+            {TEMPLATES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  applyTemplate(t);
+                  setOpen(false);
+                }}
+                className="flex w-full flex-col items-start gap-0.5 border-t border-term-border px-2 py-1.5 text-left hover:bg-term-header"
+              >
+                <span className="text-term-amber">{t.name}</span>
+                <span className="text-term-dim">{t.description}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function WorkspaceTabs() {
   const workspaces = usePanels((s) => s.workspaces);
   const activeWorkspaceId = usePanels((s) => s.activeWorkspaceId);
   const switchWorkspace = usePanels((s) => s.switchWorkspace);
-  const addWorkspace = usePanels((s) => s.addWorkspace);
   const renameWorkspace = usePanels((s) => s.renameWorkspace);
   const closeWorkspace = usePanels((s) => s.closeWorkspace);
 
@@ -68,13 +116,7 @@ export function WorkspaceTabs() {
           </div>
         );
       })}
-      <button
-        onClick={() => addWorkspace()}
-        title="New workspace"
-        className="shrink-0 px-2 py-1 text-sm leading-none text-term-muted hover:text-term-amber"
-      >
-        +
-      </button>
+      <NewWorkspaceMenu />
     </div>
   );
 }
