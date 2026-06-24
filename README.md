@@ -111,6 +111,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
+| `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
