@@ -22,13 +22,14 @@ export default defineConfig({
       '/api': {
         target: API_TARGET,
         changeOrigin: true,
+        ws: true,
       },
     },
   },
   preview: {
     port: 4173,
     proxy: {
-      '/api': { target: API_TARGET, changeOrigin: true },
+      '/api': { target: API_TARGET, changeOrigin: true, ws: true },
     },
   },
 });

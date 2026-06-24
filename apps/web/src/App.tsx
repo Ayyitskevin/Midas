@@ -15,9 +15,10 @@ export default function App() {
       runCommand('BTC/USDT DES');
       runCommand('BTC/USDT GP');
       runCommand('BTC/USDT BOOK');
-      // Link the starter panels so the watchlist drives the desc/chart/book.
+      runCommand('BTC/USDT TAS');
+      // Link the starter panels so the watchlist drives the desc/chart/book/tape.
       const { panels: seeded, setPanelLink } = usePanels.getState();
-      for (const m of ['W', 'DES', 'GP', 'BOOK'] as const) {
+      for (const m of ['W', 'DES', 'GP', 'BOOK', 'TAS'] as const) {
         const p = seeded.find((pp) => pp.module === m);
         if (p) setPanelLink(p.id, 'red');
       }

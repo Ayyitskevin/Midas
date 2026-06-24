@@ -166,6 +166,14 @@ export interface VenueQuote {
   timestamp: number;
 }
 
+/** A single executed trade (print), streamed by the live trades feed. */
+export interface Trade {
+  price: number;
+  amount: number;
+  side: 'buy' | 'sell';
+  timestamp: number;
+}
+
 /** A single liquidation event. */
 export interface Liquidation {
   /** 'sell' = a long was liquidated; 'buy' = a short was liquidated. */

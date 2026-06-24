@@ -51,6 +51,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Live Level-2 order book / depth of market (best on crypto).',
   },
   {
+    code: 'TAS',
+    aliases: ['PRINTS', 'TS', 'TRADES'],
+    title: 'Time & Sales',
+    module: 'TAS',
+    requiresSymbol: true,
+    description: 'Live streaming trade prints (time & sales).',
+  },
+  {
     code: 'ALLQ',
     aliases: ['XQ', 'VENUES'],
     title: 'Multi-Exchange Quotes',
