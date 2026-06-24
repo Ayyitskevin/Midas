@@ -3,20 +3,12 @@ import type { ChangeEvent } from 'react';
 import { usePanels } from '@/store/usePanels';
 import type { WorkspaceExport } from '@/store/usePanels';
 import { TEMPLATES, applyTemplate } from '@/commands/templates';
+import { downloadJson } from '@/lib/fileDownload';
 
 /** Trigger a browser download of a workspace snapshot as a .midas.json file. */
 function downloadWorkspace(ws: WorkspaceExport) {
-  const json = JSON.stringify(ws, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
   const safe = ws.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'workspace';
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${safe}.midas.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  downloadJson(`${safe}.midas.json`, ws);
 }
 
 function NewWorkspaceMenu() {
