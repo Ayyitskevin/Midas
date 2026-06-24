@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAlerts } from '@/store/useAlerts';
 import { useToasts } from '@/store/useToasts';
+import { useSettings } from '@/store/useSettings';
 import {
   newTriggersSince,
   notifyTrigger,
@@ -35,9 +36,10 @@ export function AlertsEngine() {
 
     const announce = (fired: AlertTrigger[]): void => {
       const push = useToasts.getState().push;
+      const desktopOn = useSettings.getState().settings.desktopNotifications;
       for (const t of fired) {
         push({ title: triggerHeadline(t), body: triggerBody(t), tone: toneFor(t) });
-        notifyTrigger(t);
+        if (desktopOn) notifyTrigger(t);
       }
       if (fired.length > 0 && useAlerts.getState().soundEnabled) playBeep();
     };

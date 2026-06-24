@@ -27,6 +27,7 @@ export type ModuleCode =
   | 'NOTE'
   | 'RISK'
   | 'ACCT'
+  | 'PREF'
   | 'HELP'
   | 'SECF';
 
@@ -65,6 +66,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
   ACCT: { code: 'ACCT', title: 'Account', w: 4, h: 10, minW: 3, minH: 6 },
+  PREF: { code: 'PREF', title: 'Preferences', w: 4, h: 13, minW: 3, minH: 8 },
   HELP: { code: 'HELP', title: 'Help', w: 5, h: 10, minW: 3, minH: 6 },
   SECF: { code: 'SECF', title: 'Security Finder', w: 4, h: 9, minW: 3, minH: 5 },
 };

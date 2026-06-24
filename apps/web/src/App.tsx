@@ -8,14 +8,18 @@ import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
 import { CommandPalette } from './components/CommandPalette';
+import { SettingsEffects } from './components/SettingsEffects';
 import { WorkspaceSync } from './components/WorkspaceSync';
 import { PortfolioSync } from './components/PortfolioSync';
 import { WatchlistSync } from './components/WatchlistSync';
 import { NotesSync } from './components/NotesSync';
 import { usePanels } from './store/usePanels';
+import { useSettings } from './store/useSettings';
 import { runCommand } from './commands/execute';
 
 export default function App() {
+  const showTicker = useSettings((s) => s.settings.showTicker);
+
   // On the very first visit (nothing ever opened), seed a starter workspace.
   useEffect(() => {
     const { panels, counter } = usePanels.getState();
@@ -38,7 +42,7 @@ export default function App() {
     <LoginGate>
       <div className="flex h-full flex-col">
         <TopBar />
-        <Ticker />
+        {showTicker && <Ticker />}
         <WorkspaceTabs />
         <main className="min-h-0 flex-1">
           <Workspace />
@@ -47,6 +51,7 @@ export default function App() {
         <AlertsEngine />
         <ToastHost />
         <CommandPalette />
+        <SettingsEffects />
         <WorkspaceSync />
         <PortfolioSync />
         <WatchlistSync />

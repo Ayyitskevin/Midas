@@ -1,5 +1,7 @@
 import { usePanels } from '@/store/usePanels';
 import type { PanelParams, PanelState } from '@/store/usePanels';
+import { useSettings } from '@/store/useSettings';
+import { chartParamsFor } from '@/lib/settings';
 import { parseCommand } from './parser';
 import type { CommandDef } from './registry';
 import { lookupCommand } from './registry';
@@ -13,6 +15,12 @@ export function openCommand(
   // Only DES/GP/GIP strictly require a symbol; N optionally uses one.
   const usesSymbol = command.requiresSymbol || command.code === 'N';
   const params: PanelParams = { ...(command.params ?? {}) };
+  // A fresh price chart honours the user's default-timeframe preference.
+  const chart = chartParamsFor(command.code, useSettings.getState().settings);
+  if (chart) {
+    params.interval = chart.interval;
+    params.range = chart.range;
+  }
   if (searchQuery) params.query = searchQuery;
 
   usePanels.getState().openPanel({
