@@ -75,6 +75,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Screen crypto markets by volume, 24h change or price.',
   },
   {
+    code: 'AI',
+    aliases: ['ASK', 'COPILOT'],
+    title: 'AI Copilot',
+    module: 'AI',
+    requiresSymbol: false,
+    description: 'Ask Claude about the market — grounded in your terminal’s live data.',
+  },
+  {
     code: 'W',
     aliases: ['WATCH', 'WL'],
     title: 'Watchlist',

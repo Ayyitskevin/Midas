@@ -3,9 +3,11 @@
 export interface Config {
   host: string;
   port: number;
-  /** Active data provider id: 'mock' | 'yahoo'. */
+  /** Active data provider id: 'mock' | 'yahoo' | 'ccxt'. */
   provider: string;
   corsOrigin: string;
+  /** Claude model used by the AI copilot. */
+  aiModel: string;
   version: string;
 }
 
@@ -19,5 +21,6 @@ export const config: Config = {
   port: Number(env('PORT', '4000')),
   provider: env('MIDAS_DATA_PROVIDER', 'mock').toLowerCase(),
   corsOrigin: env('MIDAS_CORS_ORIGIN', '*'),
+  aiModel: env('MIDAS_AI_MODEL', 'claude-sonnet-4-6'),
   version: '0.1.0',
 };

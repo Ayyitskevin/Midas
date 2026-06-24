@@ -34,6 +34,26 @@ async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
+async function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    signal,
+    headers: { 'content-type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const data = (await res.json()) as ApiError;
+      if (data?.message) message = data.message;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(message);
+  }
+  return (await res.json()) as T;
+}
+
 export const api = {
   health: (signal?: AbortSignal) => apiGet<HealthResponse>('/api/health', signal),
 
@@ -68,6 +88,13 @@ export const api = {
       `/api/screener?quote=${encodeURIComponent(quote)}&sort=${sort}&limit=${limit}`,
       signal,
     ),
+
+  aiChat: (
+    messages: Array<{ role: string; content: string }>,
+    symbol: string | undefined,
+    signal?: AbortSignal,
+  ) =>
+    apiPost<{ role: string; content: string }>('/api/ai/chat', { messages, symbol }, signal),
 
   search: (query: string, signal?: AbortSignal) =>
     query.trim().length === 0
