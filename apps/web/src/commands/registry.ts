@@ -189,6 +189,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Top market-wide news headlines.',
   },
   {
+    code: 'NOTE',
+    aliases: ['NOTES', 'JRNL', 'MEMO'],
+    title: 'Notes',
+    module: 'NOTE',
+    requiresSymbol: false,
+    description: 'Free-form notes — global or per symbol, synced to your account.',
+  },
+  {
     code: 'ACCT',
     aliases: ['ACCOUNT', 'SETTINGS'],
     title: 'Account',

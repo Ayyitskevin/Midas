@@ -11,6 +11,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { WorkspaceSync } from './components/WorkspaceSync';
 import { PortfolioSync } from './components/PortfolioSync';
 import { WatchlistSync } from './components/WatchlistSync';
+import { NotesSync } from './components/NotesSync';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -49,6 +50,7 @@ export default function App() {
         <WorkspaceSync />
         <PortfolioSync />
         <WatchlistSync />
+        <NotesSync />
       </div>
     </LoginGate>
   );

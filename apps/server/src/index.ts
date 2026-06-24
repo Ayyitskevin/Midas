@@ -7,6 +7,7 @@ import { createNotifier } from './alerts/notify';
 import { WorkspaceRepo } from './workspaces/repo';
 import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
+import { NotesRepo } from './notes/repo';
 import { UserRepo } from './auth/users';
 
 async function main(): Promise<void> {
@@ -16,12 +17,14 @@ async function main(): Promise<void> {
   const workspaceRepo = new WorkspaceRepo(config.workspacesFile);
   const portfolioRepo = new PortfolioRepo(config.portfolioFile);
   const watchlistRepo = new WatchlistRepo(config.watchlistsFile);
+  const notesRepo = new NotesRepo(config.notesFile);
   const app = await buildApp(provider, {
     alertRepo,
     userRepo,
     workspaceRepo,
     portfolioRepo,
     watchlistRepo,
+    notesRepo,
   });
   if (config.authEnabled) app.log.info('auth enabled — login required');
   app.log.info(
