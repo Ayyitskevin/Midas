@@ -28,6 +28,8 @@ export interface Config {
   portfolioFile: string;
   /** JSON file backing the per-user watchlist snapshot store. */
   watchlistsFile: string;
+  /** JSON file backing the per-user notes snapshot store. */
+  notesFile: string;
   version: string;
 }
 
@@ -61,5 +63,6 @@ export const config: Config = {
     'MIDAS_WATCHLISTS_FILE',
     `${env('MIDAS_DATA_DIR', './data')}/watchlists.json`,
   ),
+  notesFile: env('MIDAS_NOTES_FILE', `${env('MIDAS_DATA_DIR', './data')}/notes.json`),
   version: '0.1.0',
 };

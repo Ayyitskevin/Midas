@@ -13,6 +13,7 @@ import { registerAlertRoutes } from './alerts/routes';
 import { WorkspaceRepo } from './workspaces/repo';
 import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
+import { NotesRepo } from './notes/repo';
 import { registerSnapshotRoutes } from './snapshots/routes';
 import { UserRepo } from './auth/users';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
@@ -27,6 +28,8 @@ export interface BuildAppOptions {
   portfolioRepo?: PortfolioRepo;
   /** Per-user watchlist snapshot store; defaults to in-memory (tests). */
   watchlistRepo?: WatchlistRepo;
+  /** Per-user notes snapshot store; defaults to in-memory (tests). */
+  notesRepo?: NotesRepo;
   /** User store; defaults to an in-memory repo (tests). */
   userRepo?: UserRepo;
   /** Auth overrides (tests); falls back to config. */
@@ -63,6 +66,7 @@ export async function buildApp(
   registerSnapshotRoutes(app, opts.workspaceRepo ?? new WorkspaceRepo(), '/api/workspaces');
   registerSnapshotRoutes(app, opts.portfolioRepo ?? new PortfolioRepo(), '/api/portfolio');
   registerSnapshotRoutes(app, opts.watchlistRepo ?? new WatchlistRepo(), '/api/watchlists');
+  registerSnapshotRoutes(app, opts.notesRepo ?? new NotesRepo(), '/api/notes');
   registerStream(app, createStreamHub(provider));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
