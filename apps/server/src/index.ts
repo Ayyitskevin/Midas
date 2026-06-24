@@ -3,6 +3,7 @@ import { createProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
 import { startAlertLoop } from './alerts/engine';
+import { createNotifier } from './alerts/notify';
 
 async function main(): Promise<void> {
   const provider = createProvider(config.provider);
@@ -13,12 +14,22 @@ async function main(): Promise<void> {
     `Midas server using "${provider.name}" data provider`,
   );
 
-  // Evaluate alerts in the background so they fire even with no browser open.
+  // Evaluate alerts in the background and deliver fires out-of-band (webhook),
+  // so they reach the user even with no browser open.
+  const notifier = createNotifier({
+    webhookUrl: config.alertWebhook,
+    onError: (err) => app.log.error(err, 'alert webhook delivery failed'),
+  });
+  if (config.alertWebhook) app.log.info('alert webhook delivery enabled');
+
   startAlertLoop(
     alertRepo,
     provider,
     config.alertIntervalMs,
-    (fired) => app.log.info({ count: fired.length }, 'alert(s) fired'),
+    (fired) => {
+      app.log.info({ count: fired.length }, 'alert(s) fired');
+      void notifier.deliver(fired);
+    },
     (err) => app.log.error(err, 'alert loop error'),
   );
 
