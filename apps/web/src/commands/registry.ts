@@ -213,6 +213,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-based position sizer — solve size from account, risk %, entry and stop.',
   },
   {
+    code: 'DCA',
+    aliases: ['AVG', 'AVERAGE', 'BASIS'],
+    title: 'DCA / Averaging',
+    module: 'DCA',
+    requiresSymbol: false,
+    description: 'Average-cost calculator — blend fills into an average entry, P&L and a target-average solver.',
+  },
+  {
     code: 'ACCT',
     aliases: ['ACCOUNT'],
     title: 'Account',
