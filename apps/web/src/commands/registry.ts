@@ -91,6 +91,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Treemap of the market — tiles sized by volume, colored by 24h change.',
   },
   {
+    code: 'MOV',
+    aliases: ['OVERVIEW', 'BREADTH'],
+    title: 'Market Overview',
+    module: 'MOV',
+    requiresSymbol: false,
+    description: 'Market dashboard — top gainers, losers, most active and breadth.',
+  },
+  {
     code: 'CORR',
     aliases: ['COR', 'CORREL'],
     title: 'Correlation Matrix',
