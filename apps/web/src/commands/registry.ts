@@ -205,6 +205,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Free-form notes — global or per symbol, synced to your account.',
   },
   {
+    code: 'RISK',
+    aliases: ['SIZER', 'SIZE', 'POSITION'],
+    title: 'Position Sizer',
+    module: 'RISK',
+    requiresSymbol: false,
+    description: 'Risk-based position sizer — solve size from account, risk %, entry and stop.',
+  },
+  {
     code: 'ACCT',
     aliases: ['ACCOUNT', 'SETTINGS'],
     title: 'Account',

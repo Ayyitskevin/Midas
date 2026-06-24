@@ -25,6 +25,7 @@ export type ModuleCode =
   | 'PORT'
   | 'ALERT'
   | 'NOTE'
+  | 'RISK'
   | 'ACCT'
   | 'HELP'
   | 'SECF';
@@ -62,6 +63,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   PORT: { code: 'PORT', title: 'Portfolio', w: 7, h: 9, minW: 5, minH: 5 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
+  RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
   ACCT: { code: 'ACCT', title: 'Account', w: 4, h: 10, minW: 3, minH: 6 },
   HELP: { code: 'HELP', title: 'Help', w: 5, h: 10, minW: 3, minH: 6 },
   SECF: { code: 'SECF', title: 'Security Finder', w: 4, h: 9, minW: 3, minH: 5 },

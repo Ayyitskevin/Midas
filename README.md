@@ -125,6 +125,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`, `SETTINGS` | no    | Manage your account — password, sessions, and (admin) users.|
 | `NOTE`  | `NOTES`, `JRNL`, `MEMO` | no  | Free-form notes — global or per symbol, synced to your account.|
+| `RISK`  | `SIZER`, `SIZE` | no          | Risk-based position sizer — size from account, risk %, entry & stop, with R-targets & liq. estimate. |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |
