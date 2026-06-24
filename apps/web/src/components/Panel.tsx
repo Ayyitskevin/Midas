@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { LINK_COLORS, usePanels } from '@/store/usePanels';
 import type { LinkColor, PanelState } from '@/store/usePanels';
 import { MODULE_COMPONENTS } from '@/modules/registry';
 import { ErrorBoundary } from './ErrorBoundary';
+import { Loading } from './Feedback';
 
 export const LINK_HEX: Record<LinkColor, string> = {
   red: '#ef4d56',
@@ -105,7 +106,15 @@ export function Panel({ panel }: { panel: PanelState }) {
       <div className="min-h-0 flex-1 overflow-hidden">
         {Module ? (
           <ErrorBoundary resetKey={panel.module} label={`${panel.module} panel hit an error`}>
-            <Module panel={panel} />
+            <Suspense
+              fallback={
+                <div className="flex h-full items-center justify-center">
+                  <Loading label="Loading…" />
+                </div>
+              }
+            >
+              <Module panel={panel} />
+            </Suspense>
           </ErrorBoundary>
         ) : (
           <div className="p-3 text-xs text-term-down">Unknown module: {panel.module}</div>
