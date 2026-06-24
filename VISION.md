@@ -74,6 +74,12 @@ passive retail (Robinhood/CoinGecko).
    data and news (summarize, screen, explain). OpenBB already owns the data→agent
    infra layer, so this is a polish feature, not our moat.
 
+**Validated by live recon (Gödel v4.5.2):** Gödel's crypto is **Level-1 only**
+(composite + ~4 CEX venues, no L2 depth/DOM), with **no crypto screener** and **no
+funding / OI / liquidations** — and the product ships **no AI copilot at all**. Every
+one of Midas's crypto-native differentiators maps to confirmed white space, not parity.
+See [`docs/research/godel-live-recon.md`](docs/research/godel-live-recon.md).
+
 ---
 
 ## Product principles
@@ -100,9 +106,10 @@ passive retail (Robinhood/CoinGecko).
 - **Phase 1 — Crypto data layer** — `ccxt` provider (markets/search, tickers, OHLCV,
   order book), crypto symbology (`BASE/QUOTE`), exchange selection, 24/7 market state;
   make crypto the default experience.
-- **Phase 2 — Crypto-native modules** _(recon)_ — order book / DOM, funding & open
-  interest, liquidations, multi-exchange compare, crypto screener — prioritized by
-  the Gödel gap analysis.
+- **Phase 2 — Crypto-native modules** — prioritized by confirmed Gödel gaps:
+  **L2 order book / DOM** (Gödel is L1-only), **multi-exchange compare** (ALLQ-style across
+  CCXT venues), **funding / open interest / liquidations**, a **crypto screener** (Gödel has
+  none), and **colored panel-linking groups** (adopt Gödel's best UX).
 - **Phase 3 — AI copilot (feature)** — Claude over terminal data + news; an `AI`
   command turning natural language into a panel.
 - **Phase 4 — Ownership & polish** — Docker Compose, optional encrypted local key
@@ -110,12 +117,19 @@ passive retail (Robinhood/CoinGecko).
 
 ---
 
-## Open decisions (pending live Gödel recon)
+## Decisions (resolved by live recon)
 
-- Exact command set to match/borrow vs. invent _(recon: full command list)_.
-- Which crypto modules to prioritize — DOM vs funding vs liquidations _(recon: gap analysis)_.
-- License choice — MIT for adoption vs. source-available.
-- Default exchange, and whether to aggregate across exchanges.
+- **Command grammar:** adopt Gödel's ticker-first model; borrow proven codes (`DES`, `FA`,
+  `G`/`GIP`, `QM`, `N`, `ALLQ`, `MOST`, `SECF`) where they fit crypto. Our `GP` stays for charts.
+- **Module priority:** L2 order book/DOM → multi-exchange compare → funding/OI/liquidations →
+  crypto screener → panel-linking → AI copilot (the confirmed-gap order).
+- **Panel linking:** adopt colored link groups (Gödel's strongest UX) — and *also* let the
+  command bar drive linked panels (fixing Gödel's command-bar-vs-link confusion).
+- **AI copilot:** a genuine differentiator, not parity — Gödel ships none.
+
+Still open:
+- **License** — MIT (max adoption) vs. source-available.
+- **Default exchange**, and whether to aggregate quotes across exchanges by default.
 
 ---
 
