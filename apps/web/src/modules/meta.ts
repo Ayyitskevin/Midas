@@ -15,6 +15,7 @@ export type ModuleCode =
   | 'W'
   | 'N'
   | 'Q'
+  | 'PORT'
   | 'HELP'
   | 'SECF';
 
@@ -41,6 +42,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   W: { code: 'W', title: 'Watchlist', w: 3, h: 12, minW: 2, minH: 6 },
   N: { code: 'N', title: 'News', w: 4, h: 12, minW: 3, minH: 6 },
   Q: { code: 'Q', title: 'Quote Monitor', w: 5, h: 9, minW: 3, minH: 5 },
+  PORT: { code: 'PORT', title: 'Portfolio', w: 7, h: 9, minW: 5, minH: 5 },
   HELP: { code: 'HELP', title: 'Help', w: 5, h: 10, minW: 3, minH: 6 },
   SECF: { code: 'SECF', title: 'Security Finder', w: 4, h: 9, minW: 3, minH: 5 },
 };

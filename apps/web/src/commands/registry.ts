@@ -107,6 +107,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Live quote grid for your watchlist symbols.',
   },
   {
+    code: 'PORT',
+    aliases: ['POS', 'PORTFOLIO'],
+    title: 'Portfolio',
+    module: 'PORT',
+    requiresSymbol: false,
+    description: 'Paper portfolio — track positions and live unrealized P&L.',
+  },
+  {
     code: 'N',
     aliases: ['NEWS', 'CN'],
     title: 'News',

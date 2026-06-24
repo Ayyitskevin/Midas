@@ -11,6 +11,7 @@ import { ScreenerModule } from './ScreenerModule';
 import { AiCopilotModule } from './AiCopilotModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
+import { PortfolioModule } from './PortfolioModule';
 import { NewsModule } from './NewsModule';
 import { HelpModule } from './HelpModule';
 import { SecurityFinderModule } from './SecurityFinderModule';
@@ -27,6 +28,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> =
   AI: AiCopilotModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
+  PORT: PortfolioModule,
   N: NewsModule,
   HELP: HelpModule,
   SECF: SecurityFinderModule,
