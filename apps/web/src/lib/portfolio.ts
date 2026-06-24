@@ -9,37 +9,62 @@ export interface Trade {
   price: number;
 }
 
-/**
- * Average-cost accounting for folding one trade into an existing net position.
- * Returns the new {quantity, entryPrice}, or null when the position closes out
- * (nets to zero).
- *
- *  - opening from flat        → basis = trade price
- *  - adding on the same side  → quantity-weighted average basis
- *  - reducing the same side   → basis unchanged
- *  - flipping through zero     → basis = trade price for the residual
- */
-export function applyTrade(
-  pos: { quantity: number; entryPrice: number },
-  trade: Trade,
-): { quantity: number; entryPrice: number } | null {
-  const oldQty = pos.quantity;
-  const newQty = oldQty + trade.quantity;
-  if (newQty === 0) return null;
-  if (oldQty === 0) return { quantity: newQty, entryPrice: trade.price };
+export interface Lot {
+  quantity: number;
+  entryPrice: number;
+}
 
-  const sameSide = Math.sign(oldQty) === Math.sign(newQty);
-  if (!sameSide) {
-    // Crossed zero: the surviving lot is the new trade's residual.
-    return { quantity: newQty, entryPrice: trade.price };
+export interface TradeResult {
+  /** The resulting net position, or null when it closes out (nets to zero). */
+  position: Lot | null;
+  /** Realized P&L booked by this trade — 0 for opens / adds, signed on closes. */
+  realized: number;
+}
+
+/**
+ * Average-cost accounting for folding one trade into an existing net position,
+ * returning both the new position and any realized P&L:
+ *
+ *  - opening from flat        → basis = trade price, realized 0
+ *  - adding on the same side  → quantity-weighted average basis, realized 0
+ *  - reducing the same side   → basis unchanged, book P&L on the closed units
+ *  - closing to flat          → null, book P&L on the whole position
+ *  - flipping through zero     → basis = trade price for the residual, book P&L
+ *                                 on the units that were closed
+ */
+export function foldTrade(pos: Lot, trade: Trade): TradeResult {
+  const oldQty = pos.quantity;
+  const e = pos.entryPrice;
+  const p = trade.price;
+  const newQty = oldQty + trade.quantity;
+
+  if (oldQty === 0) {
+    return { position: newQty === 0 ? null : { quantity: newQty, entryPrice: p }, realized: 0 };
   }
-  const increasing = Math.sign(trade.quantity) === Math.sign(oldQty);
-  if (increasing) {
-    const entryPrice = (oldQty * pos.entryPrice + trade.quantity * trade.price) / newQty;
-    return { quantity: newQty, entryPrice };
+
+  const reducing = Math.sign(trade.quantity) !== Math.sign(oldQty);
+  if (!reducing) {
+    // Same side → quantity-weighted average basis; nothing realized.
+    const entryPrice = (oldQty * e + trade.quantity * p) / newQty;
+    return { position: { quantity: newQty, entryPrice }, realized: 0 };
   }
-  // Reducing the same side leaves the cost basis untouched.
-  return { quantity: newQty, entryPrice: pos.entryPrice };
+
+  // Reducing / closing / flipping: book P&L on the closed units. A long gains
+  // when sold above basis; a short gains when bought below it — the
+  // sign(oldQty) factor handles both.
+  const closedUnits = Math.min(Math.abs(trade.quantity), Math.abs(oldQty));
+  const realized = closedUnits * (p - e) * Math.sign(oldQty);
+
+  if (newQty === 0) return { position: null, realized };
+  if (Math.sign(newQty) !== Math.sign(oldQty)) {
+    return { position: { quantity: newQty, entryPrice: p }, realized }; // flipped through zero
+  }
+  return { position: { quantity: newQty, entryPrice: e }, realized }; // partial reduce
+}
+
+/** Position-only view of {@link foldTrade}, kept for callers that ignore P&L. */
+export function applyTrade(pos: Lot, trade: Trade): Lot | null {
+  return foldTrade(pos, trade).position;
 }
 
 export interface PositionMetrics {

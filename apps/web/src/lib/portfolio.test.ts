@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyTrade, positionMetrics } from '@/lib/portfolio';
+import { applyTrade, foldTrade, positionMetrics } from '@/lib/portfolio';
 
 describe('applyTrade', () => {
   it('opens from flat at the trade price', () => {
@@ -64,5 +64,36 @@ describe('positionMetrics', () => {
     expect(m.value).toBeNull();
     expect(m.pnl).toBeNull();
     expect(m.pnlPct).toBeNull();
+  });
+});
+
+describe('foldTrade — realized P&L', () => {
+  it('books nothing on open or add', () => {
+    expect(foldTrade({ quantity: 0, entryPrice: 0 }, { quantity: 2, price: 100 }).realized).toBe(0);
+    expect(foldTrade({ quantity: 2, entryPrice: 100 }, { quantity: 2, price: 200 }).realized).toBe(0);
+  });
+
+  it('books P&L when reducing a long', () => {
+    const r = foldTrade({ quantity: 4, entryPrice: 150 }, { quantity: -1, price: 200 });
+    expect(r.realized).toBe(50); // 1 × (200 − 150)
+    expect(r.position).toEqual({ quantity: 3, entryPrice: 150 });
+  });
+
+  it('books the full P&L when closing a long', () => {
+    const r = foldTrade({ quantity: 3, entryPrice: 150 }, { quantity: -3, price: 200 });
+    expect(r.realized).toBe(150); // 3 × 50
+    expect(r.position).toBeNull();
+  });
+
+  it('books P&L when covering a short at a profit', () => {
+    const r = foldTrade({ quantity: -2, entryPrice: 100 }, { quantity: 1, price: 80 });
+    expect(r.realized).toBe(20); // 1 × (100 − 80)
+    expect(r.position).toEqual({ quantity: -1, entryPrice: 100 });
+  });
+
+  it('books P&L only on the closed units when flipping through zero', () => {
+    const r = foldTrade({ quantity: 1, entryPrice: 100 }, { quantity: -3, price: 50 });
+    expect(r.realized).toBe(-50); // closed 1 long at a 50 loss
+    expect(r.position).toEqual({ quantity: -2, entryPrice: 50 }); // residual short at trade price
   });
 });
