@@ -20,6 +20,9 @@ importers:
       '@midas/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      ccxt:
+        specifier: ^4.4.0
+        version: 4.5.59
       fastify:
         specifier: ^5.1.0
         version: 5.8.5
@@ -505,6 +508,14 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
+  '@noble/curves@2.2.0':
+    resolution: {integrity: sha512-T/BoHgFXirb0ENSPBquzX0rcjXeM6Lo892a2jlYJkqk83LqZx0l1Of7DzlKJ6jkpvMrkHSnAcgb5JegL8SeIkQ==}
+    engines: {node: '>= 20.19.0'}
+
+  '@noble/hashes@2.2.0':
+    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
+    engines: {node: '>= 20.19.0'}
+
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
     engines: {node: '>= 8'}
@@ -661,6 +672,19 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@scure/base@2.2.0':
+    resolution: {integrity: sha512-b8XEupJibegiXV+tDUseI8oLQc8ei3d/4Jkb2RpbHh3MfE054ov3uIz2dhFkB3FI8iwYkEh0gGCApkrYggkPNg==}
+
+  '@scure/bip32@2.2.0':
+    resolution: {integrity: sha512-zFr7t2F+a9+5tB7QbarF2HQNYrgjCNaoLAupZdKkrFMYMozJf5zqH2WJCQibMzm1qQ0QogrxVGO3qXfQDYMaQg==}
+
+  '@scure/bip39@2.2.0':
+    resolution: {integrity: sha512-T/Bj/YvYMNkIPq6EENO6/rcs2e7qTNuyoUXf0KBFDmp0ZDu0H2X4Lq6yC3i0c8PcWkov5EbW+yQZZbdMmk154A==}
+
+  '@scure/starknet@2.2.0':
+    resolution: {integrity: sha512-FPgUFyEgbEG7ewrj9gWUeXpf2b6klBnqcZOSFz6z4ycVCIAeGhNqKQUPlvl2Ka8gfmrbCcdIrImyi+dINr06Uw==}
+    engines: {node: '>= 20.19.0'}
+
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
 
@@ -755,12 +779,20 @@ packages:
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
 
+  bufferutil@4.1.0:
+    resolution: {integrity: sha512-ZMANVnAixE6AWWnPzlW2KpUrxhm9woycYvPOo67jWHyFowASTEd9s+QN1EIMsSDtwhIxN4sWE1jotpuDUIgyIw==}
+    engines: {node: '>=6.14.2'}
+
   camelcase-css@2.0.1:
     resolution: {integrity: sha512-QOSvevhslijgYwRx6Rv7zKdMF8lbRmx+uQGx2+vDc+KI/eBnsy9kit5aj23AgGu3pa4t9AgwbnXWqS+iOY+2aA==}
     engines: {node: '>= 6'}
 
   caniuse-lite@1.0.30001799:
     resolution: {integrity: sha512-hG1bReV+OUU+MOqK4t/ZWI0tZOyz3rqS9XuhOUz1cIcbwBKjOyJEJuw9ER5JuNyqxNk8u/JUVbGibBOL1yrjFw==}
+
+  ccxt@4.5.59:
+    resolution: {integrity: sha512-saBA1xMK87EqDApXclXNijElqixSeH9YUNah358YyGj9SkBJ12/63N0hOhxFbbg9R3wt1JfIVpq7eDn3r+TMdA==}
+    engines: {node: '>=18.0.0'}
 
   chokidar@3.6.0:
     resolution: {integrity: sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw==}
@@ -994,6 +1026,10 @@ packages:
   nanoid@3.3.15:
     resolution: {integrity: sha512-y7Wygv/7mEOvxTuEQDB8StXdMRBWf1kR/tlhAzBRUFkB2jfcLOAxO/SHmOO2zgz1pVgK29/kyupn059/bCHdjA==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
+  node-gyp-build@4.8.4:
+    resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
     hasBin: true
 
   node-releases@2.0.48:
@@ -1320,6 +1356,18 @@ packages:
       sugarss:
         optional: true
       terser:
+        optional: true
+
+  ws@8.21.0:
+    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
         optional: true
 
   yallist@3.1.1:
@@ -1653,6 +1701,12 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@noble/curves@2.2.0':
+    dependencies:
+      '@noble/hashes': 2.2.0
+
+  '@noble/hashes@2.2.0': {}
+
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
       '@nodelib/fs.stat': 2.0.5
@@ -1743,6 +1797,24 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
+
+  '@scure/base@2.2.0': {}
+
+  '@scure/bip32@2.2.0':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+      '@scure/base': 2.2.0
+
+  '@scure/bip39@2.2.0':
+    dependencies:
+      '@noble/hashes': 2.2.0
+      '@scure/base': 2.2.0
+
+  '@scure/starknet@2.2.0':
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
 
   '@types/babel__core@7.20.5':
     dependencies:
@@ -1852,9 +1924,28 @@ snapshots:
       node-releases: 2.0.48
       update-browserslist-db: 1.2.3(browserslist@4.28.4)
 
+  bufferutil@4.1.0:
+    dependencies:
+      node-gyp-build: 4.8.4
+    optional: true
+
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001799: {}
+
+  ccxt@4.5.59:
+    dependencies:
+      '@noble/curves': 2.2.0
+      '@noble/hashes': 2.2.0
+      '@scure/base': 2.2.0
+      '@scure/bip32': 2.2.0
+      '@scure/bip39': 2.2.0
+      '@scure/starknet': 2.2.0
+      ws: 8.21.0(bufferutil@4.1.0)
+    optionalDependencies:
+      bufferutil: 4.1.0
+    transitivePeerDependencies:
+      - utf-8-validate
 
   chokidar@3.6.0:
     dependencies:
@@ -2115,6 +2206,9 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.15: {}
+
+  node-gyp-build@4.8.4:
+    optional: true
 
   node-releases@2.0.48: {}
 
@@ -2432,6 +2526,10 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.0
       fsevents: 2.3.3
+
+  ws@8.21.0(bufferutil@4.1.0):
+    optionalDependencies:
+      bufferutil: 4.1.0
 
   yallist@3.1.1: {}
 

@@ -55,6 +55,14 @@ charts and news from Yahoo Finance (no key required, needs internet):
 MIDAS_DATA_PROVIDER=yahoo pnpm dev
 ```
 
+For **live crypto** (no API key needed) via any [CCXT](https://github.com/ccxt/ccxt)
+exchange — the cornerstone of Midas's [crypto-native direction](./VISION.md):
+
+```bash
+MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
+# symbols use BASE/QUOTE, e.g. BTC/USDT, ETH/USDT
+```
+
 > Running on Claude Code on the web? The sandbox network policy may block
 > external finance hosts. Either run locally, or allowlist
 > `query1.finance.yahoo.com` / `query2.finance.yahoo.com` in your
@@ -129,7 +137,8 @@ Server (environment variables):
 
 | Variable              | Default     | Description                          |
 | --------------------- | ----------- | ------------------------------------ |
-| `MIDAS_DATA_PROVIDER` | `mock`      | `mock` or `yahoo`.                   |
+| `MIDAS_DATA_PROVIDER` | `mock`      | `mock`, `yahoo`, or `ccxt`.          |
+| `MIDAS_CCXT_EXCHANGE` | `binance`   | Exchange id when provider is `ccxt`. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
