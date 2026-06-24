@@ -4,6 +4,7 @@ import type { ModuleProps } from './types';
 import { DescriptionModule } from './DescriptionModule';
 import { ChartModule } from './ChartModule';
 import { OrderBookModule } from './OrderBookModule';
+import { MultiExchangeModule } from './MultiExchangeModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
 import { NewsModule } from './NewsModule';
@@ -15,6 +16,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> =
   DES: DescriptionModule,
   GP: ChartModule,
   BOOK: OrderBookModule,
+  ALLQ: MultiExchangeModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
   N: NewsModule,

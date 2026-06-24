@@ -7,6 +7,7 @@ import type {
   OrderBookLevel,
   Quote,
   SearchResult,
+  VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions } from './types';
 import {
@@ -96,6 +97,8 @@ const ROSTER: RosterEntry[] = [
 ];
 
 const ROSTER_BY_SYMBOL = new Map(ROSTER.map((entry) => [entry.symbol, entry]));
+
+const COMPARE_VENUES = ['Binance', 'Coinbase', 'Kraken', 'Bitfinex', 'OKX', 'KuCoin'];
 
 const NEWS_PUBLISHERS = [
   'Reuters',
@@ -204,6 +207,27 @@ export class MockProvider implements DataProvider {
       asks.push({ price: round(askPrice, 6), amount: round(sizeBase * uniform(rng, 0.2, 1.8) * grow, 4) });
     }
     return { symbol: entry.symbol, bids, asks, timestamp: Date.now() };
+  }
+
+  async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
+    const entry = resolveEntry(symbol);
+    const mid = this.buildQuote(entry).price;
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    return COMPARE_VENUES.map((venue) => {
+      const rng = seeded(entry.symbol, venue, minuteBucket, 'venue');
+      // Each venue prices slightly differently (a realistic cross-exchange basis).
+      const price = round(mid * (1 + uniform(rng, -0.0015, 0.0015)), 6);
+      const spread = price * uniform(rng, 0.0001, 0.0006);
+      return {
+        exchange: venue,
+        price,
+        bid: round(price - spread / 2, 6),
+        ask: round(price + spread / 2, 6),
+        changePercent: round(gaussian(rng) * 1.2, 2),
+        volume: Math.floor(uniform(rng, 0.3, 1.5) * (mid > 1000 ? 5_000 : 5_000_000)),
+        timestamp: Date.now(),
+      };
+    });
   }
 
   async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
