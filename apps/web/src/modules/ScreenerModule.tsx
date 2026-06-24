@@ -18,7 +18,7 @@ export function ScreenerModule({ panel }: ModuleProps) {
   const [quote, setQuote] = useState('USDT');
   const [sort, setSort] = useState('volume');
 
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.screener(quote, sort, 100, signal),
     [quote, sort],
     { intervalMs: 15_000 },
@@ -57,7 +57,7 @@ export function ScreenerModule({ panel }: ModuleProps) {
       </div>
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Screening" />}
-        {error && !data && <ErrorMsg message={error} />}
+        {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
         {data && data.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
         {data && data.length > 0 && (
           <table className="w-full text-xs">

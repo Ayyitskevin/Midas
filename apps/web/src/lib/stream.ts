@@ -26,6 +26,11 @@ class StreamClient {
     return this.status;
   }
 
+  /** Number of distinct (channel, symbol) subscriptions currently held. */
+  subscriberCount(): number {
+    return this.subs.size;
+  }
+
   onStatus(cb: (s: StreamStatus) => void): () => void {
     this.statusHandlers.add(cb);
     return () => {

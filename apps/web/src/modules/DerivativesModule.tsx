@@ -22,7 +22,7 @@ function fmtCountdown(target: number | null): string {
 
 export function DerivativesModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.derivatives(symbol as string, signal),
     [symbol],
     { intervalMs: 10_000, enabled: Boolean(symbol) },
@@ -30,7 +30,7 @@ export function DerivativesModule({ panel }: ModuleProps) {
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} derivatives`} />;
-  if (error && !data) return <ErrorMsg message={error} />;
+  if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data) return <EmptyState>No derivatives for {symbol}.</EmptyState>;
 
   const stats: Array<[string, string, string?]> = [

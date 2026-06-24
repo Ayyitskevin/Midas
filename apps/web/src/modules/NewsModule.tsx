@@ -7,14 +7,14 @@ import type { ModuleProps } from './types';
 
 export function NewsModule({ panel }: ModuleProps) {
   const symbol = panel.symbol ?? undefined;
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.news(symbol, signal),
     [symbol ?? 'MARKET'],
     { intervalMs: 60_000 },
   );
 
   if (loading && !data) return <Loading label="Loading headlines" />;
-  if (error && !data) return <ErrorMsg message={error} />;
+  if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data || data.length === 0) return <EmptyState>No headlines.</EmptyState>;
 
   return (

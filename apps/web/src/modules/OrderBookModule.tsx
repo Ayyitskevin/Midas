@@ -37,7 +37,7 @@ function cumulate(levels: OrderBookLevel[]): Row[] {
 export function OrderBookModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   // REST for instant first paint; the live WebSocket stream takes over once connected.
-  const { data: fetched, error, loading } = useFetch(
+  const { data: fetched, error, loading, refresh } = useFetch(
     (signal) => api.orderbook(symbol as string, 25, signal),
     [symbol],
     { enabled: Boolean(symbol) },
@@ -68,7 +68,7 @@ export function OrderBookModule({ panel }: ModuleProps) {
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} book`} />;
-  if (error && !data) return <ErrorMsg message={error} />;
+  if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!view) return <EmptyState>No order book for {symbol}.</EmptyState>;
 
   return (

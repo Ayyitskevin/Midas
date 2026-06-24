@@ -13,8 +13,20 @@ export function Loading({ label = 'Loading' }: LoadingProps) {
   );
 }
 
-export function ErrorMsg({ message }: { message: string }) {
-  return <div className="p-3 text-xs text-term-down">⚠ {message}</div>;
+export function ErrorMsg({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="p-3 text-xs text-term-down">
+      <div>⚠ {message}</div>
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="no-drag mt-1 rounded-sm border border-term-border px-2 py-0.5 text-2xs text-term-amber hover:border-term-amber"
+        >
+          retry
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
