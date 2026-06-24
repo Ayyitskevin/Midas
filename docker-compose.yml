@@ -28,6 +28,8 @@ services:
       # Background alert engine — rules + triggers persist in the data volume.
       MIDAS_DATA_DIR: /app/data
       MIDAS_ALERT_INTERVAL_MS: ${MIDAS_ALERT_INTERVAL_MS:-15000}
+      # Optional: deliver fired alerts to a webhook (Discord/Slack/custom).
+      MIDAS_ALERT_WEBHOOK: ${MIDAS_ALERT_WEBHOOK:-}
     expose:
       - "4000"
     volumes:

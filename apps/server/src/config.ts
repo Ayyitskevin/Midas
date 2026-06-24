@@ -12,6 +12,8 @@ export interface Config {
   alertsFile: string;
   /** How often the background alert loop evaluates, in ms. */
   alertIntervalMs: number;
+  /** Optional outbound webhook URL fired triggers are POSTed to (Discord/Slack/custom). */
+  alertWebhook: string;
   version: string;
 }
 
@@ -28,5 +30,6 @@ export const config: Config = {
   aiModel: env('MIDAS_AI_MODEL', 'claude-sonnet-4-6'),
   alertsFile: env('MIDAS_ALERTS_FILE', `${env('MIDAS_DATA_DIR', './data')}/alerts.json`),
   alertIntervalMs: Number(env('MIDAS_ALERT_INTERVAL_MS', '15000')),
+  alertWebhook: env('MIDAS_ALERT_WEBHOOK', ''),
   version: '0.1.0',
 };

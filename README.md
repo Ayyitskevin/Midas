@@ -171,7 +171,10 @@ a panel type means writing a module component and registering it.
 The server also runs a **background alert engine**: it evaluates the stored
 alert rules on a timer using the active provider and records fires — so alerts
 keep evaluating even with no browser open. Rules + triggers persist to
-`MIDAS_ALERTS_FILE` (the `midas-data` volume under Docker).
+`MIDAS_ALERTS_FILE` (the `midas-data` volume under Docker). Set
+`MIDAS_ALERT_WEBHOOK` to **POST fires to a webhook** (a Discord or Slack
+incoming-webhook URL works as-is) for delivery with no terminal open at all.
+The `ALERT` panel's **Server** mode manages these rules.
 
 ---
 
@@ -191,6 +194,7 @@ Server (environment variables):
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
 | `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
+| `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).
