@@ -129,6 +129,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `NOTE`  | `NOTES`, `JRNL`, `MEMO` | no  | Free-form notes — global or per symbol, synced to your account.|
 | `RISK`  | `SIZER`, `SIZE` | no          | Risk-based position sizer — size from account, risk %, entry & stop, with R-targets & liq. estimate. |
 | `DCA`   | `AVG`, `AVERAGE`, `BASIS` | no | Average-cost calculator — blend fills into an average entry, mark P&L, liq. estimate + target-average solver. |
+| `LOG`   | `JOURNAL`, `TJ` | no         | Trade journal — log entries/exits, score R-multiples, track win rate, expectancy & total R. Saved to your browser. |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |
