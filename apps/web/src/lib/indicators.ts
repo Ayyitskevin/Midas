@@ -60,6 +60,130 @@ export function bollinger(candles: Candle[], period: number, mult: number): Boll
   return { upper, middle, lower };
 }
 
+/** EMA over a plain number series, seeded at the first value; full length. */
+function emaSeries(values: number[], period: number): number[] {
+  const out: number[] = [];
+  const k = 2 / (period + 1);
+  let prev = values.length ? values[0] : 0;
+  for (let i = 0; i < values.length; i++) {
+    prev = i === 0 ? values[0] : values[i] * k + prev * (1 - k);
+    out.push(prev);
+  }
+  return out;
+}
+
+export interface Macd {
+  macd: LinePoint[];
+  signal: LinePoint[];
+  histogram: LinePoint[];
+}
+
+/**
+ * MACD: fast EMA − slow EMA of closes, its signal EMA, and the histogram
+ * (macd − signal). The macd line starts once the slow EMA has warmed up.
+ */
+export function macd(candles: Candle[], fast = 12, slow = 26, signalPeriod = 9): Macd {
+  if (candles.length === 0) return { macd: [], signal: [], histogram: [] };
+  const closes = candles.map((c) => c.close);
+  const emaFast = emaSeries(closes, fast);
+  const emaSlow = emaSeries(closes, slow);
+
+  const start = Math.min(slow - 1, candles.length - 1);
+  const macdLine: LinePoint[] = [];
+  const macdVals: number[] = [];
+  for (let i = start; i < candles.length; i++) {
+    const value = emaFast[i] - emaSlow[i];
+    macdVals.push(value);
+    macdLine.push({ time: candles[i].time, value });
+  }
+
+  const signalVals = emaSeries(macdVals, signalPeriod);
+  const signal: LinePoint[] = [];
+  const histogram: LinePoint[] = [];
+  for (let j = 0; j < macdLine.length; j++) {
+    signal.push({ time: macdLine[j].time, value: signalVals[j] });
+    histogram.push({ time: macdLine[j].time, value: macdLine[j].value - signalVals[j] });
+  }
+  return { macd: macdLine, signal, histogram };
+}
+
+/**
+ * Anchored VWAP: the cumulative volume-weighted average of the typical price
+ * (high+low+close)/3 from the first candle onward. Falls back to typical price
+ * while cumulative volume is zero.
+ */
+export function vwap(candles: Candle[]): LinePoint[] {
+  const out: LinePoint[] = [];
+  let cumPV = 0;
+  let cumV = 0;
+  for (const c of candles) {
+    const typical = (c.high + c.low + c.close) / 3;
+    const vol = c.volume > 0 ? c.volume : 0;
+    cumPV += typical * vol;
+    cumV += vol;
+    out.push({ time: c.time, value: cumV > 0 ? cumPV / cumV : typical });
+  }
+  return out;
+}
+
+export interface VolumeBin {
+  priceLow: number;
+  priceHigh: number;
+  mid: number;
+  volume: number;
+}
+
+export interface VolumeProfile {
+  bins: VolumeBin[];
+  /** Index of the highest-volume bin (point of control), or -1 if empty. */
+  pocIndex: number;
+  maxVolume: number;
+}
+
+/**
+ * Volume distributed across `binCount` equal price buckets spanning the candle
+ * set's low→high, each candle's volume assigned to its typical-price bucket.
+ * Identifies the point of control (the heaviest bucket).
+ */
+export function volumeProfile(candles: Candle[], binCount = 24): VolumeProfile {
+  if (candles.length === 0) return { bins: [], pocIndex: -1, maxVolume: 0 };
+
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const c of candles) {
+    if (c.low < lo) lo = c.low;
+    if (c.high > hi) hi = c.high;
+  }
+  if (!(hi > lo)) hi = lo + 1; // flat series guard
+  const span = hi - lo;
+  const n = Math.max(1, Math.floor(binCount));
+
+  const bins: VolumeBin[] = [];
+  for (let i = 0; i < n; i++) {
+    const priceLow = lo + (span * i) / n;
+    const priceHigh = lo + (span * (i + 1)) / n;
+    bins.push({ priceLow, priceHigh, mid: (priceLow + priceHigh) / 2, volume: 0 });
+  }
+
+  for (const c of candles) {
+    const typical = (c.high + c.low + c.close) / 3;
+    let idx = Math.floor(((typical - lo) / span) * n);
+    if (idx < 0) idx = 0;
+    if (idx >= n) idx = n - 1;
+    bins[idx].volume += c.volume > 0 ? c.volume : 0;
+  }
+
+  let pocIndex = 0;
+  let maxVolume = 0;
+  for (let i = 0; i < bins.length; i++) {
+    if (bins[i].volume > maxVolume) {
+      maxVolume = bins[i].volume;
+      pocIndex = i;
+    }
+  }
+  return { bins, pocIndex, maxVolume };
+}
+
 /** Wilder's RSI of closes (0–100). */
 export function rsi(candles: Candle[], period: number): LinePoint[] {
   if (candles.length <= period) return [];

@@ -18,12 +18,48 @@ import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
-import { bollinger, ema, rsi, sma, type LinePoint } from '@/lib/indicators';
+import { bollinger, ema, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
 
 /** Round a clicked price to a sensible threshold precision for its magnitude. */
 function roundLevel(price: number): number {
   return price >= 1 ? Math.round(price * 100) / 100 : Math.round(price * 1e6) / 1e6;
+}
+
+/** Mirror `main`'s visible range onto a sub-pane chart; returns an unsubscribe. */
+function linkTimeScale(main: IChartApi, sub: IChartApi): () => void {
+  const sync = (r: LogicalRange | null) => {
+    if (r) sub.timeScale().setVisibleLogicalRange(r);
+  };
+  main.timeScale().subscribeVisibleLogicalRangeChange(sync);
+  const current = main.timeScale().getVisibleLogicalRange();
+  if (current) sub.timeScale().setVisibleLogicalRange(current);
+  return () => main.timeScale().unsubscribeVisibleLogicalRangeChange(sync);
+}
+
+/** Shared layout options for the oscillator sub-panes (RSI, MACD). */
+const SUBPANE_OPTIONS = {
+  autoSize: true,
+  layout: {
+    background: { type: ColorType.Solid, color: 'transparent' },
+    textColor: '#7a7f87',
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: 11,
+  },
+  grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+  rightPriceScale: { borderColor: '#26262d' },
+  timeScale: { borderColor: '#26262d', visible: false },
+  handleScroll: false,
+  handleScale: false,
+} as const;
+
+/** One horizontal volume-profile bar, positioned in chart pixel coordinates. */
+interface VpBar {
+  key: number;
+  top: number;
+  height: number;
+  widthPct: number;
+  poc: boolean;
 }
 
 interface Preset {
@@ -69,6 +105,11 @@ export function ChartModule({ panel }: ModuleProps) {
   const rsiContainerRef = useRef<HTMLDivElement>(null);
   const rsiChartRef = useRef<IChartApi | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const macdContainerRef = useRef<HTMLDivElement>(null);
+  const macdChartRef = useRef<IChartApi | null>(null);
+  const macdHistRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const macdLineRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const macdSignalRef = useRef<ISeriesApi<'Line'> | null>(null);
   const lastBarRef = useRef<{
     time: number;
     open: number;
@@ -84,10 +125,22 @@ export function ChartModule({ panel }: ModuleProps) {
   const alertModeRef = useRef(false);
   const symbolRef = useRef(symbol);
 
-  const [ind, setInd] = useState({ sma: true, ema: false, bb: false, rsi: false });
+  const [ind, setInd] = useState({
+    sma: true,
+    ema: false,
+    bb: false,
+    vwap: false,
+    rsi: false,
+    macd: false,
+    vp: false,
+  });
   const [drawMode, setDrawMode] = useState(false);
   const [alertMode, setAlertMode] = useState(false);
   const [livePrice, setLivePrice] = useState<number | null>(null);
+  // Volume-profile overlay bars (in pixel coords) and a tick that forces a
+  // recompute when the price scale moves (pan/zoom/resize).
+  const [vpBars, setVpBars] = useState<VpBar[]>([]);
+  const [vpTick, setVpTick] = useState(0);
 
   const clearLines = useCallback(() => {
     const candle = candleRef.current;
@@ -170,7 +223,16 @@ export function ChartModule({ panel }: ModuleProps) {
       setDrawMode(false);
     });
 
+    // Recompute the volume-profile overlay whenever the price scale shifts
+    // (pan / zoom) or the panel resizes — its bars are in pixel coordinates.
+    const bumpVp = () => setVpTick((t) => (t + 1) % 1_000_000);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(bumpVp);
+    const vpObserver = new ResizeObserver(bumpVp);
+    vpObserver.observe(el);
+
     return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(bumpVp);
+      vpObserver.disconnect();
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -316,7 +378,41 @@ export function ChartModule({ panel }: ModuleProps) {
       addLine(bands.lower, 'rgba(122,127,135,0.8)');
       addLine(bands.middle, 'rgba(122,127,135,0.4)');
     }
+    if (ind.vwap) addLine(vwap(data.candles), '#e6e6e6');
   }, [data, ind]);
+
+  // Volume-profile overlay: bucket volume by price, then map each bucket to
+  // pixel coordinates via the candle series. Recomputed on data, toggle, and
+  // every pan/zoom/resize (vpTick).
+  useEffect(() => {
+    const candle = candleRef.current;
+    if (!ind.vp || !candle || !data) {
+      setVpBars([]);
+      return;
+    }
+    const profile = volumeProfile(data.candles, 24);
+    if (profile.maxVolume <= 0) {
+      setVpBars([]);
+      return;
+    }
+    const bars: VpBar[] = [];
+    for (let i = 0; i < profile.bins.length; i++) {
+      const b = profile.bins[i];
+      const yHigh = candle.priceToCoordinate(b.priceHigh);
+      const yLow = candle.priceToCoordinate(b.priceLow);
+      if (yHigh == null || yLow == null) continue;
+      const top = Math.min(yHigh, yLow);
+      const height = Math.max(1, Math.abs(yLow - yHigh) - 1);
+      bars.push({
+        key: i,
+        top,
+        height,
+        widthPct: (b.volume / profile.maxVolume) * 28,
+        poc: i === profile.pocIndex,
+      });
+    }
+    setVpBars(bars);
+  }, [data, ind.vp, vpTick]);
 
   // RSI oscillator sub-pane: a second chart that follows the main chart's time scale.
   useEffect(() => {
@@ -332,21 +428,7 @@ export function ChartModule({ panel }: ModuleProps) {
     if (!el) return;
     const main = chartRef.current;
 
-    const chart = createChart(el, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: '#7a7f87',
-        fontFamily: 'ui-monospace, monospace',
-        fontSize: 11,
-      },
-      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
-      rightPriceScale: { borderColor: '#26262d' },
-      timeScale: { borderColor: '#26262d', visible: false },
-      crosshair: { mode: CrosshairMode.Normal },
-      handleScroll: false,
-      handleScale: false,
-    });
+    const chart = createChart(el, SUBPANE_OPTIONS);
     const series = chart.addLineSeries({
       color: '#c08cff',
       lineWidth: 1,
@@ -358,18 +440,10 @@ export function ChartModule({ panel }: ModuleProps) {
     rsiChartRef.current = chart;
     rsiSeriesRef.current = series;
 
-    let sync: ((r: LogicalRange | null) => void) | null = null;
-    if (main) {
-      sync = (r) => {
-        if (r) chart.timeScale().setVisibleLogicalRange(r);
-      };
-      main.timeScale().subscribeVisibleLogicalRangeChange(sync);
-      const current = main.timeScale().getVisibleLogicalRange();
-      if (current) chart.timeScale().setVisibleLogicalRange(current);
-    }
+    const unlink = main ? linkTimeScale(main, chart) : () => {};
 
     return () => {
-      if (main && sync) main.timeScale().unsubscribeVisibleLogicalRangeChange(sync);
+      unlink();
       chart.remove();
       rsiChartRef.current = null;
       rsiSeriesRef.current = null;
@@ -384,6 +458,75 @@ export function ChartModule({ panel }: ModuleProps) {
       rsi(data.candles, 14).map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
     );
   }, [data, ind.rsi]);
+
+  // MACD oscillator sub-pane: histogram + macd/signal lines, time-synced to the
+  // main chart just like RSI.
+  useEffect(() => {
+    if (!ind.macd) {
+      if (macdChartRef.current) {
+        macdChartRef.current.remove();
+        macdChartRef.current = null;
+        macdHistRef.current = null;
+        macdLineRef.current = null;
+        macdSignalRef.current = null;
+      }
+      return;
+    }
+    const el = macdContainerRef.current;
+    if (!el) return;
+    const main = chartRef.current;
+
+    const chart = createChart(el, SUBPANE_OPTIONS);
+    const hist = chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
+    const macdLine = chart.addLineSeries({
+      color: '#4cc2ff',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: false,
+    });
+    const signalLine = chart.addLineSeries({
+      color: '#ffb000',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    macdLine.createPriceLine({ price: 0, color: 'rgba(122,127,135,0.4)', lineWidth: 1, lineStyle: 2, axisLabelVisible: false, title: '' });
+    macdChartRef.current = chart;
+    macdHistRef.current = hist;
+    macdLineRef.current = macdLine;
+    macdSignalRef.current = signalLine;
+
+    const unlink = main ? linkTimeScale(main, chart) : () => {};
+
+    return () => {
+      unlink();
+      chart.remove();
+      macdChartRef.current = null;
+      macdHistRef.current = null;
+      macdLineRef.current = null;
+      macdSignalRef.current = null;
+    };
+  }, [ind.macd]);
+
+  // Feed the MACD series.
+  useEffect(() => {
+    const hist = macdHistRef.current;
+    const line = macdLineRef.current;
+    const signal = macdSignalRef.current;
+    if (!hist || !line || !signal || !data) return;
+    const m = macd(data.candles);
+    line.setData(m.macd.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+    signal.setData(m.signal.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
+    hist.setData(
+      m.histogram.map((p) => ({
+        time: p.time as UTCTimestamp,
+        value: p.value,
+        color: p.value >= 0 ? 'rgba(38,194,129,0.5)' : 'rgba(239,77,86,0.5)',
+      })),
+    );
+  }, [data, ind.macd]);
 
   const perf = useMemo(() => {
     if (!data || data.candles.length < 2) return null;
@@ -431,7 +574,10 @@ export function ChartModule({ panel }: ModuleProps) {
           ['sma', 'SMA 20'],
           ['ema', 'EMA 50'],
           ['bb', 'BB 20'],
+          ['vwap', 'VWAP'],
           ['rsi', 'RSI 14'],
+          ['macd', 'MACD'],
+          ['vp', 'VP'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -481,6 +627,22 @@ export function ChartModule({ panel }: ModuleProps) {
           ref={containerRef}
           className={`absolute inset-0 ${drawMode || alertMode ? 'cursor-crosshair' : ''}`}
         />
+        {ind.vp && vpBars.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-[5]">
+            {vpBars.map((b) => (
+              <div
+                key={b.key}
+                className="absolute left-0"
+                style={{
+                  top: b.top,
+                  height: b.height,
+                  width: `${b.widthPct}%`,
+                  background: b.poc ? 'rgba(255,176,0,0.40)' : 'rgba(76,194,255,0.18)',
+                }}
+              />
+            ))}
+          </div>
+        )}
         {loading && !data && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loading label={`Loading ${symbol}`} />
@@ -496,6 +658,12 @@ export function ChartModule({ panel }: ModuleProps) {
         <div className="relative h-20 shrink-0 border-t border-term-border">
           <div className="absolute left-1 top-0.5 z-10 text-2xs text-term-dim">RSI 14</div>
           <div ref={rsiContainerRef} className="absolute inset-0" />
+        </div>
+      )}
+      {ind.macd && (
+        <div className="relative h-20 shrink-0 border-t border-term-border">
+          <div className="absolute left-1 top-0.5 z-10 text-2xs text-term-dim">MACD 12 26 9</div>
+          <div ref={macdContainerRef} className="absolute inset-0" />
         </div>
       )}
     </div>

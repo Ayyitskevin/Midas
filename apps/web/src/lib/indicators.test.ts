@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { sma, ema, bollinger, rsi } from '@/lib/indicators';
+import { sma, ema, bollinger, rsi, macd, vwap, volumeProfile } from '@/lib/indicators';
 import type { Candle } from '@midas/shared';
 
 /** Build flat OHLCV candles from a close-price series. */
 const candles = (closes: number[]): Candle[] =>
   closes.map((close, i) => ({ time: i, open: close, high: close, low: close, close, volume: 0 }));
+
+/** Build candles from [high, low, close, volume] rows (open = previous close). */
+const ohlcv = (rows: Array<[number, number, number, number]>): Candle[] =>
+  rows.map(([high, low, close, volume], i) => ({ time: i, open: close, high, low, close, volume }));
 
 describe('sma', () => {
   it('averages over the trailing window', () => {
@@ -58,5 +62,75 @@ describe('rsi', () => {
       expect(p.value).toBeGreaterThanOrEqual(0);
       expect(p.value).toBeLessThanOrEqual(100);
     }
+  });
+});
+
+describe('macd', () => {
+  it('returns empty parts for no candles', () => {
+    expect(macd([])).toEqual({ macd: [], signal: [], histogram: [] });
+  });
+
+  it('aligns the three parts and keeps histogram = macd − signal', () => {
+    const series = candles(Array.from({ length: 60 }, (_, i) => 100 + i));
+    const out = macd(series);
+    expect(out.macd.length).toBe(out.signal.length);
+    expect(out.macd.length).toBe(out.histogram.length);
+    for (let i = 0; i < out.macd.length; i++) {
+      expect(out.histogram[i].value).toBeCloseTo(out.macd[i].value - out.signal[i].value);
+      expect(out.histogram[i].time).toBe(out.macd[i].time);
+    }
+  });
+
+  it('is positive on a steadily rising series (fast EMA leads slow)', () => {
+    const out = macd(candles(Array.from({ length: 60 }, (_, i) => 100 + i)));
+    expect(out.macd[out.macd.length - 1].value).toBeGreaterThan(0);
+  });
+});
+
+describe('vwap', () => {
+  it('weights by volume cumulatively', () => {
+    // typical prices 10 and 20; volumes 1 and 3 → (10·1)/1 then (10·1+20·3)/4.
+    const out = vwap(ohlcv([
+      [10, 10, 10, 1],
+      [20, 20, 20, 3],
+    ]));
+    expect(out[0].value).toBeCloseTo(10);
+    expect(out[1].value).toBeCloseTo(17.5);
+  });
+
+  it('falls back to typical price when there is no volume', () => {
+    const out = vwap(ohlcv([[12, 6, 9, 0]])); // typical = (12+6+9)/3 = 9
+    expect(out[0].value).toBeCloseTo(9);
+  });
+});
+
+describe('volumeProfile', () => {
+  it('is empty for no candles', () => {
+    expect(volumeProfile([])).toEqual({ bins: [], pocIndex: -1, maxVolume: 0 });
+  });
+
+  it('conserves total volume across the bins', () => {
+    const rows: Array<[number, number, number, number]> = [
+      [10, 10, 10, 5],
+      [20, 20, 20, 3],
+      [30, 30, 30, 8],
+    ];
+    const { bins } = volumeProfile(ohlcv(rows), 8);
+    const total = bins.reduce((s, b) => s + b.volume, 0);
+    expect(total).toBe(16);
+  });
+
+  it('marks the heaviest bucket as the point of control', () => {
+    const { bins, pocIndex, maxVolume } = volumeProfile(
+      ohlcv([
+        [10, 10, 10, 1],
+        [50, 50, 50, 9], // dominant level
+        [30, 30, 30, 2],
+      ]),
+      8,
+    );
+    expect(maxVolume).toBe(9);
+    expect(bins[pocIndex].priceLow).toBeLessThanOrEqual(50);
+    expect(bins[pocIndex].priceHigh).toBeGreaterThanOrEqual(50);
   });
 });
