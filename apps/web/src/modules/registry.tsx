@@ -7,6 +7,7 @@ import { OrderBookModule } from './OrderBookModule';
 import { MultiExchangeModule } from './MultiExchangeModule';
 import { DerivativesModule } from './DerivativesModule';
 import { ScreenerModule } from './ScreenerModule';
+import { AiCopilotModule } from './AiCopilotModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
 import { NewsModule } from './NewsModule';
@@ -21,6 +22,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> =
   ALLQ: MultiExchangeModule,
   FUND: DerivativesModule,
   SCR: ScreenerModule,
+  AI: AiCopilotModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
   N: NewsModule,

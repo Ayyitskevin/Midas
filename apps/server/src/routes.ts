@@ -4,6 +4,8 @@ import type { HealthResponse, Interval, Range } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { config } from './config';
+import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
+import type { ChatMessage } from './ai';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
@@ -106,4 +108,33 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
     return provider.getNews(symbol);
   });
+
+  app.post<{ Body: { messages?: ChatMessage[]; symbol?: string } }>(
+    '/api/ai/chat',
+    async (req, reply) => {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        reply.status(503);
+        return {
+          error: 'AIUnavailable',
+          message: 'AI copilot requires ANTHROPIC_API_KEY on the server.',
+          statusCode: 503,
+        };
+      }
+
+      const messages = (req.body?.messages ?? [])
+        .filter(
+          (m): m is ChatMessage =>
+            !!m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string',
+        )
+        .slice(-12);
+      if (messages.length === 0) throw new ProviderError('No messages provided', 400);
+
+      const symbol = req.body?.symbol ? normalizeSymbol(req.body.symbol) : undefined;
+      const context = await buildContext(provider, symbol);
+      const system = `${COPILOT_SYSTEM_PREAMBLE}\n\nLIVE DATA:\n${context}`;
+      const content = await callClaude({ system, messages, model: config.aiModel, apiKey });
+      return { role: 'assistant', content };
+    },
+  );
 }

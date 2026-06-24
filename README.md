@@ -78,6 +78,10 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
 | `GP`    | `CHART`, `G`   | yes          | Historical price chart (daily candles).       |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
+| `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
+| `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
+| `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
+| `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
@@ -144,6 +148,8 @@ Server (environment variables):
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
+| `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
+| `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).
