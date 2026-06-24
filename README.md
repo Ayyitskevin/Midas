@@ -250,7 +250,7 @@ The foundation is intentionally small and extensible. Likely next steps:
   screener, portfolio/positions, comparison overlays, technical studies.
 - **Workspaces:** multiple named layouts, panel linking (a symbol typed in one
   panel updates linked panels), command-driven panel targeting.
-- **Charts:** drawing tools (trendlines, fib retracements), multiple series.
+- **Charts:** multi-symbol compare overlays, persisted studies & drawings.
 - **Platform:** multi-user auth for self-hosting, broader test coverage (UI /
   component tests). _(Docker Compose deploy + a Vitest suite wired into
   typecheck/build/test CI already shipped.)_
