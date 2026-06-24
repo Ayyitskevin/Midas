@@ -7,6 +7,7 @@ import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
+import { WorkspaceSync } from './components/WorkspaceSync';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -41,6 +42,7 @@ export default function App() {
         <StatusBar />
         <AlertsEngine />
         <ToastHost />
+        <WorkspaceSync />
       </div>
     </LoginGate>
   );
