@@ -3,11 +3,13 @@ import {
   alertOpForLevel,
   conditionMet,
   evaluateAlerts,
+  newTriggersSince,
   opSymbol,
   formatThreshold,
   formatActual,
   describeThreshold,
   type Alert,
+  type AlertTrigger,
   type Readings,
 } from '@/lib/alerts';
 
@@ -195,5 +197,31 @@ describe('evaluateAlerts — cross trigger', () => {
     expect(s.fired).toBe(1);
     s = tick(s.a, { 'BTC/USDT': { price: 71000 } });
     expect(s.fired).toBe(1);
+  });
+});
+
+describe('newTriggersSince', () => {
+  const mkT = (id: string): AlertTrigger => ({
+    id,
+    alertId: 'a',
+    symbol: 'BTC/USDT',
+    metric: 'price',
+    op: 'above',
+    value: 1,
+    actual: 2,
+    at: 0,
+  });
+
+  it('returns nothing on the first look (null seen id)', () => {
+    expect(newTriggersSince([mkT('t1')], null)).toEqual([]);
+  });
+
+  it('returns the triggers newer than the seen id', () => {
+    const log = [mkT('t3'), mkT('t2'), mkT('t1')]; // newest first
+    expect(newTriggersSince(log, 't1').map((t) => t.id)).toEqual(['t3', 't2']);
+  });
+
+  it('returns nothing when the seen id has fallen off the log', () => {
+    expect(newTriggersSince([mkT('t2'), mkT('t1')], 'gone')).toEqual([]);
   });
 });

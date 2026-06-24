@@ -1,4 +1,7 @@
 import type {
+  Alert,
+  AlertInput,
+  AlertTrigger,
   ApiError,
   DerivativesInfo,
   HealthResponse,
@@ -40,6 +43,31 @@ async function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Pr
     signal,
     headers: { 'content-type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = `Request failed (${res.status})`;
+    try {
+      const data = (await res.json()) as ApiError;
+      if (data?.message) message = data.message;
+    } catch {
+      // non-JSON error body
+    }
+    throw new Error(message);
+  }
+  return (await res.json()) as T;
+}
+
+async function apiSend<T>(
+  method: 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    signal,
+    headers: { 'content-type': 'application/json', Accept: 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -106,4 +134,14 @@ export const api = {
       `/api/news${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`,
       signal,
     ),
+
+  // Server-side alerts.
+  listAlerts: (signal?: AbortSignal) => apiGet<Alert[]>('/api/alerts', signal),
+  alertLog: (signal?: AbortSignal) => apiGet<AlertTrigger[]>('/api/alerts/log', signal),
+  createAlert: (input: AlertInput, signal?: AbortSignal) =>
+    apiPost<Alert>('/api/alerts', input, signal),
+  updateAlert: (id: string, patch: { enabled?: boolean; rearm?: boolean }, signal?: AbortSignal) =>
+    apiSend<Alert>('PATCH', `/api/alerts/${encodeURIComponent(id)}`, patch, signal),
+  deleteAlert: (id: string, signal?: AbortSignal) =>
+    apiSend<{ ok: boolean }>('DELETE', `/api/alerts/${encodeURIComponent(id)}`, undefined, signal),
 };

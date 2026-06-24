@@ -139,6 +139,18 @@ export function opSymbol(op: AlertOp): string {
 }
 
 /**
+ * Given a newest-first trigger log and the id last surfaced to the user, return
+ * the triggers that are newer than it. Returns nothing on the first look (null
+ * seen) or if the seen id has fallen off the log — so reopening a tab doesn't
+ * replay a backlog of fires.
+ */
+export function newTriggersSince(log: AlertTrigger[], seenId: string | null): AlertTrigger[] {
+  if (!seenId) return [];
+  const idx = log.findIndex((t) => t.id === seenId);
+  return idx === -1 ? [] : log.slice(0, idx);
+}
+
+/**
  * Fold fresh readings into the alert set, firing on the *edge* where an armed
  * alert's condition first becomes true. Returns the next alert array and the
  * triggers that fired this pass. Repeatable alerts re-arm once their condition

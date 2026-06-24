@@ -1,11 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { useAlerts } from '@/store/useAlerts';
+import { useToasts } from '@/store/useToasts';
+import { api } from '@/lib/api';
+import { useFetch } from '@/lib/hooks';
 import {
   canNotify,
   describeThreshold,
   formatActual,
   requestNotificationPermission,
   triggerHeadline,
+  type Alert,
+  type AlertInput,
   type AlertMetric,
   type AlertOp,
 } from '@/lib/alerts';
@@ -29,8 +34,35 @@ const inputCls =
   'no-drag rounded-sm border border-term-border bg-term-bg px-2 py-1 text-xs text-term-text outline-none focus:border-term-amber';
 
 export function AlertsModule({ panel }: ModuleProps) {
-  const { alerts, log, soundEnabled, addAlert, removeAlert, toggleAlert, rearmAlert, clearLog, setSound } =
-    useAlerts();
+  const mode = useAlerts((s) => s.mode);
+  const setMode = useAlerts((s) => s.setMode);
+  const localAlerts = useAlerts((s) => s.alerts);
+  const localLog = useAlerts((s) => s.log);
+  const soundEnabled = useAlerts((s) => s.soundEnabled);
+  const setSound = useAlerts((s) => s.setSound);
+  const addAlert = useAlerts((s) => s.addAlert);
+  const removeAlert = useAlerts((s) => s.removeAlert);
+  const toggleAlert = useAlerts((s) => s.toggleAlert);
+  const rearmAlert = useAlerts((s) => s.rearmAlert);
+  const clearLog = useAlerts((s) => s.clearLog);
+  const pushToast = useToasts((s) => s.push);
+
+  // In server mode the rules + log come from the API (the server evaluates).
+  const serverAlertsQ = useFetch((signal) => api.listAlerts(signal), [], {
+    intervalMs: 4000,
+    enabled: mode === 'server',
+  });
+  const serverLogQ = useFetch((signal) => api.alertLog(signal), [], {
+    intervalMs: 5000,
+    enabled: mode === 'server',
+  });
+  const refreshServer = () => {
+    serverAlertsQ.refresh();
+    serverLogQ.refresh();
+  };
+
+  const alerts = mode === 'server' ? serverAlertsQ.data ?? [] : localAlerts;
+  const log = mode === 'server' ? serverLogQ.data ?? [] : localLog;
 
   const [symbol, setSymbol] = useState(panel.symbol ?? '');
   const [metric, setMetric] = useState<AlertMetric>('price');
@@ -42,11 +74,48 @@ export function AlertsModule({ panel }: ModuleProps) {
     canNotify() ? Notification.permission : 'unsupported',
   );
 
+  async function onAdd(input: AlertInput) {
+    if (mode === 'server') {
+      try {
+        await api.createAlert(input);
+        refreshServer();
+      } catch (e) {
+        pushToast({ title: 'Alert not saved', body: (e as Error).message, tone: 'down' });
+      }
+    } else {
+      addAlert(input);
+    }
+  }
+
+  async function onToggle(a: Alert) {
+    if (mode === 'server') {
+      await api.updateAlert(a.id, { enabled: !a.enabled }).then(refreshServer, () => {});
+    } else {
+      toggleAlert(a.id);
+    }
+  }
+
+  async function onRearm(a: Alert) {
+    if (mode === 'server') {
+      await api.updateAlert(a.id, { rearm: true }).then(refreshServer, () => {});
+    } else {
+      rearmAlert(a.id);
+    }
+  }
+
+  async function onRemove(a: Alert) {
+    if (mode === 'server') {
+      await api.deleteAlert(a.id).then(refreshServer, () => {});
+    } else {
+      removeAlert(a.id);
+    }
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault();
     const v = Number(value);
     if (!symbol.trim() || !Number.isFinite(v)) return;
-    addAlert({ symbol, metric, op, value: v, note, repeat });
+    void onAdd({ symbol: symbol.trim().toUpperCase(), metric, op, value: v, note, repeat });
     setValue('');
     setNote('');
   }
@@ -111,15 +180,28 @@ export function AlertsModule({ panel }: ModuleProps) {
         </div>
       </form>
 
-      {/* Notification + sound controls */}
-      <div className="flex items-center gap-3 border-b border-term-border px-2 py-1 text-2xs">
+      {/* Mode + notification + sound controls */}
+      <div className="flex items-center gap-2 border-b border-term-border px-2 py-1 text-2xs">
+        <div className="flex overflow-hidden rounded-sm border border-term-border" title="Where alerts live">
+          {(['local', 'server'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`no-drag px-1.5 py-0.5 uppercase ${
+                mode === m ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'
+              }`}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
         {perm === 'granted' ? (
-          <span className="text-term-up">● notifications on</span>
+          <span className="text-term-up">● on</span>
         ) : perm === 'unsupported' ? (
-          <span className="text-term-dim">notifications unsupported</span>
+          <span className="text-term-dim">no notif.</span>
         ) : (
           <button onClick={enableNotifications} className="no-drag text-term-amber hover:underline">
-            {perm === 'denied' ? 'notifications blocked' : 'enable browser notifications'}
+            {perm === 'denied' ? 'notif. blocked' : 'enable notif.'}
           </button>
         )}
         <label className="no-drag ml-auto flex items-center gap-1 text-term-muted">
@@ -130,8 +212,14 @@ export function AlertsModule({ panel }: ModuleProps) {
 
       {/* Alert list */}
       <div className="scroll-term min-h-0 flex-1 overflow-auto">
-        {alerts.length === 0 ? (
-          <EmptyState>No alerts yet. Add one above — they fire while the terminal is open.</EmptyState>
+        {mode === 'server' && serverAlertsQ.error && !serverAlertsQ.data ? (
+          <EmptyState>Can’t reach the server — {serverAlertsQ.error}</EmptyState>
+        ) : alerts.length === 0 ? (
+          <EmptyState>
+            {mode === 'server'
+              ? 'No server alerts yet — these are evaluated in the background, even with the tab closed.'
+              : 'No alerts yet. Add one above — local alerts fire while the terminal is open.'}
+          </EmptyState>
         ) : (
           <table className="w-full text-2xs">
             <tbody>
@@ -165,7 +253,7 @@ export function AlertsModule({ panel }: ModuleProps) {
                       <div className="flex justify-end gap-1.5">
                         {a.status === 'triggered' && (
                           <button
-                            onClick={() => rearmAlert(a.id)}
+                            onClick={() => onRearm(a)}
                             className="no-drag text-term-amber hover:underline"
                             title="Re-arm"
                           >
@@ -173,14 +261,14 @@ export function AlertsModule({ panel }: ModuleProps) {
                           </button>
                         )}
                         <button
-                          onClick={() => toggleAlert(a.id)}
+                          onClick={() => onToggle(a)}
                           className="no-drag text-term-muted hover:text-term-text"
                           title={a.enabled ? 'Disable' : 'Enable'}
                         >
                           {a.enabled ? 'on' : 'off'}
                         </button>
                         <button
-                          onClick={() => removeAlert(a.id)}
+                          onClick={() => onRemove(a)}
                           className="no-drag text-term-dim hover:text-term-down"
                           title="Delete"
                         >
@@ -201,9 +289,11 @@ export function AlertsModule({ panel }: ModuleProps) {
         <div className="border-t border-term-border">
           <div className="flex items-center justify-between px-2 py-1">
             <span className="term-label">Recent triggers</span>
-            <button onClick={clearLog} className="no-drag text-2xs text-term-dim hover:text-term-text">
-              clear
-            </button>
+            {mode === 'local' && (
+              <button onClick={clearLog} className="no-drag text-2xs text-term-dim hover:text-term-text">
+                clear
+              </button>
+            )}
           </div>
           <div className="scroll-term max-h-24 overflow-auto px-2 pb-2">
             {log.slice(0, 12).map((t) => (
