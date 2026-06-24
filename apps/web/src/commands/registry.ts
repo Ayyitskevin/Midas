@@ -43,6 +43,14 @@ export const COMMANDS: CommandDef[] = [
     params: { interval: '5m', range: '1d' },
   },
   {
+    code: 'BOOK',
+    aliases: ['DOM', 'OB'],
+    title: 'Order Book',
+    module: 'BOOK',
+    requiresSymbol: true,
+    description: 'Live Level-2 order book / depth of market (best on crypto).',
+  },
+  {
     code: 'W',
     aliases: ['WATCH', 'WL'],
     title: 'Watchlist',

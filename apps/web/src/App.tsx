@@ -12,9 +12,9 @@ export default function App() {
     const { panels, counter } = usePanels.getState();
     if (panels.length === 0 && counter === 0) {
       runCommand('W');
-      runCommand('AAPL DES');
-      runCommand('AAPL GP');
-      runCommand('TOP');
+      runCommand('BTC/USDT DES');
+      runCommand('BTC/USDT GP');
+      runCommand('BTC/USDT BOOK');
     }
   }, []);
 

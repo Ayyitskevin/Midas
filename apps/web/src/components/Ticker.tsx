@@ -4,7 +4,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { openSymbol } from '@/commands/execute';
 
-const TAPE = ['^GSPC', '^IXIC', '^DJI', 'SPY', 'QQQ', 'BTC-USD', 'ETH-USD'];
+const TAPE = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT', 'XRP/USDT', 'DOGE/USDT', 'ADA/USDT', 'AVAX/USDT'];
 
 export function Ticker() {
   const watch = useWatchlist((s) => s.symbols);

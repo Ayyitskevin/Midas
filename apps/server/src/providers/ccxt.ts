@@ -5,6 +5,7 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OrderBook,
   Quote,
   SearchResult,
 } from '@midas/shared';
@@ -119,6 +120,23 @@ export class CcxtProvider implements DataProvider {
         range: opts.range,
         currency: quote,
         candles,
+      };
+    } catch (err) {
+      throw new ProviderError(this.describe(err, s), 502, s);
+    }
+  }
+
+  async getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
+    const s = this.normalize(symbol);
+    try {
+      const ob = await this.exchange.fetchOrderBook(s, depth);
+      const toLevels = (rows: number[][]) =>
+        rows.slice(0, depth).map(([price, amount]) => ({ price: num(price), amount: num(amount) }));
+      return {
+        symbol: s,
+        bids: toLevels(ob.bids as number[][]),
+        asks: toLevels(ob.asks as number[][]),
+        timestamp: ob.timestamp ?? Date.now(),
       };
     } catch (err) {
       throw new ProviderError(this.describe(err, s), 502, s);

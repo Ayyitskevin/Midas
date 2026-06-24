@@ -62,6 +62,18 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getHistory(symbol, { interval, range });
   });
 
+  app.get<{
+    Params: { symbol: string };
+    Querystring: { depth?: string };
+  }>('/api/orderbook/:symbol', async (req) => {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    const depthRaw = Number(req.query.depth);
+    const depth =
+      Number.isFinite(depthRaw) && depthRaw > 0 ? Math.min(Math.floor(depthRaw), 100) : 25;
+    return provider.getOrderBook(symbol, depth);
+  });
+
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
     const q = (req.query.q ?? '').trim();
     if (q.length === 0) return [];

@@ -3,6 +3,7 @@ import type { ModuleCode } from './meta';
 import type { ModuleProps } from './types';
 import { DescriptionModule } from './DescriptionModule';
 import { ChartModule } from './ChartModule';
+import { OrderBookModule } from './OrderBookModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
 import { NewsModule } from './NewsModule';
@@ -13,6 +14,7 @@ import { SecurityFinderModule } from './SecurityFinderModule';
 export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> = {
   DES: DescriptionModule,
   GP: ChartModule,
+  BOOK: OrderBookModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
   N: NewsModule,

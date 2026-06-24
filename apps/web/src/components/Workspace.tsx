@@ -7,10 +7,10 @@ import { Panel } from './Panel';
 const Grid = WidthProvider(GridLayout);
 
 const STARTERS: Array<[string, string]> = [
-  ['AAPL', 'description'],
-  ['NVDA GP', 'price chart'],
+  ['BTC/USDT', 'description'],
+  ['BTC/USDT GP', 'price chart'],
+  ['BTC/USDT BOOK', 'order book'],
   ['W', 'watchlist'],
-  ['TOP', 'market news'],
   ['HELP', 'all commands'],
 ];
 

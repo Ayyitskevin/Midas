@@ -4,6 +4,7 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OrderBook,
   Quote,
   Range,
   SearchResult,
@@ -44,6 +45,12 @@ export const api = {
   history: (symbol: string, interval: Interval, range: Range, signal?: AbortSignal) =>
     apiGet<HistoryResponse>(
       `/api/history/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`,
+      signal,
+    ),
+
+  orderbook: (symbol: string, depth = 25, signal?: AbortSignal) =>
+    apiGet<OrderBook>(
+      `/api/orderbook/${encodeURIComponent(symbol)}?depth=${depth}`,
       signal,
     ),
 

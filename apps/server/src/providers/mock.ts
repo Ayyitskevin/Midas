@@ -3,6 +3,8 @@ import type {
   HistoryResponse,
   MarketState,
   NewsItem,
+  OrderBook,
+  OrderBookLevel,
   Quote,
   SearchResult,
 } from '@midas/shared';
@@ -74,6 +76,23 @@ const ROSTER: RosterEntry[] = [
   { symbol: '^DJI', name: 'Dow Jones Industrial Average', exchange: 'DJI', type: 'INDEX', base: 39100, currency: 'USD' },
   { symbol: 'BTC-USD', name: 'Bitcoin USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 64000, currency: 'USD' },
   { symbol: 'ETH-USD', name: 'Ethereum USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 3400, currency: 'USD' },
+  // Crypto pairs in CCXT unified form (BASE/QUOTE) — Midas's native asset class.
+  { symbol: 'BTC/USDT', name: 'Bitcoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 64000, currency: 'USDT' },
+  { symbol: 'ETH/USDT', name: 'Ethereum', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 3400, currency: 'USDT' },
+  { symbol: 'SOL/USDT', name: 'Solana', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 152, currency: 'USDT' },
+  { symbol: 'BNB/USDT', name: 'BNB', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 592, currency: 'USDT' },
+  { symbol: 'XRP/USDT', name: 'XRP', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.52, currency: 'USDT' },
+  { symbol: 'DOGE/USDT', name: 'Dogecoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.12, currency: 'USDT' },
+  { symbol: 'ADA/USDT', name: 'Cardano', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.38, currency: 'USDT' },
+  { symbol: 'AVAX/USDT', name: 'Avalanche', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 27, currency: 'USDT' },
+  { symbol: 'LINK/USDT', name: 'Chainlink', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 14, currency: 'USDT' },
+  { symbol: 'MATIC/USDT', name: 'Polygon', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.55, currency: 'USDT' },
+  { symbol: 'DOT/USDT', name: 'Polkadot', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 6.2, currency: 'USDT' },
+  { symbol: 'LTC/USDT', name: 'Litecoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 72, currency: 'USDT' },
+  { symbol: 'TRX/USDT', name: 'TRON', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.13, currency: 'USDT' },
+  { symbol: 'ATOM/USDT', name: 'Cosmos', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 7.5, currency: 'USDT' },
+  { symbol: 'UNI/USDT', name: 'Uniswap', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 9.1, currency: 'USDT' },
+  { symbol: 'ETH/BTC', name: 'Ethereum', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.053, currency: 'BTC' },
 ];
 
 const ROSTER_BY_SYMBOL = new Map(ROSTER.map((entry) => [entry.symbol, entry]));
@@ -121,6 +140,20 @@ function resolveEntry(rawSymbol: string): RosterEntry {
   const known = ROSTER_BY_SYMBOL.get(symbol);
   if (known) return known;
 
+  // BASE/QUOTE → synthesize a crypto pair so any market the user types works.
+  if (symbol.includes('/')) {
+    const [base, quote] = symbol.split('/');
+    const rng = seeded(symbol, 'crypto');
+    return {
+      symbol,
+      name: `${base} / ${quote}`,
+      exchange: 'BINANCE',
+      type: 'CRYPTOCURRENCY',
+      base: round(uniform(rng, 0.05, 200), 4),
+      currency: quote || 'USDT',
+    };
+  }
+
   const rng = seeded(symbol, 'entry');
   const base = round(uniform(rng, 12, 480));
   return {
@@ -148,6 +181,29 @@ export class MockProvider implements DataProvider {
 
   async getQuotes(symbols: string[]): Promise<Quote[]> {
     return symbols.map((symbol) => this.buildQuote(resolveEntry(symbol)));
+  }
+
+  async getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
+    const entry = resolveEntry(symbol);
+    const mid = this.buildQuote(entry).price;
+    // Wiggle the book each minute so the DOM feels alive but is stable within a minute.
+    const minuteBucket = Math.floor(Date.now() / 60_000);
+    const rng = seeded(entry.symbol, minuteBucket, 'book');
+
+    const tick = Math.max(mid * 0.0002, mid < 1 ? 0.00001 : 0.01);
+    const halfSpread = tick * uniform(rng, 0.5, 1.5);
+    const sizeBase = mid > 0 ? clamp(50_000 / mid, 0.5, 5_000) : 1;
+
+    const bids: OrderBookLevel[] = [];
+    const asks: OrderBookLevel[] = [];
+    for (let i = 0; i < depth; i++) {
+      const bidPrice = mid - halfSpread - i * tick * (1 + uniform(rng, 0, 0.4));
+      const askPrice = mid + halfSpread + i * tick * (1 + uniform(rng, 0, 0.4));
+      const grow = 1 + i * 0.12;
+      bids.push({ price: round(bidPrice, 6), amount: round(sizeBase * uniform(rng, 0.2, 1.8) * grow, 4) });
+      asks.push({ price: round(askPrice, 6), amount: round(sizeBase * uniform(rng, 0.2, 1.8) * grow, 4) });
+    }
+    return { symbol: entry.symbol, bids, asks, timestamp: Date.now() };
   }
 
   async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {

@@ -2,6 +2,7 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OrderBook,
   Quote,
   Range,
   SearchResult,
@@ -26,6 +27,7 @@ export interface DataProvider {
   getQuote(symbol: string): Promise<Quote>;
   getQuotes(symbols: string[]): Promise<Quote[]>;
   getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse>;
+  getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
 }

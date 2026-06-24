@@ -3,7 +3,7 @@
  * command registry, the panel store, and the component registry without cycles.
  */
 
-export type ModuleCode = 'DES' | 'GP' | 'W' | 'N' | 'Q' | 'HELP' | 'SECF';
+export type ModuleCode = 'DES' | 'GP' | 'BOOK' | 'W' | 'N' | 'Q' | 'HELP' | 'SECF';
 
 export interface ModuleMeta {
   code: ModuleCode;
@@ -19,6 +19,7 @@ export interface ModuleMeta {
 export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DES: { code: 'DES', title: 'Security Description', w: 4, h: 9, minW: 3, minH: 6 },
   GP: { code: 'GP', title: 'Price Graph', w: 6, h: 11, minW: 4, minH: 8 },
+  BOOK: { code: 'BOOK', title: 'Order Book', w: 4, h: 12, minW: 3, minH: 8 },
   W: { code: 'W', title: 'Watchlist', w: 3, h: 12, minW: 2, minH: 6 },
   N: { code: 'N', title: 'News', w: 4, h: 12, minW: 3, minH: 6 },
   Q: { code: 'Q', title: 'Quote Monitor', w: 5, h: 9, minW: 3, minH: 5 },
