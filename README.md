@@ -8,6 +8,10 @@ workspace. Inspired by [Gödel Terminal](https://godelterminal.com).
 > Status: **v0.1 — foundation.** A working end-to-end vertical slice (command
 > bar → tiling panels → live-updating modules → pluggable data backend). Built
 > to grow for months. See the [Roadmap](#roadmap).
+>
+> **Direction:** Midas is heading toward a command-driven, self-hosted,
+> **crypto-native** terminal (CCXT, no API keys). See [`VISION.md`](./VISION.md)
+> and the [competitive teardown](./docs/research/godel-competitive-teardown.md).
 
 ---
 
