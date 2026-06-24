@@ -15,6 +15,7 @@
     "build": "pnpm -r build",
     "start": "pnpm --filter @midas/server start",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "clean": "pnpm -r exec rm -rf dist node_modules .vite && rm -rf node_modules"
   },
   "devDependencies": {
