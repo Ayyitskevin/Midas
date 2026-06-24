@@ -103,7 +103,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | Command | Aliases        | Needs symbol | Description                                   |
 | ------- | -------------- | ------------ | --------------------------------------------- |
 | `DES`   | `DESC`, `DS`   | yes          | Snapshot quote + key stats for a security.    |
-| `GP`    | `CHART`, `G`   | yes          | Historical price chart (daily candles).       |
+| `GP`    | `CHART`, `G`   | yes          | Historical chart + studies (MA/BB/VWAP/RSI/MACD/vol-profile). |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
@@ -250,7 +250,7 @@ The foundation is intentionally small and extensible. Likely next steps:
   screener, portfolio/positions, comparison overlays, technical studies.
 - **Workspaces:** multiple named layouts, panel linking (a symbol typed in one
   panel updates linked panels), command-driven panel targeting.
-- **Charts:** drawing tools, indicators (MA/RSI/MACD), multiple series.
+- **Charts:** drawing tools (trendlines, fib retracements), multiple series.
 - **Platform:** multi-user auth for self-hosting, broader test coverage (UI /
   component tests). _(Docker Compose deploy + a Vitest suite wired into
   typecheck/build/test CI already shipped.)_
