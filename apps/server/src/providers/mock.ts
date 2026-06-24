@@ -1,0 +1,325 @@
+import type {
+  Candle,
+  HistoryResponse,
+  MarketState,
+  NewsItem,
+  Quote,
+  SearchResult,
+} from '@midas/shared';
+import type { DataProvider, HistoryOptions } from './types';
+import {
+  INTERVAL_SECONDS,
+  RANGE_SECONDS,
+  clamp,
+  gaussian,
+  hashString,
+  round,
+  seeded,
+  uniform,
+  usMarketState,
+} from './util';
+
+interface RosterEntry {
+  symbol: string;
+  name: string;
+  exchange: string;
+  type: string;
+  /** Reference price the synthetic series anchors around. */
+  base: number;
+  currency: string;
+}
+
+/**
+ * A roster of well-known securities so search, watchlists and quotes feel real.
+ * Any symbol not listed here is synthesized on the fly from its hash, so the
+ * terminal still responds to anything the user types.
+ */
+const ROSTER: RosterEntry[] = [
+  { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 212, currency: 'USD' },
+  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 444, currency: 'USD' },
+  { symbol: 'GOOGL', name: 'Alphabet Inc. Class A', exchange: 'NASDAQ', type: 'EQUITY', base: 178, currency: 'USD' },
+  { symbol: 'AMZN', name: 'Amazon.com, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 186, currency: 'USD' },
+  { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 126, currency: 'USD' },
+  { symbol: 'META', name: 'Meta Platforms, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 503, currency: 'USD' },
+  { symbol: 'TSLA', name: 'Tesla, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 185, currency: 'USD' },
+  { symbol: 'NFLX', name: 'Netflix, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 678, currency: 'USD' },
+  { symbol: 'AMD', name: 'Advanced Micro Devices, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 162, currency: 'USD' },
+  { symbol: 'INTC', name: 'Intel Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 31, currency: 'USD' },
+  { symbol: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE', type: 'EQUITY', base: 205, currency: 'USD' },
+  { symbol: 'BAC', name: 'Bank of America Corporation', exchange: 'NYSE', type: 'EQUITY', base: 40, currency: 'USD' },
+  { symbol: 'GS', name: 'The Goldman Sachs Group, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 478, currency: 'USD' },
+  { symbol: 'V', name: 'Visa Inc.', exchange: 'NYSE', type: 'EQUITY', base: 273, currency: 'USD' },
+  { symbol: 'MA', name: 'Mastercard Incorporated', exchange: 'NYSE', type: 'EQUITY', base: 446, currency: 'USD' },
+  { symbol: 'DIS', name: 'The Walt Disney Company', exchange: 'NYSE', type: 'EQUITY', base: 101, currency: 'USD' },
+  { symbol: 'KO', name: 'The Coca-Cola Company', exchange: 'NYSE', type: 'EQUITY', base: 63, currency: 'USD' },
+  { symbol: 'PEP', name: 'PepsiCo, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 168, currency: 'USD' },
+  { symbol: 'WMT', name: 'Walmart Inc.', exchange: 'NYSE', type: 'EQUITY', base: 67, currency: 'USD' },
+  { symbol: 'XOM', name: 'Exxon Mobil Corporation', exchange: 'NYSE', type: 'EQUITY', base: 114, currency: 'USD' },
+  { symbol: 'CVX', name: 'Chevron Corporation', exchange: 'NYSE', type: 'EQUITY', base: 156, currency: 'USD' },
+  { symbol: 'BA', name: 'The Boeing Company', exchange: 'NYSE', type: 'EQUITY', base: 182, currency: 'USD' },
+  { symbol: 'CAT', name: 'Caterpillar Inc.', exchange: 'NYSE', type: 'EQUITY', base: 338, currency: 'USD' },
+  { symbol: 'GE', name: 'General Electric Company', exchange: 'NYSE', type: 'EQUITY', base: 165, currency: 'USD' },
+  { symbol: 'PFE', name: 'Pfizer Inc.', exchange: 'NYSE', type: 'EQUITY', base: 28, currency: 'USD' },
+  { symbol: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE', type: 'EQUITY', base: 148, currency: 'USD' },
+  { symbol: 'UNH', name: 'UnitedHealth Group Incorporated', exchange: 'NYSE', type: 'EQUITY', base: 480, currency: 'USD' },
+  { symbol: 'HD', name: 'The Home Depot, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 345, currency: 'USD' },
+  { symbol: 'CRM', name: 'Salesforce, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 248, currency: 'USD' },
+  { symbol: 'ORCL', name: 'Oracle Corporation', exchange: 'NYSE', type: 'EQUITY', base: 140, currency: 'USD' },
+  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSEARCA', type: 'ETF', base: 545, currency: 'USD' },
+  { symbol: 'QQQ', name: 'Invesco QQQ Trust', exchange: 'NASDAQ', type: 'ETF', base: 480, currency: 'USD' },
+  { symbol: 'DIA', name: 'SPDR Dow Jones Industrial Average ETF', exchange: 'NYSEARCA', type: 'ETF', base: 402, currency: 'USD' },
+  { symbol: 'IWM', name: 'iShares Russell 2000 ETF', exchange: 'NYSEARCA', type: 'ETF', base: 205, currency: 'USD' },
+  { symbol: '^GSPC', name: 'S&P 500 Index', exchange: 'SNP', type: 'INDEX', base: 5460, currency: 'USD' },
+  { symbol: '^IXIC', name: 'NASDAQ Composite', exchange: 'NASDAQ', type: 'INDEX', base: 17700, currency: 'USD' },
+  { symbol: '^DJI', name: 'Dow Jones Industrial Average', exchange: 'DJI', type: 'INDEX', base: 39100, currency: 'USD' },
+  { symbol: 'BTC-USD', name: 'Bitcoin USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 64000, currency: 'USD' },
+  { symbol: 'ETH-USD', name: 'Ethereum USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 3400, currency: 'USD' },
+];
+
+const ROSTER_BY_SYMBOL = new Map(ROSTER.map((entry) => [entry.symbol, entry]));
+
+const NEWS_PUBLISHERS = [
+  'Reuters',
+  'Bloomberg',
+  'The Wall Street Journal',
+  'Financial Times',
+  'CNBC',
+  'MarketWatch',
+  'Barron’s',
+  'Yahoo Finance',
+];
+
+const HEADLINE_TEMPLATES = [
+  '{name} beats quarterly estimates as revenue climbs',
+  '{sym} shares rally after upbeat guidance',
+  'Analysts raise price target on {sym} citing margin strength',
+  '{name} unveils new product line, shares in focus',
+  '{sym} slips as investors weigh macro headwinds',
+  'Is {sym} still a buy after its latest run? Analysts weigh in',
+  '{name} announces buyback and dividend increase',
+  'Options traders position for volatility in {sym}',
+  '{sym} downgraded on valuation concerns',
+  '{name} expands into new markets amid sector rotation',
+  'What {sym}’s latest filing reveals about the road ahead',
+  '{sym} among most active names as volume spikes',
+];
+
+const MARKET_HEADLINES = [
+  'Stocks mixed as traders await fresh inflation data',
+  'Treasury yields edge higher; tech leads early gains',
+  'Fed officials signal patience on rate path',
+  'Oil steadies as markets digest supply outlook',
+  'Dollar firms ahead of key economic releases',
+  'Megacap tech drives index futures higher',
+  'Volatility gauge eases as risk appetite returns',
+  'Earnings season kicks off with banks in focus',
+];
+
+/** Resolve a symbol to a roster entry, synthesizing one if unknown. */
+function resolveEntry(rawSymbol: string): RosterEntry {
+  const symbol = rawSymbol.toUpperCase();
+  const known = ROSTER_BY_SYMBOL.get(symbol);
+  if (known) return known;
+
+  const rng = seeded(symbol, 'entry');
+  const base = round(uniform(rng, 12, 480));
+  return {
+    symbol,
+    name: `${symbol} Holdings Corp.`,
+    exchange: rng() > 0.5 ? 'NASDAQ' : 'NYSE',
+    type: 'EQUITY',
+    base,
+    currency: 'USD',
+  };
+}
+
+/**
+ * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
+ * terminal feels alive) but are stable within a given minute, and historical
+ * series are fully reproducible for a (symbol, interval, range) triple.
+ */
+export class MockProvider implements DataProvider {
+  readonly name = 'mock';
+  readonly live = false;
+
+  async getQuote(symbol: string): Promise<Quote> {
+    return this.buildQuote(resolveEntry(symbol));
+  }
+
+  async getQuotes(symbols: string[]): Promise<Quote[]> {
+    return symbols.map((symbol) => this.buildQuote(resolveEntry(symbol)));
+  }
+
+  async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
+    const entry = resolveEntry(symbol);
+    const { interval, range } = opts;
+    const stepSeconds = INTERVAL_SECONDS[interval];
+    const rangeSeconds = RANGE_SECONDS[range];
+    const count = clamp(Math.floor(rangeSeconds / stepSeconds), 2, 1200);
+
+    // Anchor the final candle to the symbol's current quote so the chart and
+    // the quote modules agree on "the price right now".
+    const quote = this.buildQuote(entry);
+    const rng = seeded(entry.symbol, interval, range, 'history');
+    const volatility = 0.012 + uniform(rng, 0, 0.01); // per-step sigma
+    const nowSec = Math.floor(Date.now() / 1000);
+    const alignedNow = nowSec - (nowSec % stepSeconds);
+
+    // Build a backward random walk from the current price.
+    const closes = new Array<number>(count);
+    closes[count - 1] = quote.price;
+    for (let i = count - 2; i >= 0; i--) {
+      const drift = gaussian(rng) * volatility;
+      closes[i] = closes[i + 1] / (1 + drift);
+    }
+
+    const candles: Candle[] = [];
+    for (let i = 0; i < count; i++) {
+      const time = alignedNow - (count - 1 - i) * stepSeconds;
+      const close = closes[i];
+      const open = i === 0 ? close / (1 + gaussian(rng) * volatility * 0.5) : closes[i - 1];
+      const wick = Math.abs(gaussian(rng)) * volatility;
+      const high = Math.max(open, close) * (1 + wick);
+      const low = Math.min(open, close) * (1 - wick);
+      const volume = Math.floor(uniform(rng, 0.4, 1.6) * 5_000_000);
+      candles.push({
+        time,
+        open: round(open),
+        high: round(high),
+        low: round(low),
+        close: round(close),
+        volume,
+      });
+    }
+
+    return {
+      symbol: entry.symbol,
+      interval,
+      range,
+      currency: entry.currency,
+      candles,
+    };
+  }
+
+  async search(query: string): Promise<SearchResult[]> {
+    const q = query.trim().toUpperCase();
+    if (!q) return [];
+
+    const matches = ROSTER.filter(
+      (entry) =>
+        entry.symbol.includes(q) || entry.name.toUpperCase().includes(q),
+    ).slice(0, 15);
+
+    if (matches.length === 0) {
+      const entry = resolveEntry(q);
+      return [
+        {
+          symbol: entry.symbol,
+          name: entry.name,
+          exchange: entry.exchange,
+          type: entry.type,
+        },
+      ];
+    }
+
+    return matches.map((entry) => ({
+      symbol: entry.symbol,
+      name: entry.name,
+      exchange: entry.exchange,
+      type: entry.type,
+    }));
+  }
+
+  async getNews(symbol?: string): Promise<NewsItem[]> {
+    const dayBucket = Math.floor(Date.now() / 86_400_000);
+    const count = 12;
+
+    if (!symbol) {
+      const rng = seeded('market', dayBucket);
+      return Array.from({ length: count }, (_, i) => {
+        const title = MARKET_HEADLINES[Math.floor(rng() * MARKET_HEADLINES.length)];
+        return this.buildNewsItem(`market-${dayBucket}-${i}`, title, [], rng, i);
+      });
+    }
+
+    const entry = resolveEntry(symbol);
+    const rng = seeded(entry.symbol, 'news', dayBucket);
+    return Array.from({ length: count }, (_, i) => {
+      const template = HEADLINE_TEMPLATES[Math.floor(rng() * HEADLINE_TEMPLATES.length)];
+      const title = template
+        .replace('{sym}', entry.symbol)
+        .replace('{name}', entry.name.replace(/,?\s+(Inc\.|Corporation|Corp\.|Company|Incorporated|Holdings Corp\.).*$/, ''));
+      return this.buildNewsItem(`${entry.symbol}-${dayBucket}-${i}`, title, [entry.symbol], rng, i);
+    });
+  }
+
+  // -- internals -----------------------------------------------------------
+
+  private buildQuote(entry: RosterEntry): Quote {
+    const now = Date.now();
+    const dayBucket = Math.floor(now / 86_400_000);
+    const minuteBucket = Math.floor(now / 60_000);
+
+    // Day-stable components (previous close, 52wk band, volume baseline).
+    const dayRng = seeded(entry.symbol, dayBucket, 'day');
+    const previousClose = round(entry.base * (1 + gaussian(dayRng) * 0.01));
+    const fiftyTwoWeekHigh = round(entry.base * uniform(dayRng, 1.08, 1.4));
+    const fiftyTwoWeekLow = round(entry.base * uniform(dayRng, 0.6, 0.92));
+    const baseVolume = Math.floor(uniform(dayRng, 0.5, 1.5) * 30_000_000);
+    const shares = Math.floor(uniform(dayRng, 0.4, 8) * 1_000_000_000);
+    const open = round(previousClose * (1 + gaussian(dayRng) * 0.004));
+
+    // Minute-stable component (the live wiggle).
+    const minRng = seeded(entry.symbol, minuteBucket, 'min');
+    const changePercent = clamp(gaussian(minRng) * 1.4, -8, 8);
+    const price = round(previousClose * (1 + changePercent / 100));
+    const change = round(price - previousClose);
+
+    const dayHigh = round(Math.max(open, price) * (1 + Math.abs(gaussian(dayRng)) * 0.006));
+    const dayLow = round(Math.min(open, price) * (1 - Math.abs(gaussian(dayRng)) * 0.006));
+
+    const state: MarketState = entry.type === 'CRYPTOCURRENCY' ? 'REGULAR' : usMarketState(now);
+
+    return {
+      symbol: entry.symbol,
+      name: entry.name,
+      currency: entry.currency,
+      exchange: entry.exchange,
+      marketState: state,
+      price,
+      previousClose,
+      open,
+      dayHigh,
+      dayLow,
+      change,
+      changePercent: round(previousClose === 0 ? 0 : (change / previousClose) * 100),
+      volume: Math.floor(baseVolume * uniform(minRng, 0.6, 1.1)),
+      marketCap: entry.type === 'INDEX' ? null : Math.floor(price * shares),
+      fiftyTwoWeekHigh,
+      fiftyTwoWeekLow,
+      asOf: now,
+    };
+  }
+
+  private buildNewsItem(
+    id: string,
+    title: string,
+    relatedSymbols: string[],
+    rng: () => number,
+    index: number,
+  ): NewsItem {
+    const publisher = NEWS_PUBLISHERS[Math.floor(rng() * NEWS_PUBLISHERS.length)];
+    // Spread headlines across the last ~72 hours, newest first.
+    const ageMinutes = Math.floor(index * 220 + rng() * 200);
+    const slug = String(hashString(id).toString(36));
+    return {
+      id,
+      title,
+      publisher,
+      link: `https://example.com/news/${slug}`,
+      publishedAt: Date.now() - ageMinutes * 60_000,
+      relatedSymbols,
+      summary: 'Synthetic headline generated by the Midas mock data provider for offline development.',
+    };
+  }
+}

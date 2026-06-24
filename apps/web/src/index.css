@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-term-bg text-term-text font-mono text-sm antialiased;
+    overflow: hidden;
+  }
+
+  ::selection {
+    background: rgba(255, 176, 0, 0.25);
+  }
+}
+
+@layer components {
+  /* Thin, dark scrollbars to match the terminal aesthetic. */
+  .scroll-term {
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a44 transparent;
+  }
+  .scroll-term::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-term::-webkit-scrollbar-thumb {
+    background: #2c2c34;
+    border-radius: 4px;
+  }
+  .scroll-term::-webkit-scrollbar-thumb:hover {
+    background: #3a3a44;
+  }
+  .scroll-term::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* A subtle uppercase label used across module headers. */
+  .term-label {
+    @apply text-2xs uppercase tracking-wider text-term-muted;
+  }
+}
+
+/* ----- react-grid-layout overrides ----- */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(255, 176, 0, 0.12);
+  border: 1px dashed rgba(255, 176, 0, 0.4);
+  border-radius: 2px;
+}
+
+.react-grid-item.react-draggable-dragging {
+  z-index: 30;
+  transition: none;
+}
+
+/* Self-contained SE resize handle (replaces react-resizable's bundled CSS). */
+.react-resizable-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: se-resize;
+  opacity: 0.4;
+}
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 0.85;
+}
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid #4a4a52;
+  border-bottom: 2px solid #4a4a52;
+}
