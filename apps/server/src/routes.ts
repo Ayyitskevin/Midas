@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { isInterval, isRange } from '@midas/shared';
-import type { FundingRow, HealthResponse, Interval, Range } from '@midas/shared';
+import type { FundingRow, HealthResponse, Interval, LiquidationEvent, Range } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { config } from './config';
@@ -122,6 +122,34 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       }),
     );
     return board.filter((x): x is FundingRow => x !== null);
+  });
+
+  // Market-wide liquidations feed: the recent liquidations across the top-N
+  // perps merged into one newest-first stream. Composed from screen() +
+  // getDerivatives() so every provider supports it.
+  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/liquidations', async (req) => {
+    const quote = (req.query.quote ?? 'USDT').toUpperCase();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 60) : 30;
+    const rows = await provider.screen({ quote, sort: 'volume', limit });
+    const perSymbol = await Promise.all(
+      rows.map(async (r): Promise<LiquidationEvent[]> => {
+        try {
+          const d = await provider.getDerivatives(r.symbol);
+          return d.recentLiquidations.map((l) => ({
+            symbol: r.symbol,
+            side: l.side,
+            price: l.price,
+            amount: l.amount,
+            value: l.price * l.amount,
+            timestamp: l.timestamp,
+          }));
+        } catch {
+          return [];
+        }
+      }),
+    );
+    return perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
   });
 
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {

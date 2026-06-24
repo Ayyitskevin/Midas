@@ -7,6 +7,7 @@ import type {
   AuthStatus,
   DerivativesInfo,
   FundingRow,
+  LiquidationEvent,
   HealthResponse,
   HistoryResponse,
   Interval,
@@ -115,6 +116,12 @@ export const api = {
 
   funding: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
     apiGet<FundingRow[]>(`/api/funding?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
+
+  liquidations: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
+    apiGet<LiquidationEvent[]>(
+      `/api/liquidations?quote=${encodeURIComponent(quote)}&limit=${limit}`,
+      signal,
+    ),
 
   screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
     apiGet<ScreenerRow[]>(

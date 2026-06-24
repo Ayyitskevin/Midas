@@ -184,6 +184,17 @@ export interface Liquidation {
   timestamp: number;
 }
 
+/** A liquidation in the market-wide feed — a {@link Liquidation} tagged with its symbol. */
+export interface LiquidationEvent {
+  symbol: string;
+  side: 'buy' | 'sell';
+  price: number;
+  amount: number;
+  /** Notional value in the quote currency (price × amount). */
+  value: number;
+  timestamp: number;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */
