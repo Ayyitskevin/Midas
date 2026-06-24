@@ -8,6 +8,7 @@ import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
 import { WorkspaceSync } from './components/WorkspaceSync';
+import { PortfolioSync } from './components/PortfolioSync';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -43,6 +44,7 @@ export default function App() {
         <AlertsEngine />
         <ToastHost />
         <WorkspaceSync />
+        <PortfolioSync />
       </div>
     </LoginGate>
   );

@@ -167,6 +167,7 @@ a panel type means writing a module component and registering it.
 | `GET/POST/PATCH/DELETE /api/alerts` | server-side alert rules (CRUD)  |
 | `GET /api/alerts/log`              | recent server-fired triggers     |
 | `GET/PUT /api/workspaces`          | the user's synced workspace layout|
+| `GET/PUT /api/portfolio`           | the user's synced paper portfolio |
 | `GET /api/auth/status`             | whether auth is on / signup open |
 | `POST /api/auth/signup\|login`     | create a session (returns a token)|
 | `GET /api/auth/me`                 | the signed-in user (bearer token)|
@@ -181,12 +182,13 @@ keep evaluating even with no browser open. Rules + triggers persist to
 incoming-webhook URL works as-is) for delivery with no terminal open at all.
 The `ALERT` panel's **Server** mode manages these rules.
 
-With **auth enabled**, the terminal also **syncs each user's workspaces** to the
-server (`GET/PUT /api/workspaces`): your panels, layouts and saved workspaces
-are pushed (debounced) as you arrange them and pulled back on login, so your
-setup follows your account across devices. The layout blob is opaque to the
-server and scoped per user; with auth off the terminal keeps using local
-storage only, unchanged.
+With **auth enabled**, the terminal also **syncs each user's workspaces and
+paper portfolio** to the server (`GET/PUT /api/workspaces`, `GET/PUT
+/api/portfolio`): your panels, saved layouts, positions and trade journal are
+pushed (debounced) as you change them and pulled back on login, so your whole
+setup follows your account across devices. Each snapshot is an opaque blob the
+server stores per user; with auth off the terminal keeps using local storage
+only, unchanged.
 
 ---
 
@@ -204,7 +206,7 @@ Server (environment variables):
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
-| `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces) is stored.|
+| `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
