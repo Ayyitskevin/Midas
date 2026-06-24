@@ -67,6 +67,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Perp funding rate, open interest and recent liquidations.',
   },
   {
+    code: 'SCR',
+    aliases: ['EQS', 'SCREEN', 'MOVERS'],
+    title: 'Screener',
+    module: 'SCR',
+    requiresSymbol: false,
+    description: 'Screen crypto markets by volume, 24h change or price.',
+  },
+  {
     code: 'W',
     aliases: ['WATCH', 'WL'],
     title: 'Watchlist',

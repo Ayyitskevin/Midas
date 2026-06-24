@@ -6,10 +6,11 @@ import type {
   NewsItem,
   OrderBook,
   Quote,
+  ScreenerRow,
   SearchResult,
   VenueQuote,
 } from '@midas/shared';
-import type { DataProvider, HistoryOptions } from './types';
+import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 
 /**
@@ -138,6 +139,10 @@ export class YahooProvider implements DataProvider {
       501,
       symbol,
     );
+  }
+
+  async screen(_opts: ScreenerOptions): Promise<ScreenerRow[]> {
+    throw new ProviderError('The screener is a crypto feature — use the ccxt provider', 501);
   }
 
   async search(query: string): Promise<SearchResult[]> {

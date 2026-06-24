@@ -194,6 +194,18 @@ export interface DerivativesInfo {
   timestamp: number;
 }
 
+/** A single row in the crypto screener. */
+export interface ScreenerRow {
+  symbol: string;
+  name: string;
+  price: number;
+  changePercent: number;
+  /** 24h base-asset volume. */
+  volume: number | null;
+  /** 24h quote (notional) volume. */
+  quoteVolume: number | null;
+}
+
 // ---------------------------------------------------------------------------
 // API envelopes
 // ---------------------------------------------------------------------------

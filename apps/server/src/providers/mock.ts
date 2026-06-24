@@ -7,10 +7,11 @@ import type {
   OrderBook,
   OrderBookLevel,
   Quote,
+  ScreenerRow,
   SearchResult,
   VenueQuote,
 } from '@midas/shared';
-import type { DataProvider, HistoryOptions } from './types';
+import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import {
   INTERVAL_SECONDS,
   RANGE_SECONDS,
@@ -19,6 +20,7 @@ import {
   hashString,
   round,
   seeded,
+  sortScreener,
   uniform,
   usMarketState,
 } from './util';
@@ -264,6 +266,24 @@ export class MockProvider implements DataProvider {
       recentLiquidations,
       timestamp: Date.now(),
     };
+  }
+
+  async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+    const quote = (opts.quote ?? 'USDT').toUpperCase();
+    const rows: ScreenerRow[] = ROSTER.filter(
+      (e) => e.type === 'CRYPTOCURRENCY' && e.symbol.includes('/') && e.symbol.split('/')[1] === quote,
+    ).map((e) => {
+      const q = this.buildQuote(e);
+      return {
+        symbol: e.symbol,
+        name: e.name,
+        price: q.price,
+        changePercent: q.changePercent,
+        volume: q.volume,
+        quoteVolume: q.volume != null ? Math.floor(q.volume * q.price) : null,
+      };
+    });
+    return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
   }
 
   async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {

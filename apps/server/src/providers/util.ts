@@ -80,6 +80,21 @@ export const RANGE_SECONDS: Record<Range, number> = {
  * stand-in for Eastern trading hours. Good enough for synthetic data and a
  * sensible default when an upstream doesn't report state.
  */
+interface ScreenerSortable {
+  changePercent: number;
+  price: number;
+  volume: number | null;
+  quoteVolume: number | null;
+}
+
+/** Sort screener rows descending by the requested key. */
+export function sortScreener<T extends ScreenerSortable>(rows: T[], sort?: string): T[] {
+  const key = sort ?? 'volume';
+  const value = (r: T): number =>
+    key === 'change' ? r.changePercent : key === 'price' ? r.price : (r.quoteVolume ?? r.volume ?? 0);
+  return [...rows].sort((a, b) => value(b) - value(a));
+}
+
 export function usMarketState(now = Date.now()): 'PRE' | 'REGULAR' | 'POST' | 'CLOSED' {
   const d = new Date(now);
   const day = d.getUTCDay();

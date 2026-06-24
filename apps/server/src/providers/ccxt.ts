@@ -8,12 +8,13 @@ import type {
   NewsItem,
   OrderBook,
   Quote,
+  ScreenerRow,
   SearchResult,
   VenueQuote,
 } from '@midas/shared';
-import type { DataProvider, HistoryOptions } from './types';
+import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
-import { INTERVAL_SECONDS, RANGE_SECONDS } from './util';
+import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
  * Live crypto market data via CCXT — one integration, ~100+ exchanges, with
@@ -226,6 +227,29 @@ export class CcxtProvider implements DataProvider {
     }
 
     return out;
+  }
+
+  async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+    const quote = (opts.quote ?? 'USDT').toUpperCase();
+    try {
+      await this.ensureMarkets();
+      const tickers = await this.exchange.fetchTickers();
+      const rows: ScreenerRow[] = [];
+      for (const [sym, t] of Object.entries(tickers)) {
+        if (!sym.endsWith(`/${quote}`)) continue;
+        rows.push({
+          symbol: sym,
+          name: sym,
+          price: num(t.last ?? t.close),
+          changePercent: num(t.percentage),
+          volume: t.baseVolume ?? null,
+          quoteVolume: t.quoteVolume ?? null,
+        });
+      }
+      return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+    } catch (err) {
+      throw new ProviderError(this.describe(err), 502);
+    }
   }
 
   async search(query: string): Promise<SearchResult[]> {
