@@ -7,6 +7,7 @@ import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
+import { CommandPalette } from './components/CommandPalette';
 import { WorkspaceSync } from './components/WorkspaceSync';
 import { PortfolioSync } from './components/PortfolioSync';
 import { usePanels } from './store/usePanels';
@@ -43,6 +44,7 @@ export default function App() {
         <StatusBar />
         <AlertsEngine />
         <ToastHost />
+        <CommandPalette />
         <WorkspaceSync />
         <PortfolioSync />
       </div>
