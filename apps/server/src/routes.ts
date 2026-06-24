@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { isInterval, isRange } from '@midas/shared';
-import type { HealthResponse, Interval, Range } from '@midas/shared';
+import type { FundingRow, HealthResponse, Interval, Range } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { config } from './config';
@@ -97,6 +97,32 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       return provider.screen({ quote: req.query.quote, sort: req.query.sort, limit });
     },
   );
+
+  // Funding-rates board: the top-N perps by volume with their funding + OI.
+  // Composed from screen() + getDerivatives() so every provider supports it.
+  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding', async (req) => {
+    const quote = (req.query.quote ?? 'USDT').toUpperCase();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 60) : 30;
+    const rows = await provider.screen({ quote, sort: 'volume', limit });
+    const board = await Promise.all(
+      rows.map(async (r): Promise<FundingRow | null> => {
+        try {
+          const d = await provider.getDerivatives(r.symbol);
+          return {
+            symbol: r.symbol,
+            fundingRate: d.fundingRate,
+            nextFundingTime: d.nextFundingTime,
+            markPrice: d.markPrice,
+            openInterestValue: d.openInterestValue,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return board.filter((x): x is FundingRow => x !== null);
+  });
 
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
     const q = (req.query.q ?? '').trim();

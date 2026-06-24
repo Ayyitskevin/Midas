@@ -93,6 +93,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Perp funding rate, open interest and recent liquidations.',
   },
   {
+    code: 'FUNDR',
+    aliases: ['RATES', 'CARRY'],
+    title: 'Funding Rates',
+    module: 'FUNDR',
+    requiresSymbol: false,
+    description: 'Funding rates & open interest across the top perps — sortable board.',
+  },
+  {
     code: 'SCR',
     aliases: ['EQS', 'SCREEN', 'MOVERS'],
     title: 'Screener',

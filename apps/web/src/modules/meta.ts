@@ -12,6 +12,7 @@ export type ModuleCode =
   | 'TAS'
   | 'ALLQ'
   | 'FUND'
+  | 'FUNDR'
   | 'SCR'
   | 'HEAT'
   | 'MOV'
@@ -46,6 +47,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },
   ALLQ: { code: 'ALLQ', title: 'Multi-Exchange', w: 5, h: 8, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
+  FUNDR: { code: 'FUNDR', title: 'Funding Rates', w: 5, h: 11, minW: 4, minH: 6 },
   SCR: { code: 'SCR', title: 'Screener', w: 4, h: 11, minW: 3, minH: 6 },
   HEAT: { code: 'HEAT', title: 'Heatmap', w: 6, h: 9, minW: 4, minH: 5 },
   MOV: { code: 'MOV', title: 'Market Overview', w: 6, h: 9, minW: 4, minH: 6 },

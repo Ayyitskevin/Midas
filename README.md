@@ -112,6 +112,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
+| `FUNDR` | `RATES`, `CARRY` | no         | Funding + open interest across the top perps, sortable.|
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW`, `BREADTH` | no    | Market overview — top gainers, losers, most active + breadth.|
@@ -167,6 +168,7 @@ a panel type means writing a module component and registering it.
 | `GET /api/quote/:symbol`           | `Quote`                          |
 | `GET /api/quotes?symbols=A,B,C`    | `Quote[]`                        |
 | `GET /api/history/:symbol`         | `HistoryResponse` (OHLCV candles)|
+| `GET /api/funding?quote=&limit=`   | `FundingRow[]` (top perps' funding + OI)|
 | `GET /api/search?q=`               | `SearchResult[]`                 |
 | `GET /api/news?symbol=`            | `NewsItem[]`                     |
 | `GET/POST/PATCH/DELETE /api/alerts` | server-side alert rules (CRUD)  |

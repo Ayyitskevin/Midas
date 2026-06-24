@@ -202,6 +202,19 @@ export interface DerivativesInfo {
   timestamp: number;
 }
 
+/** One row of the funding-rates board — a perp's funding + open interest. */
+export interface FundingRow {
+  /** Display symbol, e.g. BTC/USDT. */
+  symbol: string;
+  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  fundingRate: number | null;
+  /** Epoch millis of the next funding. */
+  nextFundingTime: number | null;
+  markPrice: number | null;
+  /** Open interest notional in quote units. */
+  openInterestValue: number | null;
+}
+
 /** A single row in the crypto screener. */
 export interface ScreenerRow {
   symbol: string;
