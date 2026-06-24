@@ -72,6 +72,20 @@ describe('GET /api/derivatives/:symbol', () => {
   });
 });
 
+describe('GET /api/funding', () => {
+  it('returns a board of funding rows with the limit honoured', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/funding?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json();
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThanOrEqual(5);
+    expect(rows[0]).toHaveProperty('symbol');
+    expect(rows[0]).toHaveProperty('fundingRate');
+    expect(rows[0]).toHaveProperty('openInterestValue');
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

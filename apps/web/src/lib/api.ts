@@ -6,6 +6,7 @@ import type {
   AuthSession,
   AuthStatus,
   DerivativesInfo,
+  FundingRow,
   HealthResponse,
   HistoryResponse,
   Interval,
@@ -111,6 +112,9 @@ export const api = {
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
+
+  funding: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
+    apiGet<FundingRow[]>(`/api/funding?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
 
   screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
     apiGet<ScreenerRow[]>(
