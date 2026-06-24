@@ -184,6 +184,24 @@ export function volumeProfile(candles: Candle[], binCount = 24): VolumeProfile {
   return { bins, pocIndex, maxVolume };
 }
 
+export interface FibLevel {
+  ratio: number;
+  price: number;
+}
+
+const FIB_RATIOS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1] as const;
+
+/**
+ * Fibonacci retracement levels between two prices (order-independent): level 0
+ * sits at the high, level 1 at the low, the rest interpolate between.
+ */
+export function fibLevels(a: number, b: number): FibLevel[] {
+  const high = Math.max(a, b);
+  const low = Math.min(a, b);
+  const span = high - low;
+  return FIB_RATIOS.map((ratio) => ({ ratio, price: high - ratio * span }));
+}
+
 /** Wilder's RSI of closes (0–100). */
 export function rsi(candles: Candle[], period: number): LinePoint[] {
   if (candles.length <= period) return [];

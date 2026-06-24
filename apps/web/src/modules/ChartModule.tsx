@@ -18,8 +18,11 @@ import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
-import { bollinger, ema, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
+import { bollinger, ema, fibLevels, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
+
+/** The active chart-click tool: arm an alert, or draw a line / trendline / fib. */
+type Tool = 'none' | 'alert' | 'hline' | 'trend' | 'fib';
 
 /** Round a clicked price to a sensible threshold precision for its magnitude. */
 function roundLevel(price: number): number {
@@ -118,11 +121,13 @@ export function ChartModule({ panel }: ModuleProps) {
     close: number;
   } | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
-  const drawModeRef = useRef(false);
+  const trendSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
+  // Pending first anchor for the two-click tools (trendline, fib).
+  const anchorRef = useRef<{ time: number; price: number } | null>(null);
+  const toolRef = useRef<Tool>('none');
   // Alert price-lines are keyed by alert id and kept separate from the cosmetic
   // draw lines above, so the two layers never clear each other.
   const alertLinesRef = useRef<Map<string, IPriceLine>>(new Map());
-  const alertModeRef = useRef(false);
   const symbolRef = useRef(symbol);
 
   const [ind, setInd] = useState({
@@ -134,18 +139,24 @@ export function ChartModule({ panel }: ModuleProps) {
     macd: false,
     vp: false,
   });
-  const [drawMode, setDrawMode] = useState(false);
-  const [alertMode, setAlertMode] = useState(false);
+  const [tool, setTool] = useState<Tool>('none');
+  // True after the first click of a two-click tool, awaiting the second.
+  const [pending, setPending] = useState(false);
   const [livePrice, setLivePrice] = useState<number | null>(null);
   // Volume-profile overlay bars (in pixel coords) and a tick that forces a
   // recompute when the price scale moves (pan/zoom/resize).
   const [vpBars, setVpBars] = useState<VpBar[]>([]);
   const [vpTick, setVpTick] = useState(0);
 
-  const clearLines = useCallback(() => {
+  const clearDrawings = useCallback(() => {
     const candle = candleRef.current;
+    const chart = chartRef.current;
     if (candle) for (const l of priceLinesRef.current) candle.removePriceLine(l);
     priceLinesRef.current = [];
+    if (chart) for (const s of trendSeriesRef.current) chart.removeSeries(s);
+    trendSeriesRef.current = [];
+    anchorRef.current = null;
+    setPending(false);
   }, []);
 
   // Create the chart once, on mount.
@@ -188,14 +199,15 @@ export function ChartModule({ panel }: ModuleProps) {
     candleRef.current = candle;
     volumeRef.current = volume;
 
-    // Click the chart to either arm a price alert (alert mode) or drop a
-    // cosmetic horizontal line (draw mode).
+    // Click handling depends on the active tool: arm a price alert, drop a
+    // horizontal line, or place one end of a two-click trendline / fib.
     chart.subscribeClick((param) => {
-      if ((!alertModeRef.current && !drawModeRef.current) || !param.point || !candleRef.current) return;
-      const price = candleRef.current.coordinateToPrice(param.point.y);
+      const active = toolRef.current;
+      if (active === 'none' || !param.point) return;
+      const price = candle.coordinateToPrice(param.point.y);
       if (price == null) return;
 
-      if (alertModeRef.current) {
+      if (active === 'alert') {
         const sym = symbolRef.current;
         if (sym) {
           const reference = lastBarRef.current?.close ?? price;
@@ -207,20 +219,60 @@ export function ChartModule({ panel }: ModuleProps) {
             repeat: false,
           });
         }
-        setAlertMode(false);
+        setTool('none');
         return;
       }
 
-      const line = candleRef.current.createPriceLine({
-        price,
-        color: '#ffb000',
-        lineWidth: 1,
-        lineStyle: 0,
-        axisLabelVisible: true,
-        title: '',
-      });
-      priceLinesRef.current.push(line);
-      setDrawMode(false);
+      if (active === 'hline') {
+        priceLinesRef.current.push(
+          candle.createPriceLine({ price, color: '#ffb000', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }),
+        );
+        setTool('none');
+        return;
+      }
+
+      // Trendline / fib are two-click and need a time coordinate for the anchor.
+      const time = typeof param.time === 'number' ? param.time : undefined;
+      if (time == null) return;
+      const anchor = anchorRef.current;
+      if (!anchor) {
+        anchorRef.current = { time, price };
+        setPending(true);
+        return;
+      }
+      if (anchor.time !== time) {
+        if (active === 'trend') {
+          const [a, b] = anchor.time < time ? [anchor, { time, price }] : [{ time, price }, anchor];
+          const series = chart.addLineSeries({
+            color: '#4cc2ff',
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: false,
+            crosshairMarkerVisible: false,
+          });
+          series.setData([
+            { time: a.time as UTCTimestamp, value: a.price },
+            { time: b.time as UTCTimestamp, value: b.price },
+          ]);
+          trendSeriesRef.current.push(series);
+        } else if (active === 'fib') {
+          for (const lvl of fibLevels(anchor.price, price)) {
+            priceLinesRef.current.push(
+              candle.createPriceLine({
+                price: lvl.price,
+                color: 'rgba(255,176,0,0.5)',
+                lineWidth: 1,
+                lineStyle: 2,
+                axisLabelVisible: true,
+                title: lvl.ratio.toFixed(3),
+              }),
+            );
+          }
+        }
+      }
+      anchorRef.current = null;
+      setPending(false);
+      setTool('none');
     });
 
     // Recompute the volume-profile overlay whenever the price scale shifts
@@ -241,12 +293,13 @@ export function ChartModule({ panel }: ModuleProps) {
   }, []);
 
   useEffect(() => {
-    drawModeRef.current = drawMode;
-  }, [drawMode]);
-
-  useEffect(() => {
-    alertModeRef.current = alertMode;
-  }, [alertMode]);
+    toolRef.current = tool;
+    // Leaving a two-click tool abandons any half-placed anchor.
+    if (tool !== 'trend' && tool !== 'fib') {
+      anchorRef.current = null;
+      setPending(false);
+    }
+  }, [tool]);
 
   useEffect(() => {
     symbolRef.current = symbol;
@@ -312,11 +365,11 @@ export function ChartModule({ panel }: ModuleProps) {
     }, []),
   );
 
-  // Clear drawn lines when the symbol changes.
+  // Clear drawings when the symbol changes.
   useEffect(() => {
-    clearLines();
-    setDrawMode(false);
-  }, [symbol, clearLines]);
+    clearDrawings();
+    setTool('none');
+  }, [symbol, clearDrawings]);
 
   // Push new data into the series whenever it changes.
   useEffect(() => {
@@ -590,33 +643,27 @@ export function ChartModule({ panel }: ModuleProps) {
           </button>
         ))}
         <span className="ml-auto" />
+        {pending && <span className="mr-1 text-term-amber">click 2nd point…</span>}
+        {([
+          ['alert', '⚑ alert', 'Click the chart to set a price alert at that level'],
+          ['hline', '＋ line', 'Click the chart to add a horizontal line'],
+          ['trend', '╱ trend', 'Click two points to draw a trendline'],
+          ['fib', 'fib', 'Click two swing points to draw fib retracement levels'],
+        ] as const).map(([key, label, hint]) => (
+          <button
+            key={key}
+            onClick={() => setTool((cur) => (cur === key ? 'none' : key))}
+            title={hint}
+            className={`rounded-sm px-1.5 py-0.5 ${
+              tool === key ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
         <button
-          onClick={() => {
-            setAlertMode((v) => !v);
-            setDrawMode(false);
-          }}
-          title="Click the chart to set a price alert at that level"
-          className={`rounded-sm px-1.5 py-0.5 ${
-            alertMode ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
-          }`}
-        >
-          ⚑ alert
-        </button>
-        <button
-          onClick={() => {
-            setDrawMode((v) => !v);
-            setAlertMode(false);
-          }}
-          title="Click the chart to add a horizontal line"
-          className={`rounded-sm px-1.5 py-0.5 ${
-            drawMode ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
-          }`}
-        >
-          ＋ line
-        </button>
-        <button
-          onClick={clearLines}
-          title="Clear lines"
+          onClick={clearDrawings}
+          title="Clear all drawings"
           className="rounded-sm px-1.5 py-0.5 text-term-muted hover:text-term-down"
         >
           clear
@@ -625,7 +672,7 @@ export function ChartModule({ panel }: ModuleProps) {
       <div className="relative min-h-0 flex-1">
         <div
           ref={containerRef}
-          className={`absolute inset-0 ${drawMode || alertMode ? 'cursor-crosshair' : ''}`}
+          className={`absolute inset-0 ${tool !== 'none' ? 'cursor-crosshair' : ''}`}
         />
         {ind.vp && vpBars.length > 0 && (
           <div className="pointer-events-none absolute inset-0 z-[5]">

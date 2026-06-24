@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sma, ema, bollinger, rsi, macd, vwap, volumeProfile } from '@/lib/indicators';
+import { sma, ema, bollinger, rsi, macd, vwap, volumeProfile, fibLevels } from '@/lib/indicators';
 import type { Candle } from '@midas/shared';
 
 /** Build flat OHLCV candles from a close-price series. */
@@ -132,5 +132,20 @@ describe('volumeProfile', () => {
     expect(maxVolume).toBe(9);
     expect(bins[pocIndex].priceLow).toBeLessThanOrEqual(50);
     expect(bins[pocIndex].priceHigh).toBeGreaterThanOrEqual(50);
+  });
+});
+
+describe('fibLevels', () => {
+  it('places 0 at the high and 1 at the low with the standard ratios', () => {
+    const levels = fibLevels(100, 200);
+    expect(levels.map((l) => l.ratio)).toEqual([0, 0.236, 0.382, 0.5, 0.618, 0.786, 1]);
+    expect(levels[0].price).toBeCloseTo(200); // ratio 0 → high
+    expect(levels[levels.length - 1].price).toBeCloseTo(100); // ratio 1 → low
+    expect(levels.find((l) => l.ratio === 0.5)!.price).toBeCloseTo(150);
+    expect(levels.find((l) => l.ratio === 0.618)!.price).toBeCloseTo(138.2);
+  });
+
+  it('is order-independent', () => {
+    expect(fibLevels(200, 100)).toEqual(fibLevels(100, 200));
   });
 });
