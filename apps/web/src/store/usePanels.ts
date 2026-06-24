@@ -74,6 +74,20 @@ export interface WorkspaceExport {
   panels: PanelState[];
 }
 
+/**
+ * The full workspace slice synced to the server (one blob per user). Mirrors
+ * the persisted fields so a user's whole setup follows their account across
+ * devices. Panel focus (`activeId`) is per-device and deliberately excluded.
+ */
+export interface PanelsSnapshot {
+  panels: PanelState[];
+  counter: number;
+  activeSymbol: string | null;
+  workspaces: WorkspaceMeta[];
+  activeWorkspaceId: string;
+  savedLayouts: Record<string, WorkspaceData>;
+}
+
 interface PanelsState {
   // Active workspace working state (kept at the top level so all existing
   // selectors/actions keep operating on the current workspace unchanged).
@@ -108,6 +122,12 @@ interface PanelsState {
   exportWorkspace: (id?: string) => WorkspaceExport;
   /** Create a new workspace from parsed file data. Throws on malformed input. */
   importWorkspace: (data: unknown) => string;
+
+  // Server sync (per-user, across devices).
+  /** Capture the full workspace slice to push to the server. */
+  snapshot: () => PanelsSnapshot;
+  /** Replace local workspaces with a server snapshot. Ignores malformed blobs. */
+  restore: (blob: unknown) => void;
 }
 
 const COLS = 12;
@@ -162,6 +182,70 @@ function parseWorkspaceExport(data: unknown): { name: string; panels: PanelState
   if (panels.length === 0) throw new Error('Workspace file has no usable panels');
   const name = typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'Imported';
   return { name, panels };
+}
+
+/** Coerce an untrusted array into a list of valid panels (dropping bad ones). */
+function sanitizePanels(raw: unknown): PanelState[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PanelState[] = [];
+  for (const r of raw) {
+    const p = sanitizePanel(r, out.length);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
+/** Coerce one saved-layout record (a non-active workspace's state). */
+function sanitizeWorkspaceData(raw: unknown): WorkspaceData {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const panels = sanitizePanels(r.panels);
+  return {
+    panels,
+    counter: num(r.counter, panels.length),
+    activeSymbol: typeof r.activeSymbol === 'string' ? r.activeSymbol : null,
+  };
+}
+
+/**
+ * Coerce an untrusted server blob into a PanelsSnapshot, or null if unusable.
+ * Defensive against a tampered/corrupt store: always yields at least one
+ * workspace and an activeWorkspaceId that actually exists.
+ */
+function parsePanelsSnapshot(data: unknown): PanelsSnapshot | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+
+  const workspaces: WorkspaceMeta[] = [];
+  if (Array.isArray(d.workspaces)) {
+    for (const w of d.workspaces) {
+      if (!w || typeof w !== 'object') continue;
+      const { id, name } = w as Record<string, unknown>;
+      if (typeof id === 'string' && typeof name === 'string') workspaces.push({ id, name });
+    }
+  }
+  if (workspaces.length === 0) workspaces.push({ id: DEFAULT_WORKSPACE_ID, name: 'Main' });
+
+  const savedLayouts: Record<string, WorkspaceData> = {};
+  if (d.savedLayouts && typeof d.savedLayouts === 'object') {
+    for (const [wsId, val] of Object.entries(d.savedLayouts as Record<string, unknown>)) {
+      savedLayouts[wsId] = sanitizeWorkspaceData(val);
+    }
+  }
+
+  const panels = sanitizePanels(d.panels);
+  const activeWorkspaceId =
+    typeof d.activeWorkspaceId === 'string' && workspaces.some((w) => w.id === d.activeWorkspaceId)
+      ? d.activeWorkspaceId
+      : workspaces[0].id;
+
+  return {
+    panels,
+    counter: num(d.counter, panels.length),
+    activeSymbol: typeof d.activeSymbol === 'string' ? d.activeSymbol : null,
+    workspaces,
+    activeWorkspaceId,
+    savedLayouts,
+  };
 }
 
 function rectsOverlap(
@@ -399,6 +483,32 @@ export const usePanels = create<PanelsState>()(
           activeSymbol: panels[panels.length - 1]?.symbol ?? null,
         });
         return id;
+      },
+
+      snapshot: () => {
+        const s = get();
+        return {
+          panels: s.panels,
+          counter: s.counter,
+          activeSymbol: s.activeSymbol,
+          workspaces: s.workspaces,
+          activeWorkspaceId: s.activeWorkspaceId,
+          savedLayouts: s.savedLayouts,
+        };
+      },
+
+      restore: (blob) => {
+        const snap = parsePanelsSnapshot(blob);
+        if (!snap) return;
+        set({
+          panels: snap.panels,
+          counter: snap.counter,
+          activeSymbol: snap.activeSymbol,
+          workspaces: snap.workspaces,
+          activeWorkspaceId: snap.activeWorkspaceId,
+          savedLayouts: snap.savedLayouts,
+          activeId: null, // focus is per-device, not synced
+        });
       },
     }),
     {

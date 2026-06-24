@@ -4,13 +4,15 @@ import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
 import { startAlertLoop } from './alerts/engine';
 import { createNotifier } from './alerts/notify';
+import { WorkspaceRepo } from './workspaces/repo';
 import { UserRepo } from './auth/users';
 
 async function main(): Promise<void> {
   const provider = createProvider(config.provider);
   const alertRepo = new AlertRepo(config.alertsFile);
   const userRepo = new UserRepo(config.usersFile);
-  const app = await buildApp(provider, { alertRepo, userRepo });
+  const workspaceRepo = new WorkspaceRepo(config.workspacesFile);
+  const app = await buildApp(provider, { alertRepo, userRepo, workspaceRepo });
   if (config.authEnabled) app.log.info('auth enabled — login required');
   app.log.info(
     { provider: provider.name, live: provider.live },

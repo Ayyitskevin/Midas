@@ -23,6 +23,11 @@ import { authToken } from './authToken';
 /** Optional base URL for the API (e.g. when web and server are on different hosts). */
 const BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 
+/** Server-stored workspace snapshot — `blob` is the opaque client layout. */
+export interface WorkspaceSnapshotResponse {
+  snapshot: { blob: unknown; updatedAt: number } | null;
+}
+
 /** Merge in the bearer token when we have one (auth-enabled deployments). */
 function authHeaders(base: Record<string, string>): Record<string, string> {
   const t = authToken.get();
@@ -63,7 +68,7 @@ async function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Pr
 }
 
 async function apiSend<T>(
-  method: 'PATCH' | 'DELETE',
+  method: 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body?: unknown,
   signal?: AbortSignal,
@@ -140,6 +145,12 @@ export const api = {
     apiSend<Alert>('PATCH', `/api/alerts/${encodeURIComponent(id)}`, patch, signal),
   deleteAlert: (id: string, signal?: AbortSignal) =>
     apiSend<{ ok: boolean }>('DELETE', `/api/alerts/${encodeURIComponent(id)}`, undefined, signal),
+
+  // Per-user workspace sync — the layout blob is opaque to the server.
+  getWorkspaces: (signal?: AbortSignal) =>
+    apiGet<WorkspaceSnapshotResponse>('/api/workspaces', signal),
+  putWorkspaces: (blob: unknown, signal?: AbortSignal) =>
+    apiSend<{ ok: boolean; updatedAt: number }>('PUT', '/api/workspaces', blob, signal),
 
   // Auth.
   authStatus: (signal?: AbortSignal) => apiGet<AuthStatus>('/api/auth/status', signal),

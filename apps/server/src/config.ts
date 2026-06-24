@@ -22,6 +22,8 @@ export interface Config {
   authSecret: string;
   /** JSON file backing the user store. */
   usersFile: string;
+  /** JSON file backing the per-user workspace snapshot store. */
+  workspacesFile: string;
   version: string;
 }
 
@@ -43,5 +45,9 @@ export const config: Config = {
   authAllowSignup: env('MIDAS_AUTH_ALLOW_SIGNUP', 'true').toLowerCase() === 'true',
   authSecret: env('MIDAS_AUTH_SECRET', ''),
   usersFile: env('MIDAS_USERS_FILE', `${env('MIDAS_DATA_DIR', './data')}/users.json`),
+  workspacesFile: env(
+    'MIDAS_WORKSPACES_FILE',
+    `${env('MIDAS_DATA_DIR', './data')}/workspaces.json`,
+  ),
   version: '0.1.0',
 };
