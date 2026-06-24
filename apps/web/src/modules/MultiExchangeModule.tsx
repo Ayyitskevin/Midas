@@ -14,7 +14,7 @@ function fmtP(p: number | null): string {
 
 export function MultiExchangeModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.exchangeQuotes(symbol as string, signal),
     [symbol],
     { intervalMs: 5000, enabled: Boolean(symbol) },
@@ -34,7 +34,7 @@ export function MultiExchangeModule({ panel }: ModuleProps) {
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} venues`} />;
-  if (error && !data) return <ErrorMsg message={error} />;
+  if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data || data.length === 0) return <EmptyState>No venues for {symbol}.</EmptyState>;
 
   return (

@@ -13,7 +13,7 @@ export function WatchlistModule({ panel }: ModuleProps) {
   const add = useWatchlist((s) => s.add);
   const [input, setInput] = useState('');
 
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.quotes(symbols, signal),
     [symbols.join(',')],
     { intervalMs: 5000, enabled: symbols.length > 0 },
@@ -72,7 +72,7 @@ export function WatchlistModule({ panel }: ModuleProps) {
           <div className="p-3 text-2xs text-term-muted">Watchlist empty — add a symbol below.</div>
         )}
         {loading && !data && <Loading label="Loading quotes" />}
-        {error && !data && <ErrorMsg message={error} />}
+        {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
       </div>
       <form
         className="no-drag flex border-t border-term-border"

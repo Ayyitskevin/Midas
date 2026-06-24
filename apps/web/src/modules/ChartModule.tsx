@@ -43,7 +43,7 @@ export function ChartModule({ panel }: ModuleProps) {
   const range = (panel.params?.range as Range) ?? '6mo';
   const setPanelParams = usePanels((s) => s.setPanelParams);
 
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.history(symbol as string, interval, range, signal),
     [symbol, interval, range],
     { enabled: Boolean(symbol) },
@@ -392,7 +392,7 @@ export function ChartModule({ panel }: ModuleProps) {
         )}
         {error && !data && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <ErrorMsg message={error} />
+            <ErrorMsg message={error} onRetry={refresh} />
           </div>
         )}
       </div>

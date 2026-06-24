@@ -14,7 +14,7 @@ import type { ModuleProps } from './types';
 
 export function DescriptionModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  const { data: quote, error, loading } = useFetch(
+  const { data: quote, error, loading, refresh } = useFetch(
     (signal) => api.quote(symbol as string, signal),
     [symbol],
     { intervalMs: 5000, enabled: Boolean(symbol) },
@@ -25,7 +25,7 @@ export function DescriptionModule({ panel }: ModuleProps) {
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !quote) return <Loading label={`Loading ${symbol}`} />;
-  if (error && !quote) return <ErrorMsg message={error} />;
+  if (error && !quote) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!quote) return <EmptyState>No data for {symbol}.</EmptyState>;
 
   const stats: Array<[string, string]> = [

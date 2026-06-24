@@ -1,10 +1,12 @@
 import { usePanels } from '@/store/usePanels';
-import { useStreamStatus } from '@/lib/stream';
+import { stream, useStreamStatus } from '@/lib/stream';
+import { streamStatusView } from '@/lib/streamStatus';
 
 export function StatusBar() {
   const panelCount = usePanels((s) => s.panels.length);
   const reset = usePanels((s) => s.resetWorkspace);
-  const streamStatus = useStreamStatus();
+  const status = useStreamStatus();
+  const conn = streamStatusView(status, stream.subscriberCount());
 
   return (
     <div className="flex items-center justify-between border-t border-term-border bg-term-header px-3 py-1 text-2xs text-term-muted">
@@ -14,21 +16,9 @@ export function StatusBar() {
         <span>
           {panelCount} panel{panelCount === 1 ? '' : 's'}
         </span>
-        <span className="flex items-center gap-1" title={`stream ${streamStatus}`}>
-          <span
-            className={
-              streamStatus === 'open'
-                ? 'text-term-up'
-                : streamStatus === 'connecting'
-                  ? 'text-term-amber'
-                  : 'text-term-dim'
-            }
-          >
-            ●
-          </span>
-          <span className="hidden sm:inline">
-            {streamStatus === 'open' ? 'LIVE' : streamStatus === 'connecting' ? '…' : 'idle'}
-          </span>
+        <span className="flex items-center gap-1" title={conn.title}>
+          <span className={conn.dotClass}>●</span>
+          <span className="hidden sm:inline">{conn.label}</span>
         </span>
       </div>
       <div className="flex items-center gap-3">

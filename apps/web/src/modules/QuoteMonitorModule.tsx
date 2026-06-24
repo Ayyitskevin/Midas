@@ -36,7 +36,7 @@ const COLUMNS: Column[] = [
 
 export function QuoteMonitorModule({ panel }: ModuleProps) {
   const symbols = useWatchlist((s) => s.symbols);
-  const { data, error, loading } = useFetch(
+  const { data, error, loading, refresh } = useFetch(
     (signal) => api.quotes(symbols, signal),
     [symbols.join(',')],
     { intervalMs: 4000, enabled: symbols.length > 0 },
@@ -45,7 +45,7 @@ export function QuoteMonitorModule({ panel }: ModuleProps) {
 
   if (symbols.length === 0) return <EmptyState>Watchlist is empty.</EmptyState>;
   if (loading && !data) return <Loading label="Loading quotes" />;
-  if (error && !data) return <ErrorMsg message={error} />;
+  if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
 
   return (
     <div className="scroll-term h-full overflow-auto">

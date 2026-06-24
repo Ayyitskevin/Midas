@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LINK_COLORS, usePanels } from '@/store/usePanels';
 import type { LinkColor, PanelState } from '@/store/usePanels';
 import { MODULE_COMPONENTS } from '@/modules/registry';
+import { ErrorBoundary } from './ErrorBoundary';
 
 export const LINK_HEX: Record<LinkColor, string> = {
   red: '#ef4d56',
@@ -103,7 +104,9 @@ export function Panel({ panel }: { panel: PanelState }) {
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {Module ? (
-          <Module panel={panel} />
+          <ErrorBoundary resetKey={panel.module} label={`${panel.module} panel hit an error`}>
+            <Module panel={panel} />
+          </ErrorBoundary>
         ) : (
           <div className="p-3 text-xs text-term-down">Unknown module: {panel.module}</div>
         )}
