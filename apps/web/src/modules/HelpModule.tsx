@@ -64,6 +64,10 @@ HELP              this panel`}
           <li>Just start typing anywhere to focus the command bar.</li>
           <li>↑ / ↓ recall previous commands.</li>
           <li>Drag panel title bars to rearrange; drag a corner to resize.</li>
+          <li>
+            Click a panel’s colored dot to join a <span className="text-term-text">link group</span>{' '}
+            — linked panels share a symbol, so a linked watchlist drives them all.
+          </li>
           <li>Your layout and watchlist are saved in this browser.</li>
         </ul>
       </section>

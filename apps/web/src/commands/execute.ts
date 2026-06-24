@@ -1,5 +1,5 @@
 import { usePanels } from '@/store/usePanels';
-import type { PanelParams } from '@/store/usePanels';
+import type { PanelParams, PanelState } from '@/store/usePanels';
 import { parseCommand } from './parser';
 import type { CommandDef } from './registry';
 import { lookupCommand } from './registry';
@@ -44,4 +44,17 @@ export function openSymbol(symbol: string): void {
 export function openModule(code: string, symbol: string | null): void {
   const cmd = lookupCommand(code);
   if (cmd) openCommand(cmd, symbol);
+}
+
+/**
+ * Navigate a symbol from within a panel. If the panel belongs to a link group,
+ * the symbol is broadcast to the whole group (the panel acts as a navigator);
+ * otherwise it opens a fresh description panel.
+ */
+export function navigate(panel: PanelState, symbol: string): void {
+  if (panel.link) {
+    usePanels.getState().setPanelSymbol(panel.id, symbol);
+  } else {
+    openSymbol(symbol);
+  }
 }

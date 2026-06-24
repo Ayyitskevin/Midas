@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SearchResult } from '@midas/shared';
 import { api } from '@/lib/api';
-import { openSymbol } from '@/commands/execute';
+import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -66,7 +66,7 @@ export function SecurityFinderModule({ panel }: ModuleProps) {
                 key={r.symbol}
                 className="group flex items-center justify-between gap-2 border-b border-term-border/30 px-3 py-1.5 hover:bg-term-header/60"
               >
-                <button className="no-drag min-w-0 text-left" onClick={() => openSymbol(r.symbol)}>
+                <button className="no-drag min-w-0 text-left" onClick={() => navigate(panel, r.symbol)}>
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-term-amber">{r.symbol}</span>
                     <span className="text-2xs text-term-dim">{r.exchange}</span>
