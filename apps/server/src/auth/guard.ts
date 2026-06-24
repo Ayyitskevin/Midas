@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ApiError } from '@midas/shared';
 import type { AuthDeps } from './routes';
-import { userIdFromRequest } from './routes';
+import { userFromRequest } from './routes';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -26,12 +26,12 @@ export function installAuthGuard(app: FastifyInstance, deps: AuthDeps): void {
     if (!path.startsWith('/api/')) return;
     if (PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p))) return;
 
-    const userId = userIdFromRequest(req, deps.secret);
-    if (!userId || !deps.users.findById(userId)) {
+    const user = userFromRequest(req, deps);
+    if (!user) {
       const body: ApiError = { error: 'Unauthorized', message: 'Login required', statusCode: 401 };
       await reply.code(401).send(body);
       return reply;
     }
-    req.userId = userId;
+    req.userId = user.id;
   });
 }

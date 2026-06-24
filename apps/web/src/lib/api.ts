@@ -165,4 +165,12 @@ export const api = {
     apiPost<AuthSession>('/api/auth/login', { username, password }, signal),
   signup: (username: string, password: string, signal?: AbortSignal) =>
     apiPost<AuthSession>('/api/auth/signup', { username, password }, signal),
+
+  // Account management.
+  changePassword: (currentPassword: string, newPassword: string, signal?: AbortSignal) =>
+    apiPost<AuthSession>('/api/auth/password', { currentPassword, newPassword }, signal),
+  logoutAll: (signal?: AbortSignal) => apiPost<AuthSession>('/api/auth/logout-all', {}, signal),
+  listUsers: (signal?: AbortSignal) => apiGet<User[]>('/api/auth/users', signal),
+  deleteUser: (id: string, signal?: AbortSignal) =>
+    apiSend<{ ok: boolean }>('DELETE', `/api/auth/users/${encodeURIComponent(id)}`, undefined, signal),
 };

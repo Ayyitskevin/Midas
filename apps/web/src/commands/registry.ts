@@ -172,6 +172,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Top market-wide news headlines.',
   },
   {
+    code: 'ACCT',
+    aliases: ['ACCOUNT', 'SETTINGS'],
+    title: 'Account',
+    module: 'ACCT',
+    requiresSymbol: false,
+    description: 'Manage your account — change password, sessions, and (admin) users.',
+  },
+  {
     code: 'SECF',
     aliases: ['FIND', 'SEARCH', 'SRCH'],
     title: 'Security Finder',

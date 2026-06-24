@@ -120,6 +120,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
+| `ACCT`  | `ACCOUNT`, `SETTINGS` | no    | Manage your account — password, sessions, and (admin) users.|
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |
@@ -174,6 +175,9 @@ a panel type means writing a module component and registering it.
 | `GET /api/auth/status`             | whether auth is on / signup open |
 | `POST /api/auth/signup\|login`     | create a session (returns a token)|
 | `GET /api/auth/me`                 | the signed-in user (bearer token)|
+| `POST /api/auth/password`          | change password (rotates other sessions)|
+| `POST /api/auth/logout-all`        | sign out other devices (token rotation)|
+| `GET/DELETE /api/auth/users`       | admin: list / remove accounts    |
 
 `/api/history` accepts `interval` (`1m`…`1mo`) and `range` (`1d`…`max`).
 
