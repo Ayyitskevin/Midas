@@ -113,7 +113,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
-| `PORT`  | `POS`          | no           | Paper portfolio — positions + live unrealized P&L. |
+| `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price & funding alerts → toast / desktop notification. |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |

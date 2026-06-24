@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { fmtPrice, fmtSigned, fmtSignedPercent, fmtCompact, changeClass } from '@/lib/format';
+import { fmtPrice, fmtSigned, fmtSignedPercent, fmtCompact, fmtTimeAgo, changeClass } from '@/lib/format';
 import { positionMetrics } from '@/lib/portfolio';
 import { navigate } from '@/commands/execute';
 import { usePanels } from '@/store/usePanels';
@@ -24,8 +24,11 @@ interface Row {
 
 export function PortfolioModule({ panel }: ModuleProps) {
   const positions = usePortfolio((s) => s.positions);
+  const realized = usePortfolio((s) => s.realized);
+  const transactions = usePortfolio((s) => s.transactions);
   const addTrade = usePortfolio((s) => s.addTrade);
   const removePosition = usePortfolio((s) => s.removePosition);
+  const clearJournal = usePortfolio((s) => s.clearJournal);
 
   const [symbol, setSymbol] = useState(
     () => usePanels.getState().activeSymbol ?? 'BTC/USDT',
@@ -34,6 +37,7 @@ export function PortfolioModule({ panel }: ModuleProps) {
   const [qtyStr, setQtyStr] = useState('');
   const [priceStr, setPriceStr] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'positions' | 'history'>('positions');
 
   // Poll live marks for every held symbol plus whatever is being typed, so the
   // blotter stays live and "add at market" can prefill the entry.
@@ -150,80 +154,149 @@ export function PortfolioModule({ panel }: ModuleProps) {
         {formError && <div className="mt-1 text-2xs text-term-down">⚠ {formError}</div>}
       </div>
 
-      {positions.length === 0 ? (
-        <EmptyState>No positions yet — add a trade above to track live P&amp;L.</EmptyState>
+      {/* Realized / Unrealized / Net summary + tab switch */}
+      <div className="flex items-center gap-4 border-b border-term-border px-2 py-1 text-2xs">
+        <span className="flex items-center gap-1">
+          <span className="text-term-muted">Realized</span>
+          <span className={`tabular-nums ${changeClass(realized)}`}>{fmtSigned(realized)}</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="text-term-muted">Unreal.</span>
+          <span className={`tabular-nums ${changeClass(totals.pnl)}`}>{fmtSigned(totals.pnl)}</span>
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="text-term-muted">Net</span>
+          <span className={`font-semibold tabular-nums ${changeClass(realized + totals.pnl)}`}>
+            {fmtSigned(realized + totals.pnl)}
+          </span>
+        </span>
+        <div className="ml-auto flex overflow-hidden rounded-sm border border-term-border">
+          {(['positions', 'history'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`no-drag px-2 py-0.5 font-medium uppercase ${tab === t ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'positions' ? (
+        positions.length === 0 ? (
+          <EmptyState>No positions yet — add a trade above to track live P&amp;L.</EmptyState>
+        ) : (
+          <div className="scroll-term min-h-0 flex-1 overflow-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-term-panel">
+                <tr className="text-2xs text-term-muted">
+                  <th className="px-2 py-1 text-left font-normal">SYMBOL</th>
+                  <th className="px-2 py-1 text-right font-normal">QTY</th>
+                  <th className="px-2 py-1 text-right font-normal">ENTRY</th>
+                  <th className="px-2 py-1 text-right font-normal">MARK</th>
+                  <th className="px-2 py-1 text-right font-normal">VALUE</th>
+                  <th className="px-2 py-1 text-right font-normal">UPL</th>
+                  <th className="px-2 py-1 text-right font-normal">UPL%</th>
+                  <th className="px-2 py-1 text-right font-normal">WT%</th>
+                  <th className="px-1 py-1" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id} className="group border-b border-term-border/30 hover:bg-term-header/60">
+                    <td className="px-2 py-1">
+                      <button
+                        className="no-drag font-medium text-term-text hover:text-term-amber"
+                        onClick={() => navigate(panel, r.symbol)}
+                      >
+                        {r.symbol}
+                      </button>
+                    </td>
+                    <td className={`px-2 py-1 text-right tabular-nums ${r.quantity < 0 ? 'text-term-down' : 'text-term-text'}`}>
+                      {fmtCompact(r.quantity)}
+                    </td>
+                    <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtPrice(r.entryPrice)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{r.mark != null ? fmtPrice(r.mark) : '—'}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{r.value != null ? fmtCompact(r.value) : '—'}</td>
+                    <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.pnl)}`}>
+                      {r.pnl != null ? fmtSigned(r.pnl) : '—'}
+                    </td>
+                    <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.pnlPct)}`}>
+                      {r.pnlPct != null ? fmtSignedPercent(r.pnlPct) : '—'}
+                    </td>
+                    <td className="px-2 py-1 text-right tabular-nums text-term-muted">
+                      {r.weight != null ? `${r.weight.toFixed(1)}%` : '—'}
+                    </td>
+                    <td className="px-1 py-1 text-right">
+                      <button
+                        className="no-drag leading-none text-term-dim opacity-0 transition-opacity hover:text-term-down group-hover:opacity-100"
+                        title="Close position"
+                        onClick={() => removePosition(r.id)}
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="sticky bottom-0 bg-term-panel">
+                <tr className="border-t border-term-border font-semibold">
+                  <td className="px-2 py-1 text-term-amber">TOTAL</td>
+                  <td />
+                  <td />
+                  <td />
+                  <td className="px-2 py-1 text-right tabular-nums">{fmtCompact(totals.value)}</td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(totals.pnl)}`}>
+                    {fmtSigned(totals.pnl)}
+                  </td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(totals.pnlPct)}`}>
+                    {totals.pnlPct != null ? fmtSignedPercent(totals.pnlPct) : '—'}
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">100%</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )
+      ) : transactions.length === 0 ? (
+        <EmptyState>No fills yet — your executed trades will show here.</EmptyState>
       ) : (
         <div className="scroll-term min-h-0 flex-1 overflow-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-term-panel">
               <tr className="text-2xs text-term-muted">
+                <th className="px-2 py-1 text-left font-normal">TIME</th>
                 <th className="px-2 py-1 text-left font-normal">SYMBOL</th>
+                <th className="px-2 py-1 text-left font-normal">SIDE</th>
                 <th className="px-2 py-1 text-right font-normal">QTY</th>
-                <th className="px-2 py-1 text-right font-normal">ENTRY</th>
-                <th className="px-2 py-1 text-right font-normal">MARK</th>
-                <th className="px-2 py-1 text-right font-normal">VALUE</th>
-                <th className="px-2 py-1 text-right font-normal">UPL</th>
-                <th className="px-2 py-1 text-right font-normal">UPL%</th>
-                <th className="px-2 py-1 text-right font-normal">WT%</th>
-                <th className="px-1 py-1" />
+                <th className="px-2 py-1 text-right font-normal">PRICE</th>
+                <th className="px-2 py-1 text-right font-normal">REALIZED</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="group border-b border-term-border/30 hover:bg-term-header/60">
-                  <td className="px-2 py-1">
-                    <button
-                      className="no-drag font-medium text-term-text hover:text-term-amber"
-                      onClick={() => navigate(panel, r.symbol)}
-                    >
-                      {r.symbol}
-                    </button>
+              {transactions.map((t) => (
+                <tr key={t.id} className="border-b border-term-border/30 hover:bg-term-header/60">
+                  <td className="px-2 py-1 text-term-dim">{fmtTimeAgo(t.at)}</td>
+                  <td className="px-2 py-1 font-medium text-term-text">{t.symbol}</td>
+                  <td className={`px-2 py-1 font-bold ${t.quantity < 0 ? 'text-term-down' : 'text-term-up'}`}>
+                    {t.quantity < 0 ? 'SELL' : 'BUY'}
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${r.quantity < 0 ? 'text-term-down' : 'text-term-text'}`}>
-                    {fmtCompact(r.quantity)}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtPrice(r.entryPrice)}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.mark != null ? fmtPrice(r.mark) : '—'}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.value != null ? fmtCompact(r.value) : '—'}</td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.pnl)}`}>
-                    {r.pnl != null ? fmtSigned(r.pnl) : '—'}
-                  </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.pnlPct)}`}>
-                    {r.pnlPct != null ? fmtSignedPercent(r.pnlPct) : '—'}
-                  </td>
-                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">
-                    {r.weight != null ? `${r.weight.toFixed(1)}%` : '—'}
-                  </td>
-                  <td className="px-1 py-1 text-right">
-                    <button
-                      className="no-drag leading-none text-term-dim opacity-0 transition-opacity hover:text-term-down group-hover:opacity-100"
-                      title="Close position"
-                      onClick={() => removePosition(r.id)}
-                    >
-                      ×
-                    </button>
+                  <td className="px-2 py-1 text-right tabular-nums">{fmtCompact(Math.abs(t.quantity))}</td>
+                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtPrice(t.price)}</td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${t.realized !== 0 ? changeClass(t.realized) : 'text-term-dim'}`}>
+                    {t.realized !== 0 ? fmtSigned(t.realized) : '—'}
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="sticky bottom-0 bg-term-panel">
-              <tr className="border-t border-term-border font-semibold">
-                <td className="px-2 py-1 text-term-amber">TOTAL</td>
-                <td />
-                <td />
-                <td />
-                <td className="px-2 py-1 text-right tabular-nums">{fmtCompact(totals.value)}</td>
-                <td className={`px-2 py-1 text-right tabular-nums ${changeClass(totals.pnl)}`}>
-                  {fmtSigned(totals.pnl)}
-                </td>
-                <td className={`px-2 py-1 text-right tabular-nums ${changeClass(totals.pnlPct)}`}>
-                  {totals.pnlPct != null ? fmtSignedPercent(totals.pnlPct) : '—'}
-                </td>
-                <td className="px-2 py-1 text-right tabular-nums text-term-muted">100%</td>
-                <td />
-              </tr>
-            </tfoot>
           </table>
+          <div className="flex justify-end p-2">
+            <button onClick={clearJournal} className="no-drag text-2xs text-term-dim hover:text-term-down">
+              clear journal
+            </button>
+          </div>
         </div>
       )}
     </div>
