@@ -53,11 +53,33 @@ interface LayoutItem {
   h: number;
 }
 
+export interface WorkspaceMeta {
+  id: string;
+  name: string;
+}
+
+/** The per-workspace state swapped in/out as the user switches workspaces. */
+interface WorkspaceData {
+  panels: PanelState[];
+  counter: number;
+  activeSymbol: string | null;
+}
+
 interface PanelsState {
+  // Active workspace working state (kept at the top level so all existing
+  // selectors/actions keep operating on the current workspace unchanged).
   panels: PanelState[];
   counter: number;
   activeId: string | null;
   activeSymbol: string | null;
+
+  // Workspaces.
+  workspaces: WorkspaceMeta[];
+  activeWorkspaceId: string;
+  /** Saved state of inactive workspaces. */
+  savedLayouts: Record<string, WorkspaceData>;
+
+  // Panel actions (operate on the active workspace).
   openPanel: (args: OpenPanelArgs) => string;
   closePanel: (id: string) => void;
   focusPanel: (id: string) => void;
@@ -66,9 +88,20 @@ interface PanelsState {
   setPanelLink: (id: string, link: LinkColor | null) => void;
   setPanelParams: (id: string, params: PanelParams) => void;
   resetWorkspace: () => void;
+
+  // Workspace actions.
+  addWorkspace: (name?: string) => string;
+  switchWorkspace: (id: string) => void;
+  renameWorkspace: (id: string, name: string) => void;
+  closeWorkspace: (id: string) => void;
 }
 
 const COLS = 12;
+const DEFAULT_WORKSPACE_ID = 'main';
+
+function newWorkspaceId(): string {
+  return `ws_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
 
 function rectsOverlap(
   a: { x: number; y: number; w: number; h: number },
@@ -97,6 +130,9 @@ export const usePanels = create<PanelsState>()(
       counter: 0,
       activeId: null,
       activeSymbol: null,
+      workspaces: [{ id: DEFAULT_WORKSPACE_ID, name: 'Main' }],
+      activeWorkspaceId: DEFAULT_WORKSPACE_ID,
+      savedLayouts: {},
 
       openPanel: (args) => {
         const { panels, counter, activeSymbol } = get();
@@ -112,9 +148,7 @@ export const usePanels = create<PanelsState>()(
             activeSymbol: symbol ?? activeSymbol,
             panels: args.params
               ? panels.map((p) =>
-                  p.id === existing.id
-                    ? { ...p, params: { ...p.params, ...args.params } }
-                    : p,
+                  p.id === existing.id ? { ...p, params: { ...p.params, ...args.params } } : p,
                 )
               : panels,
           });
@@ -188,9 +222,7 @@ export const usePanels = create<PanelsState>()(
 
       setPanelLink: (id, link) => {
         set({
-          panels: get().panels.map((p) =>
-            p.id === id ? { ...p, link: link ?? undefined } : p,
-          ),
+          panels: get().panels.map((p) => (p.id === id ? { ...p, link: link ?? undefined } : p)),
         });
       },
 
@@ -203,14 +235,105 @@ export const usePanels = create<PanelsState>()(
       },
 
       resetWorkspace: () => set({ panels: [], counter: 0, activeId: null }),
+
+      addWorkspace: (name) => {
+        const s = get();
+        const id = newWorkspaceId();
+        set({
+          workspaces: [...s.workspaces, { id, name: name?.trim() || `WS ${s.workspaces.length + 1}` }],
+          savedLayouts: {
+            ...s.savedLayouts,
+            [s.activeWorkspaceId]: {
+              panels: s.panels,
+              counter: s.counter,
+              activeSymbol: s.activeSymbol,
+            },
+          },
+          activeWorkspaceId: id,
+          panels: [],
+          counter: 0,
+          activeId: null,
+          // keep activeSymbol so the fresh workspace can reuse the current symbol
+        });
+        return id;
+      },
+
+      switchWorkspace: (id) => {
+        const s = get();
+        if (id === s.activeWorkspaceId || !s.workspaces.some((w) => w.id === id)) return;
+        const savedLayouts = { ...s.savedLayouts };
+        savedLayouts[s.activeWorkspaceId] = {
+          panels: s.panels,
+          counter: s.counter,
+          activeSymbol: s.activeSymbol,
+        };
+        const target = savedLayouts[id] ?? { panels: [], counter: 0, activeSymbol: null };
+        delete savedLayouts[id];
+        set({
+          savedLayouts,
+          activeWorkspaceId: id,
+          panels: target.panels,
+          counter: target.counter,
+          activeSymbol: target.activeSymbol,
+          activeId: null,
+        });
+      },
+
+      renameWorkspace: (id, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        set({
+          workspaces: get().workspaces.map((w) => (w.id === id ? { ...w, name: trimmed } : w)),
+        });
+      },
+
+      closeWorkspace: (id) => {
+        const s = get();
+        if (s.workspaces.length <= 1) return; // always keep at least one
+        const remaining = s.workspaces.filter((w) => w.id !== id);
+        const savedLayouts = { ...s.savedLayouts };
+        delete savedLayouts[id];
+
+        if (id === s.activeWorkspaceId) {
+          const next = remaining[0];
+          const target = savedLayouts[next.id] ?? { panels: [], counter: 0, activeSymbol: null };
+          delete savedLayouts[next.id];
+          set({
+            workspaces: remaining,
+            savedLayouts,
+            activeWorkspaceId: next.id,
+            panels: target.panels,
+            counter: target.counter,
+            activeSymbol: target.activeSymbol,
+            activeId: null,
+          });
+        } else {
+          set({ workspaces: remaining, savedLayouts });
+        }
+      },
     }),
     {
       name: 'midas-panels',
-      version: 1,
+      version: 2,
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 2) {
+          return {
+            ...p,
+            workspaces: [{ id: DEFAULT_WORKSPACE_ID, name: 'Main' }],
+            activeWorkspaceId: DEFAULT_WORKSPACE_ID,
+            savedLayouts: {},
+          } as unknown as PanelsState;
+        }
+        return persisted as PanelsState;
+      },
       partialize: (state) => ({
         panels: state.panels,
         counter: state.counter,
         activeSymbol: state.activeSymbol,
+        workspaces: state.workspaces,
+        activeWorkspaceId: state.activeWorkspaceId,
+        savedLayouts: state.savedLayouts,
       }),
     },
   ),

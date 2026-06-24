@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
 import { Ticker } from './components/Ticker';
+import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
 import { usePanels } from './store/usePanels';
@@ -29,6 +30,7 @@ export default function App() {
     <div className="flex h-full flex-col">
       <TopBar />
       <Ticker />
+      <WorkspaceTabs />
       <main className="min-h-0 flex-1">
         <Workspace />
       </main>
