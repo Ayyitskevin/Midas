@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  alertOpForLevel,
   conditionMet,
   evaluateAlerts,
   opSymbol,
@@ -137,6 +138,12 @@ describe('formatting', () => {
   it('opSymbol and formatActual cover the new op / metric', () => {
     expect(opSymbol('cross')).toBe('⇄');
     expect(formatActual('change', -5.234)).toBe('-5.23%');
+  });
+
+  it('alertOpForLevel arms above/below relative to the current price', () => {
+    expect(alertOpForLevel(72000, 70000)).toBe('above');
+    expect(alertOpForLevel(68000, 70000)).toBe('below');
+    expect(alertOpForLevel(70000, 70000)).toBe('above'); // at the price → above
   });
 });
 

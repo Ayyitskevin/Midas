@@ -14,10 +14,17 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useStream } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
+import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
+import { alertOpForLevel, opSymbol } from '@/lib/alerts';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { bollinger, ema, rsi, sma, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
+
+/** Round a clicked price to a sensible threshold precision for its magnitude. */
+function roundLevel(price: number): number {
+  return price >= 1 ? Math.round(price * 100) / 100 : Math.round(price * 1e6) / 1e6;
+}
 
 interface Preset {
   label: string;
@@ -42,6 +49,11 @@ export function ChartModule({ panel }: ModuleProps) {
   const interval = (panel.params?.interval as Interval) ?? '1d';
   const range = (panel.params?.range as Range) ?? '6mo';
   const setPanelParams = usePanels((s) => s.setPanelParams);
+  const alerts = useAlerts((s) => s.alerts);
+  const priceAlerts = useMemo(
+    () => alerts.filter((a) => a.symbol === symbol && a.metric === 'price'),
+    [alerts, symbol],
+  );
 
   const { data, error, loading, refresh } = useFetch(
     (signal) => api.history(symbol as string, interval, range, signal),
@@ -66,9 +78,15 @@ export function ChartModule({ panel }: ModuleProps) {
   } | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const drawModeRef = useRef(false);
+  // Alert price-lines are keyed by alert id and kept separate from the cosmetic
+  // draw lines above, so the two layers never clear each other.
+  const alertLinesRef = useRef<Map<string, IPriceLine>>(new Map());
+  const alertModeRef = useRef(false);
+  const symbolRef = useRef(symbol);
 
   const [ind, setInd] = useState({ sma: true, ema: false, bb: false, rsi: false });
   const [drawMode, setDrawMode] = useState(false);
+  const [alertMode, setAlertMode] = useState(false);
   const [livePrice, setLivePrice] = useState<number | null>(null);
 
   const clearLines = useCallback(() => {
@@ -117,11 +135,29 @@ export function ChartModule({ panel }: ModuleProps) {
     candleRef.current = candle;
     volumeRef.current = volume;
 
-    // Click-to-add a horizontal price line while draw mode is on.
+    // Click the chart to either arm a price alert (alert mode) or drop a
+    // cosmetic horizontal line (draw mode).
     chart.subscribeClick((param) => {
-      if (!drawModeRef.current || !param.point || !candleRef.current) return;
+      if ((!alertModeRef.current && !drawModeRef.current) || !param.point || !candleRef.current) return;
       const price = candleRef.current.coordinateToPrice(param.point.y);
       if (price == null) return;
+
+      if (alertModeRef.current) {
+        const sym = symbolRef.current;
+        if (sym) {
+          const reference = lastBarRef.current?.close ?? price;
+          useAlerts.getState().addAlert({
+            symbol: sym,
+            metric: 'price',
+            op: alertOpForLevel(price, reference),
+            value: roundLevel(price),
+            repeat: false,
+          });
+        }
+        setAlertMode(false);
+        return;
+      }
+
       const line = candleRef.current.createPriceLine({
         price,
         color: '#ffb000',
@@ -145,6 +181,51 @@ export function ChartModule({ panel }: ModuleProps) {
   useEffect(() => {
     drawModeRef.current = drawMode;
   }, [drawMode]);
+
+  useEffect(() => {
+    alertModeRef.current = alertMode;
+  }, [alertMode]);
+
+  useEffect(() => {
+    symbolRef.current = symbol;
+  }, [symbol]);
+
+  // Mirror this symbol's price alerts as horizontal lines on the chart,
+  // reconciling against the keyed map as alerts are added / removed / fire.
+  useEffect(() => {
+    const candle = candleRef.current;
+    if (!candle) return;
+    const lines = alertLinesRef.current;
+    const seen = new Set<string>();
+    for (const a of priceAlerts) {
+      seen.add(a.id);
+      const color =
+        a.status === 'triggered'
+          ? a.op === 'above'
+            ? UP
+            : a.op === 'below'
+              ? DOWN
+              : '#ffb000'
+          : '#ffb000';
+      const opts = {
+        price: a.value,
+        color,
+        lineWidth: 1 as const,
+        lineStyle: 2 as const,
+        axisLabelVisible: true,
+        title: `⚑${opSymbol(a.op)}`,
+      };
+      const existing = lines.get(a.id);
+      if (existing) existing.applyOptions(opts);
+      else lines.set(a.id, candle.createPriceLine(opts));
+    }
+    for (const [id, line] of lines) {
+      if (!seen.has(id)) {
+        candle.removePriceLine(line);
+        lines.delete(id);
+      }
+    }
+  }, [priceAlerts]);
 
   // Live chart: feed streamed trade prints into the forming (last) candle.
   useStream(
@@ -364,7 +445,22 @@ export function ChartModule({ panel }: ModuleProps) {
         ))}
         <span className="ml-auto" />
         <button
-          onClick={() => setDrawMode((v) => !v)}
+          onClick={() => {
+            setAlertMode((v) => !v);
+            setDrawMode(false);
+          }}
+          title="Click the chart to set a price alert at that level"
+          className={`rounded-sm px-1.5 py-0.5 ${
+            alertMode ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
+          }`}
+        >
+          ⚑ alert
+        </button>
+        <button
+          onClick={() => {
+            setDrawMode((v) => !v);
+            setAlertMode(false);
+          }}
           title="Click the chart to add a horizontal line"
           className={`rounded-sm px-1.5 py-0.5 ${
             drawMode ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
@@ -383,7 +479,7 @@ export function ChartModule({ panel }: ModuleProps) {
       <div className="relative min-h-0 flex-1">
         <div
           ref={containerRef}
-          className={`absolute inset-0 ${drawMode ? 'cursor-crosshair' : ''}`}
+          className={`absolute inset-0 ${drawMode || alertMode ? 'cursor-crosshair' : ''}`}
         />
         {loading && !data && (
           <div className="absolute inset-0 flex items-center justify-center">
