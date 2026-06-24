@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { foldTrade } from '@/lib/portfolio';
+import { buildPortfolioExport, parsePortfolioExport, type PortfolioExport } from '@/lib/portfolioFile';
 
 /** A netted paper position in one symbol. */
 export interface Position {
@@ -45,6 +46,11 @@ interface PortfolioState {
   clear: () => void;
   /** Wipe the trade journal and reset realized P&L. */
   clearJournal: () => void;
+
+  /** Portable snapshot of the whole book for file export. */
+  exportBook: () => PortfolioExport;
+  /** Replace the book from a parsed import payload. Throws on malformed input. */
+  importBook: (data: unknown) => void;
 }
 
 const TX_CAP = 500;
@@ -135,6 +141,13 @@ export const usePortfolio = create<PortfolioState>()(
       clear: () => set({ positions: [] }),
 
       clearJournal: () => set({ transactions: [], realized: 0 }),
+
+      exportBook: () => buildPortfolioExport(get().realized, get().positions, get().transactions),
+
+      importBook: (data) => {
+        const { realized, positions, transactions } = parsePortfolioExport(data);
+        set({ realized, positions, transactions });
+      },
     }),
     {
       name: 'midas-portfolio',

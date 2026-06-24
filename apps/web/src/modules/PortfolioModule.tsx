@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtSigned, fmtSignedPercent, fmtCompact, fmtTimeAgo, changeClass } from '@/lib/format';
@@ -6,6 +7,8 @@ import { positionMetrics } from '@/lib/portfolio';
 import { navigate } from '@/commands/execute';
 import { usePanels } from '@/store/usePanels';
 import { usePortfolio } from '@/store/usePortfolio';
+import { useToasts } from '@/store/useToasts';
+import { downloadJson } from '@/lib/fileDownload';
 import { EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -29,6 +32,10 @@ export function PortfolioModule({ panel }: ModuleProps) {
   const addTrade = usePortfolio((s) => s.addTrade);
   const removePosition = usePortfolio((s) => s.removePosition);
   const clearJournal = usePortfolio((s) => s.clearJournal);
+  const exportBook = usePortfolio((s) => s.exportBook);
+  const importBook = usePortfolio((s) => s.importBook);
+  const pushToast = useToasts((s) => s.push);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [symbol, setSymbol] = useState(
     () => usePanels.getState().activeSymbol ?? 'BTC/USDT',
@@ -100,6 +107,31 @@ export function PortfolioModule({ panel }: ModuleProps) {
     setFormError(null);
   };
 
+  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-importing the same file
+    if (!file) return;
+    try {
+      let data: unknown;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        throw new Error('File is not valid JSON');
+      }
+      importBook(data);
+      const s = usePortfolio.getState();
+      pushToast({
+        title: 'Portfolio imported',
+        body: `${s.positions.length} positions · ${s.transactions.length} fills`,
+        tone: 'info',
+      });
+    } catch (err) {
+      pushToast({ title: 'Import failed', body: (err as Error).message, tone: 'down' });
+    }
+  };
+
+  const hasBook = positions.length > 0 || transactions.length > 0;
+
   const inputCls =
     'no-drag rounded-sm border border-term-border bg-term-bg px-1.5 py-1 text-xs text-term-text outline-none focus:border-term-amber';
 
@@ -170,16 +202,40 @@ export function PortfolioModule({ panel }: ModuleProps) {
             {fmtSigned(realized + totals.pnl)}
           </span>
         </span>
-        <div className="ml-auto flex overflow-hidden rounded-sm border border-term-border">
-          {(['positions', 'history'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`no-drag px-2 py-0.5 font-medium uppercase ${tab === t ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'}`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="ml-auto flex items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          <button
+            onClick={() => downloadJson('midas-portfolio.json', exportBook())}
+            disabled={!hasBook}
+            title="Export book to a file"
+            className="no-drag leading-none text-term-muted hover:text-term-amber disabled:opacity-30 disabled:hover:text-term-muted"
+          >
+            ⤓
+          </button>
+          <button
+            onClick={() => fileRef.current?.click()}
+            title="Import book from a file"
+            className="no-drag leading-none text-term-muted hover:text-term-amber"
+          >
+            ⤒
+          </button>
+          <div className="flex overflow-hidden rounded-sm border border-term-border">
+            {(['positions', 'history'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`no-drag px-2 py-0.5 font-medium uppercase ${tab === t ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'}`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
