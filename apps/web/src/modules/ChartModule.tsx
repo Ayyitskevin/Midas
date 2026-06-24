@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ColorType,
   CrosshairMode,
   createChart,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
   type LogicalRange,
   type UTCTimestamp,
@@ -11,6 +12,7 @@ import {
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useStream } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
@@ -55,8 +57,25 @@ export function ChartModule({ panel }: ModuleProps) {
   const rsiContainerRef = useRef<HTMLDivElement>(null);
   const rsiChartRef = useRef<IChartApi | null>(null);
   const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const lastBarRef = useRef<{
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+  } | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
+  const drawModeRef = useRef(false);
 
   const [ind, setInd] = useState({ sma: true, ema: false, bb: false, rsi: false });
+  const [drawMode, setDrawMode] = useState(false);
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+
+  const clearLines = useCallback(() => {
+    const candle = candleRef.current;
+    if (candle) for (const l of priceLinesRef.current) candle.removePriceLine(l);
+    priceLinesRef.current = [];
+  }, []);
 
   // Create the chart once, on mount.
   useEffect(() => {
@@ -98,6 +117,23 @@ export function ChartModule({ panel }: ModuleProps) {
     candleRef.current = candle;
     volumeRef.current = volume;
 
+    // Click-to-add a horizontal price line while draw mode is on.
+    chart.subscribeClick((param) => {
+      if (!drawModeRef.current || !param.point || !candleRef.current) return;
+      const price = candleRef.current.coordinateToPrice(param.point.y);
+      if (price == null) return;
+      const line = candleRef.current.createPriceLine({
+        price,
+        color: '#ffb000',
+        lineWidth: 1,
+        lineStyle: 0,
+        axisLabelVisible: true,
+        title: '',
+      });
+      priceLinesRef.current.push(line);
+      setDrawMode(false);
+    });
+
     return () => {
       chart.remove();
       chartRef.current = null;
@@ -105,6 +141,39 @@ export function ChartModule({ panel }: ModuleProps) {
       volumeRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    drawModeRef.current = drawMode;
+  }, [drawMode]);
+
+  // Live chart: feed streamed trade prints into the forming (last) candle.
+  useStream(
+    'trades',
+    symbol,
+    useCallback((d: unknown) => {
+      const price = (d as { price?: number }).price;
+      const bar = lastBarRef.current;
+      const candle = candleRef.current;
+      if (!bar || !candle || typeof price !== 'number') return;
+      bar.close = price;
+      if (price > bar.high) bar.high = price;
+      if (price < bar.low) bar.low = price;
+      candle.update({
+        time: bar.time as UTCTimestamp,
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+      });
+      setLivePrice(price);
+    }, []),
+  );
+
+  // Clear drawn lines when the symbol changes.
+  useEffect(() => {
+    clearLines();
+    setDrawMode(false);
+  }, [symbol, clearLines]);
 
   // Push new data into the series whenever it changes.
   useEffect(() => {
@@ -130,6 +199,12 @@ export function ChartModule({ panel }: ModuleProps) {
       })),
     );
     chart.timeScale().fitContent();
+
+    const last = data.candles[data.candles.length - 1];
+    lastBarRef.current = last
+      ? { time: last.time, open: last.open, high: last.high, low: last.low, close: last.close }
+      : null;
+    setLivePrice(null);
   }, [data]);
 
   // Indicator overlays — rebuilt when data or the enabled studies change.
@@ -243,7 +318,7 @@ export function ChartModule({ panel }: ModuleProps) {
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-bold text-term-amber">{symbol}</span>
-          {perf && <span className="text-xs tabular-nums">{fmtPrice(perf.last)}</span>}
+          {perf && <span className="text-xs tabular-nums">{fmtPrice(livePrice ?? perf.last)}</span>}
           {perf && (
             <span className={`text-2xs tabular-nums ${changeClass(perf.changePct)}`}>
               {fmtSignedPercent(perf.changePct)} <span className="text-term-dim">{range}</span>
@@ -287,9 +362,29 @@ export function ChartModule({ panel }: ModuleProps) {
             {label}
           </button>
         ))}
+        <span className="ml-auto" />
+        <button
+          onClick={() => setDrawMode((v) => !v)}
+          title="Click the chart to add a horizontal line"
+          className={`rounded-sm px-1.5 py-0.5 ${
+            drawMode ? 'text-term-amber' : 'text-term-muted hover:text-term-text'
+          }`}
+        >
+          ＋ line
+        </button>
+        <button
+          onClick={clearLines}
+          title="Clear lines"
+          className="rounded-sm px-1.5 py-0.5 text-term-muted hover:text-term-down"
+        >
+          clear
+        </button>
       </div>
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="absolute inset-0" />
+        <div
+          ref={containerRef}
+          className={`absolute inset-0 ${drawMode ? 'cursor-crosshair' : ''}`}
+        />
         {loading && !data && (
           <div className="absolute inset-0 flex items-center justify-center">
             <Loading label={`Loading ${symbol}`} />
