@@ -4,6 +4,8 @@ import { Ticker } from './components/Ticker';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
+import { AlertsEngine } from './components/AlertsEngine';
+import { ToastHost } from './components/ToastHost';
 import { usePanels } from './store/usePanels';
 import { runCommand } from './commands/execute';
 
@@ -35,6 +37,8 @@ export default function App() {
         <Workspace />
       </main>
       <StatusBar />
+      <AlertsEngine />
+      <ToastHost />
     </div>
   );
 }

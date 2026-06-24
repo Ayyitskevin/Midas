@@ -115,6 +115,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Paper portfolio — track positions and live unrealized P&L.',
   },
   {
+    code: 'ALERT',
+    aliases: ['ALERTS', 'ALRT', 'AL'],
+    title: 'Alerts',
+    module: 'ALERT',
+    requiresSymbol: false,
+    description: 'Price & funding alerts — fire a toast / notification when a threshold is crossed.',
+  },
+  {
     code: 'N',
     aliases: ['NEWS', 'CN'],
     title: 'News',

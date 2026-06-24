@@ -17,6 +17,7 @@ BTC/USDT GP       price chart
 BTC/USDT BOOK     live order book (DOM)
 W                 your watchlist
 PORT              paper portfolio + live P&L
+BTC/USDT ALERT    set a price / funding alert
 HELP              this panel`}
         </pre>
       </section>
