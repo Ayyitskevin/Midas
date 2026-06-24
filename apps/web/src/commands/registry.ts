@@ -43,6 +43,15 @@ export const COMMANDS: CommandDef[] = [
     params: { interval: '5m', range: '1d' },
   },
   {
+    code: 'COMP',
+    aliases: ['COMPARE', 'CMP', 'REL'],
+    title: 'Compare',
+    module: 'COMP',
+    requiresSymbol: false,
+    description: 'Overlay several symbols rebased to % change to compare performance.',
+    params: { interval: '1d', range: '6mo' },
+  },
+  {
     code: 'BOOK',
     aliases: ['DOM', 'OB'],
     title: 'Order Book',

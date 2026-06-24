@@ -105,6 +105,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `DES`   | `DESC`, `DS`   | yes          | Snapshot quote + key stats for a security.    |
 | `GP`    | `CHART`, `G`   | yes          | Historical chart + studies (MA/BB/VWAP/RSI/MACD/vol-profile). |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
+| `COMP`  | `COMPARE`, `CMP` | no         | Overlay several symbols rebased to % to compare performance.|
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
