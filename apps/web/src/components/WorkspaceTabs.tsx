@@ -1,15 +1,64 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { usePanels } from '@/store/usePanels';
+import type { WorkspaceExport } from '@/store/usePanels';
 import { TEMPLATES, applyTemplate } from '@/commands/templates';
+
+/** Trigger a browser download of a workspace snapshot as a .midas.json file. */
+function downloadWorkspace(ws: WorkspaceExport) {
+  const json = JSON.stringify(ws, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const safe = ws.name.replace(/[^a-z0-9-_]+/gi, '-').toLowerCase() || 'workspace';
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${safe}.midas.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 function NewWorkspaceMenu() {
   const addWorkspace = usePanels((s) => s.addWorkspace);
+  const importWorkspace = usePanels((s) => s.importWorkspace);
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so re-picking the same file fires onChange again
+    if (!file) return;
+    try {
+      let data: unknown;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        throw new Error('File is not valid JSON');
+      }
+      importWorkspace(data);
+      setError(null);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not import file');
+    }
+  };
 
   return (
     <div className="relative shrink-0">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/json,.json"
+        onChange={handleFile}
+        className="hidden"
+      />
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setError(null);
+        }}
         title="New workspace"
         className="px-2 py-1 text-sm leading-none text-term-muted hover:text-term-amber"
       >
@@ -43,10 +92,35 @@ function NewWorkspaceMenu() {
                 <span className="text-term-dim">{t.description}</span>
               </button>
             ))}
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="flex w-full flex-col items-start gap-0.5 border-t border-term-border px-2 py-1.5 text-left hover:bg-term-header"
+            >
+              <span className="text-term-text">Import from file…</span>
+              <span className="text-term-dim">Load a .midas.json workspace.</span>
+            </button>
+            {error && (
+              <div className="border-t border-term-border px-2 py-1.5 text-term-down">⚠ {error}</div>
+            )}
           </div>
         </>
       )}
     </div>
+  );
+}
+
+function ExportButton() {
+  const exportWorkspace = usePanels((s) => s.exportWorkspace);
+  const panelCount = usePanels((s) => s.panels.length);
+  return (
+    <button
+      onClick={() => downloadWorkspace(exportWorkspace())}
+      disabled={panelCount === 0}
+      title="Export current workspace to a file"
+      className="shrink-0 px-2 py-1 text-xs leading-none text-term-muted hover:text-term-amber disabled:opacity-30 disabled:hover:text-term-muted"
+    >
+      ⤓
+    </button>
   );
 }
 
@@ -117,6 +191,7 @@ export function WorkspaceTabs() {
         );
       })}
       <NewWorkspaceMenu />
+      <ExportButton />
     </div>
   );
 }

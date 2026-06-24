@@ -68,6 +68,12 @@ HELP              this panel`}
             Click a panel’s colored dot to join a <span className="text-term-text">link group</span>{' '}
             — linked panels share a symbol, so a linked watchlist drives them all.
           </li>
+          <li>
+            Use the <span className="text-term-text">workspace tabs</span> to keep separate layouts.{' '}
+            <span className="text-term-amber">+</span> opens a blank workspace, a ready-made template,
+            or imports a <span className="text-term-text">.midas.json</span> file;{' '}
+            <span className="text-term-amber">⤓</span> exports the current one.
+          </li>
           <li>Your layout and watchlist are saved in this browser.</li>
         </ul>
       </section>

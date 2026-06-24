@@ -65,6 +65,15 @@ interface WorkspaceData {
   activeSymbol: string | null;
 }
 
+/** Portable, versioned snapshot of one workspace for file import/export. */
+export interface WorkspaceExport {
+  /** Magic marker so we can recognise our own files on import. */
+  midas: 'workspace';
+  version: 1;
+  name: string;
+  panels: PanelState[];
+}
+
 interface PanelsState {
   // Active workspace working state (kept at the top level so all existing
   // selectors/actions keep operating on the current workspace unchanged).
@@ -94,6 +103,11 @@ interface PanelsState {
   switchWorkspace: (id: string) => void;
   renameWorkspace: (id: string, name: string) => void;
   closeWorkspace: (id: string) => void;
+
+  // Import / export.
+  exportWorkspace: (id?: string) => WorkspaceExport;
+  /** Create a new workspace from parsed file data. Throws on malformed input. */
+  importWorkspace: (data: unknown) => string;
 }
 
 const COLS = 12;
@@ -101,6 +115,53 @@ const DEFAULT_WORKSPACE_ID = 'main';
 
 function newWorkspaceId(): string {
   return `ws_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
+}
+
+const num = (v: unknown, fallback: number): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+
+/**
+ * Coerce one untrusted panel record from an imported file into a valid
+ * PanelState, or return null to drop it. The panel id is reassigned by the
+ * caller's running index so a dropped panel never leaves a gap.
+ */
+function sanitizePanel(raw: unknown, index: number): PanelState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const module = r.module as ModuleCode;
+  if (!(typeof module === 'string') || !(module in MODULE_META)) return null;
+  const meta = MODULE_META[module];
+  const link = LINK_COLORS.includes(r.link as LinkColor) ? (r.link as LinkColor) : undefined;
+  return {
+    id: String(index + 1),
+    module,
+    symbol: typeof r.symbol === 'string' ? r.symbol : null,
+    title: typeof r.title === 'string' ? r.title : meta.title,
+    params: r.params && typeof r.params === 'object' ? (r.params as PanelParams) : undefined,
+    link,
+    x: num(r.x, 0),
+    y: num(r.y, 0),
+    w: num(r.w, meta.w),
+    h: num(r.h, meta.h),
+    minW: meta.minW,
+    minH: meta.minH,
+  };
+}
+
+/** Validate and normalise a parsed import payload. Throws a friendly error. */
+function parseWorkspaceExport(data: unknown): { name: string; panels: PanelState[] } {
+  if (!data || typeof data !== 'object') throw new Error('Not a workspace file');
+  const d = data as Record<string, unknown>;
+  if (d.midas !== 'workspace') throw new Error('Not a Midas workspace file');
+  if (!Array.isArray(d.panels)) throw new Error('Workspace file has no panels');
+  const panels: PanelState[] = [];
+  for (const raw of d.panels) {
+    const p = sanitizePanel(raw, panels.length);
+    if (p) panels.push(p);
+  }
+  if (panels.length === 0) throw new Error('Workspace file has no usable panels');
+  const name = typeof d.name === 'string' && d.name.trim() ? d.name.trim() : 'Imported';
+  return { name, panels };
 }
 
 function rectsOverlap(
@@ -310,6 +371,34 @@ export const usePanels = create<PanelsState>()(
         } else {
           set({ workspaces: remaining, savedLayouts });
         }
+      },
+
+      exportWorkspace: (id) => {
+        const s = get();
+        const wsId = id ?? s.activeWorkspaceId;
+        const meta = s.workspaces.find((w) => w.id === wsId);
+        // The active workspace lives at the top level; others in savedLayouts.
+        const data = wsId === s.activeWorkspaceId ? { panels: s.panels } : s.savedLayouts[wsId];
+        return {
+          midas: 'workspace',
+          version: 1,
+          name: meta?.name ?? 'Workspace',
+          panels: (data?.panels ?? []).map((p) => ({ ...p })),
+        };
+      },
+
+      importWorkspace: (data) => {
+        const { name, panels } = parseWorkspaceExport(data);
+        // Spin up a fresh workspace (this saves & deactivates the current one),
+        // then drop the imported panels into it.
+        const id = get().addWorkspace(name);
+        set({
+          panels,
+          counter: panels.length,
+          activeId: null,
+          activeSymbol: panels[panels.length - 1]?.symbol ?? null,
+        });
+        return id;
       },
     }),
     {
