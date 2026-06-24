@@ -5,6 +5,7 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Interval, Range } from '@midas/shared';
@@ -13,7 +14,7 @@ import { useFetch } from '@/lib/hooks';
 import { usePanels } from '@/store/usePanels';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
-import { bollinger, ema, sma, type LinePoint } from '@/lib/indicators';
+import { bollinger, ema, rsi, sma, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
 
 interface Preset {
@@ -51,8 +52,11 @@ export function ChartModule({ panel }: ModuleProps) {
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const indicatorSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
+  const rsiContainerRef = useRef<HTMLDivElement>(null);
+  const rsiChartRef = useRef<IChartApi | null>(null);
+  const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
 
-  const [ind, setInd] = useState({ sma: true, ema: false, bb: false });
+  const [ind, setInd] = useState({ sma: true, ema: false, bb: false, rsi: false });
 
   // Create the chart once, on mount.
   useEffect(() => {
@@ -158,6 +162,73 @@ export function ChartModule({ panel }: ModuleProps) {
     }
   }, [data, ind]);
 
+  // RSI oscillator sub-pane: a second chart that follows the main chart's time scale.
+  useEffect(() => {
+    if (!ind.rsi) {
+      if (rsiChartRef.current) {
+        rsiChartRef.current.remove();
+        rsiChartRef.current = null;
+        rsiSeriesRef.current = null;
+      }
+      return;
+    }
+    const el = rsiContainerRef.current;
+    if (!el) return;
+    const main = chartRef.current;
+
+    const chart = createChart(el, {
+      autoSize: true,
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#7a7f87',
+        fontFamily: 'ui-monospace, monospace',
+        fontSize: 11,
+      },
+      grid: { vertLines: { visible: false }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+      rightPriceScale: { borderColor: '#26262d' },
+      timeScale: { borderColor: '#26262d', visible: false },
+      crosshair: { mode: CrosshairMode.Normal },
+      handleScroll: false,
+      handleScale: false,
+    });
+    const series = chart.addLineSeries({
+      color: '#c08cff',
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: true,
+    });
+    series.createPriceLine({ price: 70, color: 'rgba(239,77,86,0.45)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
+    series.createPriceLine({ price: 30, color: 'rgba(38,194,129,0.45)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
+    rsiChartRef.current = chart;
+    rsiSeriesRef.current = series;
+
+    let sync: ((r: LogicalRange | null) => void) | null = null;
+    if (main) {
+      sync = (r) => {
+        if (r) chart.timeScale().setVisibleLogicalRange(r);
+      };
+      main.timeScale().subscribeVisibleLogicalRangeChange(sync);
+      const current = main.timeScale().getVisibleLogicalRange();
+      if (current) chart.timeScale().setVisibleLogicalRange(current);
+    }
+
+    return () => {
+      if (main && sync) main.timeScale().unsubscribeVisibleLogicalRangeChange(sync);
+      chart.remove();
+      rsiChartRef.current = null;
+      rsiSeriesRef.current = null;
+    };
+  }, [ind.rsi]);
+
+  // Feed the RSI series.
+  useEffect(() => {
+    const series = rsiSeriesRef.current;
+    if (!series || !data) return;
+    series.setData(
+      rsi(data.candles, 14).map((p) => ({ time: p.time as UTCTimestamp, value: p.value })),
+    );
+  }, [data, ind.rsi]);
+
   const perf = useMemo(() => {
     if (!data || data.candles.length < 2) return null;
     const first = data.candles[0].close;
@@ -204,6 +275,7 @@ export function ChartModule({ panel }: ModuleProps) {
           ['sma', 'SMA 20'],
           ['ema', 'EMA 50'],
           ['bb', 'BB 20'],
+          ['rsi', 'RSI 14'],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -229,6 +301,12 @@ export function ChartModule({ panel }: ModuleProps) {
           </div>
         )}
       </div>
+      {ind.rsi && (
+        <div className="relative h-20 shrink-0 border-t border-term-border">
+          <div className="absolute left-1 top-0.5 z-10 text-2xs text-term-dim">RSI 14</div>
+          <div ref={rsiContainerRef} className="absolute inset-0" />
+        </div>
+      )}
     </div>
   );
 }
