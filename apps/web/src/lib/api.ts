@@ -3,6 +3,8 @@ import type {
   AlertInput,
   AlertTrigger,
   ApiError,
+  AuthSession,
+  AuthStatus,
   DerivativesInfo,
   HealthResponse,
   HistoryResponse,
@@ -13,27 +15,39 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  User,
   VenueQuote,
 } from '@midas/shared';
+import { authToken } from './authToken';
 
 /** Optional base URL for the API (e.g. when web and server are on different hosts). */
 const BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 
+/** Merge in the bearer token when we have one (auth-enabled deployments). */
+function authHeaders(base: Record<string, string>): Record<string, string> {
+  const t = authToken.get();
+  return t ? { ...base, Authorization: `Bearer ${t}` } : base;
+}
+
+/** Turn a non-OK response into an Error, dropping the session on a 401. */
+async function fail(res: Response): Promise<never> {
+  if (res.status === 401 && authToken.get()) authToken.fireUnauthorized();
+  let message = `Request failed (${res.status})`;
+  try {
+    const body = (await res.json()) as ApiError;
+    if (body?.message) message = body.message;
+  } catch {
+    // non-JSON error body — keep the generic message
+  }
+  throw new Error(message);
+}
+
 async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     signal,
-    headers: { Accept: 'application/json' },
+    headers: authHeaders({ Accept: 'application/json' }),
   });
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const body = (await res.json()) as ApiError;
-      if (body?.message) message = body.message;
-    } catch {
-      // non-JSON error body — keep the generic message
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) return fail(res);
   return (await res.json()) as T;
 }
 
@@ -41,19 +55,10 @@ async function apiPost<T>(path: string, body: unknown, signal?: AbortSignal): Pr
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     signal,
-    headers: { 'content-type': 'application/json', Accept: 'application/json' },
+    headers: authHeaders({ 'content-type': 'application/json', Accept: 'application/json' }),
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const data = (await res.json()) as ApiError;
-      if (data?.message) message = data.message;
-    } catch {
-      // non-JSON error body
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) return fail(res);
   return (await res.json()) as T;
 }
 
@@ -66,19 +71,10 @@ async function apiSend<T>(
   const res = await fetch(`${BASE}${path}`, {
     method,
     signal,
-    headers: { 'content-type': 'application/json', Accept: 'application/json' },
+    headers: authHeaders({ 'content-type': 'application/json', Accept: 'application/json' }),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) {
-    let message = `Request failed (${res.status})`;
-    try {
-      const data = (await res.json()) as ApiError;
-      if (data?.message) message = data.message;
-    } catch {
-      // non-JSON error body
-    }
-    throw new Error(message);
-  }
+  if (!res.ok) return fail(res);
   return (await res.json()) as T;
 }
 
@@ -144,4 +140,12 @@ export const api = {
     apiSend<Alert>('PATCH', `/api/alerts/${encodeURIComponent(id)}`, patch, signal),
   deleteAlert: (id: string, signal?: AbortSignal) =>
     apiSend<{ ok: boolean }>('DELETE', `/api/alerts/${encodeURIComponent(id)}`, undefined, signal),
+
+  // Auth.
+  authStatus: (signal?: AbortSignal) => apiGet<AuthStatus>('/api/auth/status', signal),
+  me: (signal?: AbortSignal) => apiGet<User>('/api/auth/me', signal),
+  login: (username: string, password: string, signal?: AbortSignal) =>
+    apiPost<AuthSession>('/api/auth/login', { username, password }, signal),
+  signup: (username: string, password: string, signal?: AbortSignal) =>
+    apiPost<AuthSession>('/api/auth/signup', { username, password }, signal),
 };

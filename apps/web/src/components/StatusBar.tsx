@@ -1,10 +1,13 @@
 import { usePanels } from '@/store/usePanels';
+import { useAuth } from '@/store/useAuth';
 import { stream, useStreamStatus } from '@/lib/stream';
 import { streamStatusView } from '@/lib/streamStatus';
 
 export function StatusBar() {
   const panelCount = usePanels((s) => s.panels.length);
   const reset = usePanels((s) => s.resetWorkspace);
+  const user = useAuth((s) => s.user);
+  const logout = useAuth((s) => s.clear);
   const status = useStreamStatus();
   const conn = streamStatusView(status, stream.subscriberCount());
 
@@ -29,6 +32,14 @@ export function StatusBar() {
         <button onClick={reset} className="transition-colors hover:text-term-down" title="Close all panels">
           RESET
         </button>
+        {user && (
+          <span className="flex items-center gap-1.5">
+            <span className="text-term-text">{user.username}</span>
+            <button onClick={logout} className="transition-colors hover:text-term-down" title="Log out">
+              logout
+            </button>
+          </span>
+        )}
       </div>
     </div>
   );
