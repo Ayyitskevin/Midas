@@ -52,6 +52,15 @@ export const COMMANDS: CommandDef[] = [
     params: { interval: '1d', range: '6mo' },
   },
   {
+    code: 'RATIO',
+    aliases: ['SPREAD', 'PAIR'],
+    title: 'Ratio / Spread',
+    module: 'RATIO',
+    requiresSymbol: false,
+    description: 'Chart the ratio (A/B) or spread (A−B) between two symbols over time.',
+    params: { interval: '1d', range: '6mo' },
+  },
+  {
     code: 'BOOK',
     aliases: ['DOM', 'OB'],
     title: 'Order Book',
