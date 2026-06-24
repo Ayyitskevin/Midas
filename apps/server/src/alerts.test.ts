@@ -4,6 +4,7 @@ import { parseAlertInput } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
+import { UserRepo } from './auth/users';
 import { evaluateOnce } from './alerts/engine';
 
 /** Minimal provider whose quotes always report a fixed price. */
@@ -52,12 +53,12 @@ describe('evaluateOnce', () => {
 
     let fired = await evaluateOnce(repo, stubProvider(69000), 2);
     expect(fired).toHaveLength(0);
-    expect(repo.list()[0].status).toBe('armed');
+    expect(repo.listFor()[0].status).toBe('armed');
 
     fired = await evaluateOnce(repo, stubProvider(71000), 3);
     expect(fired).toHaveLength(1);
-    expect(repo.list()[0].status).toBe('triggered');
-    expect(repo.log()).toHaveLength(1);
+    expect(repo.listFor()[0].status).toBe('triggered');
+    expect(repo.logFor()).toHaveLength(1);
   });
 
   it('does nothing when no alerts are enabled', async () => {
@@ -113,5 +114,58 @@ describe('alerts API', () => {
 
     const missing = await app.inject({ method: 'DELETE', url: '/api/alerts/nope' });
     expect(missing.statusCode).toBe(404);
+  });
+});
+
+describe('per-user alert isolation', () => {
+  let app: FastifyInstance;
+  let tokenA: string;
+  let tokenB: string;
+
+  const hdr = (t: string) => ({ authorization: `Bearer ${t}` });
+
+  beforeAll(async () => {
+    process.env.LOG_LEVEL = 'silent';
+    app = await buildApp(stubProvider(70000), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+    });
+    await app.ready();
+    const signup = async (username: string) =>
+      (
+        await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username, password: 'pw1234' } })
+      ).json().token as string;
+    tokenA = await signup('alice');
+    tokenB = await signup('bob');
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('keeps each user’s alerts private', async () => {
+    const created = (
+      await app.inject({
+        method: 'POST',
+        url: '/api/alerts',
+        headers: hdr(tokenA),
+        payload: { symbol: 'BTC/USDT', metric: 'price', op: 'above', value: 1, repeat: false },
+      })
+    ).json();
+
+    const aliceList = await app.inject({ method: 'GET', url: '/api/alerts', headers: hdr(tokenA) });
+    expect(aliceList.json()).toHaveLength(1);
+
+    const bobList = await app.inject({ method: 'GET', url: '/api/alerts', headers: hdr(tokenB) });
+    expect(bobList.json()).toHaveLength(0);
+
+    // Bob cannot delete Alice's alert…
+    const cross = await app.inject({ method: 'DELETE', url: `/api/alerts/${created.id}`, headers: hdr(tokenB) });
+    expect(cross.statusCode).toBe(404);
+
+    // …but Alice can.
+    const own = await app.inject({ method: 'DELETE', url: `/api/alerts/${created.id}`, headers: hdr(tokenA) });
+    expect(own.statusCode).toBe(200);
   });
 });

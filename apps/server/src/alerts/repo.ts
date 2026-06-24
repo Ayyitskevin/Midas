@@ -2,7 +2,12 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { newAlert, type Alert, type AlertInput, type AlertTrigger } from '@midas/shared';
 
-const TRIGGER_CAP = 200;
+const TRIGGER_CAP = 500;
+/** Owner for single-user / auth-off deploys (and pre-auth alerts). */
+const LOCAL = '@local';
+
+const ownerKey = (userId?: string): string => userId || LOCAL;
+const ownerOf = (x: { userId?: string }): string => x.userId ?? LOCAL;
 
 interface Persisted {
   alerts: Alert[];
@@ -10,8 +15,10 @@ interface Persisted {
 }
 
 /**
- * Stores alert rules + recent triggers. Backed by a JSON file when a path is
- * given (survives restarts); purely in-memory otherwise (used by tests).
+ * Stores alert rules + recent triggers, scoped per user. Backed by a JSON file
+ * when a path is given (survives restarts); in-memory otherwise (tests).
+ * With auth off, everything lives under the `@local` owner — unchanged
+ * single-user behaviour, and pre-auth alerts (no userId) map there too.
  */
 export class AlertRepo {
   private alerts: Alert[] = [];
@@ -42,7 +49,7 @@ export class AlertRepo {
         JSON.stringify({ alerts: this.alerts, triggers: this.triggers }, null, 2),
       );
     } catch {
-      /* best-effort persistence */
+      /* best-effort */
     }
   }
 
@@ -51,25 +58,38 @@ export class AlertRepo {
     return `${prefix}_${now.toString(36)}_${this.seq.toString(36)}`;
   }
 
-  list(): Alert[] {
+  /** Every alert across all users — used by the evaluation engine. */
+  all(): Alert[] {
     return this.alerts;
   }
 
-  log(): AlertTrigger[] {
-    return this.triggers;
+  /** A single user's alerts (auth off → the `@local` bucket). */
+  listFor(userId?: string): Alert[] {
+    const owner = ownerKey(userId);
+    return this.alerts.filter((a) => ownerOf(a) === owner);
   }
 
-  create(input: AlertInput, now: number): Alert {
-    const alert = newAlert(input, this.newId('alt', now), now);
+  logFor(userId?: string): AlertTrigger[] {
+    const owner = ownerKey(userId);
+    return this.triggers.filter((t) => ownerOf(t) === owner);
+  }
+
+  create(input: AlertInput, now: number, userId?: string): Alert {
+    const alert: Alert = { ...newAlert(input, this.newId('alt', now), now), userId: ownerKey(userId) };
     this.alerts = [alert, ...this.alerts];
     this.persist();
     return alert;
   }
 
-  update(id: string, patch: { enabled?: boolean; rearm?: boolean }): Alert | undefined {
+  updateFor(
+    id: string,
+    patch: { enabled?: boolean; rearm?: boolean },
+    userId?: string,
+  ): Alert | undefined {
+    const owner = ownerKey(userId);
     let updated: Alert | undefined;
     this.alerts = this.alerts.map((a) => {
-      if (a.id !== id) return a;
+      if (a.id !== id || ownerOf(a) !== owner) return a;
       updated = {
         ...a,
         enabled: patch.enabled ?? a.enabled,
@@ -81,9 +101,10 @@ export class AlertRepo {
     return updated;
   }
 
-  remove(id: string): boolean {
+  removeFor(id: string, userId?: string): boolean {
+    const owner = ownerKey(userId);
     const before = this.alerts.length;
-    this.alerts = this.alerts.filter((a) => a.id !== id);
+    this.alerts = this.alerts.filter((a) => !(a.id === id && ownerOf(a) === owner));
     const removed = this.alerts.length !== before;
     if (removed) this.persist();
     return removed;
