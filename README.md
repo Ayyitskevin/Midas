@@ -114,7 +114,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist.                      |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
-| `ALERT` | `ALRT`, `AL`   | optional     | Price & funding alerts → toast / desktop notification. |
+| `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross) → toast / desktop. |
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |

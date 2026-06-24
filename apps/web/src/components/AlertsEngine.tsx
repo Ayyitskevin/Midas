@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAlerts } from '@/store/useAlerts';
 import { useToasts } from '@/store/useToasts';
-import { notifyTrigger, playBeep, type Readings } from '@/lib/alerts';
+import { notifyTrigger, playBeep, triggerHeadline, triggerBody, type Readings } from '@/lib/alerts';
 
 const POLL_MS = 4000;
 
@@ -26,19 +26,23 @@ export function AlertsEngine() {
 
       inFlight.current = true;
       try {
-        const priceSyms = [...new Set(active.filter((a) => a.metric === 'price').map((a) => a.symbol))];
+        const quoteSyms = [
+          ...new Set(active.filter((a) => a.metric === 'price' || a.metric === 'change').map((a) => a.symbol)),
+        ];
         const fundSyms = [...new Set(active.filter((a) => a.metric === 'funding').map((a) => a.symbol))];
 
         const readings: Readings = {};
         const tasks: Promise<void>[] = [];
 
-        if (priceSyms.length > 0) {
+        if (quoteSyms.length > 0) {
           tasks.push(
             api
-              .quotes(priceSyms, controller.signal)
+              .quotes(quoteSyms, controller.signal)
               .then((quotes) => {
                 for (const q of quotes) {
-                  (readings[q.symbol.toUpperCase()] ??= {}).price = q.price;
+                  const r = (readings[q.symbol.toUpperCase()] ??= {});
+                  r.price = q.price;
+                  r.change = q.changePercent;
                 }
               })
               .catch(() => {}),
@@ -64,9 +68,9 @@ export function AlertsEngine() {
         const push = useToasts.getState().push;
         for (const t of fired) {
           push({
-            title: `${t.symbol} alert`,
-            body: `${t.metric} ${t.op === 'above' ? '≥' : '≤'} ${t.value}${t.metric === 'funding' ? '%' : ''}`,
-            tone: t.op === 'above' ? 'up' : 'down',
+            title: triggerHeadline(t),
+            body: triggerBody(t),
+            tone: t.op === 'cross' ? 'info' : t.op === 'above' ? 'up' : 'down',
           });
           notifyTrigger(t);
         }
