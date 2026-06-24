@@ -2,7 +2,7 @@ import type { Quote } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact, fmtPrice, fmtSigned, fmtSignedPercent } from '@/lib/format';
-import { openSymbol } from '@/commands/execute';
+import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -34,7 +34,7 @@ const COLUMNS: Column[] = [
   { key: 'vol', label: 'VOL', render: (q) => fmtCompact(q.volume) },
 ];
 
-export function QuoteMonitorModule(_props: ModuleProps) {
+export function QuoteMonitorModule({ panel }: ModuleProps) {
   const symbols = useWatchlist((s) => s.symbols);
   const { data, error, loading } = useFetch(
     (signal) => api.quotes(symbols, signal),
@@ -68,7 +68,7 @@ export function QuoteMonitorModule(_props: ModuleProps) {
                 <td className="px-2 py-1">
                   <button
                     className="no-drag font-medium text-term-text hover:text-term-amber"
-                    onClick={() => openSymbol(sym)}
+                    onClick={() => navigate(panel, sym)}
                   >
                     {sym}
                   </button>

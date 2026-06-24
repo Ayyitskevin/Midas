@@ -1,6 +1,72 @@
-import { usePanels } from '@/store/usePanels';
-import type { PanelState } from '@/store/usePanels';
+import { useState } from 'react';
+import { LINK_COLORS, usePanels } from '@/store/usePanels';
+import type { LinkColor, PanelState } from '@/store/usePanels';
 import { MODULE_COMPONENTS } from '@/modules/registry';
+
+export const LINK_HEX: Record<LinkColor, string> = {
+  red: '#ef4d56',
+  blue: '#4c8dff',
+  green: '#26c281',
+  yellow: '#ffd23f',
+  cyan: '#3ad6d6',
+  orange: '#ff9f40',
+  magenta: '#e056fd',
+};
+
+function LinkControl({ panel }: { panel: PanelState }) {
+  const setPanelLink = usePanels((s) => s.setPanelLink);
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        className="no-drag flex h-3 w-3 items-center justify-center rounded-full border"
+        style={{
+          borderColor: panel.link ? LINK_HEX[panel.link] : '#565b63',
+          background: panel.link ? LINK_HEX[panel.link] : 'transparent',
+        }}
+        title={panel.link ? `Linked: ${panel.link} group` : 'Link panel to a group'}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      />
+      {open && (
+        <>
+          <div className="no-drag fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="no-drag absolute right-0 top-4 z-50 flex items-center gap-1 rounded-sm border border-term-border bg-term-panel p-1.5 shadow-lg shadow-black/40">
+            {LINK_COLORS.map((c) => (
+              <button
+                key={c}
+                className="h-3.5 w-3.5 rounded-full border border-black/40"
+                style={{
+                  background: LINK_HEX[c],
+                  outline: panel.link === c ? '1px solid #fff' : 'none',
+                  outlineOffset: '1px',
+                }}
+                title={`${c} group`}
+                onClick={() => {
+                  setPanelLink(panel.id, panel.link === c ? null : c);
+                  setOpen(false);
+                }}
+              />
+            ))}
+            <button
+              className="ml-1 px-1 text-2xs text-term-muted hover:text-term-down"
+              title="Unlink"
+              onClick={() => {
+                setPanelLink(panel.id, null);
+                setOpen(false);
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function Panel({ panel }: { panel: PanelState }) {
   const closePanel = usePanels((s) => s.closePanel);
@@ -13,6 +79,7 @@ export function Panel({ panel }: { panel: PanelState }) {
       className={`flex h-full flex-col overflow-hidden rounded-sm border bg-term-panel ${
         isActive ? 'border-term-border-bright' : 'border-term-border'
       }`}
+      style={panel.link ? { borderLeftColor: LINK_HEX[panel.link], borderLeftWidth: 2 } : undefined}
       onMouseDown={() => focusPanel(panel.id)}
     >
       <div className="panel-drag flex cursor-move select-none items-center justify-between gap-2 border-b border-term-border bg-term-header px-2 py-1">
@@ -23,16 +90,23 @@ export function Panel({ panel }: { panel: PanelState }) {
           )}
           <span className="truncate text-2xs text-term-muted">{panel.title}</span>
         </div>
-        <button
-          className="no-drag leading-none text-term-dim transition-colors hover:text-term-down"
-          title="Close panel"
-          onClick={() => closePanel(panel.id)}
-        >
-          ×
-        </button>
+        <div className="flex items-center gap-2">
+          <LinkControl panel={panel} />
+          <button
+            className="no-drag leading-none text-term-dim transition-colors hover:text-term-down"
+            title="Close panel"
+            onClick={() => closePanel(panel.id)}
+          >
+            ×
+          </button>
+        </div>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {Module ? <Module panel={panel} /> : <div className="p-3 text-xs text-term-down">Unknown module: {panel.module}</div>}
+        {Module ? (
+          <Module panel={panel} />
+        ) : (
+          <div className="p-3 text-xs text-term-down">Unknown module: {panel.module}</div>
+        )}
       </div>
     </div>
   );

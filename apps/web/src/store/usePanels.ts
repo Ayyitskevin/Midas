@@ -3,6 +3,19 @@ import { persist } from 'zustand/middleware';
 import type { ModuleCode } from '@/modules/meta';
 import { MODULE_META } from '@/modules/meta';
 
+/** A panel "link group" — panels sharing a color sync their symbol. */
+export type LinkColor = 'red' | 'blue' | 'green' | 'yellow' | 'cyan' | 'orange' | 'magenta';
+
+export const LINK_COLORS: readonly LinkColor[] = [
+  'red',
+  'blue',
+  'green',
+  'yellow',
+  'cyan',
+  'orange',
+  'magenta',
+];
+
 export interface PanelParams {
   interval?: string;
   range?: string;
@@ -15,6 +28,8 @@ export interface PanelState {
   symbol: string | null;
   title: string;
   params?: PanelParams;
+  /** Link group; panels with the same color sync their symbol. */
+  link?: LinkColor;
   x: number;
   y: number;
   w: number;
@@ -48,6 +63,7 @@ interface PanelsState {
   focusPanel: (id: string) => void;
   setLayout: (layout: LayoutItem[]) => void;
   setPanelSymbol: (id: string, symbol: string) => void;
+  setPanelLink: (id: string, link: LinkColor | null) => void;
   setPanelParams: (id: string, params: PanelParams) => void;
   resetWorkspace: () => void;
 }
@@ -157,9 +173,24 @@ export const usePanels = create<PanelsState>()(
 
       setPanelSymbol: (id, symbol) => {
         const upper = symbol.toUpperCase();
+        const { panels } = get();
+        const link = panels.find((p) => p.id === id)?.link;
         set({
-          panels: get().panels.map((p) => (p.id === id ? { ...p, symbol: upper } : p)),
+          // A linked panel broadcasts the new symbol to every panel in its group.
+          panels: panels.map((p) => {
+            if (p.id === id) return { ...p, symbol: upper };
+            if (link && p.link === link) return { ...p, symbol: upper };
+            return p;
+          }),
           activeSymbol: upper,
+        });
+      },
+
+      setPanelLink: (id, link) => {
+        set({
+          panels: get().panels.map((p) =>
+            p.id === id ? { ...p, link: link ?? undefined } : p,
+          ),
         });
       },
 

@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
-import { openSymbol } from '@/commands/execute';
+import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
-export function WatchlistModule(_props: ModuleProps) {
+export function WatchlistModule({ panel }: ModuleProps) {
   const symbols = useWatchlist((s) => s.symbols);
   const remove = useWatchlist((s) => s.remove);
   const add = useWatchlist((s) => s.add);
@@ -43,7 +43,7 @@ export function WatchlistModule(_props: ModuleProps) {
                   <td className="px-2 py-1">
                     <button
                       className="no-drag font-medium text-term-text hover:text-term-amber"
-                      onClick={() => openSymbol(sym)}
+                      onClick={() => navigate(panel, sym)}
                     >
                       {sym}
                     </button>

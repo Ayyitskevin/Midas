@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtTimeAgo } from '@/lib/format';
-import { openSymbol } from '@/commands/execute';
+import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -37,7 +37,7 @@ export function NewsModule({ panel }: ModuleProps) {
               {item.relatedSymbols.slice(0, 4).map((sym) => (
                 <button
                   key={sym}
-                  onClick={() => openSymbol(sym)}
+                  onClick={() => navigate(panel, sym)}
                   className="no-drag rounded-sm bg-term-header px-1 py-0.5 text-term-accent hover:text-term-amber"
                 >
                   {sym}
