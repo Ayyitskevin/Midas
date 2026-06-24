@@ -1,5 +1,6 @@
 import type {
   Candle,
+  DerivativesInfo,
   HistoryResponse,
   MarketState,
   NewsItem,
@@ -126,6 +127,14 @@ export class YahooProvider implements DataProvider {
   async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
     throw new ProviderError(
       'Multi-exchange compare is a crypto feature — use the ccxt provider',
+      501,
+      symbol,
+    );
+  }
+
+  async getDerivatives(symbol: string): Promise<DerivativesInfo> {
+    throw new ProviderError(
+      'Derivatives (funding / OI / liquidations) is a crypto feature — use the ccxt provider',
       501,
       symbol,
     );

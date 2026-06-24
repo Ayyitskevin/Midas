@@ -1,4 +1,5 @@
 import type {
+  DerivativesInfo,
   HistoryResponse,
   Interval,
   NewsItem,
@@ -30,6 +31,7 @@ export interface DataProvider {
   getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse>;
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
+  getDerivatives(symbol: string): Promise<DerivativesInfo>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
 }

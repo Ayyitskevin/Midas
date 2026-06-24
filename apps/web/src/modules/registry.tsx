@@ -5,6 +5,7 @@ import { DescriptionModule } from './DescriptionModule';
 import { ChartModule } from './ChartModule';
 import { OrderBookModule } from './OrderBookModule';
 import { MultiExchangeModule } from './MultiExchangeModule';
+import { DerivativesModule } from './DerivativesModule';
 import { WatchlistModule } from './WatchlistModule';
 import { QuoteMonitorModule } from './QuoteMonitorModule';
 import { NewsModule } from './NewsModule';
@@ -17,6 +18,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, ComponentType<ModuleProps>> =
   GP: ChartModule,
   BOOK: OrderBookModule,
   ALLQ: MultiExchangeModule,
+  FUND: DerivativesModule,
   W: WatchlistModule,
   Q: QuoteMonitorModule,
   N: NewsModule,
