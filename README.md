@@ -160,6 +160,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `CONV`  | `NOTIONAL`, `CONVERT` | yes    | Size / notional converter — convert between quantity, notional, % of account and margin at the live price. |
 | `KELLY` | `BETSIZE`, `OPTIMALF`, `KCRIT` | no | Kelly-criterion bet sizing — optimal bankroll fraction from win rate & payoff, with half/quarter Kelly, expectancy & breakeven win. |
 | `ROR`   | `RUIN`, `RISKOFRUIN`, `ROFR` | no | Risk-of-ruin simulator — probability of blowing up from win rate, payoff & risk-per-trade, with expected max drawdown & a survival curve. |
+| `LADDER` | `SCALEIN`, `RUNGS`, `SCALE` | no | Scale-in ladder planner — spread a budget across limit rungs over a price range (flat/linear/geometric) for a blended average entry. |
 | `DCA`   | `AVG`, `AVERAGE`, `BASIS` | no | Average-cost calculator — blend fills into an average entry, mark P&L, liq. estimate + target-average solver. |
 | `LOG`   | `JOURNAL`, `TJ` | no         | Trade journal — log entries/exits, score R-multiples, track win rate, expectancy & total R. Saved to your browser. |
 | `EQ`    | `EQUITY`, `CURVE`, `DRAWDOWN` | no | Equity curve — cumulative R, max drawdown and streaks from your scored journal trades. |

@@ -469,6 +469,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-of-ruin simulator — probability of blowing up from win rate, payoff & risk-per-trade, with expected max drawdown and a survival curve.',
   },
   {
+    code: 'LADDER',
+    aliases: ['SCALEIN', 'RUNGS', 'SCALE'],
+    title: 'Scale-in Ladder',
+    module: 'LADDER',
+    requiresSymbol: false,
+    description: 'Scale-in ladder planner — spread a budget across limit rungs over a price range (flat/linear/geometric) for a blended average entry.',
+  },
+  {
     code: 'DCA',
     aliases: ['AVG', 'AVERAGE', 'BASIS'],
     title: 'DCA / Averaging',

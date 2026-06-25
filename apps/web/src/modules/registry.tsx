@@ -70,6 +70,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CONV: mod(() => import('./SizeConverterModule'), 'SizeConverterModule'),
   KELLY: mod(() => import('./KellyModule'), 'KellyModule'),
   ROR: mod(() => import('./RorModule'), 'RorModule'),
+  LADDER: mod(() => import('./LadderModule'), 'LadderModule'),
   DCA: mod(() => import('./DcaModule'), 'DcaModule'),
   LOG: mod(() => import('./JournalModule'), 'JournalModule'),
   EQ: mod(() => import('./EquityModule'), 'EquityModule'),
