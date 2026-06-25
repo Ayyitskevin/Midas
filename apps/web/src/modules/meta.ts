@@ -77,6 +77,7 @@ export type ModuleCode =
   | 'GPR'
   | 'OMEGA'
   | 'DIVR'
+  | 'TAIL'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -179,6 +180,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   GPR: { code: 'GPR', title: 'Gain to Pain', w: 5, h: 12, minW: 4, minH: 6 },
   OMEGA: { code: 'OMEGA', title: 'Omega Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   DIVR: { code: 'DIVR', title: 'Diversification', w: 5, h: 12, minW: 4, minH: 6 },
+  TAIL: { code: 'TAIL', title: 'Tail Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
