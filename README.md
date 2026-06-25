@@ -119,6 +119,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MOV`   | `OVERVIEW`, `BREADTH` | no    | Market overview — top gainers, losers, most active + breadth.|
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
+| `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist — last, % change with heat, and a 24h sparkline per symbol. |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
