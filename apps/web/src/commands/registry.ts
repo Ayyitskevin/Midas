@@ -261,6 +261,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Trade journal — log entries/exits, score R-multiples, and track win rate, expectancy and total R.',
   },
   {
+    code: 'EQ',
+    aliases: ['EQUITY', 'CURVE', 'DRAWDOWN'],
+    title: 'Equity Curve',
+    module: 'EQ',
+    requiresSymbol: false,
+    description: 'Trade-journal equity curve — cumulative R, drawdown and streaks from your scored trades.',
+  },
+  {
     code: 'PNL',
     aliases: ['FEE', 'FEES', 'ROE'],
     title: 'P&L Calculator',
