@@ -92,6 +92,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TAIL: mod(() => import('./TailModule'), 'TailModule'),
   PAIN: mod(() => import('./PainModule'), 'PainModule'),
   KRATIO: mod(() => import('./KratioModule'), 'KratioModule'),
+  VREG: mod(() => import('./VRegModule'), 'VRegModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
