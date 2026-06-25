@@ -205,6 +205,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Volatility dashboard — realized vol, ATR and high-low range ranked across your watchlist.',
   },
   {
+    code: 'VAR',
+    aliases: ['DIST', 'HIST', 'CVAR'],
+    title: 'Returns / VaR',
+    module: 'VAR',
+    requiresSymbol: true,
+    description: 'Return distribution & risk — histogram with vol, skew, kurtosis and historical VaR / expected shortfall.',
+  },
+  {
     code: 'MOM',
     aliases: ['MOMENTUM', 'RS', 'STRENGTH'],
     title: 'Momentum',
