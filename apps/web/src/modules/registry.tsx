@@ -30,6 +30,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   FUND: mod(() => import('./DerivativesModule'), 'DerivativesModule'),
   FUNDR: mod(() => import('./FundingBoardModule'), 'FundingBoardModule'),
   CARRY: mod(() => import('./FundingCarryModule'), 'FundingCarryModule'),
+  FPL: mod(() => import('./FundingPnlModule'), 'FundingPnlModule'),
   LIQS: mod(() => import('./LiquidationsModule'), 'LiquidationsModule'),
   SCR: mod(() => import('./ScreenerModule'), 'ScreenerModule'),
   HEAT: mod(() => import('./HeatmapModule'), 'HeatmapModule'),
