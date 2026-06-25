@@ -44,6 +44,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   PREM: mod(() => import('./BasisModule'), 'BasisModule'),
   ARB: mod(() => import('./ArbModule'), 'ArbModule'),
   SLIP: mod(() => import('./SlippageModule'), 'SlippageModule'),
+  TWAP: mod(() => import('./TwapModule'), 'TwapModule'),
   AI: mod(() => import('./AiCopilotModule'), 'AiCopilotModule'),
   W: mod(() => import('./WatchlistModule'), 'WatchlistModule'),
   Q: mod(() => import('./QuoteMonitorModule'), 'QuoteMonitorModule'),

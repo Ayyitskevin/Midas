@@ -245,6 +245,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Slippage estimator — average fill & market impact for an order size, walking the live book.',
   },
   {
+    code: 'TWAP',
+    aliases: ['EXEC', 'ALGO', 'SLICE'],
+    title: 'Execution (TWAP)',
+    module: 'TWAP',
+    requiresSymbol: true,
+    description: 'TWAP execution planner — slice a large order over time and compare impact vs an aggressive block.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
