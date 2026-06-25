@@ -54,6 +54,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   RRG: mod(() => import('./RotationModule'), 'RotationModule'),
   SEAS: mod(() => import('./SeasonalityModule'), 'SeasonalityModule'),
   MRET: mod(() => import('./MonthlyReturnsModule'), 'MonthlyReturnsModule'),
+  RCAL: mod(() => import('./ReturnsCalendarModule'), 'ReturnsCalendarModule'),
   PREM: mod(() => import('./BasisModule'), 'BasisModule'),
   ARB: mod(() => import('./ArbModule'), 'ArbModule'),
   SLIP: mod(() => import('./SlippageModule'), 'SlippageModule'),

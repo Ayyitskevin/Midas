@@ -301,6 +301,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Monthly returns heatmap — month-over-month % as a year × month grid with compounded year totals.',
   },
   {
+    code: 'RCAL',
+    aliases: ['RETCAL', 'DRET', 'DAILYRET'],
+    title: 'Returns Calendar',
+    module: 'RCAL',
+    requiresSymbol: true,
+    description: 'Daily returns calendar — a contribution-style heatmap of daily % returns with best/worst day, positive-day rate and current streak.',
+  },
+  {
     code: 'CARRY',
     aliases: ['CASHCARRY', 'CARRYTRADE'],
     title: 'Funding Carry',
