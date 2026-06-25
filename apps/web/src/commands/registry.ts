@@ -333,6 +333,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book.',
   },
   {
+    code: 'EXP',
+    aliases: ['EXPO', 'WEIGHTS', 'GROSS'],
+    title: 'Exposure',
+    module: 'EXP',
+    requiresSymbol: false,
+    description: 'Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage and concentration.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
