@@ -453,6 +453,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Kelly-criterion bet sizing — optimal bankroll fraction from win rate & payoff, with half/quarter Kelly, expectancy and breakeven win.',
   },
   {
+    code: 'ROR',
+    aliases: ['RUIN', 'RISKOFRUIN', 'ROFR'],
+    title: 'Risk of Ruin',
+    module: 'ROR',
+    requiresSymbol: false,
+    description: 'Risk-of-ruin simulator — probability of blowing up from win rate, payoff & risk-per-trade, with expected max drawdown and a survival curve.',
+  },
+  {
     code: 'DCA',
     aliases: ['AVG', 'AVERAGE', 'BASIS'],
     title: 'DCA / Averaging',

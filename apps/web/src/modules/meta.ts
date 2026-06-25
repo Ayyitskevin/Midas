@@ -56,6 +56,7 @@ export type ModuleCode =
   | 'RISK'
   | 'CONV'
   | 'KELLY'
+  | 'ROR'
   | 'DCA'
   | 'LOG'
   | 'EQ'
@@ -130,6 +131,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
   CONV: { code: 'CONV', title: 'Size Converter', w: 4, h: 12, minW: 3, minH: 8 },
   KELLY: { code: 'KELLY', title: 'Kelly Sizer', w: 4, h: 12, minW: 3, minH: 8 },
+  ROR: { code: 'ROR', title: 'Risk of Ruin', w: 4, h: 13, minW: 3, minH: 9 },
   DCA: { code: 'DCA', title: 'DCA / Averaging', w: 4, h: 14, minW: 3, minH: 9 },
   LOG: { code: 'LOG', title: 'Trade Journal', w: 5, h: 14, minW: 4, minH: 8 },
   EQ: { code: 'EQ', title: 'Equity Curve', w: 5, h: 11, minW: 4, minH: 7 },
