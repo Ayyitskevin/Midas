@@ -621,6 +621,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Pain Index board — ranks watchlist average drawdown depth (mean underwater) with the Pain ratio (annualized return ÷ Pain Index).',
   },
   {
+    code: 'KRATIO',
+    aliases: ['KRAT', 'KESTNER'],
+    title: 'K-Ratio',
+    module: 'KRATIO',
+    requiresSymbol: false,
+    description: 'K-ratio board — Kestner trend-consistency: the log-price trend slope ÷ its standard error (a t-stat), ranking watchlist names by how steady their climb is.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
