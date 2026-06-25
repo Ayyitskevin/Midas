@@ -245,6 +245,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Funding-carry board — perps ranked by funding APR with spot-vs-perp basis and the carry leg.',
   },
   {
+    code: 'FPL',
+    aliases: ['FUNDPNL', 'CARRYPNL', 'FPNL'],
+    title: 'Funding P&L',
+    module: 'FPL',
+    requiresSymbol: true,
+    description: 'Funding P&L forecaster — project a perp position’s carry over a horizon at the current funding rate.',
+  },
+  {
     code: 'PREM',
     aliases: ['PREMIUM', 'SPREAD'],
     title: 'Basis Monitor',
