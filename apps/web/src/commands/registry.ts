@@ -301,6 +301,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Funding P&L forecaster — project a perp position’s carry over a horizon at the current funding rate.',
   },
   {
+    code: 'FRH',
+    aliases: ['FUNDHIST', 'FRATE', 'FUNDINGHIST'],
+    title: 'Funding History',
+    module: 'FRH',
+    requiresSymbol: true,
+    description: 'Funding-rate history — a perp’s funding settlements over time with the average and current APR.',
+  },
+  {
     code: 'PREM',
     aliases: ['PREMIUM', 'SPREAD'],
     title: 'Basis Monitor',

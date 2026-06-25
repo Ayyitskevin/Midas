@@ -72,6 +72,18 @@ describe('GET /api/derivatives/:symbol', () => {
   });
 });
 
+describe('GET /api/funding-history/:symbol', () => {
+  it('returns a chronological series of funding settlements', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/funding-history/${sym('BTC/USDT')}?limit=10` });
+    expect(res.statusCode).toBe(200);
+    const points = res.json() as Array<{ time: number; fundingRate: number | null }>;
+    expect(Array.isArray(points)).toBe(true);
+    expect(points).toHaveLength(10);
+    expect(points[0]).toHaveProperty('fundingRate');
+    expect(points[points.length - 1].time).toBeGreaterThan(points[0].time); // ascending
+  });
+});
+
 describe('GET /api/funding', () => {
   it('returns a board of funding rows with the limit honoured', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/funding?quote=USDT&limit=5' });

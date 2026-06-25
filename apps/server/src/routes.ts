@@ -88,6 +88,20 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getDerivatives(symbol);
   });
 
+  app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
+    '/api/funding-history/:symbol',
+    async (req) => {
+      const symbol = normalizeSymbol(req.params.symbol);
+      if (!symbol) throw new ProviderError('Missing symbol', 400);
+      if (!provider.getFundingHistory) {
+        throw new ProviderError('Funding history not supported by this provider', 501, symbol);
+      }
+      const limitRaw = Number(req.query.limit);
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 90;
+      return provider.getFundingHistory(symbol, limit);
+    },
+  );
+
   app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
     '/api/screener',
     async (req) => {

@@ -3,6 +3,7 @@ import type { Exchange, Ticker } from 'ccxt';
 import type {
   Candle,
   DerivativesInfo,
+  FundingHistoryPoint,
   HistoryResponse,
   Interval,
   NewsItem,
@@ -227,6 +228,24 @@ export class CcxtProvider implements DataProvider {
     }
 
     return out;
+  }
+
+  async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
+    const spot = this.normalize(symbol);
+    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    if (!this.exchange.has['fetchFundingRateHistory']) return [];
+    const n = Math.min(Math.max(1, Math.floor(limit)), 500);
+    try {
+      const rows = (await this.exchange.fetchFundingRateHistory(perp, undefined, n)) as unknown as Array<{
+        timestamp?: number;
+        fundingRate?: number;
+      }>;
+      return rows
+        .filter((r) => r.timestamp != null)
+        .map((r) => ({ time: r.timestamp as number, fundingRate: r.fundingRate ?? null }));
+    } catch {
+      return [];
+    }
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {

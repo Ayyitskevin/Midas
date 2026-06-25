@@ -226,6 +226,14 @@ export interface FundingRow {
   openInterestValue: number | null;
 }
 
+/** One historical funding settlement for a perp. */
+export interface FundingHistoryPoint {
+  /** Epoch millis of the settlement. */
+  time: number;
+  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  fundingRate: number | null;
+}
+
 /** A single row in the crypto screener. */
 export interface ScreenerRow {
   symbol: string;

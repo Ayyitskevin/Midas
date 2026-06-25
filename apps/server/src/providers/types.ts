@@ -1,5 +1,6 @@
 import type {
   DerivativesInfo,
+  FundingHistoryPoint,
   HistoryResponse,
   Interval,
   NewsItem,
@@ -41,6 +42,8 @@ export interface DataProvider {
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
   getDerivatives(symbol: string): Promise<DerivativesInfo>;
+  /** Recent funding settlements for a perp (optional — crypto providers only). */
+  getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
