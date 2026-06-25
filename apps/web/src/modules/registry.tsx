@@ -40,6 +40,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   DD: mod(() => import('./DrawdownModule'), 'DrawdownModule'),
   CAL: mod(() => import('./CalendarModule'), 'CalendarModule'),
   VOL: mod(() => import('./VolatilityModule'), 'VolatilityModule'),
+  VAR: mod(() => import('./DistributionModule'), 'DistributionModule'),
   MOM: mod(() => import('./MomentumModule'), 'MomentumModule'),
   RRG: mod(() => import('./RotationModule'), 'RotationModule'),
   SEAS: mod(() => import('./SeasonalityModule'), 'SeasonalityModule'),
