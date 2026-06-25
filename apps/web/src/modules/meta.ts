@@ -28,6 +28,7 @@ export type ModuleCode =
   | 'CORR'
   | 'AVGCORR'
   | 'BETA'
+  | 'CAPTURE'
   | 'RBETA'
   | 'SCAT'
   | 'VPVR'
@@ -112,6 +113,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   CORR: { code: 'CORR', title: 'Correlation', w: 5, h: 8, minW: 4, minH: 5 },
   AVGCORR: { code: 'AVGCORR', title: 'Correlation Regime', w: 6, h: 10, minW: 4, minH: 6 },
   BETA: { code: 'BETA', title: 'Beta vs BTC', w: 5, h: 11, minW: 4, minH: 6 },
+  CAPTURE: { code: 'CAPTURE', title: 'Up/Down Capture', w: 5, h: 11, minW: 4, minH: 6 },
   RBETA: { code: 'RBETA', title: 'Rolling Beta', w: 5, h: 11, minW: 4, minH: 7 },
   SCAT: { code: 'SCAT', title: 'Returns Scatter', w: 5, h: 11, minW: 4, minH: 7 },
   VPVR: { code: 'VPVR', title: 'Volume Profile', w: 5, h: 11, minW: 4, minH: 7 },

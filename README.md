@@ -125,6 +125,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `AVGCORR` | `AVGCOR`, `CORRREGIME`, `MEANCORR` | no | Average-correlation regime — mean pairwise correlation across your watchlist over time; high = risk-off, low = dispersion. |
 | `BETA`  | `BTCBETA`, `BETAS` | no       | Beta board — each watchlist symbol’s beta, correlation & R² vs BTC from daily returns. |
+| `CAPTURE` | `UPDOWN`, `CAPRATIO`, `UPCAPTURE` | no | Up/down capture vs BTC — how much of BTC’s up vs down moves each watchlist symbol catches, with the capture ratio. |
 | `RBETA` | `ROLLBETA`, `RCORR` | yes     | Rolling beta & correlation vs BTC — how a symbol’s sensitivity to Bitcoin drifts over a trailing window. |
 | `SCAT`  | `SCATTER`, `REGRESS` | yes    | Returns scatter vs BTC — daily returns with the fitted regression line (beta, alpha, R²). |
 | `VPVR`  | `VP`, `VOLPROFILE`, `VBP` | yes | Volume profile — traded volume binned by price with the Point of Control & 70% value area (VAH/VAL). |
