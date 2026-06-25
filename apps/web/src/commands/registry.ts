@@ -109,6 +109,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge.',
   },
   {
+    code: 'LQA',
+    aliases: ['LIQUIDITY', 'SPREADS', 'MKTQUAL'],
+    title: 'Liquidity',
+    module: 'LQA',
+    requiresSymbol: false,
+    description: 'Liquidity board — watchlist ranked by bid/ask spread (bps) and top-of-book depth.',
+  },
+  {
     code: 'ALLQ',
     aliases: ['XQ', 'VENUES'],
     title: 'Multi-Exchange Quotes',
