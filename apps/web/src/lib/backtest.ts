@@ -1,11 +1,13 @@
 /**
- * Minimal long/flat backtests over a close series. Two strategies share one
+ * Minimal long/flat backtests over a close series. Three strategies share one
  * simulator:
  *   • SMA crossover — long when the fast simple moving average is above the slow
  *     one, flat otherwise (a trend-follower).
  *   • RSI mean reversion — buy when RSI drops below an oversold line and hold
  *     until it recovers past an exit line (a dip-buyer).
- * Both are applied with a one-bar lag (you act on the *next* bar after a signal,
+ *   • Bollinger mean reversion — buy when price closes below the lower band and
+ *     hold until it closes back above the middle band (a band dip-buyer).
+ * All are applied with a one-bar lag (you act on the *next* bar after a signal,
  * so the test never peeks at a price it couldn't have traded on), and both feed
  * the same `simulate` core that produces the equity curve, the buy-and-hold
  * benchmark, and the read-outs that matter — total return, worst drawdown, trade
@@ -29,6 +31,13 @@ export interface RsiBacktestParams {
   oversold: number;
   /** Exit to flat when RSI rises above this level (must exceed oversold). */
   exit: number;
+}
+
+export interface BollingerBacktestParams {
+  /** Moving-average / band lookback in bars. */
+  period: number;
+  /** Band width in standard deviations. */
+  mult: number;
 }
 
 export interface BacktestTrade {
@@ -206,6 +215,70 @@ export function backtestRsiReversion(closes: number[], params: RsiBacktestParams
     if (!Number.isNaN(v)) {
       if (!held && v < oversold) held = true;
       else if (held && v > exit) held = false;
+    }
+    position[t] = held ? 1 : 0;
+  }
+
+  return simulate(closes, position);
+}
+
+/**
+ * Bollinger bands over a trailing `period` window: the simple moving average
+ * (middle band) and ± `mult` population standard deviations. NaN until the
+ * window fills.
+ */
+export function bollingerBands(
+  closes: number[],
+  period: number,
+  mult: number,
+): { mid: number[]; lower: number[]; upper: number[] } {
+  const n = closes.length;
+  const mid = new Array<number>(n).fill(NaN);
+  const lower = new Array<number>(n).fill(NaN);
+  const upper = new Array<number>(n).fill(NaN);
+  if (period < 1) return { mid, lower, upper };
+  for (let i = period - 1; i < n; i++) {
+    let sum = 0;
+    for (let k = i - period + 1; k <= i; k++) sum += closes[k];
+    const m = sum / period;
+    let v = 0;
+    for (let k = i - period + 1; k <= i; k++) {
+      const d = closes[k] - m;
+      v += d * d;
+    }
+    const sd = Math.sqrt(v / period);
+    mid[i] = m;
+    lower[i] = m - mult * sd;
+    upper[i] = m + mult * sd;
+  }
+  return { mid, lower, upper };
+}
+
+/**
+ * Run the Bollinger mean-reversion backtest: go long the bar after price closes
+ * below the lower band, and return to flat the bar after it closes back above
+ * the middle band (long-only band dip buying). Returns null on invalid params
+ * (period < 2, non-positive width) or too little history for a band read plus a
+ * bar to trade.
+ */
+export function backtestBollinger(
+  closes: number[],
+  params: BollingerBacktestParams,
+): BacktestResult | null {
+  const p = Math.floor(params.period);
+  const { mult } = params;
+  const n = closes.length;
+  if (!Number.isFinite(p) || p < 2 || !Number.isFinite(mult) || !(mult > 0) || n < p + 1) return null;
+
+  const { mid, lower } = bollingerBands(closes, p, mult);
+
+  const position = new Array<number>(n).fill(0);
+  let held = false;
+  for (let t = 1; t < n; t++) {
+    const i = t - 1; // act on the next bar after the signal
+    if (!Number.isNaN(lower[i]) && !Number.isNaN(mid[i])) {
+      if (!held && closes[i] < lower[i]) held = true;
+      else if (held && closes[i] > mid[i]) held = false;
     }
     position[t] = held ? 1 : 0;
   }

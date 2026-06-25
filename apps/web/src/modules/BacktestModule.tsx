@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { backtestSmaCross, backtestRsiReversion } from '@/lib/backtest';
+import { backtestSmaCross, backtestRsiReversion, backtestBollinger } from '@/lib/backtest';
 import { fmtDate, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -43,12 +43,14 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 export function BacktestModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   const [tfIdx, setTfIdx] = useState(0); // default 1Y
-  const [strategy, setStrategy] = useState<'sma' | 'rsi'>('sma');
+  const [strategy, setStrategy] = useState<'sma' | 'rsi' | 'boll'>('sma');
   const [fast, setFast] = useState('20');
   const [slow, setSlow] = useState('50');
   const [period, setPeriod] = useState('14');
   const [oversold, setOversold] = useState('30');
   const [exitLevel, setExitLevel] = useState('50');
+  const [bperiod, setBperiod] = useState('20');
+  const [bmult, setBmult] = useState('2');
   const tf = TIMEFRAMES[tfIdx];
 
   const { data, error, loading, refresh } = useFetch(
@@ -62,14 +64,15 @@ export function BacktestModule({ panel }: ModuleProps) {
 
   const result = useMemo(() => {
     if (!data) return null;
-    return strategy === 'sma'
-      ? backtestSmaCross(data.closes, { fast: num(fast), slow: num(slow) })
-      : backtestRsiReversion(data.closes, {
-          period: num(period),
-          oversold: num(oversold),
-          exit: num(exitLevel),
-        });
-  }, [data, strategy, fast, slow, period, oversold, exitLevel]);
+    if (strategy === 'sma') return backtestSmaCross(data.closes, { fast: num(fast), slow: num(slow) });
+    if (strategy === 'rsi')
+      return backtestRsiReversion(data.closes, {
+        period: num(period),
+        oversold: num(oversold),
+        exit: num(exitLevel),
+      });
+    return backtestBollinger(data.closes, { period: num(bperiod), mult: num(bmult) });
+  }, [data, strategy, fast, slow, period, oversold, exitLevel, bperiod, bmult]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -130,7 +133,7 @@ export function BacktestModule({ panel }: ModuleProps) {
       <div className="flex flex-wrap items-center gap-2 border-b border-term-border px-2 py-1">
         <span className="text-term-dim">{base(symbol)} · daily</span>
         <div className="flex gap-1">
-          {(['sma', 'rsi'] as const).map((s) => (
+          {(['sma', 'rsi', 'boll'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStrategy(s)}
@@ -148,11 +151,16 @@ export function BacktestModule({ panel }: ModuleProps) {
               <Param label="fast" value={fast} onChange={setFast} />
               <Param label="slow" value={slow} onChange={setSlow} />
             </>
-          ) : (
+          ) : strategy === 'rsi' ? (
             <>
               <Param label="len" value={period} onChange={setPeriod} />
               <Param label="buy<" value={oversold} onChange={setOversold} />
               <Param label="exit>" value={exitLevel} onChange={setExitLevel} />
+            </>
+          ) : (
+            <>
+              <Param label="len" value={bperiod} onChange={setBperiod} />
+              <Param label="σ×" value={bmult} onChange={setBmult} />
             </>
           )}
           <div className="flex gap-1">
@@ -175,7 +183,9 @@ export function BacktestModule({ panel }: ModuleProps) {
         <EmptyState>
           {strategy === 'sma'
             ? 'Set a fast period below the slow period and ensure enough history.'
-            : 'Set the exit RSI above the oversold level and ensure enough history.'}
+            : strategy === 'rsi'
+              ? 'Set the exit RSI above the oversold level and ensure enough history.'
+              : 'Set a band length ≥ 2 and a positive width, and ensure enough history.'}
         </EmptyState>
       ) : (
         <>
@@ -245,9 +255,13 @@ export function BacktestModule({ panel }: ModuleProps) {
               <>
                 long when SMA({fast}) &gt; SMA({slow}), else flat
               </>
-            ) : (
+            ) : strategy === 'rsi' ? (
               <>
                 buy when RSI({period}) &lt; {oversold}, exit when &gt; {exitLevel}
+              </>
+            ) : (
+              <>
+                buy below the lower Bollinger({bperiod}, {bmult}σ) band, exit above the middle
               </>
             )}{' '}
             · <span className="text-term-muted">grey</span> = buy &amp; hold · 1-bar lag, no fees
