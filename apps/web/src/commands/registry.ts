@@ -333,6 +333,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Trend vs mean-reversion board — each watchlist symbol’s Hurst exponent (R/S) classifying trending, mean-reverting or random-walk.',
   },
   {
+    code: 'EFFICIENCY',
+    aliases: ['EFFRATIO', 'KER', 'CHOP'],
+    title: 'Trend Efficiency',
+    module: 'EFFICIENCY',
+    requiresSymbol: false,
+    description: 'Trend-efficiency board — Kaufman’s Efficiency Ratio (net move ÷ path) ranks how clean vs choppy each watchlist symbol’s trend is.',
+  },
+  {
     code: 'RRG',
     aliases: ['ROTATION', 'ROT'],
     title: 'Rotation (RRG)',
