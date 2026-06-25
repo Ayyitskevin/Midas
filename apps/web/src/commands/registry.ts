@@ -413,6 +413,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage and concentration.',
   },
   {
+    code: 'PBETA',
+    aliases: ['PORTBETA', 'BWEIGHT', 'NETBETA'],
+    title: 'Portfolio Beta',
+    module: 'PBETA',
+    requiresSymbol: false,
+    description: 'Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
