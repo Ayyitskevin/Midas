@@ -165,6 +165,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist.',
   },
   {
+    code: 'SEAS',
+    aliases: ['SEASON', 'SEASONALITY', 'TOD'],
+    title: 'Seasonality',
+    module: 'SEAS',
+    requiresSymbol: true,
+    description: 'Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid.',
+  },
+  {
     code: 'PREM',
     aliases: ['PREMIUM', 'SPREAD', 'CARRY'],
     title: 'Basis Monitor',
