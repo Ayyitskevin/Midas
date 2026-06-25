@@ -49,6 +49,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   SHARPE: mod(() => import('./SharpeModule'), 'SharpeModule'),
   RSHARPE: mod(() => import('./RollingSharpeModule'), 'RollingSharpeModule'),
   DD: mod(() => import('./DrawdownModule'), 'DrawdownModule'),
+  CALMAR: mod(() => import('./CalmarModule'), 'CalmarModule'),
   CAL: mod(() => import('./CalendarModule'), 'CalendarModule'),
   VOL: mod(() => import('./VolatilityModule'), 'VolatilityModule'),
   VAR: mod(() => import('./DistributionModule'), 'DistributionModule'),

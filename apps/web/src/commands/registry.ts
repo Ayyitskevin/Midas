@@ -261,6 +261,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Drawdown monitor — max & current drawdown, time underwater and an underwater curve across your watchlist.',
   },
   {
+    code: 'CALMAR',
+    aliases: ['MARRATIO', 'RETDD', 'CALMARRATIO'],
+    title: 'Calmar Ratio',
+    module: 'CALMAR',
+    requiresSymbol: false,
+    description: 'Calmar-ratio board — annualized return ÷ max drawdown across your watchlist, ranking return per unit of worst drawdown.',
+  },
+  {
     code: 'CAL',
     aliases: ['CALENDAR', 'EVENTS', 'ECON'],
     title: 'Market Calendar',
