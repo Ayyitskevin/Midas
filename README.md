@@ -128,6 +128,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SCAT`  | `SCATTER`, `REGRESS` | yes    | Returns scatter vs BTC — daily returns with the fitted regression line (beta, alpha, R²). |
 | `VPVR`  | `VP`, `VOLPROFILE`, `VBP` | yes | Volume profile — traded volume binned by price with the Point of Control & 70% value area (VAH/VAL). |
 | `SHARPE`| `SORTINO`, `RISKADJ` | no    | Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return & vol across your watchlist. |
+| `RSHARPE` | `ROLLSHARPE`, `RSHARP` | yes | Rolling Sharpe — the trailing annualized risk-adjusted return over a moving window, showing when an edge strengthened or decayed. |
 | `DD`    | `DRAWDOWN`, `UNDERWATER`, `MDD` | no | Drawdown monitor — max & current drawdown, time underwater and an underwater curve across your watchlist. |
 | `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
 | `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
