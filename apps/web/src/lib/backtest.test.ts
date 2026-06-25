@@ -3,7 +3,9 @@ import {
   backtestSmaCross,
   backtestRsiReversion,
   backtestBollinger,
+  backtestMacd,
   bollingerBands,
+  ema,
   rsiSeries,
 } from './backtest';
 import { rsi } from './signals';
@@ -156,5 +158,45 @@ describe('backtestBollinger', () => {
     expect(backtestBollinger([20, 20, 20, 10], { period: 3, mult: 0 })).toBeNull(); // width ≤ 0
     expect(backtestBollinger([20, 20, 20, 10], { period: NaN, mult: 1 })).toBeNull(); // NaN period
     expect(backtestBollinger([20, 20, 20, 10], { period: 3, mult: NaN })).toBeNull(); // NaN width
+  });
+});
+
+describe('ema', () => {
+  it('with period 1 returns the series itself', () => {
+    expect(ema([1, 2, 3], 1)).toEqual([1, 2, 3]); // alpha = 1
+  });
+
+  it('smooths with alpha = 2/(period+1)', () => {
+    // period 3 → alpha 0.5.
+    expect(ema([2, 4, 6, 8], 3)).toEqual([2, 3, 4.5, 6.25]);
+  });
+});
+
+describe('backtestMacd', () => {
+  it('goes long when the MACD line is above its signal (1-bar lag)', () => {
+    // [1,2,4,8,16] fast1/slow2/signal2 → MACD rises above its signal from i=1,
+    // so long from bar 2 onward.
+    const r = backtestMacd([1, 2, 4, 8, 16], { fast: 1, slow: 2, signal: 2 })!;
+    expect(r).not.toBeNull();
+    expect(r.position).toEqual([0, 0, 1, 1, 1]);
+    expect(r.trades).toHaveLength(1);
+    expect(r.trades[0].entryPrice).toBe(2); // prior close at entry
+    expect(r.exposure).toBeCloseTo(3 / 5, 10);
+    expect(r.n).toBe(5);
+  });
+
+  it('rides a steady uptrend mostly long and a downtrend mostly flat', () => {
+    const up = Array.from({ length: 30 }, (_, i) => 100 + i * 2);
+    const down = Array.from({ length: 30 }, (_, i) => 100 - i * 2);
+    expect(backtestMacd(up, { fast: 3, slow: 6, signal: 3 })!.exposure).toBeGreaterThan(0.5);
+    expect(backtestMacd(down, { fast: 3, slow: 6, signal: 3 })!.exposure).toBeLessThan(0.5);
+  });
+
+  it('returns null on invalid params or thin history', () => {
+    expect(backtestMacd([1, 2, 3, 4], { fast: 1, slow: 2, signal: 2 })).toBeNull(); // n < slow+signal+1
+    expect(backtestMacd([1, 2, 4, 8, 16], { fast: 2, slow: 2, signal: 2 })).toBeNull(); // slow ≤ fast
+    expect(backtestMacd([1, 2, 4, 8, 16], { fast: 0, slow: 2, signal: 2 })).toBeNull(); // fast < 1
+    expect(backtestMacd([1, 2, 4, 8, 16], { fast: 1, slow: 2, signal: 0 })).toBeNull(); // signal < 1
+    expect(backtestMacd([1, 2, 4, 8, 16], { fast: NaN, slow: 2, signal: 2 })).toBeNull(); // NaN
   });
 });
