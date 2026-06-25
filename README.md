@@ -133,6 +133,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SHARPE`| `SORTINO`, `RISKADJ` | no    | Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return & vol across your watchlist. |
 | `RSHARPE` | `ROLLSHARPE`, `RSHARP` | yes | Rolling Sharpe — the trailing annualized risk-adjusted return over a moving window, showing when an edge strengthened or decayed. |
 | `DD`    | `DRAWDOWN`, `UNDERWATER`, `MDD` | no | Drawdown monitor — max & current drawdown, time underwater and an underwater curve across your watchlist. |
+| `CALMAR`| `MARRATIO`, `RETDD` | no | Calmar-ratio board — annualized return ÷ max drawdown across your watchlist, ranking return per unit of worst drawdown. |
 | `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
 | `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
 | `VAR`   | `DIST`, `HIST`, `CVAR` | yes  | Return distribution & risk — histogram with vol, skew, kurtosis and historical VaR / expected shortfall. |
