@@ -173,6 +173,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Beta board — each watchlist symbol’s beta, correlation and R² vs BTC from daily returns.',
   },
   {
+    code: 'SHARPE',
+    aliases: ['SORTINO', 'RISKADJ', 'RAR'],
+    title: 'Risk-Adjusted',
+    module: 'SHARPE',
+    requiresSymbol: false,
+    description: 'Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return and vol across your watchlist.',
+  },
+  {
     code: 'CAL',
     aliases: ['CALENDAR', 'EVENTS', 'ECON'],
     title: 'Market Calendar',
