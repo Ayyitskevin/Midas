@@ -157,6 +157,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Volatility dashboard — realized vol, ATR and high-low range ranked across your watchlist.',
   },
   {
+    code: 'MOM',
+    aliases: ['MOMENTUM', 'RS', 'STRENGTH'],
+    title: 'Momentum',
+    module: 'MOM',
+    requiresSymbol: false,
+    description: 'Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist.',
+  },
+  {
     code: 'PREM',
     aliases: ['PREMIUM', 'SPREAD', 'CARRY'],
     title: 'Basis Monitor',
