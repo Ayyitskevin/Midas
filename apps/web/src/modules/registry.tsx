@@ -56,6 +56,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   VTS: mod(() => import('./VolTermModule'), 'VolTermModule'),
   VCONE: mod(() => import('./VolConesModule'), 'VolConesModule'),
   MC: mod(() => import('./MonteCarloModule'), 'MonteCarloModule'),
+  BACKTEST: mod(() => import('./BacktestModule'), 'BacktestModule'),
   MOM: mod(() => import('./MomentumModule'), 'MomentumModule'),
   STRETCH: mod(() => import('./StretchModule'), 'StretchModule'),
   HURST: mod(() => import('./HurstModule'), 'HurstModule'),
