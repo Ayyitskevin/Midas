@@ -365,6 +365,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold and 52-week range position, ranked by a bull/bear score.',
   },
   {
+    code: 'MTF',
+    aliases: ['MULTITF', 'TIMEFRAMES', 'MTREND'],
+    title: 'Multi-Timeframe',
+    module: 'MTF',
+    requiresSymbol: true,
+    description: 'Multi-timeframe trend — SMA trend & RSI across 1H/1D/1W/1M with a consensus read of whether the frames are in gear.',
+  },
+  {
     code: 'RRG',
     aliases: ['ROTATION', 'ROT'],
     title: 'Rotation (RRG)',
