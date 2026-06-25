@@ -493,6 +493,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions.',
   },
   {
+    code: 'REBAL',
+    aliases: ['REBALANCE', 'RETARGET', 'ALLOCATE'],
+    title: 'Rebalance',
+    module: 'REBAL',
+    requiresSymbol: false,
+    description: 'Rebalance calculator — set target weights for your holdings and get the buy/sell trades, per-position drift and turnover.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
