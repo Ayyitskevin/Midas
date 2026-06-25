@@ -53,6 +53,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CAL: mod(() => import('./CalendarModule'), 'CalendarModule'),
   VOL: mod(() => import('./VolatilityModule'), 'VolatilityModule'),
   VAR: mod(() => import('./DistributionModule'), 'DistributionModule'),
+  SKEW: mod(() => import('./ShapeModule'), 'ShapeModule'),
   VTS: mod(() => import('./VolTermModule'), 'VolTermModule'),
   VCONE: mod(() => import('./VolConesModule'), 'VolConesModule'),
   MC: mod(() => import('./MonteCarloModule'), 'MonteCarloModule'),
