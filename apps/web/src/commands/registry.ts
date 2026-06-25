@@ -293,6 +293,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Mean-reversion screener — watchlist ranked by z-score & Bollinger %B vs its moving average, flagging overbought/oversold.',
   },
   {
+    code: 'HURST',
+    aliases: ['REGIME', 'TRENDREV', 'FRACTAL'],
+    title: 'Trend / Revert',
+    module: 'HURST',
+    requiresSymbol: false,
+    description: 'Trend vs mean-reversion board — each watchlist symbol’s Hurst exponent (R/S) classifying trending, mean-reverting or random-walk.',
+  },
+  {
     code: 'RRG',
     aliases: ['ROTATION', 'ROT'],
     title: 'Rotation (RRG)',
