@@ -213,6 +213,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Return distribution & risk — histogram with vol, skew, kurtosis and historical VaR / expected shortfall.',
   },
   {
+    code: 'VTS',
+    aliases: ['VOLTERM', 'TERM', 'VTERM'],
+    title: 'Vol Term Structure',
+    module: 'VTS',
+    requiresSymbol: true,
+    description: 'Volatility term structure — realized vol across 7d…180d lookbacks, flagging rich/cheap near-term vol.',
+  },
+  {
     code: 'MOM',
     aliases: ['MOMENTUM', 'RS', 'STRENGTH'],
     title: 'Momentum',
