@@ -169,6 +169,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `REBAL` | `REBALANCE`, `RETARGET`, `ALLOCATE` | no | Rebalance calculator — set target weights for your holdings and get the buy/sell trades, per-position drift & turnover. |
 | `RPARITY` | `RISKPARITY`, `PARITY`, `INVVOL` | no | Risk-parity weights — inverse-volatility target weights for your watchlist so every name contributes equal risk. |
 | `OPT` | `MINVAR`, `GMV`, `OPTIMIZE` | no | Minimum-variance optimizer — covariance-aware target weights (w = Σ⁻¹·1 / 1ᵀΣ⁻¹·1) for the lowest-variance fully-invested watchlist book. |
+| `MSR` | `TANGENCY`, `MAXSHARPE`, `SHARPEOPT` | no | Max-Sharpe (tangency) optimizer — covariance-aware target weights (w ∝ Σ⁻¹·(μ−rf)) for the highest risk-adjusted-return fully-invested watchlist book. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
