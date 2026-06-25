@@ -36,6 +36,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   MOV: mod(() => import('./MarketOverviewModule'), 'MarketOverviewModule'),
   CORR: mod(() => import('./CorrelationModule'), 'CorrelationModule'),
   BETA: mod(() => import('./BetaBoardModule'), 'BetaBoardModule'),
+  SHARPE: mod(() => import('./SharpeModule'), 'SharpeModule'),
   CAL: mod(() => import('./CalendarModule'), 'CalendarModule'),
   VOL: mod(() => import('./VolatilityModule'), 'VolatilityModule'),
   MOM: mod(() => import('./MomentumModule'), 'MomentumModule'),
