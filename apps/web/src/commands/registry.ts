@@ -253,6 +253,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid.',
   },
   {
+    code: 'MRET',
+    aliases: ['MONTHLY', 'MRETURNS', 'CALRET'],
+    title: 'Monthly Returns',
+    module: 'MRET',
+    requiresSymbol: true,
+    description: 'Monthly returns heatmap — month-over-month % as a year × month grid with compounded year totals.',
+  },
+  {
     code: 'CARRY',
     aliases: ['CASHCARRY', 'CARRYTRADE'],
     title: 'Funding Carry',
