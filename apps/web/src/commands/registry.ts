@@ -293,6 +293,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Return distribution & risk — histogram with vol, skew, kurtosis and historical VaR / expected shortfall.',
   },
   {
+    code: 'SKEW',
+    aliases: ['SHAPE', 'KURTOSIS', 'TAILS'],
+    title: 'Return Shape',
+    module: 'SKEW',
+    requiresSymbol: false,
+    description: 'Return-shape board — skewness & excess kurtosis of each watchlist symbol’s daily returns, flagging fat-tailed & asymmetric names.',
+  },
+  {
     code: 'VTS',
     aliases: ['VOLTERM', 'TERM', 'VTERM'],
     title: 'Vol Term Structure',

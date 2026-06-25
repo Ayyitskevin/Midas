@@ -40,6 +40,7 @@ export type ModuleCode =
   | 'CAL'
   | 'VOL'
   | 'VAR'
+  | 'SKEW'
   | 'VTS'
   | 'VCONE'
   | 'MC'
@@ -132,6 +133,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   CAL: { code: 'CAL', title: 'Market Calendar', w: 4, h: 13, minW: 3, minH: 7 },
   VOL: { code: 'VOL', title: 'Volatility', w: 5, h: 12, minW: 4, minH: 6 },
   VAR: { code: 'VAR', title: 'Returns / VaR', w: 6, h: 11, minW: 4, minH: 7 },
+  SKEW: { code: 'SKEW', title: 'Return Shape', w: 5, h: 11, minW: 4, minH: 6 },
   VTS: { code: 'VTS', title: 'Vol Term Structure', w: 5, h: 11, minW: 4, minH: 6 },
   VCONE: { code: 'VCONE', title: 'Vol Cones', w: 5, h: 11, minW: 4, minH: 7 },
   MC: { code: 'MC', title: 'Monte Carlo', w: 6, h: 11, minW: 4, minH: 7 },
