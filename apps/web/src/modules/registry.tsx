@@ -84,6 +84,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   OPT: mod(() => import('./MinVarModule'), 'MinVarModule'),
   MSR: mod(() => import('./MaxSharpeModule'), 'MaxSharpeModule'),
   FRONTIER: mod(() => import('./FrontierModule'), 'FrontierModule'),
+  RISKB: mod(() => import('./RiskBudgetModule'), 'RiskBudgetModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

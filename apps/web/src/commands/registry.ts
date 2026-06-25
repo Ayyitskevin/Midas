@@ -565,6 +565,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Markowitz efficient frontier — plots the risk/return frontier for your watchlist with the GMV (min-variance) and tangency (max-Sharpe) portfolios, the equal-weight book and each asset.',
   },
   {
+    code: 'RISKB',
+    aliases: ['RISKBUDGET', 'MCTR', 'RBUDGET'],
+    title: 'Risk Budget',
+    module: 'RISKB',
+    requiresSymbol: false,
+    description: 'Risk-budget board — decomposes your portfolio variance into each holding’s marginal and percent contribution to risk (MCTR), so you see which names drive the swings vs their weight.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
