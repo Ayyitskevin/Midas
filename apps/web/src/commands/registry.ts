@@ -589,6 +589,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Gain-to-Pain board — ranks watchlist return quality by Σ returns ÷ Σ losses (Schwager GPR): how much net return per unit of downside endured.',
   },
   {
+    code: 'OMEGA',
+    aliases: ['OMG', 'OMEGARATIO'],
+    title: 'Omega Ratio',
+    module: 'OMEGA',
+    requiresSymbol: false,
+    description: 'Omega ratio board — ranks watchlist names by Σ gains above a threshold ÷ Σ shortfalls below it; a full-distribution alternative to Sharpe with an adjustable τ.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
