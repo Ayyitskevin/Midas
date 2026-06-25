@@ -123,6 +123,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
 | `SEAS`  | `SEASON`, `SEASONALITY`, `TOD` | yes | Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid. |
 | `PREM`  | `PREMIUM`, `SPREAD`, `CARRY` | yes | Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history. |
+| `ARB`   | `ARBITRAGE`, `XSPREAD` | yes  | Cross-exchange arb scanner — best bid/ask across venues, spread % and crossed-book flag. |
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist — last, % change with heat, and a 24h sparkline per symbol. |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |

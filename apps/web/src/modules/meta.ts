@@ -23,6 +23,7 @@ export type ModuleCode =
   | 'MOM'
   | 'SEAS'
   | 'PREM'
+  | 'ARB'
   | 'AI'
   | 'W'
   | 'N'
@@ -72,6 +73,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   MOM: { code: 'MOM', title: 'Momentum', w: 5, h: 12, minW: 4, minH: 6 },
   SEAS: { code: 'SEAS', title: 'Seasonality', w: 6, h: 10, minW: 4, minH: 6 },
   PREM: { code: 'PREM', title: 'Basis Monitor', w: 4, h: 13, minW: 3, minH: 8 },
+  ARB: { code: 'ARB', title: 'Arb Scanner', w: 4, h: 12, minW: 3, minH: 7 },
   AI: { code: 'AI', title: 'Copilot', w: 4, h: 12, minW: 3, minH: 8 },
   W: { code: 'W', title: 'Watchlist', w: 3, h: 12, minW: 2, minH: 6 },
   N: { code: 'N', title: 'News', w: 4, h: 12, minW: 3, minH: 6 },
