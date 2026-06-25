@@ -109,6 +109,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `COMP`  | `COMPARE`, `CMP` | no         | Overlay several symbols rebased to % to compare performance.|
 | `RATIO` | `SPREAD`, `PAIR` | no         | Chart the ratio (A/B) or spread (A−B) of two symbols.|
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
+| `DEPTH` | `DHEAT`, `OBHEAT` | yes       | Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track. |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |

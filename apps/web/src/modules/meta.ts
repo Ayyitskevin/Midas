@@ -9,6 +9,7 @@ export type ModuleCode =
   | 'COMP'
   | 'RATIO'
   | 'BOOK'
+  | 'DEPTH'
   | 'TAS'
   | 'ALLQ'
   | 'FUND'
@@ -62,6 +63,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   COMP: { code: 'COMP', title: 'Compare', w: 6, h: 11, minW: 4, minH: 8 },
   RATIO: { code: 'RATIO', title: 'Ratio / Spread', w: 6, h: 10, minW: 4, minH: 7 },
   BOOK: { code: 'BOOK', title: 'Order Book', w: 4, h: 12, minW: 3, minH: 8 },
+  DEPTH: { code: 'DEPTH', title: 'Depth Heatmap', w: 6, h: 11, minW: 4, minH: 7 },
   TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },
   ALLQ: { code: 'ALLQ', title: 'Multi-Exchange', w: 5, h: 8, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
