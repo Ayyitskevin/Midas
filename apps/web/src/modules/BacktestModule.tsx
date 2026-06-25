@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { backtestSmaCross } from '@/lib/backtest';
+import { backtestSmaCross, backtestRsiReversion } from '@/lib/backtest';
 import { fmtDate, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -43,8 +43,12 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 export function BacktestModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   const [tfIdx, setTfIdx] = useState(0); // default 1Y
+  const [strategy, setStrategy] = useState<'sma' | 'rsi'>('sma');
   const [fast, setFast] = useState('20');
   const [slow, setSlow] = useState('50');
+  const [period, setPeriod] = useState('14');
+  const [oversold, setOversold] = useState('30');
+  const [exitLevel, setExitLevel] = useState('50');
   const tf = TIMEFRAMES[tfIdx];
 
   const { data, error, loading, refresh } = useFetch(
@@ -58,8 +62,14 @@ export function BacktestModule({ panel }: ModuleProps) {
 
   const result = useMemo(() => {
     if (!data) return null;
-    return backtestSmaCross(data.closes, { fast: num(fast), slow: num(slow) });
-  }, [data, fast, slow]);
+    return strategy === 'sma'
+      ? backtestSmaCross(data.closes, { fast: num(fast), slow: num(slow) })
+      : backtestRsiReversion(data.closes, {
+          period: num(period),
+          oversold: num(oversold),
+          exit: num(exitLevel),
+        });
+  }, [data, strategy, fast, slow, period, oversold, exitLevel]);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -117,11 +127,34 @@ export function BacktestModule({ panel }: ModuleProps) {
 
   return (
     <div className="flex h-full flex-col text-2xs">
-      <div className="flex items-center gap-2 border-b border-term-border px-2 py-1">
-        <span className="text-term-dim">{base(symbol)} SMA cross · daily</span>
+      <div className="flex flex-wrap items-center gap-2 border-b border-term-border px-2 py-1">
+        <span className="text-term-dim">{base(symbol)} · daily</span>
+        <div className="flex gap-1">
+          {(['sma', 'rsi'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStrategy(s)}
+              className={`no-drag rounded-sm px-1.5 py-0.5 uppercase ${
+                strategy === s ? 'bg-term-amber/20 text-term-amber' : 'text-term-muted hover:text-term-text'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         <div className="ml-auto flex items-center gap-2">
-          <Param label="fast" value={fast} onChange={setFast} />
-          <Param label="slow" value={slow} onChange={setSlow} />
+          {strategy === 'sma' ? (
+            <>
+              <Param label="fast" value={fast} onChange={setFast} />
+              <Param label="slow" value={slow} onChange={setSlow} />
+            </>
+          ) : (
+            <>
+              <Param label="len" value={period} onChange={setPeriod} />
+              <Param label="buy<" value={oversold} onChange={setOversold} />
+              <Param label="exit>" value={exitLevel} onChange={setExitLevel} />
+            </>
+          )}
           <div className="flex gap-1">
             {TIMEFRAMES.map((t, i) => (
               <button
@@ -139,7 +172,11 @@ export function BacktestModule({ panel }: ModuleProps) {
       </div>
 
       {!result ? (
-        <EmptyState>Set a fast period below the slow period and ensure enough history.</EmptyState>
+        <EmptyState>
+          {strategy === 'sma'
+            ? 'Set a fast period below the slow period and ensure enough history.'
+            : 'Set the exit RSI above the oversold level and ensure enough history.'}
+        </EmptyState>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-2 border-b border-term-border px-2 py-1.5 sm:grid-cols-6">
@@ -203,8 +240,17 @@ export function BacktestModule({ panel }: ModuleProps) {
           </div>
 
           <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-            <span className="text-term-amber">strategy</span> long when SMA({fast}) &gt; SMA({slow}), else flat ·{' '}
-            <span className="text-term-muted">grey</span> = buy &amp; hold · 1-bar lag, no fees
+            <span className="text-term-amber">strategy</span>{' '}
+            {strategy === 'sma' ? (
+              <>
+                long when SMA({fast}) &gt; SMA({slow}), else flat
+              </>
+            ) : (
+              <>
+                buy when RSI({period}) &lt; {oversold}, exit when &gt; {exitLevel}
+              </>
+            )}{' '}
+            · <span className="text-term-muted">grey</span> = buy &amp; hold · 1-bar lag, no fees
           </div>
         </>
       )}

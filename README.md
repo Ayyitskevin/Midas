@@ -141,7 +141,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `VTS`   | `VOLTERM`, `TERM` | yes       | Volatility term structure — realized vol across 7d…180d lookbacks, flagging rich/cheap near-term vol. |
 | `VCONE` | `VOLCONE`, `VCONES`, `RVCONE` | yes | Volatility cones — realized-vol percentiles across 10…120d horizons with the current vol overlaid, flagging rich/cheap. |
 | `MC`    | `MONTECARLO`, `CONE` | yes    | Monte Carlo projection cone — GBM price forecast fan (5–95 percentiles) from historical drift & vol. |
-| `BACKTEST` | `BT`, `STRATEGY`, `SMACROSS` | yes | SMA-crossover backtest — strategy equity vs buy & hold with total return, max drawdown, win rate & trade count. |
+| `BACKTEST` | `BT`, `STRATEGY`, `SMACROSS`, `RSIBT` | yes | Strategy backtest — SMA-crossover or RSI mean-reversion: strategy equity vs buy & hold with total return, max drawdown, win rate & trade count. |
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
 | `STRETCH` | `OVERSOLD`, `BBANDS`, `MEANREV` | no | Mean-reversion screener — watchlist ranked by z-score & Bollinger %B vs its moving average, flagging overbought/oversold. |
 | `HURST` | `REGIME`, `TRENDREV`, `FRACTAL` | no | Trend vs mean-reversion board — each symbol’s Hurst exponent (R/S) classifying trending, mean-reverting or random-walk. |
