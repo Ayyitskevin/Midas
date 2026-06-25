@@ -166,7 +166,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'MOV',
-    aliases: ['OVERVIEW', 'BREADTH'],
+    aliases: ['OVERVIEW'],
     title: 'Market Overview',
     module: 'MOV',
     requiresSymbol: false,
@@ -187,6 +187,14 @@ export const COMMANDS: CommandDef[] = [
     module: 'AVGCORR',
     requiresSymbol: false,
     description: 'Average-correlation regime — mean pairwise correlation across your watchlist over time; high = risk-off, low = dispersion.',
+  },
+  {
+    code: 'BREADTH',
+    aliases: ['ADLINE', 'PARTICIPATION', 'ABOVEMA'],
+    title: 'Breadth Oscillator',
+    module: 'BREADTH',
+    requiresSymbol: false,
+    description: 'Market-breadth oscillator — the % of your watchlist above its N-day moving average over time; high = broad strength, low = weakness.',
   },
   {
     code: 'BETA',
