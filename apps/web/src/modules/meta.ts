@@ -82,6 +82,7 @@ export type ModuleCode =
   | 'KRATIO'
   | 'VREG'
   | 'ACF'
+  | 'STERLING'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -189,6 +190,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   KRATIO: { code: 'KRATIO', title: 'K-Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   VREG: { code: 'VREG', title: 'Vol Regime', w: 5, h: 12, minW: 4, minH: 6 },
   ACF: { code: 'ACF', title: 'Autocorrelation', w: 5, h: 12, minW: 4, minH: 6 },
+  STERLING: { code: 'STERLING', title: 'Sterling Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

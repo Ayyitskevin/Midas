@@ -645,6 +645,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Autocorrelation board — lag-1/2/3 return autocorrelation per watchlist name: positive = momentum (returns persist), negative = mean-reverting (returns reverse).',
   },
   {
+    code: 'STERLING',
+    aliases: ['STERLINGRATIO', 'STERL'],
+    title: 'Sterling Ratio',
+    module: 'STERLING',
+    requiresSymbol: false,
+    description: 'Sterling ratio board — annualized return ÷ (average drawdown + 10%): a drawdown risk-adjusted return that averages drawdown episodes (vs Calmar’s single worst).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
