@@ -75,9 +75,9 @@ export function Workspace() {
         resizeHandles={['se']}
         onLayoutChange={(l) => setLayout(l)}
       >
-        {panels.map((p) => (
+        {panels.map((p, i) => (
           <div key={p.id}>
-            <Panel panel={p} />
+            <Panel panel={p} index={i} />
           </div>
         ))}
       </Grid>

@@ -1,11 +1,13 @@
 import { usePanels } from '@/store/usePanels';
 import { useAuth } from '@/store/useAuth';
+import { useHotkeyHelp } from '@/store/useHotkeyHelp';
 import { stream, useStreamStatus } from '@/lib/stream';
 import { streamStatusView } from '@/lib/streamStatus';
 
 export function StatusBar() {
   const panelCount = usePanels((s) => s.panels.length);
   const reset = usePanels((s) => s.resetWorkspace);
+  const toggleHelp = useHotkeyHelp((s) => s.toggle);
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.clear);
   const status = useStreamStatus();
@@ -29,6 +31,13 @@ export function StatusBar() {
           type a ticker then <span className="text-term-text">DES · GP · N</span> — or{' '}
           <span className="text-term-text">HELP</span>
         </span>
+        <button
+          onClick={toggleHelp}
+          className="hidden transition-colors hover:text-term-text sm:inline"
+          title="Keyboard shortcuts (press ?)"
+        >
+          ⌨ keys
+        </button>
         <button onClick={reset} className="transition-colors hover:text-term-down" title="Close all panels">
           RESET
         </button>

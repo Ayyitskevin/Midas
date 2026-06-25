@@ -8,6 +8,7 @@ import { AlertsEngine } from './components/AlertsEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
 import { CommandPalette } from './components/CommandPalette';
+import { Hotkeys } from './components/Hotkeys';
 import { SettingsEffects } from './components/SettingsEffects';
 import { WorkspaceSync } from './components/WorkspaceSync';
 import { PortfolioSync } from './components/PortfolioSync';
@@ -51,6 +52,7 @@ export default function App() {
         <AlertsEngine />
         <ToastHost />
         <CommandPalette />
+        <Hotkeys />
         <SettingsEffects />
         <WorkspaceSync />
         <PortfolioSync />

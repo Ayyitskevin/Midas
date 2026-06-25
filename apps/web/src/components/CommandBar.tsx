@@ -32,7 +32,8 @@ export function CommandBar() {
       const typingElsewhere =
         el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable;
       if (typingElsewhere || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key.length === 1 && e.key !== ' ') {
+      // `?` is reserved for the keyboard-shortcuts overlay (see Hotkeys).
+      if (e.key.length === 1 && e.key !== ' ' && e.key !== '?') {
         e.preventDefault();
         inputRef.current?.focus();
         setValue((v) => v + e.key);
