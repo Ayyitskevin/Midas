@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { backtestSmaCross, backtestRsiReversion, rsiSeries } from './backtest';
+import {
+  backtestSmaCross,
+  backtestRsiReversion,
+  backtestBollinger,
+  bollingerBands,
+  rsiSeries,
+} from './backtest';
 import { rsi } from './signals';
 
 describe('backtestSmaCross', () => {
@@ -104,5 +110,51 @@ describe('backtestRsiReversion', () => {
     expect(backtestRsiReversion([10, 9, 8, 9, 10], { period: 2, oversold: 0, exit: 60 })).toBeNull(); // oversold ≤ 0
     expect(backtestRsiReversion([10, 9, 8, 9, 10], { period: 2, oversold: 40, exit: 120 })).toBeNull(); // exit > 100
     expect(backtestRsiReversion([10, 9, 8, 9, 10], { period: NaN, oversold: 40, exit: 60 })).toBeNull(); // NaN period
+  });
+});
+
+describe('bollingerBands', () => {
+  it('is NaN until the window fills, then SMA ± mult·stdev', () => {
+    // [2,4,6] p2: i=1 mean 3 sd 1; i=2 mean 5 sd 1.
+    const b = bollingerBands([2, 4, 6], 2, 1);
+    expect(b.mid[0]).toBeNaN();
+    expect(b.mid[1]).toBeCloseTo(3, 12);
+    expect(b.lower[1]).toBeCloseTo(2, 12);
+    expect(b.upper[1]).toBeCloseTo(4, 12);
+    expect(b.mid[2]).toBeCloseTo(5, 12);
+    expect(b.lower[2]).toBeCloseTo(4, 12);
+  });
+});
+
+describe('backtestBollinger', () => {
+  it('buys the close below the lower band and exits above the middle (1-bar lag)', () => {
+    // [20,20,20,10,20,20] p3 m1 → close[3]=10 < lower[3] → long bar 4;
+    // close[4]=20 > mid[4] → flat bar 5.
+    const r = backtestBollinger([20, 20, 20, 10, 20, 20], { period: 3, mult: 1 })!;
+    expect(r).not.toBeNull();
+    expect(r.position).toEqual([0, 0, 0, 0, 1, 0]);
+    expect(r.trades).toHaveLength(1);
+    expect(r.trades[0].entryPrice).toBe(10); // prior close at entry
+    expect(r.trades[0].exitPrice).toBe(20);
+    expect(r.trades[0].ret).toBeCloseTo(1, 9);
+    expect(r.stratReturn).toBeCloseTo(1, 9);
+    expect(r.wins).toBe(1);
+    expect(r.exposure).toBeCloseTo(1 / 6, 10);
+    expect(r.n).toBe(6);
+  });
+
+  it('stays flat when price never pierces the lower band', () => {
+    const r = backtestBollinger([10, 11, 12, 13, 14], { period: 2, mult: 1 })!;
+    expect(r.position).toEqual([0, 0, 0, 0, 0]);
+    expect(r.trades).toHaveLength(0);
+    expect(r.stratReturn).toBe(0);
+  });
+
+  it('returns null on invalid params or thin history', () => {
+    expect(backtestBollinger([20, 20, 10], { period: 3, mult: 1 })).toBeNull(); // n < period+1
+    expect(backtestBollinger([20, 20, 20, 10], { period: 1, mult: 1 })).toBeNull(); // period < 2
+    expect(backtestBollinger([20, 20, 20, 10], { period: 3, mult: 0 })).toBeNull(); // width ≤ 0
+    expect(backtestBollinger([20, 20, 20, 10], { period: NaN, mult: 1 })).toBeNull(); // NaN period
+    expect(backtestBollinger([20, 20, 20, 10], { period: 3, mult: NaN })).toBeNull(); // NaN width
   });
 });
