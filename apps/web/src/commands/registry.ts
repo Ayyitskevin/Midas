@@ -181,6 +181,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Return-correlation grid across your watchlist symbols.',
   },
   {
+    code: 'AVGCORR',
+    aliases: ['AVGCOR', 'CORRREGIME', 'MEANCORR'],
+    title: 'Correlation Regime',
+    module: 'AVGCORR',
+    requiresSymbol: false,
+    description: 'Average-correlation regime — mean pairwise correlation across your watchlist over time; high = risk-off, low = dispersion.',
+  },
+  {
     code: 'BETA',
     aliases: ['BTCBETA', 'BETAS'],
     title: 'Beta vs BTC',
