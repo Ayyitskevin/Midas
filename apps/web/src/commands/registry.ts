@@ -205,6 +205,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Returns scatter vs BTC — daily returns with the fitted regression line (beta, alpha, R²).',
   },
   {
+    code: 'VPVR',
+    aliases: ['VP', 'VOLPROFILE', 'VBP'],
+    title: 'Volume Profile',
+    module: 'VPVR',
+    requiresSymbol: true,
+    description: 'Volume profile (VPVR) — traded volume binned by price with the Point of Control and 70% value area (VAH/VAL).',
+  },
+  {
     code: 'SHARPE',
     aliases: ['SORTINO', 'RISKADJ', 'RAR'],
     title: 'Risk-Adjusted',
