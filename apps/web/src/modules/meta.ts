@@ -8,6 +8,7 @@ export type ModuleCode =
   | 'GP'
   | 'COMP'
   | 'RATIO'
+  | 'PAIR'
   | 'BOOK'
   | 'DEPTH'
   | 'TAS'
@@ -66,6 +67,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   GP: { code: 'GP', title: 'Price Graph', w: 6, h: 11, minW: 4, minH: 8 },
   COMP: { code: 'COMP', title: 'Compare', w: 6, h: 11, minW: 4, minH: 8 },
   RATIO: { code: 'RATIO', title: 'Ratio / Spread', w: 6, h: 10, minW: 4, minH: 7 },
+  PAIR: { code: 'PAIR', title: 'Pairs Z-Score', w: 6, h: 11, minW: 4, minH: 7 },
   BOOK: { code: 'BOOK', title: 'Order Book', w: 4, h: 12, minW: 3, minH: 8 },
   DEPTH: { code: 'DEPTH', title: 'Depth Heatmap', w: 6, h: 11, minW: 4, minH: 7 },
   TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },

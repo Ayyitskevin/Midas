@@ -107,7 +107,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `GP`    | `CHART`, `G`   | yes          | Historical chart + studies (MA/BB/VWAP/RSI/MACD/vol-profile). |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
 | `COMP`  | `COMPARE`, `CMP` | no         | Overlay several symbols rebased to % to compare performance.|
-| `RATIO` | `SPREAD`, `PAIR` | no         | Chart the ratio (A/B) or spread (A−B) of two symbols.|
+| `RATIO` | `SPREAD`       | no           | Chart the ratio (A/B) or spread (A−B) of two symbols.|
+| `PAIR`  | `PAIRS`, `ZSCORE`, `STATARB` | no | Pairs / stat-arb monitor — ratio with rolling mean ±σ bands, a z-score oscillator and mean-reversion half-life. |
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `DEPTH` | `DHEAT`, `OBHEAT` | yes       | Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track. |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |

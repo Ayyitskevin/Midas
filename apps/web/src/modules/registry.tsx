@@ -21,6 +21,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   GP: mod(() => import('./ChartModule'), 'ChartModule'),
   COMP: mod(() => import('./ComparisonModule'), 'ComparisonModule'),
   RATIO: mod(() => import('./RatioModule'), 'RatioModule'),
+  PAIR: mod(() => import('./PairsModule'), 'PairsModule'),
   BOOK: mod(() => import('./OrderBookModule'), 'OrderBookModule'),
   DEPTH: mod(() => import('./OrderBookDepthHeatmapModule'), 'OrderBookDepthHeatmapModule'),
   TAS: mod(() => import('./TradesModule'), 'TradesModule'),
