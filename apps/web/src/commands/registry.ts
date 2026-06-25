@@ -229,6 +229,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Paper portfolio — track positions and live unrealized P&L.',
   },
   {
+    code: 'RHEAT',
+    aliases: ['EXPOSURE', 'PRISK'],
+    title: 'Position Risk',
+    module: 'RHEAT',
+    requiresSymbol: false,
+    description: 'Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
