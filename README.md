@@ -132,6 +132,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
 | `RRG`   | `ROTATION`, `ROT` | no       | Relative rotation graph — watchlist symbols by RS-Ratio × RS-Momentum vs BTC, with rotation tails. |
 | `SEAS`  | `SEASON`, `SEASONALITY`, `TOD` | yes | Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid. |
+| `MRET`  | `MONTHLY`, `CALRET` | yes     | Monthly returns heatmap — month-over-month % as a year × month grid with compounded year totals. |
 | `PREM`  | `PREMIUM`, `SPREAD` | yes    | Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history. |
 | `CARRY` | `CASHCARRY`, `CARRYTRADE` | no | Funding-carry board — perps ranked by funding APR with spot-vs-perp basis and the carry leg. |
 | `FPL`   | `FUNDPNL`, `CARRYPNL` | yes  | Funding P&L forecaster — project a perp position’s carry over a horizon at the current funding rate. |

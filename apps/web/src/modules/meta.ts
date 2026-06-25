@@ -34,6 +34,7 @@ export type ModuleCode =
   | 'MOM'
   | 'RRG'
   | 'SEAS'
+  | 'MRET'
   | 'PREM'
   | 'ARB'
   | 'SLIP'
@@ -101,6 +102,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   MOM: { code: 'MOM', title: 'Momentum', w: 5, h: 12, minW: 4, minH: 6 },
   RRG: { code: 'RRG', title: 'Rotation (RRG)', w: 6, h: 11, minW: 4, minH: 7 },
   SEAS: { code: 'SEAS', title: 'Seasonality', w: 6, h: 10, minW: 4, minH: 6 },
+  MRET: { code: 'MRET', title: 'Monthly Returns', w: 6, h: 10, minW: 4, minH: 6 },
   PREM: { code: 'PREM', title: 'Basis Monitor', w: 4, h: 13, minW: 3, minH: 8 },
   ARB: { code: 'ARB', title: 'Arb Scanner', w: 4, h: 12, minW: 3, minH: 7 },
   SLIP: { code: 'SLIP', title: 'Slippage', w: 4, h: 13, minW: 3, minH: 8 },
