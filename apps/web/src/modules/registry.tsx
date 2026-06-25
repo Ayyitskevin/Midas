@@ -26,6 +26,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   ALLQ: mod(() => import('./MultiExchangeModule'), 'MultiExchangeModule'),
   FUND: mod(() => import('./DerivativesModule'), 'DerivativesModule'),
   FUNDR: mod(() => import('./FundingBoardModule'), 'FundingBoardModule'),
+  CARRY: mod(() => import('./FundingCarryModule'), 'FundingCarryModule'),
   LIQS: mod(() => import('./LiquidationsModule'), 'LiquidationsModule'),
   SCR: mod(() => import('./ScreenerModule'), 'ScreenerModule'),
   HEAT: mod(() => import('./HeatmapModule'), 'HeatmapModule'),
