@@ -445,6 +445,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Size / notional converter — convert between quantity, notional, % of account and margin at the live price.',
   },
   {
+    code: 'KELLY',
+    aliases: ['BETSIZE', 'OPTIMALF', 'KCRIT'],
+    title: 'Kelly Sizer',
+    module: 'KELLY',
+    requiresSymbol: false,
+    description: 'Kelly-criterion bet sizing — optimal bankroll fraction from win rate & payoff, with half/quarter Kelly, expectancy and breakeven win.',
+  },
+  {
     code: 'DCA',
     aliases: ['AVG', 'AVERAGE', 'BASIS'],
     title: 'DCA / Averaging',
