@@ -176,6 +176,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `GPR` | `GAINPAIN`, `GAINTOPAIN`, `G2P` | no | Gain-to-Pain board — ranks watchlist return quality by Σ returns ÷ Σ losses (Schwager GPR): how much net return per unit of downside endured. |
 | `OMEGA` | `OMG`, `OMEGARATIO` | no | Omega ratio board — ranks watchlist names by Σ gains above a threshold ÷ Σ shortfalls below it; a full-distribution alternative to Sharpe with an adjustable τ. |
 | `DIVR` | `DIVERSIFICATION`, `DIVRATIO` | no | Diversification ratio — weighted-avg asset vol ÷ portfolio vol for the equal-weight watchlist book, with the effective number of independent bets (DR²). |
+| `TAIL` | `TAILRATIO`, `TAILS` | no | Tail-ratio board — \|95th pct\| ÷ \|5th pct\| of returns per watchlist name: whether the extreme moves favor the upside (>1) or the downside (<1). |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |

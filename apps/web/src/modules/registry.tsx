@@ -89,6 +89,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   GPR: mod(() => import('./GprModule'), 'GprModule'),
   OMEGA: mod(() => import('./OmegaModule'), 'OmegaModule'),
   DIVR: mod(() => import('./DivRatioModule'), 'DivRatioModule'),
+  TAIL: mod(() => import('./TailModule'), 'TailModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

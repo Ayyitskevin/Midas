@@ -605,6 +605,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Diversification ratio — weighted-avg asset vol ÷ portfolio vol for the equal-weight watchlist book, with the effective number of independent bets (DR²).',
   },
   {
+    code: 'TAIL',
+    aliases: ['TAILRATIO', 'TAILS'],
+    title: 'Tail Ratio',
+    module: 'TAIL',
+    requiresSymbol: false,
+    description: 'Tail-ratio board — |95th pct| ÷ |5th pct| of returns per watchlist name: whether the extreme moves favor the upside (>1) or the downside (<1).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
