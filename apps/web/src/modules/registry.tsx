@@ -86,6 +86,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   FRONTIER: mod(() => import('./FrontierModule'), 'FrontierModule'),
   RISKB: mod(() => import('./RiskBudgetModule'), 'RiskBudgetModule'),
   ULCER: mod(() => import('./UlcerModule'), 'UlcerModule'),
+  GPR: mod(() => import('./GprModule'), 'GprModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
