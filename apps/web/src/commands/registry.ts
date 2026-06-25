@@ -573,6 +573,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-budget board — decomposes your portfolio variance into each holding’s marginal and percent contribution to risk (MCTR), so you see which names drive the swings vs their weight.',
   },
   {
+    code: 'ULCER',
+    aliases: ['UI', 'MARTIN', 'ULCERINDEX'],
+    title: 'Ulcer Index',
+    module: 'ULCER',
+    requiresSymbol: false,
+    description: 'Ulcer Index board — ranks watchlist drawdown pain (depth × duration, RMS of drawdowns) with the Martin ratio (annualized return ÷ Ulcer).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
