@@ -149,6 +149,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Upcoming market timing — funding settlements, options/futures expiries and candle closes.',
   },
   {
+    code: 'VOL',
+    aliases: ['VOLATILITY', 'ATR', 'RV'],
+    title: 'Volatility',
+    module: 'VOL',
+    requiresSymbol: false,
+    description: 'Volatility dashboard — realized vol, ATR and high-low range ranked across your watchlist.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
