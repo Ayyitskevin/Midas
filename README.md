@@ -143,6 +143,10 @@ bare `W`/`HELP` → symbol-less panels · unrecognized text → security search.
 **Keyboard:** start typing anywhere to focus the command line · `↑/↓` recall
 history or move through suggestions · `Tab` complete · `Esc` clear.
 
+**Shortcuts:** `⌘K` / `Ctrl-K` command palette · `⌥1…⌥9` focus a panel by its
+number · `⌥]` / `⌥[` focus next / previous · `⌥W` close the focused panel ·
+`?` shows the full list (`⌥` = Alt / Option).
+
 ---
 
 ## Architecture

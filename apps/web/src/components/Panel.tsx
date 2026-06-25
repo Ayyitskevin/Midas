@@ -70,7 +70,7 @@ function LinkControl({ panel }: { panel: PanelState }) {
   );
 }
 
-export function Panel({ panel }: { panel: PanelState }) {
+export function Panel({ panel, index }: { panel: PanelState; index?: number }) {
   const closePanel = usePanels((s) => s.closePanel);
   const focusPanel = usePanels((s) => s.focusPanel);
   const isActive = usePanels((s) => s.activeId === panel.id);
@@ -78,6 +78,7 @@ export function Panel({ panel }: { panel: PanelState }) {
 
   return (
     <div
+      data-panel-id={panel.id}
       className={`flex h-full flex-col overflow-hidden rounded-sm border bg-term-panel ${
         isActive ? 'border-term-border-bright' : 'border-term-border'
       }`}
@@ -86,6 +87,14 @@ export function Panel({ panel }: { panel: PanelState }) {
     >
       <div className="panel-drag flex cursor-move select-none items-center justify-between gap-2 border-b border-term-border bg-term-header px-2 py-1">
         <div className="flex min-w-0 items-center gap-2">
+          {typeof index === 'number' && index < 9 && (
+            <span
+              className="shrink-0 rounded-sm border border-term-border px-1 text-2xs leading-none text-term-dim"
+              title={`Alt+${index + 1} to focus`}
+            >
+              {index + 1}
+            </span>
+          )}
           <span className="text-2xs font-bold text-term-amber">{panel.module}</span>
           {panel.symbol && (
             <span className="text-xs font-semibold text-term-text">{panel.symbol}</span>
