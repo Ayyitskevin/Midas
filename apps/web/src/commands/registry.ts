@@ -541,6 +541,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-parity weights — inverse-volatility target weights for your watchlist so every name contributes equal risk.',
   },
   {
+    code: 'OPT',
+    aliases: ['MINVAR', 'GMV', 'OPTIMIZE'],
+    title: 'Min Variance',
+    module: 'OPT',
+    requiresSymbol: false,
+    description: 'Minimum-variance optimizer — covariance-aware target weights (w = Σ⁻¹·1 / 1ᵀΣ⁻¹·1) for the lowest-variance fully-invested watchlist book.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
