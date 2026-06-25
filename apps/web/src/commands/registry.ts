@@ -317,6 +317,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Monte Carlo projection cone — GBM price forecast fan (5–95 percentiles) from historical drift & vol.',
   },
   {
+    code: 'BACKTEST',
+    aliases: ['BT', 'STRATEGY', 'SMACROSS'],
+    title: 'Backtest (SMA)',
+    module: 'BACKTEST',
+    requiresSymbol: true,
+    description: 'SMA-crossover backtest — strategy equity vs buy & hold with total return, max drawdown, win rate & trade count.',
+  },
+  {
     code: 'MOM',
     aliases: ['MOMENTUM', 'RS', 'STRENGTH'],
     title: 'Momentum',

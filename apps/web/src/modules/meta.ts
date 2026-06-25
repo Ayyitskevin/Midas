@@ -43,6 +43,7 @@ export type ModuleCode =
   | 'VTS'
   | 'VCONE'
   | 'MC'
+  | 'BACKTEST'
   | 'MOM'
   | 'STRETCH'
   | 'HURST'
@@ -132,6 +133,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   VTS: { code: 'VTS', title: 'Vol Term Structure', w: 5, h: 11, minW: 4, minH: 6 },
   VCONE: { code: 'VCONE', title: 'Vol Cones', w: 5, h: 11, minW: 4, minH: 7 },
   MC: { code: 'MC', title: 'Monte Carlo', w: 6, h: 11, minW: 4, minH: 7 },
+  BACKTEST: { code: 'BACKTEST', title: 'Backtest (SMA)', w: 6, h: 11, minW: 4, minH: 7 },
   MOM: { code: 'MOM', title: 'Momentum', w: 5, h: 12, minW: 4, minH: 6 },
   STRETCH: { code: 'STRETCH', title: 'Stretch Screener', w: 5, h: 12, minW: 4, minH: 6 },
   HURST: { code: 'HURST', title: 'Trend / Revert', w: 5, h: 12, minW: 4, minH: 6 },
