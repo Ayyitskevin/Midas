@@ -357,6 +357,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Trend-efficiency board — Kaufman’s Efficiency Ratio (net move ÷ path) ranks how clean vs choppy each watchlist symbol’s trend is.',
   },
   {
+    code: 'SCAN',
+    aliases: ['SCANNER', 'SIGNALS', 'SETUP'],
+    title: 'Signal Scan',
+    module: 'SCAN',
+    requiresSymbol: false,
+    description: 'Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold and 52-week range position, ranked by a bull/bear score.',
+  },
+  {
     code: 'RRG',
     aliases: ['ROTATION', 'ROT'],
     title: 'Rotation (RRG)',
