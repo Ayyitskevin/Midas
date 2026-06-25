@@ -181,6 +181,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Beta board — each watchlist symbol’s beta, correlation and R² vs BTC from daily returns.',
   },
   {
+    code: 'RBETA',
+    aliases: ['ROLLBETA', 'RCORR', 'BETAHIST'],
+    title: 'Rolling Beta',
+    module: 'RBETA',
+    requiresSymbol: true,
+    description: 'Rolling beta & correlation vs BTC — how a symbol’s sensitivity to Bitcoin drifts over a trailing window.',
+  },
+  {
     code: 'SHARPE',
     aliases: ['SORTINO', 'RISKADJ', 'RAR'],
     title: 'Risk-Adjusted',
