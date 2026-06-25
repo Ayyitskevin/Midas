@@ -285,6 +285,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist.',
   },
   {
+    code: 'STRETCH',
+    aliases: ['OVERSOLD', 'BBANDS', 'MEANREV'],
+    title: 'Stretch Screener',
+    module: 'STRETCH',
+    requiresSymbol: false,
+    description: 'Mean-reversion screener — watchlist ranked by z-score & Bollinger %B vs its moving average, flagging overbought/oversold.',
+  },
+  {
     code: 'RRG',
     aliases: ['ROTATION', 'ROT'],
     title: 'Rotation (RRG)',
