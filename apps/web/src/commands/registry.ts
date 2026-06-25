@@ -157,6 +157,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Return-correlation grid across your watchlist symbols.',
   },
   {
+    code: 'BETA',
+    aliases: ['BTCBETA', 'BETAS'],
+    title: 'Beta vs BTC',
+    module: 'BETA',
+    requiresSymbol: false,
+    description: 'Beta board — each watchlist symbol’s beta, correlation and R² vs BTC from daily returns.',
+  },
+  {
     code: 'CAL',
     aliases: ['CALENDAR', 'EVENTS', 'ECON'],
     title: 'Market Calendar',
