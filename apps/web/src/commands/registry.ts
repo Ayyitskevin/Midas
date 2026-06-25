@@ -301,6 +301,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-based position sizer — solve size from account, risk %, entry and stop.',
   },
   {
+    code: 'CONV',
+    aliases: ['CONVERT', 'NOTIONAL', 'SIZECONV'],
+    title: 'Size Converter',
+    module: 'CONV',
+    requiresSymbol: true,
+    description: 'Size / notional converter — convert between quantity, notional, % of account and margin at the live price.',
+  },
+  {
     code: 'DCA',
     aliases: ['AVG', 'AVERAGE', 'BASIS'],
     title: 'DCA / Averaging',
