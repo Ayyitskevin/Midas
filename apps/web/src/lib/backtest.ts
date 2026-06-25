@@ -1,5 +1,5 @@
 /**
- * Minimal long/flat backtests over a close series. Three strategies share one
+ * Minimal long/flat backtests over a close series. Four strategies share one
  * simulator:
  *   • SMA crossover — long when the fast simple moving average is above the slow
  *     one, flat otherwise (a trend-follower).
@@ -7,6 +7,8 @@
  *     until it recovers past an exit line (a dip-buyer).
  *   • Bollinger mean reversion — buy when price closes below the lower band and
  *     hold until it closes back above the middle band (a band dip-buyer).
+ *   • MACD crossover — long when the MACD line is above its signal EMA, flat
+ *     otherwise (a trend-follower on the EMA spread).
  * All are applied with a one-bar lag (you act on the *next* bar after a signal,
  * so the test never peeks at a price it couldn't have traded on), and both feed
  * the same `simulate` core that produces the equity curve, the buy-and-hold
@@ -38,6 +40,15 @@ export interface BollingerBacktestParams {
   period: number;
   /** Band width in standard deviations. */
   mult: number;
+}
+
+export interface MacdBacktestParams {
+  /** Fast EMA period. */
+  fast: number;
+  /** Slow EMA period (must exceed fast). */
+  slow: number;
+  /** Signal EMA period over the MACD line. */
+  signal: number;
 }
 
 export interface BacktestTrade {
@@ -281,6 +292,53 @@ export function backtestBollinger(
       else if (held && closes[i] > mid[i]) held = false;
     }
     position[t] = held ? 1 : 0;
+  }
+
+  return simulate(closes, position);
+}
+
+/** Exponential moving average (seeded at the first value); same length as input. */
+export function ema(values: number[], period: number): number[] {
+  const n = values.length;
+  const out = new Array<number>(n);
+  if (n === 0) return out;
+  const alpha = 2 / (period + 1);
+  out[0] = values[0];
+  for (let i = 1; i < n; i++) out[i] = alpha * values[i] + (1 - alpha) * out[i - 1];
+  return out;
+}
+
+/**
+ * Run the MACD-crossover backtest: long when the MACD line (fast EMA − slow EMA)
+ * is above its signal EMA, flat otherwise, with the usual one-bar lag (a
+ * trend-follower). Returns null on invalid params (fast < 1, slow ≤ fast,
+ * signal < 1) or too little history to warm the EMAs plus a bar to trade.
+ */
+export function backtestMacd(closes: number[], params: MacdBacktestParams): BacktestResult | null {
+  const f = Math.floor(params.fast);
+  const s = Math.floor(params.slow);
+  const sig = Math.floor(params.signal);
+  const n = closes.length;
+  if (
+    !Number.isFinite(f) ||
+    !Number.isFinite(s) ||
+    !Number.isFinite(sig) ||
+    f < 1 ||
+    s <= f ||
+    sig < 1 ||
+    n < s + sig + 1
+  )
+    return null;
+
+  const fastE = ema(closes, f);
+  const slowE = ema(closes, s);
+  const macd = closes.map((_, i) => fastE[i] - slowE[i]);
+  const signalLine = ema(macd, sig);
+
+  const position = new Array<number>(n).fill(0);
+  for (let t = 1; t < n; t++) {
+    const i = t - 1; // act on the next bar after the signal
+    position[t] = macd[i] > signalLine[i] ? 1 : 0;
   }
 
   return simulate(closes, position);

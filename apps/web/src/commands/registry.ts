@@ -326,11 +326,11 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'BACKTEST',
-    aliases: ['BT', 'STRATEGY', 'SMACROSS', 'RSIBT', 'BOLLBT'],
+    aliases: ['BT', 'STRATEGY', 'SMACROSS', 'RSIBT', 'BOLLBT', 'MACDBT'],
     title: 'Backtest',
     module: 'BACKTEST',
     requiresSymbol: true,
-    description: 'Strategy backtest — SMA-crossover, RSI mean-reversion or Bollinger-band reversion: strategy equity vs buy & hold with total return, max drawdown, win rate & trade count.',
+    description: 'Strategy backtest — SMA-crossover, RSI mean-reversion, Bollinger-band reversion or MACD crossover: strategy equity vs buy & hold with total return, max drawdown, win rate & trade count.',
   },
   {
     code: 'MOM',
