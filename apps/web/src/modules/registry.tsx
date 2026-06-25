@@ -36,6 +36,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   MOM: mod(() => import('./MomentumModule'), 'MomentumModule'),
   SEAS: mod(() => import('./SeasonalityModule'), 'SeasonalityModule'),
   PREM: mod(() => import('./BasisModule'), 'BasisModule'),
+  ARB: mod(() => import('./ArbModule'), 'ArbModule'),
   AI: mod(() => import('./AiCopilotModule'), 'AiCopilotModule'),
   W: mod(() => import('./WatchlistModule'), 'WatchlistModule'),
   Q: mod(() => import('./QuoteMonitorModule'), 'QuoteMonitorModule'),

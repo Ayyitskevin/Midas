@@ -181,6 +181,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history.',
   },
   {
+    code: 'ARB',
+    aliases: ['ARBITRAGE', 'XSPREAD'],
+    title: 'Arb Scanner',
+    module: 'ARB',
+    requiresSymbol: true,
+    description: 'Cross-exchange arb scanner — best bid/ask across venues, spread % and crossed-book flag.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
