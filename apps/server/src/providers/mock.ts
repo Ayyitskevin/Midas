@@ -1,6 +1,7 @@
 import type {
   Candle,
   DerivativesInfo,
+  FundingHistoryPoint,
   HistoryResponse,
   MarketState,
   NewsItem,
@@ -266,6 +267,20 @@ export class MockProvider implements DataProvider {
       recentLiquidations,
       timestamp: Date.now(),
     };
+  }
+
+  async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
+    const entry = resolveEntry(symbol);
+    const interval = 8 * 3_600_000; // 8h settlements
+    const n = Math.min(Math.max(1, Math.floor(limit)), 500);
+    const latest = Math.floor(Date.now() / interval) * interval;
+    const out: FundingHistoryPoint[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const time = latest - i * interval;
+      const rng = seeded(entry.symbol, Math.floor(time / interval), 'fundhist');
+      out.push({ time, fundingRate: round(gaussian(rng) * 0.0001, 6) });
+    }
+    return out;
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {

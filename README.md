@@ -139,6 +139,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `PREM`  | `PREMIUM`, `SPREAD` | yes    | Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history. |
 | `CARRY` | `CASHCARRY`, `CARRYTRADE` | no | Funding-carry board — perps ranked by funding APR with spot-vs-perp basis and the carry leg. |
 | `FPL`   | `FUNDPNL`, `CARRYPNL` | yes  | Funding P&L forecaster — project a perp position’s carry over a horizon at the current funding rate. |
+| `FRH`   | `FUNDHIST`, `FRATE` | yes     | Funding-rate history — a perp’s funding settlements over time with the average and current APR. |
 | `ARB`   | `ARBITRAGE`, `XSPREAD` | yes  | Cross-exchange arb scanner — best bid/ask across venues, spread % and crossed-book flag. |
 | `SLIP`  | `SLIPPAGE`, `IMPACT` | yes    | Slippage estimator — average fill & market impact for an order size, walking the live book. |
 | `TWAP`  | `EXEC`, `ALGO`, `SLICE` | yes | TWAP execution planner — slice a large order over time and compare impact vs an aggressive block. |

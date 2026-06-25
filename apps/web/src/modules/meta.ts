@@ -20,6 +20,7 @@ export type ModuleCode =
   | 'FUNDR'
   | 'CARRY'
   | 'FPL'
+  | 'FRH'
   | 'LIQS'
   | 'SCR'
   | 'HEAT'
@@ -91,6 +92,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   FUNDR: { code: 'FUNDR', title: 'Funding Rates', w: 5, h: 11, minW: 4, minH: 6 },
   CARRY: { code: 'CARRY', title: 'Funding Carry', w: 6, h: 11, minW: 4, minH: 6 },
   FPL: { code: 'FPL', title: 'Funding P&L', w: 5, h: 13, minW: 4, minH: 8 },
+  FRH: { code: 'FRH', title: 'Funding History', w: 5, h: 11, minW: 4, minH: 6 },
   LIQS: { code: 'LIQS', title: 'Liquidations', w: 5, h: 11, minW: 4, minH: 6 },
   SCR: { code: 'SCR', title: 'Screener', w: 4, h: 11, minW: 3, minH: 6 },
   HEAT: { code: 'HEAT', title: 'Heatmap', w: 6, h: 9, minW: 4, minH: 5 },
