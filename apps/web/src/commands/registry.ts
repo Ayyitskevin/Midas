@@ -189,6 +189,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Cross-exchange arb scanner — best bid/ask across venues, spread % and crossed-book flag.',
   },
   {
+    code: 'SLIP',
+    aliases: ['SLIPPAGE', 'IMPACT'],
+    title: 'Slippage',
+    module: 'SLIP',
+    requiresSymbol: true,
+    description: 'Slippage estimator — average fill & market impact for an order size, walking the live book.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
