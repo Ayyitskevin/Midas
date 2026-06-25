@@ -173,6 +173,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `FRONTIER` | `EF`, `EFFRONTIER`, `CML` | no | Markowitz efficient frontier — plots the risk/return frontier for your watchlist with the GMV (min-variance) and tangency (max-Sharpe) portfolios, the equal-weight book and each asset. |
 | `RISKB` | `RISKBUDGET`, `MCTR`, `RBUDGET` | no | Risk-budget board — decomposes your portfolio variance into each holding's marginal and percent contribution to risk (MCTR), so you see which names drive the swings vs their weight. |
 | `ULCER` | `UI`, `MARTIN`, `ULCERINDEX` | no | Ulcer Index board — ranks watchlist drawdown pain (depth × duration, RMS of drawdowns) with the Martin ratio (annualized return ÷ Ulcer). |
+| `GPR` | `GAINPAIN`, `GAINTOPAIN`, `G2P` | no | Gain-to-Pain board — ranks watchlist return quality by Σ returns ÷ Σ losses (Schwager GPR): how much net return per unit of downside endured. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |

@@ -581,6 +581,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Ulcer Index board — ranks watchlist drawdown pain (depth × duration, RMS of drawdowns) with the Martin ratio (annualized return ÷ Ulcer).',
   },
   {
+    code: 'GPR',
+    aliases: ['GAINPAIN', 'GAINTOPAIN', 'G2P'],
+    title: 'Gain to Pain',
+    module: 'GPR',
+    requiresSymbol: false,
+    description: 'Gain-to-Pain board — ranks watchlist return quality by Σ returns ÷ Σ losses (Schwager GPR): how much net return per unit of downside endured.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
