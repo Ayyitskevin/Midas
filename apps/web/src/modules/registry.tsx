@@ -62,6 +62,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   HURST: mod(() => import('./HurstModule'), 'HurstModule'),
   EFFICIENCY: mod(() => import('./EfficiencyModule'), 'EfficiencyModule'),
   SCAN: mod(() => import('./ScanModule'), 'ScanModule'),
+  MTF: mod(() => import('./MtfModule'), 'MtfModule'),
   RRG: mod(() => import('./RotationModule'), 'RotationModule'),
   SEAS: mod(() => import('./SeasonalityModule'), 'SeasonalityModule'),
   MRET: mod(() => import('./MonthlyReturnsModule'), 'MonthlyReturnsModule'),
