@@ -261,6 +261,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Terminal preferences — display density, ticker, default chart timeframe, alert delivery.',
   },
   {
+    code: 'REPORT',
+    aliases: ['EXPORT', 'CSV', 'REPORTS'],
+    title: 'Reports / Export',
+    module: 'REPORT',
+    requiresSymbol: false,
+    description: 'Export your data to CSV — journal, transactions, positions, alert triggers and watchlists.',
+  },
+  {
     code: 'SECF',
     aliases: ['FIND', 'SEARCH', 'SRCH'],
     title: 'Security Finder',
