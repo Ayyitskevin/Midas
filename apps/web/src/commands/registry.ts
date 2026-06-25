@@ -197,6 +197,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Beta board — each watchlist symbol’s beta, correlation and R² vs BTC from daily returns.',
   },
   {
+    code: 'CAPTURE',
+    aliases: ['UPDOWN', 'CAPRATIO', 'UPCAPTURE'],
+    title: 'Up/Down Capture',
+    module: 'CAPTURE',
+    requiresSymbol: false,
+    description: 'Up/down capture vs BTC — how much of BTC’s up vs down moves each watchlist symbol catches, with the capture ratio.',
+  },
+  {
     code: 'RBETA',
     aliases: ['ROLLBETA', 'RCORR', 'BETAHIST'],
     title: 'Rolling Beta',
