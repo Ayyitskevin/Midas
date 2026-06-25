@@ -53,6 +53,7 @@ export type ModuleCode =
   | 'PORT'
   | 'RHEAT'
   | 'EXP'
+  | 'PBETA'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -131,6 +132,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   PORT: { code: 'PORT', title: 'Portfolio', w: 7, h: 9, minW: 5, minH: 5 },
   RHEAT: { code: 'RHEAT', title: 'Position Risk', w: 6, h: 11, minW: 4, minH: 6 },
   EXP: { code: 'EXP', title: 'Exposure', w: 6, h: 11, minW: 4, minH: 6 },
+  PBETA: { code: 'PBETA', title: 'Portfolio Beta', w: 5, h: 12, minW: 4, minH: 7 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
