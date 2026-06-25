@@ -142,6 +142,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
+| `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
