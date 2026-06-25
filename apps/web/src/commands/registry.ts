@@ -245,6 +245,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Volatility term structure — realized vol across 7d…180d lookbacks, flagging rich/cheap near-term vol.',
   },
   {
+    code: 'MC',
+    aliases: ['MONTECARLO', 'PROJECT', 'CONE'],
+    title: 'Monte Carlo',
+    module: 'MC',
+    requiresSymbol: true,
+    description: 'Monte Carlo projection cone — GBM price forecast fan (5–95 percentiles) from historical drift & vol.',
+  },
+  {
     code: 'MOM',
     aliases: ['MOMENTUM', 'RS', 'STRENGTH'],
     title: 'Momentum',
