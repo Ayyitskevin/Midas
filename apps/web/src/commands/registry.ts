@@ -189,6 +189,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist.',
   },
   {
+    code: 'RRG',
+    aliases: ['ROTATION', 'ROT'],
+    title: 'Rotation (RRG)',
+    module: 'RRG',
+    requiresSymbol: false,
+    description: 'Relative rotation graph — watchlist symbols by RS-Ratio × RS-Momentum vs BTC, with rotation tails.',
+  },
+  {
     code: 'SEAS',
     aliases: ['SEASON', 'SEASONALITY', 'TOD'],
     title: 'Seasonality',
