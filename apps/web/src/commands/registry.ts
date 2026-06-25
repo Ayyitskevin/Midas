@@ -85,6 +85,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Live streaming trade prints (time & sales).',
   },
   {
+    code: 'CVD',
+    aliases: ['FLOW', 'OFD', 'DELTA'],
+    title: 'Order Flow',
+    module: 'CVD',
+    requiresSymbol: true,
+    description: 'Order-flow / cumulative volume delta — buy vs sell pressure over time with a per-window delta histogram.',
+  },
+  {
     code: 'ALLQ',
     aliases: ['XQ', 'VENUES'],
     title: 'Multi-Exchange Quotes',
