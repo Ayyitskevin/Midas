@@ -126,6 +126,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
+| `REPORT`| `EXPORT`, `CSV` | no         | Export your data to CSV — trade journal, transactions, positions, alert triggers and watchlists. |
 | `NOTE`  | `NOTES`, `JRNL`, `MEMO` | no  | Free-form notes — global or per symbol, synced to your account.|
 | `RISK`  | `SIZER`, `SIZE` | no          | Risk-based position sizer — size from account, risk %, entry & stop, with R-targets & liq. estimate. |
 | `DCA`   | `AVG`, `AVERAGE`, `BASIS` | no | Average-cost calculator — blend fills into an average entry, mark P&L, liq. estimate + target-average solver. |

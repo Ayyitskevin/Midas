@@ -44,6 +44,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   PNL: mod(() => import('./PnlModule'), 'PnlModule'),
   ACCT: mod(() => import('./AccountModule'), 'AccountModule'),
   PREF: mod(() => import('./SettingsModule'), 'SettingsModule'),
+  REPORT: mod(() => import('./ReportModule'), 'ReportModule'),
   N: mod(() => import('./NewsModule'), 'NewsModule'),
   HELP: mod(() => import('./HelpModule'), 'HelpModule'),
   SECF: mod(() => import('./SecurityFinderModule'), 'SecurityFinderModule'),
