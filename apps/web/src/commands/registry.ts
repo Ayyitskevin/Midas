@@ -69,6 +69,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Live Level-2 order book / depth of market (best on crypto).',
   },
   {
+    code: 'DEPTH',
+    aliases: ['DHEAT', 'OBHEAT', 'DOMHEAT'],
+    title: 'Depth Heatmap',
+    module: 'DEPTH',
+    requiresSymbol: true,
+    description: 'Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track.',
+  },
+  {
     code: 'TAS',
     aliases: ['PRINTS', 'TS', 'TRADES'],
     title: 'Time & Sales',
