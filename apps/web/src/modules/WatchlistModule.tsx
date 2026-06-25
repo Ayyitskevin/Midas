@@ -1,11 +1,56 @@
-import { useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg } from '@/components/Feedback';
+import { Sparkline } from '@/components/Sparkline';
 import type { ModuleProps } from './types';
+
+/** Recent close series per symbol for the sparkline column (24h of hourly candles). */
+function useSparklines(symbols: string[]): Map<string, number[]> {
+  const [series, setSeries] = useState<Map<string, number[]>>(() => new Map());
+  const key = symbols.join(',');
+  useEffect(() => {
+    if (symbols.length === 0) {
+      setSeries(new Map());
+      return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    const load = () => {
+      Promise.all(
+        symbols.map((s) =>
+          api
+            .history(s, '60m', '1d', controller.signal)
+            .then((h) => [s, h.candles.map((c) => c.close)] as const)
+            .catch(() => [s, [] as number[]] as const),
+        ),
+      ).then((entries) => {
+        if (!cancelled) setSeries(new Map(entries));
+      });
+    };
+    load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(id);
+    };
+    // Re-fetch only when the symbol set changes (not on every quote tick).
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return series;
+}
+
+/** Subtle background tint scaled by |% change| (capped), tracking the up/down hue. */
+function heatStyle(pct: number | undefined): CSSProperties | undefined {
+  if (pct == null || !Number.isFinite(pct)) return undefined;
+  const mag = Math.min(Math.abs(pct), 8) / 8; // saturate at ±8%
+  if (mag < 0.05) return undefined;
+  const rgb = pct >= 0 ? '38,194,129' : '239,77,86';
+  return { backgroundColor: `rgba(${rgb},${(mag * 0.28).toFixed(3)})` };
+}
 
 export function WatchlistModule({ panel }: ModuleProps) {
   const symbols = useWatchlist((s) => s.symbols);
@@ -32,6 +77,7 @@ export function WatchlistModule({ panel }: ModuleProps) {
     { intervalMs: 5000, enabled: symbols.length > 0 },
   );
   const bySymbol = new Map((data ?? []).map((q) => [q.symbol, q]));
+  const spark = useSparklines(symbols);
 
   return (
     <div className="flex h-full flex-col">
@@ -103,6 +149,7 @@ export function WatchlistModule({ panel }: ModuleProps) {
               <th className="px-2 py-1 text-left font-normal">SYMBOL</th>
               <th className="px-2 py-1 text-right font-normal">LAST</th>
               <th className="px-2 py-1 text-right font-normal">CHG%</th>
+              <th className="px-2 py-1 text-right font-normal">1D</th>
               <th className="px-1" />
             </tr>
           </thead>
@@ -125,8 +172,16 @@ export function WatchlistModule({ panel }: ModuleProps) {
                   <td className="px-2 py-1 text-right tabular-nums">
                     {q ? fmtPrice(q.price) : '—'}
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(q?.changePercent)}`}>
+                  <td
+                    className={`px-2 py-1 text-right tabular-nums ${changeClass(q?.changePercent)}`}
+                    style={heatStyle(q?.changePercent)}
+                  >
                     {q ? fmtSignedPercent(q.changePercent) : '—'}
+                  </td>
+                  <td className="px-2 py-1">
+                    <div className="flex justify-end">
+                      <Sparkline values={spark.get(sym) ?? []} />
+                    </div>
                   </td>
                   <td className="px-1 py-1 text-right">
                     <button
