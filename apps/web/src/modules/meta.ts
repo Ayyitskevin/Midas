@@ -70,6 +70,7 @@ export type ModuleCode =
   | 'REBAL'
   | 'RPARITY'
   | 'OPT'
+  | 'MSR'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -165,6 +166,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   REBAL: { code: 'REBAL', title: 'Rebalance', w: 5, h: 12, minW: 4, minH: 7 },
   RPARITY: { code: 'RPARITY', title: 'Risk Parity', w: 5, h: 12, minW: 4, minH: 6 },
   OPT: { code: 'OPT', title: 'Min Variance', w: 5, h: 12, minW: 4, minH: 6 },
+  MSR: { code: 'MSR', title: 'Max Sharpe', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

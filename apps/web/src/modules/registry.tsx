@@ -82,6 +82,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   REBAL: mod(() => import('./RebalanceModule'), 'RebalanceModule'),
   RPARITY: mod(() => import('./RiskParityModule'), 'RiskParityModule'),
   OPT: mod(() => import('./MinVarModule'), 'MinVarModule'),
+  MSR: mod(() => import('./MaxSharpeModule'), 'MaxSharpeModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

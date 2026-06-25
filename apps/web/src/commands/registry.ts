@@ -549,6 +549,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Minimum-variance optimizer — covariance-aware target weights (w = Σ⁻¹·1 / 1ᵀΣ⁻¹·1) for the lowest-variance fully-invested watchlist book.',
   },
   {
+    code: 'MSR',
+    aliases: ['TANGENCY', 'MAXSHARPE', 'SHARPEOPT'],
+    title: 'Max Sharpe',
+    module: 'MSR',
+    requiresSymbol: false,
+    description: 'Max-Sharpe (tangency) optimizer — covariance-aware target weights (w ∝ Σ⁻¹·(μ−rf)) for the highest risk-adjusted-return fully-invested watchlist book.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
