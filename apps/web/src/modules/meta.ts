@@ -40,6 +40,7 @@ export type ModuleCode =
   | 'MC'
   | 'MOM'
   | 'STRETCH'
+  | 'HURST'
   | 'RRG'
   | 'SEAS'
   | 'MRET'
@@ -121,6 +122,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   MC: { code: 'MC', title: 'Monte Carlo', w: 6, h: 11, minW: 4, minH: 7 },
   MOM: { code: 'MOM', title: 'Momentum', w: 5, h: 12, minW: 4, minH: 6 },
   STRETCH: { code: 'STRETCH', title: 'Stretch Screener', w: 5, h: 12, minW: 4, minH: 6 },
+  HURST: { code: 'HURST', title: 'Trend / Revert', w: 5, h: 12, minW: 4, minH: 6 },
   RRG: { code: 'RRG', title: 'Rotation (RRG)', w: 6, h: 11, minW: 4, minH: 7 },
   SEAS: { code: 'SEAS', title: 'Seasonality', w: 6, h: 10, minW: 4, minH: 6 },
   MRET: { code: 'MRET', title: 'Monthly Returns', w: 6, h: 10, minW: 4, minH: 6 },
