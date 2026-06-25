@@ -123,6 +123,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `BETA`  | `BTCBETA`, `BETAS` | no       | Beta board — each watchlist symbol’s beta, correlation & R² vs BTC from daily returns. |
 | `SHARPE`| `SORTINO`, `RISKADJ` | no    | Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return & vol across your watchlist. |
+| `DD`    | `DRAWDOWN`, `UNDERWATER`, `MDD` | no | Drawdown monitor — max & current drawdown, time underwater and an underwater curve across your watchlist. |
 | `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
 | `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |

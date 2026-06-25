@@ -24,6 +24,7 @@ export type ModuleCode =
   | 'CORR'
   | 'BETA'
   | 'SHARPE'
+  | 'DD'
   | 'CAL'
   | 'VOL'
   | 'MOM'
@@ -85,6 +86,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   CORR: { code: 'CORR', title: 'Correlation', w: 5, h: 8, minW: 4, minH: 5 },
   BETA: { code: 'BETA', title: 'Beta vs BTC', w: 5, h: 11, minW: 4, minH: 6 },
   SHARPE: { code: 'SHARPE', title: 'Risk-Adjusted', w: 5, h: 11, minW: 4, minH: 6 },
+  DD: { code: 'DD', title: 'Drawdown', w: 6, h: 11, minW: 4, minH: 6 },
   CAL: { code: 'CAL', title: 'Market Calendar', w: 4, h: 13, minW: 3, minH: 7 },
   VOL: { code: 'VOL', title: 'Volatility', w: 5, h: 12, minW: 4, minH: 6 },
   MOM: { code: 'MOM', title: 'Momentum', w: 5, h: 12, minW: 4, minH: 6 },

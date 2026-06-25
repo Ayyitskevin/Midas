@@ -181,6 +181,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return and vol across your watchlist.',
   },
   {
+    code: 'DD',
+    aliases: ['DRAWDOWN', 'UNDERWATER', 'MDD'],
+    title: 'Drawdown',
+    module: 'DD',
+    requiresSymbol: false,
+    description: 'Drawdown monitor — max & current drawdown, time underwater and an underwater curve across your watchlist.',
+  },
+  {
     code: 'CAL',
     aliases: ['CALENDAR', 'EVENTS', 'ECON'],
     title: 'Market Calendar',
