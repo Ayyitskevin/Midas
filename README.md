@@ -114,6 +114,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `CVD`   | `FLOW`, `OFD`  | yes          | Order-flow / cumulative volume delta — buy vs sell pressure over time + per-window delta bars. |
 | `IMB`   | `IMBALANCE`, `OBI` | yes      | Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge. |
+| `LQA`   | `LIQUIDITY`, `SPREADS` | no   | Liquidity board — watchlist ranked by bid/ask spread (bps) and top-of-book depth. |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
 | `FUNDR` | `RATES`, `CARRY` | no         | Funding + open interest across the top perps, sortable.|
