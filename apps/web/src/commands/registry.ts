@@ -597,6 +597,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Omega ratio board — ranks watchlist names by Σ gains above a threshold ÷ Σ shortfalls below it; a full-distribution alternative to Sharpe with an adjustable τ.',
   },
   {
+    code: 'DIVR',
+    aliases: ['DIVERSIFICATION', 'DIVRATIO'],
+    title: 'Diversification',
+    module: 'DIVR',
+    requiresSymbol: false,
+    description: 'Diversification ratio — weighted-avg asset vol ÷ portfolio vol for the equal-weight watchlist book, with the effective number of independent bets (DR²).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
