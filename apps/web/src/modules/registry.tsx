@@ -44,6 +44,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   SCAT: mod(() => import('./ScatterModule'), 'ScatterModule'),
   VPVR: mod(() => import('./VolumeProfileModule'), 'VolumeProfileModule'),
   SHARPE: mod(() => import('./SharpeModule'), 'SharpeModule'),
+  RSHARPE: mod(() => import('./RollingSharpeModule'), 'RollingSharpeModule'),
   DD: mod(() => import('./DrawdownModule'), 'DrawdownModule'),
   CAL: mod(() => import('./CalendarModule'), 'CalendarModule'),
   VOL: mod(() => import('./VolatilityModule'), 'VolatilityModule'),

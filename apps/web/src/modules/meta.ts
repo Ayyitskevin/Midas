@@ -31,6 +31,7 @@ export type ModuleCode =
   | 'SCAT'
   | 'VPVR'
   | 'SHARPE'
+  | 'RSHARPE'
   | 'DD'
   | 'CAL'
   | 'VOL'
@@ -113,6 +114,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   SCAT: { code: 'SCAT', title: 'Returns Scatter', w: 5, h: 11, minW: 4, minH: 7 },
   VPVR: { code: 'VPVR', title: 'Volume Profile', w: 5, h: 11, minW: 4, minH: 7 },
   SHARPE: { code: 'SHARPE', title: 'Risk-Adjusted', w: 5, h: 11, minW: 4, minH: 6 },
+  RSHARPE: { code: 'RSHARPE', title: 'Rolling Sharpe', w: 6, h: 10, minW: 4, minH: 6 },
   DD: { code: 'DD', title: 'Drawdown', w: 6, h: 11, minW: 4, minH: 6 },
   CAL: { code: 'CAL', title: 'Market Calendar', w: 4, h: 13, minW: 3, minH: 7 },
   VOL: { code: 'VOL', title: 'Volatility', w: 5, h: 12, minW: 4, minH: 6 },

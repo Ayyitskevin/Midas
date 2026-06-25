@@ -221,6 +221,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Risk-adjusted return board — Sharpe & Sortino (annualized) with annualized return and vol across your watchlist.',
   },
   {
+    code: 'RSHARPE',
+    aliases: ['ROLLSHARPE', 'RSHARP', 'SHARPEHIST'],
+    title: 'Rolling Sharpe',
+    module: 'RSHARPE',
+    requiresSymbol: true,
+    description: 'Rolling Sharpe — the trailing annualized risk-adjusted return over a moving window, showing when an edge strengthened or decayed.',
+  },
+  {
     code: 'DD',
     aliases: ['DRAWDOWN', 'UNDERWATER', 'MDD'],
     title: 'Drawdown',
