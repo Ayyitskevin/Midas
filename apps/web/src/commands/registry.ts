@@ -533,6 +533,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Rebalance calculator — set target weights for your holdings and get the buy/sell trades, per-position drift and turnover.',
   },
   {
+    code: 'RPARITY',
+    aliases: ['RISKPARITY', 'PARITY', 'INVVOL'],
+    title: 'Risk Parity',
+    module: 'RPARITY',
+    requiresSymbol: false,
+    description: 'Risk-parity weights — inverse-volatility target weights for your watchlist so every name contributes equal risk.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
