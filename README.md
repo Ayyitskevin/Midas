@@ -180,6 +180,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `PAIN` | `PAININDEX`, `PAINRATIO` | no | Pain Index board — ranks watchlist average drawdown depth (mean underwater) with the Pain ratio (annualized return ÷ Pain Index). |
 | `KRATIO` | `KRAT`, `KESTNER` | no | K-ratio board — Kestner trend-consistency: the log-price trend slope ÷ its standard error (a t-stat), ranking watchlist names by how steady their climb is. |
 | `VREG` | `VOLREGIME`, `VOLREG` | no | Vol-regime board — short-window ÷ long-window realized volatility per watchlist name (expanding >1 / contracting <1), with the percentile of today's vol in its own history. |
+| `ACF` | `AUTOCORR`, `AUTOCORRELATION` | no | Autocorrelation board — lag-1/2/3 return autocorrelation per watchlist name: positive = momentum (returns persist), negative = mean-reverting (returns reverse). |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |

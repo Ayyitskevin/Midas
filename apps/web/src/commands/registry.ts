@@ -637,6 +637,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Vol-regime board — short-window ÷ long-window realized volatility per watchlist name (expanding >1 / contracting <1), with the percentile of today’s vol in its own history.',
   },
   {
+    code: 'ACF',
+    aliases: ['AUTOCORR', 'AUTOCORRELATION'],
+    title: 'Autocorrelation',
+    module: 'ACF',
+    requiresSymbol: false,
+    description: 'Autocorrelation board — lag-1/2/3 return autocorrelation per watchlist name: positive = momentum (returns persist), negative = mean-reverting (returns reverse).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
