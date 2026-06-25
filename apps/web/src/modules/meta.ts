@@ -32,6 +32,7 @@ export type ModuleCode =
   | 'RISK'
   | 'DCA'
   | 'LOG'
+  | 'EQ'
   | 'PNL'
   | 'ACCT'
   | 'PREF'
@@ -79,6 +80,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
   DCA: { code: 'DCA', title: 'DCA / Averaging', w: 4, h: 14, minW: 3, minH: 9 },
   LOG: { code: 'LOG', title: 'Trade Journal', w: 5, h: 14, minW: 4, minH: 8 },
+  EQ: { code: 'EQ', title: 'Equity Curve', w: 5, h: 11, minW: 4, minH: 7 },
   PNL: { code: 'PNL', title: 'P&L Calculator', w: 4, h: 13, minW: 3, minH: 8 },
   ACCT: { code: 'ACCT', title: 'Account', w: 4, h: 10, minW: 3, minH: 6 },
   PREF: { code: 'PREF', title: 'Preferences', w: 4, h: 13, minW: 3, minH: 8 },
