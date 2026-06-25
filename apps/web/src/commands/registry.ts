@@ -557,6 +557,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Max-Sharpe (tangency) optimizer — covariance-aware target weights (w ∝ Σ⁻¹·(μ−rf)) for the highest risk-adjusted-return fully-invested watchlist book.',
   },
   {
+    code: 'FRONTIER',
+    aliases: ['EF', 'EFFRONTIER', 'CML'],
+    title: 'Efficient Frontier',
+    module: 'FRONTIER',
+    requiresSymbol: false,
+    description: 'Markowitz efficient frontier — plots the risk/return frontier for your watchlist with the GMV (min-variance) and tangency (max-Sharpe) portfolios, the equal-weight book and each asset.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
