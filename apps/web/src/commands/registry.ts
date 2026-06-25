@@ -53,12 +53,20 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'RATIO',
-    aliases: ['SPREAD', 'PAIR'],
+    aliases: ['SPREAD'],
     title: 'Ratio / Spread',
     module: 'RATIO',
     requiresSymbol: false,
     description: 'Chart the ratio (A/B) or spread (A−B) between two symbols over time.',
     params: { interval: '1d', range: '6mo' },
+  },
+  {
+    code: 'PAIR',
+    aliases: ['PAIRS', 'ZSCORE', 'STATARB'],
+    title: 'Pairs Z-Score',
+    module: 'PAIR',
+    requiresSymbol: false,
+    description: 'Pairs / stat-arb monitor — ratio of two symbols with rolling mean ±σ bands, a z-score oscillator and mean-reversion half-life.',
   },
   {
     code: 'BOOK',
