@@ -101,6 +101,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Order-flow / cumulative volume delta — buy vs sell pressure over time with a per-window delta histogram.',
   },
   {
+    code: 'IMB',
+    aliases: ['IMBALANCE', 'OBI', 'PRESSURE'],
+    title: 'Book Imbalance',
+    module: 'IMB',
+    requiresSymbol: true,
+    description: 'Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge.',
+  },
+  {
     code: 'ALLQ',
     aliases: ['XQ', 'VENUES'],
     title: 'Multi-Exchange Quotes',
