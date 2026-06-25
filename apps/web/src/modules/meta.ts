@@ -26,6 +26,7 @@ export type ModuleCode =
   | 'HEAT'
   | 'MOV'
   | 'CORR'
+  | 'AVGCORR'
   | 'BETA'
   | 'RBETA'
   | 'SCAT'
@@ -109,6 +110,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   HEAT: { code: 'HEAT', title: 'Heatmap', w: 6, h: 9, minW: 4, minH: 5 },
   MOV: { code: 'MOV', title: 'Market Overview', w: 6, h: 9, minW: 4, minH: 6 },
   CORR: { code: 'CORR', title: 'Correlation', w: 5, h: 8, minW: 4, minH: 5 },
+  AVGCORR: { code: 'AVGCORR', title: 'Correlation Regime', w: 6, h: 10, minW: 4, minH: 6 },
   BETA: { code: 'BETA', title: 'Beta vs BTC', w: 5, h: 11, minW: 4, minH: 6 },
   RBETA: { code: 'RBETA', title: 'Rolling Beta', w: 5, h: 11, minW: 4, minH: 7 },
   SCAT: { code: 'SCAT', title: 'Returns Scatter', w: 5, h: 11, minW: 4, minH: 7 },
