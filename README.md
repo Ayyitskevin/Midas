@@ -124,6 +124,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SEAS`  | `SEASON`, `SEASONALITY`, `TOD` | yes | Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid. |
 | `PREM`  | `PREMIUM`, `SPREAD`, `CARRY` | yes | Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history. |
 | `ARB`   | `ARBITRAGE`, `XSPREAD` | yes  | Cross-exchange arb scanner — best bid/ask across venues, spread % and crossed-book flag. |
+| `SLIP`  | `SLIPPAGE`, `IMPACT` | yes    | Slippage estimator — average fill & market impact for an order size, walking the live book. |
 | `AI`    | `ASK`          | no           | Claude copilot grounded in your live data.     |
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist — last, % change with heat, and a 24h sparkline per symbol. |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
