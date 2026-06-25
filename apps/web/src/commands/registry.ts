@@ -157,6 +157,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Volatility dashboard — realized vol, ATR and high-low range ranked across your watchlist.',
   },
   {
+    code: 'PREM',
+    aliases: ['PREMIUM', 'SPREAD', 'CARRY'],
+    title: 'Basis Monitor',
+    module: 'PREM',
+    requiresSymbol: true,
+    description: 'Perp basis monitor — premium vs spot, funding rate & APR, with a live premium history.',
+  },
+  {
     code: 'AI',
     aliases: ['ASK', 'COPILOT'],
     title: 'AI Copilot',
