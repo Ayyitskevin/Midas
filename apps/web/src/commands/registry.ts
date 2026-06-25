@@ -197,6 +197,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Rolling beta & correlation vs BTC — how a symbol’s sensitivity to Bitcoin drifts over a trailing window.',
   },
   {
+    code: 'SCAT',
+    aliases: ['SCATTER', 'REGRESS', 'BETAPLOT'],
+    title: 'Returns Scatter',
+    module: 'SCAT',
+    requiresSymbol: true,
+    description: 'Returns scatter vs BTC — daily returns with the fitted regression line (beta, alpha, R²).',
+  },
+  {
     code: 'SHARPE',
     aliases: ['SORTINO', 'RISKADJ', 'RAR'],
     title: 'Risk-Adjusted',
