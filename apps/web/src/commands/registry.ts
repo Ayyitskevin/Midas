@@ -261,6 +261,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Volatility term structure — realized vol across 7d…180d lookbacks, flagging rich/cheap near-term vol.',
   },
   {
+    code: 'VCONE',
+    aliases: ['VOLCONE', 'VCONES', 'RVCONE'],
+    title: 'Vol Cones',
+    module: 'VCONE',
+    requiresSymbol: true,
+    description: 'Volatility cones — realized-vol percentiles across 10…120d horizons with the current vol overlaid, flagging rich/cheap.',
+  },
+  {
     code: 'MC',
     aliases: ['MONTECARLO', 'PROJECT', 'CONE'],
     title: 'Monte Carlo',

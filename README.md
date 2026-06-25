@@ -133,6 +133,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
 | `VAR`   | `DIST`, `HIST`, `CVAR` | yes  | Return distribution & risk — histogram with vol, skew, kurtosis and historical VaR / expected shortfall. |
 | `VTS`   | `VOLTERM`, `TERM` | yes       | Volatility term structure — realized vol across 7d…180d lookbacks, flagging rich/cheap near-term vol. |
+| `VCONE` | `VOLCONE`, `VCONES`, `RVCONE` | yes | Volatility cones — realized-vol percentiles across 10…120d horizons with the current vol overlaid, flagging rich/cheap. |
 | `MC`    | `MONTECARLO`, `CONE` | yes    | Monte Carlo projection cone — GBM price forecast fan (5–95 percentiles) from historical drift & vol. |
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
 | `RRG`   | `ROTATION`, `ROT` | no       | Relative rotation graph — watchlist symbols by RS-Ratio × RS-Momentum vs BTC, with rotation tails. |
