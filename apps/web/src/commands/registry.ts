@@ -173,8 +173,16 @@ export const COMMANDS: CommandDef[] = [
     description: 'Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid.',
   },
   {
+    code: 'CARRY',
+    aliases: ['CASHCARRY', 'CARRYTRADE'],
+    title: 'Funding Carry',
+    module: 'CARRY',
+    requiresSymbol: false,
+    description: 'Funding-carry board — perps ranked by funding APR with spot-vs-perp basis and the carry leg.',
+  },
+  {
     code: 'PREM',
-    aliases: ['PREMIUM', 'SPREAD', 'CARRY'],
+    aliases: ['PREMIUM', 'SPREAD'],
     title: 'Basis Monitor',
     module: 'PREM',
     requiresSymbol: true,
