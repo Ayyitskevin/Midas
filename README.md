@@ -120,6 +120,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW`, `BREADTH` | no    | Market overview — top gainers, losers, most active + breadth.|
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
+| `BETA`  | `BTCBETA`, `BETAS` | no       | Beta board — each watchlist symbol’s beta, correlation & R² vs BTC from daily returns. |
 | `CAL`   | `CALENDAR`, `EVENTS`, `ECON` | no | Market calendar — funding settlements, options/futures expiries and candle closes, with countdowns. |
 | `VOL`   | `VOLATILITY`, `ATR`, `RV` | no | Volatility dashboard — realized vol, ATR% and high-low range ranked across your watchlist. |
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
