@@ -73,6 +73,7 @@ export type ModuleCode =
   | 'MSR'
   | 'FRONTIER'
   | 'RISKB'
+  | 'ULCER'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -171,6 +172,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   MSR: { code: 'MSR', title: 'Max Sharpe', w: 5, h: 12, minW: 4, minH: 6 },
   FRONTIER: { code: 'FRONTIER', title: 'Efficient Frontier', w: 6, h: 13, minW: 4, minH: 8 },
   RISKB: { code: 'RISKB', title: 'Risk Budget', w: 5, h: 12, minW: 4, minH: 6 },
+  ULCER: { code: 'ULCER', title: 'Ulcer Index', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
