@@ -885,6 +885,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Aroon board — trend by time-since-extreme per name: Aroon-Up / Aroon-Down (how recently the N-bar high vs low printed, 0–100) and the oscillator (up − down). Measures the age of the extreme, not price distance (distinct from HILO).',
   },
   {
+    code: 'CCI',
+    aliases: ['CCI20', 'COMMODITY'],
+    title: 'CCI Oscillator',
+    module: 'CCI',
+    requiresSymbol: false,
+    description: 'Commodity Channel Index board — each name’s typical price vs its average ÷ mean deviation, with overbought (≥+100) / oversold (≤−100) flags: a mean-deviation oscillator distinct from RSI (gains/losses) and MFI (volume-weighted).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
