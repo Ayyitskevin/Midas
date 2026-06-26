@@ -358,7 +358,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'EFFICIENCY',
-    aliases: ['EFFRATIO', 'KER', 'CHOP'],
+    aliases: ['EFFRATIO', 'KER'],
     title: 'Trend Efficiency',
     module: 'EFFICIENCY',
     requiresSymbol: false,
@@ -811,6 +811,14 @@ export const COMMANDS: CommandDef[] = [
     module: 'OBV',
     requiresSymbol: false,
     description: 'On-balance-volume board — cumulative signed volume per name with its net up − down volume flow and the OBV trend (regression slope ÷ avg volume): ranks who is being accumulated (volume confirming up moves) vs distributed.',
+  },
+  {
+    code: 'CHOP',
+    aliases: ['CHOPPINESS', 'CHOPPY'],
+    title: 'Choppiness Index',
+    module: 'CHOP',
+    requiresSymbol: false,
+    description: 'Choppiness Index board — Dreiss’ 0–100 gauge of trending vs ranging per name (Σ true range ÷ net span, log-normalized): below ~38 is a clean trend, above ~62 is sideways chop. A regime filter that pairs with RANGE / NR7.',
   },
   {
     code: 'ALERT',
