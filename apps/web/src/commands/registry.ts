@@ -821,6 +821,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Choppiness Index board — Dreiss’ 0–100 gauge of trending vs ranging per name (Σ true range ÷ net span, log-normalized): below ~38 is a clean trend, above ~62 is sideways chop. A regime filter that pairs with RANGE / NR7.',
   },
   {
+    code: 'BB',
+    aliases: ['BOLL', 'PCTB', 'SQUEEZE'],
+    title: 'Bollinger %B',
+    module: 'BB',
+    requiresSymbol: false,
+    description: 'Bollinger %B board — each name’s position within its Bollinger bands (%B: 0 = lower, 0.5 = middle, 1 = upper), the band width relative to price, and a squeeze flag when bandwidth sits in the bottom quintile of its recent range (compression before expansion).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

@@ -116,6 +116,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   HILO: mod(() => import('./HiLoModule'), 'HiLoModule'),
   OBV: mod(() => import('./ObvModule'), 'ObvModule'),
   CHOP: mod(() => import('./ChopModule'), 'ChopModule'),
+  BB: mod(() => import('./BbandsModule'), 'BbandsModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
