@@ -845,6 +845,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'MACD signal board — 12/26/9 MACD line, price-normalized histogram, and bull/bear state with a fresh-cross marker for every watchlist name: a trend-momentum scan across the list (the chart’s MACD is per-symbol).',
   },
   {
+    code: 'ADX',
+    aliases: ['DMI', 'DIRECTIONAL'],
+    title: 'ADX / DMI',
+    module: 'ADX',
+    requiresSymbol: false,
+    description: 'ADX / DMI board — Wilder’s trend-strength gauge per name: ADX (≥25 strong trend, <20 rangebound) with +DI / −DI directional indicators and which one leads. Answers “is there a trend, how strong, and which way”.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

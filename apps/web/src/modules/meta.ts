@@ -107,6 +107,7 @@ export type ModuleCode =
   | 'BB'
   | 'RSI'
   | 'MACD'
+  | 'ADX'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -239,6 +240,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   BB: { code: 'BB', title: 'Bollinger %B', w: 4, h: 12, minW: 3, minH: 6 },
   RSI: { code: 'RSI', title: 'RSI Screener', w: 4, h: 12, minW: 3, minH: 6 },
   MACD: { code: 'MACD', title: 'MACD Signals', w: 4, h: 12, minW: 3, minH: 6 },
+  ADX: { code: 'ADX', title: 'ADX / DMI', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
