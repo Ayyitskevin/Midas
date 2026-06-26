@@ -717,6 +717,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Rolling-Sharpe stability board — mean ÷ stdev of each name’s rolling-Sharpe series: ranks who delivers a consistent risk-adjusted edge vs whose edge flickers. High and steady beats high and erratic.',
   },
   {
+    code: 'ASR',
+    aliases: ['ADJSHARPE', 'ADJUSTEDSHARPE'],
+    title: 'Adjusted Sharpe',
+    module: 'ASR',
+    requiresSymbol: false,
+    description: 'Adjusted Sharpe ratio board (Pezier-White) — the Sharpe penalized for negative skew and excess kurtosis: docks names whose smooth Sharpe hides a fat left tail, rewards genuinely well-shaped returns.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

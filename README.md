@@ -190,6 +190,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `M2` | `MODIGLIANI`, `MSQUARED` | no | M² (Modigliani) board — each name's return rescaled to BTC's volatility (Sharpe × σ_BTC): what it would have returned at the market's risk level, in directly comparable return units. |
 | `CSR` | `COMMONSENSE`, `CSRATIO` | no | Common-sense ratio board — tail ratio × gain-to-pain: rewards a name only when it has both a fat right tail and an efficient win/loss balance. ≥1 is the green light. |
 | `RSTAB` | `SHARPESTAB`, `STAB` | no | Rolling-Sharpe stability board — mean ÷ stdev of each name's rolling-Sharpe series: ranks who delivers a consistent risk-adjusted edge vs whose edge flickers. High and steady beats high and erratic. |
+| `ASR` | `ADJSHARPE`, `ADJUSTEDSHARPE` | no | Adjusted Sharpe ratio board (Pezier-White) — the Sharpe penalized for negative skew and excess kurtosis: docks names whose smooth Sharpe hides a fat left tail, rewards genuinely well-shaped returns. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
