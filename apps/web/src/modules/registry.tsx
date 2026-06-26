@@ -102,6 +102,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   APPRAISAL: mod(() => import('./AppraisalModule'), 'AppraisalModule'),
   M2: mod(() => import('./M2Module'), 'M2Module'),
   CSR: mod(() => import('./CsrModule'), 'CsrModule'),
+  RSTAB: mod(() => import('./SharpeStabilityModule'), 'SharpeStabilityModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

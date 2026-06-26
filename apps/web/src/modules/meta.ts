@@ -90,6 +90,7 @@ export type ModuleCode =
   | 'APPRAISAL'
   | 'M2'
   | 'CSR'
+  | 'RSTAB'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -205,6 +206,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   APPRAISAL: { code: 'APPRAISAL', title: 'Appraisal Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   M2: { code: 'M2', title: 'M² (Modigliani)', w: 5, h: 12, minW: 4, minH: 6 },
   CSR: { code: 'CSR', title: 'Common-Sense Ratio', w: 5, h: 12, minW: 4, minH: 6 },
+  RSTAB: { code: 'RSTAB', title: 'Rolling-Sharpe Stability', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
