@@ -749,6 +749,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Lead-lag board — the lag of peak cross-correlation between each name and BTC: negative = the name leads BTC (moves first), positive = it lags. Finds early-warning tells and followers.',
   },
   {
+    code: 'DDREC',
+    aliases: ['RECOVERY', 'TTR'],
+    title: 'Drawdown Recovery',
+    module: 'DDREC',
+    requiresSymbol: false,
+    description: 'Drawdown recovery board — days underwater per name: current unresolved drawdown, longest underwater stretch, and average time to recover past drawdowns. Ranks how long pain lasts, not just how deep.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
