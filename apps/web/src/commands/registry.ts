@@ -861,6 +861,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Money Flow Index board — the volume-weighted RSI (typical price × volume, 14-period) per name with overbought (≥80) / oversold (≤20) flags: combines price and volume into one oscillator, distinct from RSI (price only) and OBV (cumulative).',
   },
   {
+    code: 'SUPER',
+    aliases: ['SUPERTREND', 'ST'],
+    title: 'Supertrend',
+    module: 'SUPER',
+    requiresSymbol: false,
+    description: 'Supertrend board — the ATR trend-follow regime per name: up / down direction, the ATR trailing-stop level, how far price sits from that stop, and a fresh-flip marker. A popular crypto trend signal across the whole watchlist.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
