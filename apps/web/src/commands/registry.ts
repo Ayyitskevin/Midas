@@ -701,6 +701,14 @@ export const COMMANDS: CommandDef[] = [
     description: "M² (Modigliani) board — each name's return rescaled to BTC's volatility (Sharpe × σ_BTC): what it would have returned at the market's risk level, in directly comparable return units.",
   },
   {
+    code: 'CSR',
+    aliases: ['COMMONSENSE', 'CSRATIO'],
+    title: 'Common-Sense Ratio',
+    module: 'CSR',
+    requiresSymbol: false,
+    description: 'Common-sense ratio board — tail ratio × gain-to-pain: rewards a name only when it has both a fat right tail and an efficient win/loss balance. ≥1 is the green light.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

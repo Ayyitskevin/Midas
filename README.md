@@ -188,6 +188,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ALPHA` | `JENSEN`, `JALPHA` | no | Jensen's alpha board — annualized return minus the CAPM-predicted return (beta·BTC-return): the excess a name delivers beyond what its BTC exposure alone explains. Positive = genuine outperformance. |
 | `APPRAISAL` | `APPR`, `APRATIO` | no | Appraisal ratio board — Jensen's alpha ÷ idiosyncratic (residual) volatility: stock-specific outperformance per unit of the diversifiable risk taken to get it (Treynor–Black). |
 | `M2` | `MODIGLIANI`, `MSQUARED` | no | M² (Modigliani) board — each name's return rescaled to BTC's volatility (Sharpe × σ_BTC): what it would have returned at the market's risk level, in directly comparable return units. |
+| `CSR` | `COMMONSENSE`, `CSRATIO` | no | Common-sense ratio board — tail ratio × gain-to-pain: rewards a name only when it has both a fat right tail and an efficient win/loss balance. ≥1 is the green light. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
