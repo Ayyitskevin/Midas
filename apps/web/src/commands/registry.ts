@@ -829,6 +829,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Bollinger %B board — each name’s position within its Bollinger bands (%B: 0 = lower, 0.5 = middle, 1 = upper), the band width relative to price, and a squeeze flag when bandwidth sits in the bottom quintile of its recent range (compression before expansion).',
   },
   {
+    code: 'RSI',
+    aliases: ['RSI14', 'WILDER'],
+    title: 'RSI Screener',
+    module: 'RSI',
+    requiresSymbol: false,
+    description: 'RSI screener — Wilder’s 14-period RSI for every watchlist name with overbought (≥70) / oversold (≤30) flags: a momentum-oscillator scan across the whole list (the chart’s RSI sub-pane is per-symbol).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
