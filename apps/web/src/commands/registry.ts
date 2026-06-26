@@ -973,6 +973,15 @@ export const COMMANDS: CommandDef[] = [
       "Williams %R board — where each name's close sits in its N-bar high-low range on a 0 to −100 scale (0 = top, −100 = bottom), with overbought (≥−20) / oversold (≤−80) flags. A momentum oscillator close to Stochastic's %K but inverted and unsmoothed.",
   },
   {
+    code: 'UO',
+    aliases: ['ULTIMATE', 'ULTOSC'],
+    title: 'Ultimate Oscillator',
+    module: 'UO',
+    requiresSymbol: false,
+    description:
+      "Ultimate Oscillator board (Larry Williams) — buying pressure ÷ true range blended over three timeframes (7/14/28) weighted 4:2:1 into a 0–100 reading per name, with overbought (≥70) / oversold (≤30) flags. Blends short/medium/long momentum to cut the false divergences single-period oscillators give.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
