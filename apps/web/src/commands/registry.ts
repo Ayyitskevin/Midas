@@ -765,6 +765,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Vol-of-vol board — the coefficient of variation of each name’s rolling volatility (stdev ÷ mean of the rolling vol): ranks whose risk level itself is stable vs whose whipsaws between calm and chaos.',
   },
   {
+    code: 'STREAK',
+    aliases: ['STREAKS', 'RUNS'],
+    title: 'Up/Down Streaks',
+    module: 'STREAK',
+    requiresSymbol: false,
+    description: 'Up/down streak board — current signed run (+up / −down days), longest up and down runs, and the share of up days per name: momentum-persistence and capitulation tells from the raw return signs.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
