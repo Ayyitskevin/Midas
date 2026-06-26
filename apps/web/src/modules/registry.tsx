@@ -112,6 +112,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   STREAK: mod(() => import('./StreakModule'), 'StreakModule'),
   RANGE: mod(() => import('./RangeModule'), 'RangeModule'),
   UVOL: mod(() => import('./UvolModule'), 'UvolModule'),
+  GAP: mod(() => import('./GapModule'), 'GapModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

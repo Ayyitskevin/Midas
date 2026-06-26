@@ -789,6 +789,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Unusual-volume board — each name’s latest volume vs its trailing average: RVOL (relative volume, today ÷ avg), a z-score vs that window, and the day’s direction so a spike reads as accumulation (▲ up-day) or distribution (▼ down-day).',
   },
   {
+    code: 'GAP',
+    aliases: ['GAPS', 'GAPFILL'],
+    title: 'Gap Board',
+    module: 'GAP',
+    requiresSymbol: false,
+    description: 'Gap board — each name’s open-vs-prior-close jump at the daily roll: today’s signed gap, the typical (average absolute) gap size, the same-day fill rate (how often price retraces to the prior close), and the net up − down gap bias.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
