@@ -110,6 +110,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   DDREC: mod(() => import('./RecoveryModule'), 'RecoveryModule'),
   VOV: mod(() => import('./VolOfVolModule'), 'VolOfVolModule'),
   STREAK: mod(() => import('./StreakModule'), 'StreakModule'),
+  RANGE: mod(() => import('./RangeModule'), 'RangeModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

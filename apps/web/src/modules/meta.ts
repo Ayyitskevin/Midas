@@ -98,6 +98,7 @@ export type ModuleCode =
   | 'DDREC'
   | 'VOV'
   | 'STREAK'
+  | 'RANGE'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -221,6 +222,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DDREC: { code: 'DDREC', title: 'Drawdown Recovery', w: 5, h: 12, minW: 4, minH: 6 },
   VOV: { code: 'VOV', title: 'Vol of Vol', w: 5, h: 12, minW: 4, minH: 6 },
   STREAK: { code: 'STREAK', title: 'Up/Down Streaks', w: 5, h: 12, minW: 4, minH: 6 },
+  RANGE: { code: 'RANGE', title: 'Range Expansion', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
