@@ -741,6 +741,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Martin ratio (Ulcer Performance Index) term structure — annualized return ÷ Ulcer Index across 1M/3M/6M/1Y trailing windows: return per unit of drawdown pain, read as a curve over horizon.',
   },
   {
+    code: 'LEADLAG',
+    aliases: ['LEAD', 'XCORR'],
+    title: 'Lead-Lag vs BTC',
+    module: 'LEADLAG',
+    requiresSymbol: false,
+    description: 'Lead-lag board — the lag of peak cross-correlation between each name and BTC: negative = the name leads BTC (moves first), positive = it lags. Finds early-warning tells and followers.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

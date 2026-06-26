@@ -94,6 +94,7 @@ export type ModuleCode =
   | 'ASR'
   | 'BETAETH'
   | 'MARTIN'
+  | 'LEADLAG'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -213,6 +214,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   ASR: { code: 'ASR', title: 'Adjusted Sharpe', w: 5, h: 12, minW: 4, minH: 6 },
   BETAETH: { code: 'BETAETH', title: 'Beta vs ETH / BTC', w: 5, h: 12, minW: 4, minH: 6 },
   MARTIN: { code: 'MARTIN', title: 'Martin Ratio (UPI)', w: 5, h: 11, minW: 4, minH: 6 },
+  LEADLAG: { code: 'LEADLAG', title: 'Lead-Lag vs BTC', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
