@@ -773,6 +773,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Up/down streak board — current signed run (+up / −down days), longest up and down runs, and the share of up days per name: momentum-persistence and capitulation tells from the raw return signs.',
   },
   {
+    code: 'RANGE',
+    aliases: ['NR7', 'EXPANSION', 'RNG'],
+    title: 'Range Expansion',
+    module: 'RANGE',
+    requiresSymbol: false,
+    description: 'Range-expansion / NR7 board — each name’s latest true range vs its trailing average: EXP ratio (>1 expanding, <1 coiling), today’s range as a % of price, and its rank among the last 7 days (NR7 = narrowest, a coiled-spring breakout setup).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
