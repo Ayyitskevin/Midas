@@ -133,6 +133,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TTM: mod(() => import('./TtmModule'), 'TtmModule'),
   ICHI: mod(() => import('./IchimokuModule'), 'IchimokuModule'),
   PSAR: mod(() => import('./ParabolicSarModule'), 'ParabolicSarModule'),
+  WILLR: mod(() => import('./WilliamsRModule'), 'WilliamsRModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

@@ -121,6 +121,7 @@ export type ModuleCode =
   | 'TTM'
   | 'ICHI'
   | 'PSAR'
+  | 'WILLR'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -267,6 +268,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   TTM: { code: 'TTM', title: 'TTM Squeeze', w: 5, h: 12, minW: 4, minH: 6 },
   ICHI: { code: 'ICHI', title: 'Ichimoku Cloud', w: 5, h: 12, minW: 4, minH: 6 },
   PSAR: { code: 'PSAR', title: 'Parabolic SAR', w: 5, h: 12, minW: 4, minH: 6 },
+  WILLR: { code: 'WILLR', title: 'Williams %R', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

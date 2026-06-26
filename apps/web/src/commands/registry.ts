@@ -964,6 +964,15 @@ export const COMMANDS: CommandDef[] = [
       "Parabolic SAR board (Wilder stop-and-reverse) — the trailing-stop trend per name: long (stop below price) / short (stop above), the signed distance of the close from the stop, the acceleration factor (trend maturity), and a fresh-flip flag when the stop reverses. An iterative trailing-stop system, distinct from the ATR-band Supertrend (SUPER).",
   },
   {
+    code: 'WILLR',
+    aliases: ['WILLIAMS', 'WPR'],
+    title: 'Williams %R',
+    module: 'WILLR',
+    requiresSymbol: false,
+    description:
+      "Williams %R board — where each name's close sits in its N-bar high-low range on a 0 to −100 scale (0 = top, −100 = bottom), with overbought (≥−20) / oversold (≤−80) flags. A momentum oscillator close to Stochastic's %K but inverted and unsmoothed.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
