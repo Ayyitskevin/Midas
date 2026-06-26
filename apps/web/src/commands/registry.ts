@@ -757,6 +757,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Drawdown recovery board — days underwater per name: current unresolved drawdown, longest underwater stretch, and average time to recover past drawdowns. Ranks how long pain lasts, not just how deep.',
   },
   {
+    code: 'VOV',
+    aliases: ['VOLOFVOL', 'VOVOL'],
+    title: 'Vol of Vol',
+    module: 'VOV',
+    requiresSymbol: false,
+    description: 'Vol-of-vol board — the coefficient of variation of each name’s rolling volatility (stdev ÷ mean of the rolling vol): ranks whose risk level itself is stable vs whose whipsaws between calm and chaos.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
