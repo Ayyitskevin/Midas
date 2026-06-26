@@ -118,6 +118,7 @@ export type ModuleCode =
   | 'STOCH'
   | 'DON'
   | 'VTX'
+  | 'TTM'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -261,6 +262,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   STOCH: { code: 'STOCH', title: 'Stochastic', w: 5, h: 12, minW: 4, minH: 6 },
   DON: { code: 'DON', title: 'Donchian Channel', w: 5, h: 12, minW: 4, minH: 6 },
   VTX: { code: 'VTX', title: 'Vortex', w: 5, h: 12, minW: 4, minH: 6 },
+  TTM: { code: 'TTM', title: 'TTM Squeeze', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

@@ -937,6 +937,15 @@ export const COMMANDS: CommandDef[] = [
       'Vortex indicator board — +VI / −VI trend-direction lines (up vs down vortex movement ÷ true range over N bars) per name, their signed difference, which line leads, and a fresh +VI/−VI crossover flag. A trend-direction board, distinct from ADX (strength only), Aroon (time-since-extreme) and Supertrend (ATR stop).',
   },
   {
+    code: 'TTM',
+    aliases: ['TTMSQUEEZE', 'SQZ'],
+    title: 'TTM Squeeze',
+    module: 'TTM',
+    requiresSymbol: false,
+    description:
+      "TTM squeeze board (Carter) — flags when each name's Bollinger bands sit inside its Keltner channel (volatility compression → coiling), with a squeeze on/off state, a fired flag when it releases, and Carter's de-trended momentum (value, direction & rising/falling). A genuine BB-meets-KELT setup scanner.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
