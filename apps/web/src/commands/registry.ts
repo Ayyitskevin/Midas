@@ -661,6 +661,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Information-ratio board — each watchlist name’s active return over BTC ÷ its tracking error: how much excess return per unit of benchmark-relative risk.',
   },
   {
+    code: 'BURKE',
+    aliases: ['BURKERATIO'],
+    title: 'Burke Ratio',
+    module: 'BURKE',
+    requiresSymbol: false,
+    description: 'Burke ratio board — annualized return ÷ √(Σ drawdown²): the root-sum-square of drawdown-episode depths penalizes deep and frequent drawdowns more than Sterling’s average or Calmar’s single worst.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
