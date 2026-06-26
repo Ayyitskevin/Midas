@@ -97,6 +97,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   STERLING: mod(() => import('./SterlingModule'), 'SterlingModule'),
   INFO: mod(() => import('./InfoModule'), 'InfoModule'),
   BURKE: mod(() => import('./BurkeModule'), 'BurkeModule'),
+  TREYNOR: mod(() => import('./TreynorModule'), 'TreynorModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

@@ -669,6 +669,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Burke ratio board — annualized return ÷ √(Σ drawdown²): the root-sum-square of drawdown-episode depths penalizes deep and frequent drawdowns more than Sterling’s average or Calmar’s single worst.',
   },
   {
+    code: 'TREYNOR',
+    aliases: ['TREYNORRATIO'],
+    title: 'Treynor Ratio',
+    module: 'TREYNOR',
+    requiresSymbol: false,
+    description: 'Treynor ratio board — annualized return ÷ beta-to-BTC: return per unit of systematic (market) risk. Completes the Sharpe (total risk) / Information (active risk) / Treynor (beta) trio.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
