@@ -928,6 +928,15 @@ export const COMMANDS: CommandDef[] = [
       'Donchian breakout board (the Turtle channel) — the prior N-bar highest-high / lowest-low channel per name: where the close sits in it (0 lower · 100 upper, exceeding on breakouts), the channel width relative to price, and an up/down flag on a new N-bar high / low. The pure price-extreme complement to the ATR (KELT) and stdev (BB) volatility bands.',
   },
   {
+    code: 'VTX',
+    aliases: ['VORTEX', 'VI'],
+    title: 'Vortex',
+    module: 'VTX',
+    requiresSymbol: false,
+    description:
+      'Vortex indicator board — +VI / −VI trend-direction lines (up vs down vortex movement ÷ true range over N bars) per name, their signed difference, which line leads, and a fresh +VI/−VI crossover flag. A trend-direction board, distinct from ADX (strength only), Aroon (time-since-extreme) and Supertrend (ATR stop).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
