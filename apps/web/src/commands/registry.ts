@@ -725,6 +725,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Adjusted Sharpe ratio board (Pezier-White) — the Sharpe penalized for negative skew and excess kurtosis: docks names whose smooth Sharpe hides a fat left tail, rewards genuinely well-shaped returns.',
   },
   {
+    code: 'BETAETH',
+    aliases: ['EBETA', 'BETAVS'],
+    title: 'Beta vs ETH / BTC',
+    module: 'BETAETH',
+    requiresSymbol: false,
+    description: 'Dual-beta board — each name’s beta to ETH and to BTC over the same window, plus their divergence (βETH − βBTC): surfaces ETH-leaning vs BTC-leaning names across the watchlist.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
