@@ -797,6 +797,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Gap board — each name’s open-vs-prior-close jump at the daily roll: today’s signed gap, the typical (average absolute) gap size, the same-day fill rate (how often price retraces to the prior close), and the net up − down gap bias.',
   },
   {
+    code: 'HILO',
+    aliases: ['PROXIMITY', 'NEARHIGH'],
+    title: 'High/Low Proximity',
+    module: 'HILO',
+    requiresSymbol: false,
+    description: 'High/low proximity board — where each name’s close sits in its N-day range (POS 0 = low → 100 = high), how far it is below the period high and above the period low, and a new-high / new-low flag. Spot names pressing a breakout vs basing near support.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

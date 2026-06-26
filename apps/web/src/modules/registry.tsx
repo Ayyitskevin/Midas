@@ -113,6 +113,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   RANGE: mod(() => import('./RangeModule'), 'RangeModule'),
   UVOL: mod(() => import('./UvolModule'), 'UvolModule'),
   GAP: mod(() => import('./GapModule'), 'GapModule'),
+  HILO: mod(() => import('./HiLoModule'), 'HiLoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
