@@ -145,7 +145,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MOM`   | `MOMENTUM`, `RS`, `STRENGTH` | no | Momentum / relative-strength board — 24h/7d/30d returns ranked across your watchlist. |
 | `STRETCH` | `OVERSOLD`, `BBANDS`, `MEANREV` | no | Mean-reversion screener — watchlist ranked by z-score & Bollinger %B vs its moving average, flagging overbought/oversold. |
 | `HURST` | `REGIME`, `TRENDREV`, `FRACTAL` | no | Trend vs mean-reversion board — each symbol’s Hurst exponent (R/S) classifying trending, mean-reverting or random-walk. |
-| `EFFICIENCY` | `EFFRATIO`, `KER`, `CHOP` | no | Trend-efficiency board — Kaufman’s Efficiency Ratio (net move ÷ path) ranks how clean vs choppy each symbol’s trend is. |
+| `EFFICIENCY` | `EFFRATIO`, `KER` | no | Trend-efficiency board — Kaufman’s Efficiency Ratio (net move ÷ path) ranks how clean vs choppy each symbol’s trend is. |
 | `SCAN`  | `SCANNER`, `SIGNALS`, `SETUP` | no | Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold & 52-week range position, ranked by a bull/bear score. |
 | `MTF`   | `MULTITF`, `TIMEFRAMES`, `MTREND` | yes | Multi-timeframe trend — SMA trend & RSI across 1H/1D/1W/1M with a consensus read of whether the frames are in gear. |
 | `RRG`   | `ROTATION`, `ROT` | no       | Relative rotation graph — watchlist symbols by RS-Ratio × RS-Momentum vs BTC, with rotation tails. |
@@ -202,6 +202,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `GAP` | `GAPS`, `GAPFILL` | no | Gap board — each name's open-vs-prior-close jump at the daily roll: today's signed gap, the typical (average absolute) gap size, the same-day fill rate (how often price retraces to the prior close), and the net up − down gap bias. |
 | `HILO` | `PROXIMITY`, `NEARHIGH` | no | High/low proximity board — where each name's close sits in its N-day range (POS 0 = low → 100 = high), how far it is below the period high and above the period low, and a new-high / new-low flag. Spot names pressing a breakout vs basing near support. |
 | `OBV` | `ACCUM`, `ACCUMULATION` | no | On-balance-volume board — cumulative signed volume per name with its net up − down volume flow and the OBV trend (regression slope ÷ avg volume): ranks who is being accumulated (volume confirming up moves) vs distributed. |
+| `CHOP` | `CHOPPINESS`, `CHOPPY` | no | Choppiness Index board — Dreiss’ 0–100 gauge of trending vs ranging per name (Σ true range ÷ net span, log-normalized): below ~38 is a clean trend, above ~62 is sideways chop. A regime filter that pairs with RANGE / NR7. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
