@@ -910,6 +910,15 @@ export const COMMANDS: CommandDef[] = [
     description: 'Keltner channel board — an EMA midline wrapped by ATR-scaled bands per name: where the close sits in the channel (0 lower · 50 mid · 100 upper), the band width relative to price, and an up/down breakout flag when price closes outside. The ATR-based volatility-band complement to Bollinger (BB).',
   },
   {
+    code: 'STOCH',
+    aliases: ['STOCHASTIC', 'STOCH14', 'KD'],
+    title: 'Stochastic',
+    module: 'STOCH',
+    requiresSymbol: false,
+    description:
+      "Stochastic oscillator board — Lane's %K (the close's position in its N-bar high-low range) and %D signal line per name, with overbought (≥80) / oversold (≤20) zones and a fresh %K-vs-%D crossover flag. A range-position oscillator, distinct from RSI (gains/losses), MFI (volume-weighted) and CCI (mean deviation).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

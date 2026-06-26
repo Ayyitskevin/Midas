@@ -127,6 +127,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CCI: mod(() => import('./CciModule'), 'CciModule'),
   KELT: mod(() => import('./KeltnerModule'), 'KeltnerModule'),
   HP: mod(() => import('./HistoryModule'), 'HistoryModule'),
+  STOCH: mod(() => import('./StochasticModule'), 'StochasticModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
