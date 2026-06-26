@@ -653,6 +653,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Sterling ratio board — annualized return ÷ (average drawdown + 10%): a drawdown risk-adjusted return that averages drawdown episodes (vs Calmar’s single worst).',
   },
   {
+    code: 'INFO',
+    aliases: ['INFORATIO', 'IR'],
+    title: 'Information Ratio',
+    module: 'INFO',
+    requiresSymbol: false,
+    description: 'Information-ratio board — each watchlist name’s active return over BTC ÷ its tracking error: how much excess return per unit of benchmark-relative risk.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
