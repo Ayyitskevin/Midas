@@ -946,6 +946,15 @@ export const COMMANDS: CommandDef[] = [
       "TTM squeeze board (Carter) — flags when each name's Bollinger bands sit inside its Keltner channel (volatility compression → coiling), with a squeeze on/off state, a fired flag when it releases, and Carter's de-trended momentum (value, direction & rising/falling). A genuine BB-meets-KELT setup scanner.",
   },
   {
+    code: 'ICHI',
+    aliases: ['ICHIMOKU', 'CLOUD', 'KUMO'],
+    title: 'Ichimoku Cloud',
+    module: 'ICHI',
+    requiresSymbol: false,
+    description:
+      'Ichimoku cloud board — the five-line system per name reduced to the latest signals: price vs the kumo (above = bull / below = bear / inside = neutral), the cloud colour (Senkou A vs B), a fresh Tenkan×Kijun cross, and the signed distance of the close from the cloud. The current cloud is read at the displaced supplier bar (displacement = Kijun).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
