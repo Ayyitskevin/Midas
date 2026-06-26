@@ -693,6 +693,14 @@ export const COMMANDS: CommandDef[] = [
     description: "Appraisal ratio board — Jensen's alpha ÷ idiosyncratic (residual) volatility: stock-specific outperformance per unit of the diversifiable risk taken to get it (Treynor–Black).",
   },
   {
+    code: 'M2',
+    aliases: ['MODIGLIANI', 'MSQUARED'],
+    title: 'M² (Modigliani)',
+    module: 'M2',
+    requiresSymbol: false,
+    description: "M² (Modigliani) board — each name's return rescaled to BTC's volatility (Sharpe × σ_BTC): what it would have returned at the market's risk level, in directly comparable return units.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
