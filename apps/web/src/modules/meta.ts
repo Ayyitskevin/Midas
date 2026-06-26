@@ -99,6 +99,7 @@ export type ModuleCode =
   | 'VOV'
   | 'STREAK'
   | 'RANGE'
+  | 'UVOL'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -223,6 +224,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   VOV: { code: 'VOV', title: 'Vol of Vol', w: 5, h: 12, minW: 4, minH: 6 },
   STREAK: { code: 'STREAK', title: 'Up/Down Streaks', w: 5, h: 12, minW: 4, minH: 6 },
   RANGE: { code: 'RANGE', title: 'Range Expansion', w: 5, h: 12, minW: 4, minH: 6 },
+  UVOL: { code: 'UVOL', title: 'Unusual Volume', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
