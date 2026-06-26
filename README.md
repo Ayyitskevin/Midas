@@ -206,6 +206,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `BB` | `BOLL`, `PCTB`, `SQUEEZE` | no | Bollinger %B board — each name's position within its Bollinger bands (%B: 0 = lower, 0.5 = middle, 1 = upper), the band width relative to price, and a squeeze flag when bandwidth sits in the bottom quintile of its recent range (compression before expansion). |
 | `RSI` | `RSI14`, `WILDER` | no | RSI screener — Wilder's 14-period RSI for every watchlist name with overbought (≥70) / oversold (≤30) flags: a momentum-oscillator scan across the whole list (the chart's RSI sub-pane is per-symbol). |
 | `MACD` | `MACDX`, `SIGNAL` | no | MACD signal board — 12/26/9 MACD line, price-normalized histogram, and bull/bear state with a fresh-cross marker for every watchlist name: a trend-momentum scan across the list (the chart's MACD is per-symbol). |
+| `ADX` | `DMI`, `DIRECTIONAL` | no | ADX / DMI board — Wilder's trend-strength gauge per name: ADX (≥25 strong trend, <20 rangebound) with +DI / −DI directional indicators and which one leads. Answers “is there a trend, how strong, and which way”. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
