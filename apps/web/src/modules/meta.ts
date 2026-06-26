@@ -114,6 +114,7 @@ export type ModuleCode =
   | 'AROON'
   | 'CCI'
   | 'KELT'
+  | 'HP'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -253,6 +254,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   AROON: { code: 'AROON', title: 'Aroon', w: 4, h: 12, minW: 3, minH: 6 },
   CCI: { code: 'CCI', title: 'CCI Oscillator', w: 4, h: 12, minW: 3, minH: 6 },
   KELT: { code: 'KELT', title: 'Keltner Channel', w: 5, h: 12, minW: 4, minH: 6 },
+  HP: { code: 'HP', title: 'Historical Prices', w: 6, h: 14, minW: 5, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

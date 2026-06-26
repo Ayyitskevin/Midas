@@ -106,6 +106,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `DES`   | `DESC`, `DS`   | yes          | Snapshot quote + key stats for a security.    |
 | `GP`    | `CHART`, `G`   | yes          | Historical chart + studies (MA/BB/VWAP/RSI/MACD/vol-profile). |
 | `GIP`   | `INTRADAY`     | yes          | Intraday price chart (5-minute candles).       |
+| `HP`    | `HISTORY`, `HISTPX`, `OHLC` | yes | Historical prices — a tabular OHLCV history per bar (O/H/L/C, change% vs the prior close, volume) with 5D/1M/3M/1Y/5Y lookbacks, a period summary (high/low, total change, avg volume, up/down days) and sortable date / change% / volume columns. The data-table complement to the chart (`G`/`GIP`). |
 | `COMP`  | `COMPARE`, `CMP` | no         | Overlay several symbols rebased to % to compare performance.|
 | `RATIO` | `SPREAD`       | no           | Chart the ratio (A/B) or spread (A−B) of two symbols.|
 | `PAIR`  | `PAIRS`, `ZSCORE`, `STATARB` | no | Pairs / stat-arb monitor — ratio with rolling mean ±σ bands, a z-score oscillator and mean-reversion half-life. |
