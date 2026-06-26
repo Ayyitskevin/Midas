@@ -107,6 +107,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   BETAETH: mod(() => import('./BetaEthModule'), 'BetaEthModule'),
   MARTIN: mod(() => import('./MartinModule'), 'MartinModule'),
   LEADLAG: mod(() => import('./LeadLagModule'), 'LeadLagModule'),
+  DDREC: mod(() => import('./RecoveryModule'), 'RecoveryModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

@@ -194,6 +194,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `BETAETH` | `EBETA`, `BETAVS` | no | Dual-beta board — each name's beta to ETH and to BTC over the same window, plus their divergence (βETH − βBTC): surfaces ETH-leaning vs BTC-leaning names across the watchlist. |
 | `MARTIN` | `UPI`, `MARTINRATIO` | no | Martin ratio (Ulcer Performance Index) term structure — annualized return ÷ Ulcer Index across 1M/3M/6M/1Y trailing windows: return per unit of drawdown pain, read as a curve over horizon. |
 | `LEADLAG` | `LEAD`, `XCORR` | no | Lead-lag board — the lag of peak cross-correlation between each name and BTC: negative = the name leads BTC (moves first), positive = it lags. Finds early-warning tells and followers. |
+| `DDREC` | `RECOVERY`, `TTR` | no | Drawdown recovery board — days underwater per name: current unresolved drawdown, longest underwater stretch, and average time to recover past drawdowns. Ranks how long pain lasts, not just how deep. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
