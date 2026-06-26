@@ -877,6 +877,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'MA trend-persistence board — how durably each name holds one side of its SMA: the current consecutive run of closes above (+) / below (−) the average, how far price sits from it, and the share of days spent above. Moving-average-relative trend, distinct from STREAK.',
   },
   {
+    code: 'AROON',
+    aliases: ['AROONOSC', 'TRENDAGE'],
+    title: 'Aroon',
+    module: 'AROON',
+    requiresSymbol: false,
+    description: 'Aroon board — trend by time-since-extreme per name: Aroon-Up / Aroon-Down (how recently the N-bar high vs low printed, 0–100) and the oscillator (up − down). Measures the age of the extreme, not price distance (distinct from HILO).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
