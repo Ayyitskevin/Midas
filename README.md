@@ -195,6 +195,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MARTIN` | `UPI`, `MARTINRATIO` | no | Martin ratio (Ulcer Performance Index) term structure — annualized return ÷ Ulcer Index across 1M/3M/6M/1Y trailing windows: return per unit of drawdown pain, read as a curve over horizon. |
 | `LEADLAG` | `LEAD`, `XCORR` | no | Lead-lag board — the lag of peak cross-correlation between each name and BTC: negative = the name leads BTC (moves first), positive = it lags. Finds early-warning tells and followers. |
 | `DDREC` | `RECOVERY`, `TTR` | no | Drawdown recovery board — days underwater per name: current unresolved drawdown, longest underwater stretch, and average time to recover past drawdowns. Ranks how long pain lasts, not just how deep. |
+| `VOV` | `VOLOFVOL`, `VOVOL` | no | Vol-of-vol board — the coefficient of variation of each name's rolling volatility (stdev ÷ mean of the rolling vol): ranks whose risk level itself is stable vs whose whipsaws between calm and chaos. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
