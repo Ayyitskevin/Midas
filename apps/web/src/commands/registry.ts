@@ -837,6 +837,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'RSI screener — Wilder’s 14-period RSI for every watchlist name with overbought (≥70) / oversold (≤30) flags: a momentum-oscillator scan across the whole list (the chart’s RSI sub-pane is per-symbol).',
   },
   {
+    code: 'MACD',
+    aliases: ['MACDX', 'SIGNAL'],
+    title: 'MACD Signals',
+    module: 'MACD',
+    requiresSymbol: false,
+    description: 'MACD signal board — 12/26/9 MACD line, price-normalized histogram, and bull/bear state with a fresh-cross marker for every watchlist name: a trend-momentum scan across the list (the chart’s MACD is per-symbol).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
