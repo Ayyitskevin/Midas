@@ -43,6 +43,15 @@ export const COMMANDS: CommandDef[] = [
     params: { interval: '5m', range: '1d' },
   },
   {
+    code: 'HP',
+    aliases: ['HISTORY', 'HISTPX', 'OHLC'],
+    title: 'Historical Prices',
+    module: 'HP',
+    requiresSymbol: true,
+    description:
+      'Historical prices — a tabular OHLCV history per bar (open/high/low/close, change% vs the prior close, volume) with 5D / 1M / 3M / 1Y / 5Y lookbacks, a period summary (high/low, total change, avg volume, up/down days) and sortable date / change% / volume columns. The data-table complement to the chart (G / GIP).',
+  },
+  {
     code: 'COMP',
     aliases: ['COMPARE', 'CMP', 'REL'],
     title: 'Compare',
