@@ -677,6 +677,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Treynor ratio board — annualized return ÷ beta-to-BTC: return per unit of systematic (market) risk. Completes the Sharpe (total risk) / Information (active risk) / Treynor (beta) trio.',
   },
   {
+    code: 'ALPHA',
+    aliases: ['JENSEN', 'JALPHA'],
+    title: "Jensen's Alpha",
+    module: 'ALPHA',
+    requiresSymbol: false,
+    description: "Jensen's alpha board — annualized return minus the CAPM-predicted return (beta·BTC-return): the excess a name delivers beyond what its BTC exposure alone explains. Positive = genuine outperformance.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
