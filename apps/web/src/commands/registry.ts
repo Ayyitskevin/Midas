@@ -893,6 +893,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Commodity Channel Index board — each name’s typical price vs its average ÷ mean deviation, with overbought (≥+100) / oversold (≤−100) flags: a mean-deviation oscillator distinct from RSI (gains/losses) and MFI (volume-weighted).',
   },
   {
+    code: 'KELT',
+    aliases: ['KELTNER', 'KC'],
+    title: 'Keltner Channel',
+    module: 'KELT',
+    requiresSymbol: false,
+    description: 'Keltner channel board — an EMA midline wrapped by ATR-scaled bands per name: where the close sits in the channel (0 lower · 50 mid · 100 upper), the band width relative to price, and an up/down breakout flag when price closes outside. The ATR-based volatility-band complement to Bollinger (BB).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

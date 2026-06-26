@@ -125,6 +125,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TREND: mod(() => import('./TrendModule'), 'TrendModule'),
   AROON: mod(() => import('./AroonModule'), 'AroonModule'),
   CCI: mod(() => import('./CciModule'), 'CciModule'),
+  KELT: mod(() => import('./KeltnerModule'), 'KeltnerModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
