@@ -61,7 +61,7 @@ export function bollinger(candles: Candle[], period: number, mult: number): Boll
 }
 
 /** EMA over a plain number series, seeded at the first value; full length. */
-function emaSeries(values: number[], period: number): number[] {
+export function emaSeries(values: number[], period: number): number[] {
   const out: number[] = [];
   const k = 2 / (period + 1);
   let prev = values.length ? values[0] : 0;
