@@ -781,6 +781,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Range-expansion / NR7 board — each name’s latest true range vs its trailing average: EXP ratio (>1 expanding, <1 coiling), today’s range as a % of price, and its rank among the last 7 days (NR7 = narrowest, a coiled-spring breakout setup).',
   },
   {
+    code: 'UVOL',
+    aliases: ['RVOL', 'SURGE', 'VOLSURGE'],
+    title: 'Unusual Volume',
+    module: 'UVOL',
+    requiresSymbol: false,
+    description: 'Unusual-volume board — each name’s latest volume vs its trailing average: RVOL (relative volume, today ÷ avg), a z-score vs that window, and the day’s direction so a spike reads as accumulation (▲ up-day) or distribution (▼ down-day).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

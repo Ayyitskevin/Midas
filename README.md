@@ -198,6 +198,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `VOV` | `VOLOFVOL`, `VOVOL` | no | Vol-of-vol board — the coefficient of variation of each name's rolling volatility (stdev ÷ mean of the rolling vol): ranks whose risk level itself is stable vs whose whipsaws between calm and chaos. |
 | `STREAK` | `STREAKS`, `RUNS` | no | Up/down streak board — current signed run (+up / −down days), longest up and down runs, and the share of up days per name: momentum-persistence and capitulation tells from the raw return signs. |
 | `RANGE` | `NR7`, `EXPANSION`, `RNG` | no | Range-expansion / NR7 board — each name's latest true range vs its trailing average: EXP ratio (>1 expanding, <1 coiling), today's range as a % of price, and its rank among the last 7 days (NR7 = narrowest, a coiled-spring breakout setup). |
+| `UVOL` | `RVOL`, `SURGE`, `VOLSURGE` | no | Unusual-volume board — each name's latest volume vs its trailing average: RVOL (relative volume, today ÷ avg), a z-score vs that window, and the day's direction so a spike reads as accumulation (▲ up-day) or distribution (▼ down-day). |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
