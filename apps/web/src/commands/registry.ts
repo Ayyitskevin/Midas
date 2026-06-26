@@ -955,6 +955,15 @@ export const COMMANDS: CommandDef[] = [
       'Ichimoku cloud board — the five-line system per name reduced to the latest signals: price vs the kumo (above = bull / below = bear / inside = neutral), the cloud colour (Senkou A vs B), a fresh Tenkan×Kijun cross, and the signed distance of the close from the cloud. The current cloud is read at the displaced supplier bar (displacement = Kijun).',
   },
   {
+    code: 'PSAR',
+    aliases: ['SAR', 'PARABOLIC'],
+    title: 'Parabolic SAR',
+    module: 'PSAR',
+    requiresSymbol: false,
+    description:
+      "Parabolic SAR board (Wilder stop-and-reverse) — the trailing-stop trend per name: long (stop below price) / short (stop above), the signed distance of the close from the stop, the acceleration factor (trend maturity), and a fresh-flip flag when the stop reverses. An iterative trailing-stop system, distinct from the ATR-band Supertrend (SUPER).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
