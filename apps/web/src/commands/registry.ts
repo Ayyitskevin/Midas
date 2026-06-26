@@ -685,6 +685,14 @@ export const COMMANDS: CommandDef[] = [
     description: "Jensen's alpha board — annualized return minus the CAPM-predicted return (beta·BTC-return): the excess a name delivers beyond what its BTC exposure alone explains. Positive = genuine outperformance.",
   },
   {
+    code: 'APPRAISAL',
+    aliases: ['APPR', 'APRATIO'],
+    title: 'Appraisal Ratio',
+    module: 'APPRAISAL',
+    requiresSymbol: false,
+    description: "Appraisal ratio board — Jensen's alpha ÷ idiosyncratic (residual) volatility: stock-specific outperformance per unit of the diversifiable risk taken to get it (Treynor–Black).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

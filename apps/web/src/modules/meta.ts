@@ -87,6 +87,7 @@ export type ModuleCode =
   | 'BURKE'
   | 'TREYNOR'
   | 'ALPHA'
+  | 'APPRAISAL'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -199,6 +200,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   BURKE: { code: 'BURKE', title: 'Burke Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   TREYNOR: { code: 'TREYNOR', title: 'Treynor Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   ALPHA: { code: 'ALPHA', title: "Jensen's Alpha", w: 5, h: 12, minW: 4, minH: 6 },
+  APPRAISAL: { code: 'APPRAISAL', title: 'Appraisal Ratio', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
