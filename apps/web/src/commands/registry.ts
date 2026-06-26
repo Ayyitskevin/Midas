@@ -805,6 +805,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'High/low proximity board — where each name’s close sits in its N-day range (POS 0 = low → 100 = high), how far it is below the period high and above the period low, and a new-high / new-low flag. Spot names pressing a breakout vs basing near support.',
   },
   {
+    code: 'OBV',
+    aliases: ['ACCUM', 'ACCUMULATION'],
+    title: 'OBV / Accumulation',
+    module: 'OBV',
+    requiresSymbol: false,
+    description: 'On-balance-volume board — cumulative signed volume per name with its net up − down volume flow and the OBV trend (regression slope ÷ avg volume): ranks who is being accumulated (volume confirming up moves) vs distributed.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
