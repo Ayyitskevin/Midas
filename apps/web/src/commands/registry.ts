@@ -853,6 +853,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'ADX / DMI board — Wilder’s trend-strength gauge per name: ADX (≥25 strong trend, <20 rangebound) with +DI / −DI directional indicators and which one leads. Answers “is there a trend, how strong, and which way”.',
   },
   {
+    code: 'MFI',
+    aliases: ['MONEYFLOW', 'MF'],
+    title: 'Money Flow Index',
+    module: 'MFI',
+    requiresSymbol: false,
+    description: 'Money Flow Index board — the volume-weighted RSI (typical price × volume, 14-period) per name with overbought (≥80) / oversold (≤20) flags: combines price and volume into one oscillator, distinct from RSI (price only) and OBV (cumulative).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
