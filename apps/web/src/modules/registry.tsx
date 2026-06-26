@@ -95,6 +95,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   VREG: mod(() => import('./VRegModule'), 'VRegModule'),
   ACF: mod(() => import('./AcfModule'), 'AcfModule'),
   STERLING: mod(() => import('./SterlingModule'), 'SterlingModule'),
+  INFO: mod(() => import('./InfoModule'), 'InfoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
