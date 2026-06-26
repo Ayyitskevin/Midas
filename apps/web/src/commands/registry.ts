@@ -574,7 +574,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'ULCER',
-    aliases: ['UI', 'MARTIN', 'ULCERINDEX'],
+    aliases: ['UI', 'ULCERINDEX'],
     title: 'Ulcer Index',
     module: 'ULCER',
     requiresSymbol: false,
@@ -731,6 +731,14 @@ export const COMMANDS: CommandDef[] = [
     module: 'BETAETH',
     requiresSymbol: false,
     description: 'Dual-beta board — each name’s beta to ETH and to BTC over the same window, plus their divergence (βETH − βBTC): surfaces ETH-leaning vs BTC-leaning names across the watchlist.',
+  },
+  {
+    code: 'MARTIN',
+    aliases: ['UPI', 'MARTINRATIO'],
+    title: 'Martin Ratio (UPI)',
+    module: 'MARTIN',
+    requiresSymbol: false,
+    description: 'Martin ratio (Ulcer Performance Index) term structure — annualized return ÷ Ulcer Index across 1M/3M/6M/1Y trailing windows: return per unit of drawdown pain, read as a curve over horizon.',
   },
   {
     code: 'ALERT',
