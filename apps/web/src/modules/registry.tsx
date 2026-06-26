@@ -121,6 +121,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   MACD: mod(() => import('./MacdModule'), 'MacdModule'),
   ADX: mod(() => import('./AdxModule'), 'AdxModule'),
   MFI: mod(() => import('./MfiModule'), 'MfiModule'),
+  SUPER: mod(() => import('./SuperModule'), 'SuperModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

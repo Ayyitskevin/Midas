@@ -208,6 +208,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `MACD` | `MACDX`, `SIGNAL` | no | MACD signal board — 12/26/9 MACD line, price-normalized histogram, and bull/bear state with a fresh-cross marker for every watchlist name: a trend-momentum scan across the list (the chart's MACD is per-symbol). |
 | `ADX` | `DMI`, `DIRECTIONAL` | no | ADX / DMI board — Wilder's trend-strength gauge per name: ADX (≥25 strong trend, <20 rangebound) with +DI / −DI directional indicators and which one leads. Answers “is there a trend, how strong, and which way”. |
 | `MFI` | `MONEYFLOW`, `MF` | no | Money Flow Index board — the volume-weighted RSI (typical price × volume, 14-period) per name with overbought (≥80) / oversold (≤20) flags: combines price and volume into one oscillator, distinct from RSI (price only) and OBV (cumulative). |
+| `SUPER` | `SUPERTREND`, `ST` | no | Supertrend board — the ATR trend-follow regime per name: up / down direction, the ATR trailing-stop level, how far price sits from that stop, and a fresh-flip marker. A popular crypto trend signal across the whole watchlist. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
