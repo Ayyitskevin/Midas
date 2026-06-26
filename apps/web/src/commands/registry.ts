@@ -709,6 +709,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Common-sense ratio board — tail ratio × gain-to-pain: rewards a name only when it has both a fat right tail and an efficient win/loss balance. ≥1 is the green light.',
   },
   {
+    code: 'RSTAB',
+    aliases: ['SHARPESTAB', 'STAB'],
+    title: 'Rolling-Sharpe Stability',
+    module: 'RSTAB',
+    requiresSymbol: false,
+    description: 'Rolling-Sharpe stability board — mean ÷ stdev of each name’s rolling-Sharpe series: ranks who delivers a consistent risk-adjusted edge vs whose edge flickers. High and steady beats high and erratic.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
