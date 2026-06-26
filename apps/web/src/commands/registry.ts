@@ -869,6 +869,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Supertrend board — the ATR trend-follow regime per name: up / down direction, the ATR trailing-stop level, how far price sits from that stop, and a fresh-flip marker. A popular crypto trend signal across the whole watchlist.',
   },
   {
+    code: 'TREND',
+    aliases: ['PERSIST', 'MATREND'],
+    title: 'MA Trend Persistence',
+    module: 'TREND',
+    requiresSymbol: false,
+    description: 'MA trend-persistence board — how durably each name holds one side of its SMA: the current consecutive run of closes above (+) / below (−) the average, how far price sits from it, and the share of days spent above. Moving-average-relative trend, distinct from STREAK.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
