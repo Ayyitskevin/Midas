@@ -919,6 +919,15 @@ export const COMMANDS: CommandDef[] = [
       "Stochastic oscillator board — Lane's %K (the close's position in its N-bar high-low range) and %D signal line per name, with overbought (≥80) / oversold (≤20) zones and a fresh %K-vs-%D crossover flag. A range-position oscillator, distinct from RSI (gains/losses), MFI (volume-weighted) and CCI (mean deviation).",
   },
   {
+    code: 'DON',
+    aliases: ['DONCHIAN', 'TURTLE', 'DC'],
+    title: 'Donchian Channel',
+    module: 'DON',
+    requiresSymbol: false,
+    description:
+      'Donchian breakout board (the Turtle channel) — the prior N-bar highest-high / lowest-low channel per name: where the close sits in it (0 lower · 100 upper, exceeding on breakouts), the channel width relative to price, and an up/down flag on a new N-bar high / low. The pure price-extreme complement to the ATR (KELT) and stdev (BB) volatility bands.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
