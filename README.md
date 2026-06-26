@@ -204,6 +204,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `OBV` | `ACCUM`, `ACCUMULATION` | no | On-balance-volume board — cumulative signed volume per name with its net up − down volume flow and the OBV trend (regression slope ÷ avg volume): ranks who is being accumulated (volume confirming up moves) vs distributed. |
 | `CHOP` | `CHOPPINESS`, `CHOPPY` | no | Choppiness Index board — Dreiss’ 0–100 gauge of trending vs ranging per name (Σ true range ÷ net span, log-normalized): below ~38 is a clean trend, above ~62 is sideways chop. A regime filter that pairs with RANGE / NR7. |
 | `BB` | `BOLL`, `PCTB`, `SQUEEZE` | no | Bollinger %B board — each name's position within its Bollinger bands (%B: 0 = lower, 0.5 = middle, 1 = upper), the band width relative to price, and a squeeze flag when bandwidth sits in the bottom quintile of its recent range (compression before expansion). |
+| `RSI` | `RSI14`, `WILDER` | no | RSI screener — Wilder's 14-period RSI for every watchlist name with overbought (≥70) / oversold (≤30) flags: a momentum-oscillator scan across the whole list (the chart's RSI sub-pane is per-symbol). |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop. |
 | `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
