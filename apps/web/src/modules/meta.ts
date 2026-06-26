@@ -116,6 +116,7 @@ export type ModuleCode =
   | 'KELT'
   | 'HP'
   | 'STOCH'
+  | 'DON'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -257,6 +258,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   KELT: { code: 'KELT', title: 'Keltner Channel', w: 5, h: 12, minW: 4, minH: 6 },
   HP: { code: 'HP', title: 'Historical Prices', w: 6, h: 14, minW: 5, minH: 6 },
   STOCH: { code: 'STOCH', title: 'Stochastic', w: 5, h: 12, minW: 4, minH: 6 },
+  DON: { code: 'DON', title: 'Donchian Channel', w: 5, h: 12, minW: 4, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
