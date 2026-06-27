@@ -991,6 +991,15 @@ export const COMMANDS: CommandDef[] = [
       'TRIX board — the 1-period % rate-of-change of a triple-smoothed EMA of price per name, with its signal line (EMA of TRIX), the histogram (TRIX − signal), the zero-line side (up/down) and a fresh TRIX×signal cross. Triple smoothing filters the noise a single EMA leaves: a zero-line momentum oscillator, distinct from MACD (dual EMA).',
   },
   {
+    code: 'CMO',
+    aliases: ['CHANDE', 'CMO14'],
+    title: 'Chande Momentum',
+    module: 'CMO',
+    requiresSymbol: false,
+    description:
+      'Chande Momentum Oscillator board — (Σ up-moves − Σ down-moves) ÷ their total × 100 over N bars per name, on a ±100 scale with overbought (≥+50) / oversold (≤−50) flags. Uses raw sums (not smoothed averages like RSI), so it swings harder: a distinct momentum gauge from the RSI / Stochastic / CCI family.',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
