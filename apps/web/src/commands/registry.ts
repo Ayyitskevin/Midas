@@ -1306,6 +1306,15 @@ export const COMMANDS: CommandDef[] = [
       "SMI Ergodic board — William Blau's ergodic momentum, which is the True Strength Index (double-EMA-smoothed price change ÷ the same smoothing of its absolute value, ×100) paired with an EMA signal line; the histogram is the SMI Ergodic Oscillator. Above zero is net bullish momentum, below bearish, and a signal-line cross (histogram sign flip) is the trigger. Default long 20 / short 5 / signal 5, with a 20 / 12 long-period toggle. Shows the indicator, the histogram, and any fresh bull/bear cross.",
   },
   {
+    code: 'RBOW',
+    aliases: ['RAINBOW', 'RAINBOWOSC'],
+    title: 'Rainbow Oscillator',
+    module: 'RBOW',
+    requiresSymbol: false,
+    description:
+      "Rainbow Oscillator board — Mel Widner's rainbow of ten recursively-smoothed 2-period SMAs of close (each band a 2-SMA of the previous), read two ways, both normalized by the recent high-low range: RO = 100·(close − rainbow average) ÷ range (positive above the rainbow / negative below), and the bandwidth = 100·(widest band − narrowest band) ÷ range (wide = strong trend, narrow = consolidation). Default 10 bands with a 10 / 20 range-lookback toggle. Shows the oscillator, the bandwidth, and which side of the rainbow price sits on.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
