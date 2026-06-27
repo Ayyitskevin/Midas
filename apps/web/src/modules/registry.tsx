@@ -150,6 +150,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   MASS: mod(() => import('./MassModule'), 'MassModule'),
   QSTICK: mod(() => import('./QstickModule'), 'QstickModule'),
   NVI: mod(() => import('./VolumeIndexModule'), 'VolumeIndexModule'),
+  CFO: mod(() => import('./CfoModule'), 'CfoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

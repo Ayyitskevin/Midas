@@ -1117,6 +1117,15 @@ export const COMMANDS: CommandDef[] = [
       "Volume Index board — the Negative & Positive Volume Index per name (cumulative lines that compound the daily return only on down-volume days, NVI = 'smart money', or up-volume days, PVI), each vs its own EMA signal. Reports NVI's distance from its EMA and the bull/bear regime of both — NVI above its EMA is the strongest bull-market tell.",
   },
   {
+    code: 'CFO',
+    aliases: ['FORECAST', 'CHANDEFO'],
+    title: 'Chande Forecast',
+    module: 'CFO',
+    requiresSymbol: false,
+    description:
+      "Chande Forecast Oscillator board — 100 × (close − the least-squares regression-line fit over N bars) ÷ close, per name, on a zero line with an above/below-fit side. Measures how far price sits from its own regression trend: above zero means it's running ahead of the fit, below means it lags. A regression-based oscillator distinct from the moving-average family.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
