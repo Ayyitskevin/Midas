@@ -1027,6 +1027,15 @@ export const COMMANDS: CommandDef[] = [
       "Detrended Price Oscillator board — each name's close from floor(N/2)+1 bars ago minus its N-bar SMA (as a % of the SMA), with an above/below cycle-mean flag. Strips the trend to expose the price cycle around the average; reaches back (never forward) so the screener has no look-ahead. A cycle-oriented oscillator, distinct from the trend/momentum family.",
   },
   {
+    code: 'COPP',
+    aliases: ['COPPOCK', 'COP'],
+    title: 'Coppock Curve',
+    module: 'COPP',
+    requiresSymbol: false,
+    description:
+      "Coppock Curve board — a 10-period weighted MA of each name's summed 14- and 11-bar rate-of-change, with its zero-line side and a fresh trough (up) / peak (down) turn. A trough turn near/below zero is Coppock's classic long-term buy signal: a slow, bottom-spotting momentum gauge distinct from the fast oscillator family.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
