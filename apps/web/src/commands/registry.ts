@@ -1135,6 +1135,15 @@ export const COMMANDS: CommandDef[] = [
       "Random Walk Index board — per name, the max over look-backs k=2..N of price displacement ÷ (ATR(k)·√k), split into RWIhigh (up-trend strength) and RWIlow (down-trend strength). A reading ≥ 1 means price out-ran a same-volatility random walk — a genuine trend; below 1 reads as directionless noise. The signed RWI (+high / −low) sorts strongest up-trends → range → strongest down-trends.",
   },
   {
+    code: 'STC',
+    aliases: ['SCHAFF', 'TRENDCYCLE'],
+    title: 'Schaff Trend Cycle',
+    module: 'STC',
+    requiresSymbol: false,
+    description:
+      "Schaff Trend Cycle board — per name, a 0–100 cyclical oscillator that runs a stochastic over the 23/50 MACD line, then a second smoothed stochastic over that, so it turns earlier than a plain MACD. ≥ 75 and rising flags a strengthening up-cycle, ≤ 25 a down-cycle; crosses of 25 / 75 are the common triggers. Shows the STC level, its bar-over-bar change, and the bull/bear/mid zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
