@@ -1072,6 +1072,15 @@ export const COMMANDS: CommandDef[] = [
       "Force Index board (Elder) — (close − priorClose) × volume, EMA-smoothed over N bars per name, normalized as FI ÷ (price × avg volume) so it's comparable across names, with a bulls/bears side and a rising/falling flag. Ties the size of each move to the volume behind it: a zero-line volume oscillator.",
   },
   {
+    code: 'EOM',
+    aliases: ['EMV', 'EASE'],
+    title: 'Ease of Movement',
+    module: 'EOM',
+    requiresSymbol: false,
+    description:
+      "Ease of Movement board (Arms) — midpoint move × range ÷ volume, SMA-smoothed over N bars per name and normalized to a dimensionless index, with an up/down ease side. Measures how readily price moves relative to the volume required: positive = rose easily (big move on light volume), negative = fell easily. A volume/price-efficiency oscillator.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

@@ -145,6 +145,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   ADL: mod(() => import('./AdlModule'), 'AdlModule'),
   CMF: mod(() => import('./CmfModule'), 'CmfModule'),
   FORCE: mod(() => import('./ForceModule'), 'ForceModule'),
+  EOM: mod(() => import('./EomModule'), 'EomModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
