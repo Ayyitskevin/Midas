@@ -1081,6 +1081,15 @@ export const COMMANDS: CommandDef[] = [
       "Ease of Movement board (Arms) — midpoint move × range ÷ volume, SMA-smoothed over N bars per name and normalized to a dimensionless index, with an up/down ease side. Measures how readily price moves relative to the volume required: positive = rose easily (big move on light volume), negative = fell easily. A volume/price-efficiency oscillator.",
   },
   {
+    code: 'PVT',
+    aliases: ['PRICEVOL', 'PVTREND'],
+    title: 'Price Volume Trend',
+    module: 'PVT',
+    requiresSymbol: false,
+    description:
+      "Price Volume Trend board — the cumulative ((close − priorClose)/priorClose) × volume line per name, reported as its normalized slope over N bars (volume-weighted % return), its trend, and a fresh N-bar PVT high / low. Like OBV but scaled by the size of each move: a volume-confirmed trend line distinct from OBV and the A/D line.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
