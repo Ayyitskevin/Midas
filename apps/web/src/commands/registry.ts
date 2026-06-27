@@ -1000,6 +1000,15 @@ export const COMMANDS: CommandDef[] = [
       'Chande Momentum Oscillator board — (Σ up-moves − Σ down-moves) ÷ their total × 100 over N bars per name, on a ±100 scale with overbought (≥+50) / oversold (≤−50) flags. Uses raw sums (not smoothed averages like RSI), so it swings harder: a distinct momentum gauge from the RSI / Stochastic / CCI family.',
   },
   {
+    code: 'ELDER',
+    aliases: ['ELDERRAY', 'ERAY'],
+    title: 'Elder-Ray',
+    module: 'ELDER',
+    requiresSymbol: false,
+    description:
+      "Elder-Ray board (Alexander Elder) — bull power (high − EMA) and bear power (low − EMA) per name as a % of the trend EMA, with the EMA slope as the up/down trend filter. Shows whether buyers or sellers control price relative to the trend: a buyer/seller-pressure board distinct from the oscillator family.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
