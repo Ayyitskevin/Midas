@@ -136,6 +136,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   WILLR: mod(() => import('./WilliamsRModule'), 'WilliamsRModule'),
   UO: mod(() => import('./UltimateModule'), 'UltimateModule'),
   TRIX: mod(() => import('./TrixModule'), 'TrixModule'),
+  CMO: mod(() => import('./CmoModule'), 'CmoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
