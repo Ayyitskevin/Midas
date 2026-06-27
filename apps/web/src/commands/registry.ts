@@ -1018,6 +1018,15 @@ export const COMMANDS: CommandDef[] = [
       "Fisher Transform board (Ehlers) — normalizes each name's median price into its N-bar range and applies the Fisher transform to sharpen turning points, with the trigger line (prior Fisher) and a fresh Fisher×trigger cross. A reversal-oriented oscillator with crisper turns than the smooth momentum family.",
   },
   {
+    code: 'DPO',
+    aliases: ['DETREND', 'DETRENDED'],
+    title: 'Detrended Price',
+    module: 'DPO',
+    requiresSymbol: false,
+    description:
+      "Detrended Price Oscillator board — each name's close from floor(N/2)+1 bars ago minus its N-bar SMA (as a % of the SMA), with an above/below cycle-mean flag. Strips the trend to expose the price cycle around the average; reaches back (never forward) so the screener has no look-ahead. A cycle-oriented oscillator, distinct from the trend/momentum family.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
