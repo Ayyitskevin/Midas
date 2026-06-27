@@ -1054,6 +1054,15 @@ export const COMMANDS: CommandDef[] = [
       "Accumulation/Distribution line board (Chaikin) — the cumulative money-flow-volume line (close position in range × volume) per name, reported as its normalized slope over N bars (net flow ÷ volume), its trend, and a fresh N-bar A/D high (accumulation breakout) / low (distribution breakdown). A cumulative volume-flow gauge distinct from OBV.",
   },
   {
+    code: 'CMF',
+    aliases: ['CHAIKINMF', 'CMFLOW'],
+    title: 'Chaikin Money Flow',
+    module: 'CMF',
+    requiresSymbol: false,
+    description:
+      "Chaikin Money Flow board — Σ(money-flow volume) ÷ Σ(volume) over N bars per name, bounded −1..+1, with a buyers/sellers side and a strong-flow flag (|CMF| ≥ 0.25). The bounded oscillator sibling of the A/D line: positive is accumulation, negative distribution.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
