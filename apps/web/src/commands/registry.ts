@@ -1126,6 +1126,15 @@ export const COMMANDS: CommandDef[] = [
       "Chande Forecast Oscillator board — 100 × (close − the least-squares regression-line fit over N bars) ÷ close, per name, on a zero line with an above/below-fit side. Measures how far price sits from its own regression trend: above zero means it's running ahead of the fit, below means it lags. A regression-based oscillator distinct from the moving-average family.",
   },
   {
+    code: 'RWI',
+    aliases: ['RANDOMWALK', 'RWALK'],
+    title: 'Random Walk Index',
+    module: 'RWI',
+    requiresSymbol: false,
+    description:
+      "Random Walk Index board — per name, the max over look-backs k=2..N of price displacement ÷ (ATR(k)·√k), split into RWIhigh (up-trend strength) and RWIlow (down-trend strength). A reading ≥ 1 means price out-ran a same-volatility random walk — a genuine trend; below 1 reads as directionless noise. The signed RWI (+high / −low) sorts strongest up-trends → range → strongest down-trends.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
