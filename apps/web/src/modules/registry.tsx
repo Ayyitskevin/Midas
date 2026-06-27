@@ -166,6 +166,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   VHF: mod(() => import('./VhfModule'), 'VhfModule'),
   PGO: mod(() => import('./PgoModule'), 'PgoModule'),
   IMPULSE: mod(() => import('./ImpulseModule'), 'ImpulseModule'),
+  DISP: mod(() => import('./DisparityModule'), 'DisparityModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
