@@ -162,6 +162,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   SMI: mod(() => import('./SmiModule'), 'SmiModule'),
   RMI: mod(() => import('./RmiModule'), 'RmiModule'),
   DOSC: mod(() => import('./DoscModule'), 'DoscModule'),
+  PSO: mod(() => import('./PremierStochModule'), 'PremierStochModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
