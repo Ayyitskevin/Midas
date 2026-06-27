@@ -982,6 +982,15 @@ export const COMMANDS: CommandDef[] = [
       "Ultimate Oscillator board (Larry Williams) — buying pressure ÷ true range blended over three timeframes (7/14/28) weighted 4:2:1 into a 0–100 reading per name, with overbought (≥70) / oversold (≤30) flags. Blends short/medium/long momentum to cut the false divergences single-period oscillators give.",
   },
   {
+    code: 'TRIX',
+    aliases: ['TRIPLE', 'TRIXOSC'],
+    title: 'TRIX',
+    module: 'TRIX',
+    requiresSymbol: false,
+    description:
+      'TRIX board — the 1-period % rate-of-change of a triple-smoothed EMA of price per name, with its signal line (EMA of TRIX), the histogram (TRIX − signal), the zero-line side (up/down) and a fresh TRIX×signal cross. Triple smoothing filters the noise a single EMA leaves: a zero-line momentum oscillator, distinct from MACD (dual EMA).',
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
