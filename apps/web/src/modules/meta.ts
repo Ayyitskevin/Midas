@@ -148,6 +148,7 @@ export type ModuleCode =
   | 'RVGI'
   | 'WT'
   | 'SMI'
+  | 'RMI'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -321,6 +322,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   RVGI: { code: 'RVGI', title: 'Relative Vigor Index', w: 4, h: 12, minW: 3, minH: 6 },
   WT: { code: 'WT', title: 'Wave Trend Osc', w: 4, h: 12, minW: 3, minH: 6 },
   SMI: { code: 'SMI', title: 'Stochastic Momentum Index', w: 4, h: 12, minW: 3, minH: 6 },
+  RMI: { code: 'RMI', title: 'Relative Momentum Index', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

@@ -1207,6 +1207,15 @@ export const COMMANDS: CommandDef[] = [
       "Stochastic Momentum Index board — William Blau's refined stochastic: 200 × the double-EMA-smoothed distance of close from the range midpoint ÷ the double-EMA-smoothed range, on ±100, with an EMA signal. Less noisy than a plain stochastic; above +40 is overbought, below −40 oversold, and SMI/signal and zero-line crossovers are the triggers. Shows the SMI, its distance from the signal, and the OB/OS zone.",
   },
   {
+    code: 'RMI',
+    aliases: ['RELMOM', 'MOMRSI'],
+    title: 'Relative Momentum Index',
+    module: 'RMI',
+    requiresSymbol: false,
+    description:
+      "Relative Momentum Index board — Roger Altman's RSI generalised to an M-bar momentum: instead of the 1-bar change it Wilder-smooths the up/down moves of close vs close M bars ago, on a 0–100 scale (length 20, momentum 5). Smoother and less whippy than RSI; > 70 overbought, < 30 oversold, and with momentum = 1 it is exactly a 20-period RSI. Shows the RMI, its bar-over-bar change, and the OB/OS zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
