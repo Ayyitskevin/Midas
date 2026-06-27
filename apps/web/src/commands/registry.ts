@@ -1198,6 +1198,15 @@ export const COMMANDS: CommandDef[] = [
       "Wave Trend Oscillator board — LazyBear's double-smoothed CCI on the typical price (hlc3): a 10-EMA channel, its 0.015-scaled mean deviation, normalised and run through a 21-EMA (wt1), versus a 4-SMA signal (wt2). Oscillates around zero (≈ ±60) with overbought at +53/+60 and oversold at −53/−60; wt1 crossing wt2 and the zero line are the triggers. Shows the WaveTrend, its distance from the signal, and the OB/OS zone.",
   },
   {
+    code: 'SMI',
+    aliases: ['STOCHMOM', 'BLAU'],
+    title: 'Stochastic Momentum Index',
+    module: 'SMI',
+    requiresSymbol: false,
+    description:
+      "Stochastic Momentum Index board — William Blau's refined stochastic: 200 × the double-EMA-smoothed distance of close from the range midpoint ÷ the double-EMA-smoothed range, on ±100, with an EMA signal. Less noisy than a plain stochastic; above +40 is overbought, below −40 oversold, and SMI/signal and zero-line crossovers are the triggers. Shows the SMI, its distance from the signal, and the OB/OS zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
