@@ -1270,6 +1270,15 @@ export const COMMANDS: CommandDef[] = [
       "Disparity Index board — Steve Nison's mean-distance gauge: 100 × (close − N-period EMA) ÷ EMA, i.e. price's percentage distance from its moving average, comparable across symbols regardless of price. Above zero means price trades above its mean (uptrend bias), below zero below it; large readings flag over-extension from the mean. Default look-back 14, with a 14 / 25 toggle. Shows the DI, its absolute stretch, and which side of the mean price sits on.",
   },
   {
+    code: 'TII',
+    aliases: ['TRENDINTENSITY', 'TRENDINT'],
+    title: 'Trend Intensity',
+    module: 'TII',
+    requiresSymbol: false,
+    description:
+      "Trend Intensity Index board — M.H. Pee's trend-strength oscillator (0–100): over the last half-period window, sum the close's positive deviations above its simple major-period SMA versus the absolute negative deviations below, then 100 × SDpos / (SDpos + SDneg). Above 50 means positive deviations dominate (uptrend bias), below 50 the reverse, ~50 trendless; the 80 / 20 bands mark a strong trend. Default 60-SMA with a 30-bar window (60 / 30 toggle). Shows the TII, its bar-over-bar change, and the trend band.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
