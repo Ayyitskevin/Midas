@@ -140,6 +140,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   ELDER: mod(() => import('./ElderModule'), 'ElderModule'),
   FISHER: mod(() => import('./FisherModule'), 'FisherModule'),
   DPO: mod(() => import('./DpoModule'), 'DpoModule'),
+  COPP: mod(() => import('./CoppockModule'), 'CoppockModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
