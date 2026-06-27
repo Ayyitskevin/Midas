@@ -1063,6 +1063,15 @@ export const COMMANDS: CommandDef[] = [
       "Chaikin Money Flow board — Σ(money-flow volume) ÷ Σ(volume) over N bars per name, bounded −1..+1, with a buyers/sellers side and a strong-flow flag (|CMF| ≥ 0.25). The bounded oscillator sibling of the A/D line: positive is accumulation, negative distribution.",
   },
   {
+    code: 'FORCE',
+    aliases: ['FORCEINDEX', 'EFI'],
+    title: 'Force Index',
+    module: 'FORCE',
+    requiresSymbol: false,
+    description:
+      "Force Index board (Elder) — (close − priorClose) × volume, EMA-smoothed over N bars per name, normalized as FI ÷ (price × avg volume) so it's comparable across names, with a bulls/bears side and a rising/falling flag. Ties the size of each move to the volume behind it: a zero-line volume oscillator.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
