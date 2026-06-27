@@ -138,6 +138,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TRIX: mod(() => import('./TrixModule'), 'TrixModule'),
   CMO: mod(() => import('./CmoModule'), 'CmoModule'),
   ELDER: mod(() => import('./ElderModule'), 'ElderModule'),
+  FISHER: mod(() => import('./FisherModule'), 'FisherModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

@@ -1009,6 +1009,15 @@ export const COMMANDS: CommandDef[] = [
       "Elder-Ray board (Alexander Elder) — bull power (high − EMA) and bear power (low − EMA) per name as a % of the trend EMA, with the EMA slope as the up/down trend filter. Shows whether buyers or sellers control price relative to the trend: a buyer/seller-pressure board distinct from the oscillator family.",
   },
   {
+    code: 'FISHER',
+    aliases: ['FISH', 'EHLERS'],
+    title: 'Fisher Transform',
+    module: 'FISHER',
+    requiresSymbol: false,
+    description:
+      "Fisher Transform board (Ehlers) — normalizes each name's median price into its N-bar range and applies the Fisher transform to sharpen turning points, with the trigger line (prior Fisher) and a fresh Fisher×trigger cross. A reversal-oriented oscillator with crisper turns than the smooth momentum family.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
