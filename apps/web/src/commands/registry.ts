@@ -1171,6 +1171,15 @@ export const COMMANDS: CommandDef[] = [
       "Know Sure Thing board — Martin Pring's summed rate-of-change momentum: four ROCs (10/15/20/30) each SMA-smoothed, then weighted 1·2·3·4 and added (raw, un-normalized), with a 9-SMA signal line. Oscillates around zero — above zero and above its signal is bullish momentum, below is bearish, and signal crossovers are the trigger. Shows the KST, its distance from the signal, and the above/below-signal and above/below-zero state.",
   },
   {
+    code: 'KVO',
+    aliases: ['KLINGER', 'KVOL'],
+    title: 'Klinger Volume Osc',
+    module: 'KVO',
+    requiresSymbol: false,
+    description:
+      "Klinger Volume Oscillator board — Stephen Klinger's volume-force oscillator: a signed force (volume × |2·(dm/cm − 1)| × trend × 100, dm the daily range and cm its trend-cumulative measurement) run through EMA(34) − EMA(55), with a 13-EMA signal. Above zero / above its signal is net accumulation, below is distribution; zero-line and signal crossovers are the triggers. Volume-normalised so symbols compare; shows the value, its distance from the signal, and the accumulation/distribution state.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
