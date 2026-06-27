@@ -1225,6 +1225,15 @@ export const COMMANDS: CommandDef[] = [
       "Derivative Oscillator board — Constance Brown's refined RSI momentum: a 14-period Wilder RSI double-smoothed by EMAs (5 then 3), minus a 9-period simple moving average of that double-smoothed RSI, plotted as a histogram. Above zero (and rising) is bullish momentum, below zero bearish, and the zero-line and DO/signal crossovers are the triggers. Shows the DOSC histogram, whether it's rising or falling, and the bull/bear side.",
   },
   {
+    code: 'PSO',
+    aliases: ['PREMIER', 'PREMSTOCH'],
+    title: 'Premier Stochastic',
+    module: 'PSO',
+    requiresSymbol: false,
+    description:
+      "Premier Stochastic board — Lee Leibfarth's stochastic refined to a crisp ±1: a fast %K (length 8) is normalised to 0.1·(%K−50), double-EMA-smoothed (period 5), then squashed through (e^ss−1)/(e^ss+1) = tanh. The exponential sharpens turns — PSO sits near ±1 only on a sustained smoothed extreme; > +0.9 is strongly overbought, < −0.9 strongly oversold, and zero-line crossovers are the triggers. Shows the PSO, its bar-over-bar change, and the OB/OS zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
