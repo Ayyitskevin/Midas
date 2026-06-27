@@ -1108,6 +1108,15 @@ export const COMMANDS: CommandDef[] = [
       "Qstick board (Chande) — the average candle body (close − open) over N bars per name, as a % of price, with an up/down body-bias side. Above zero means up-closes dominated the window (buying bias), below zero down-closes (selling bias): a simple candle-body sentiment gauge.",
   },
   {
+    code: 'NVI',
+    aliases: ['PVI', 'VOLINDEX'],
+    title: 'Volume Index',
+    module: 'NVI',
+    requiresSymbol: false,
+    description:
+      "Volume Index board — the Negative & Positive Volume Index per name (cumulative lines that compound the daily return only on down-volume days, NVI = 'smart money', or up-volume days, PVI), each vs its own EMA signal. Reports NVI's distance from its EMA and the bull/bear regime of both — NVI above its EMA is the strongest bull-market tell.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
