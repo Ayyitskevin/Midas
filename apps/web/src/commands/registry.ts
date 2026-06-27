@@ -1315,6 +1315,15 @@ export const COMMANDS: CommandDef[] = [
       "Rainbow Oscillator board — Mel Widner's rainbow of ten recursively-smoothed 2-period SMAs of close (each band a 2-SMA of the previous), read two ways, both normalized by the recent high-low range: RO = 100·(close − rainbow average) ÷ range (positive above the rainbow / negative below), and the bandwidth = 100·(widest band − narrowest band) ÷ range (wide = strong trend, narrow = consolidation). Default 10 bands with a 10 / 20 range-lookback toggle. Shows the oscillator, the bandwidth, and which side of the rainbow price sits on.",
   },
   {
+    code: 'TTF',
+    aliases: ['TRENDTRIGGER', 'TRIGGERFACTOR'],
+    title: 'Trend Trigger Factor',
+    module: 'TTF',
+    requiresSymbol: false,
+    description:
+      "Trend Trigger Factor board — M.H. Pee's range-geometry oscillator comparing the most recent N-bar high/low range against the prior N bars: buyPower = recent highest high − prior lowest low; sellPower = prior highest high − recent lowest low; TTF = 100·(buyPower − sellPower) ÷ (0.5·(buyPower + sellPower)). It oscillates around 0 and beyond ±100 — above +100 is a strong uptrend (buy), below −100 a strong downtrend (sell), in between is neutral. Default lookback 15 (so 30 bars), with a 15 / 30 toggle. Shows the TTF, its magnitude, and the buy/sell/flat zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
