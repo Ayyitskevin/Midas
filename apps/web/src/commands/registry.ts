@@ -1279,6 +1279,15 @@ export const COMMANDS: CommandDef[] = [
       "Trend Intensity Index board — M.H. Pee's trend-strength oscillator (0–100): over the last half-period window, sum the close's positive deviations above its simple major-period SMA versus the absolute negative deviations below, then 100 × SDpos / (SDpos + SDneg). Above 50 means positive deviations dominate (uptrend bias), below 50 the reverse, ~50 trendless; the 80 / 20 bands mark a strong trend. Default 60-SMA with a 30-bar window (60 / 30 toggle). Shows the TII, its bar-over-bar change, and the trend band.",
   },
   {
+    code: 'CKS',
+    aliases: ['CHANDEKROLL', 'KROLL'],
+    title: 'Chande Kroll Stop',
+    module: 'CKS',
+    requiresSymbol: false,
+    description:
+      "Chande Kroll Stop board — Chande & Kroll's two-stage ATR trailing stops: preliminary highStop = highestHigh(p) − x·ATR and lowStop = lowestLow(p) + x·ATR, then the final stopShort = highest(highStop, q) (upper band) and stopLong = lowest(lowStop, q) (lower band) using a Wilder ATR. Close above the upper band is an uptrend break, below the lower band a downtrend break, in between is range. Default ATR(10) / stop 9, with a 1× / 3× ATR toggle. Shows the regime and the % distance to each stop.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
