@@ -1243,6 +1243,15 @@ export const COMMANDS: CommandDef[] = [
       "Vertical Horizontal Filter board — Adam White's trend-vs-chop regime gauge: the N-bar close range ÷ the sum of |bar-to-bar close moves|, i.e. directional travel over total wiggle, on a 0–1 scale. High (≳ 0.35) means an efficient trend (favour trend-following tools); low (≲ 0.20) means choppy churn (favour oscillators); rising VHF = strengthening trend. Shows the VHF, its bar-over-bar change, and the trend/chop/mid regime.",
   },
   {
+    code: 'PGO',
+    aliases: ['PRETTYGOOD', 'PGOSC'],
+    title: 'Pretty Good Oscillator',
+    module: 'PGO',
+    requiresSymbol: false,
+    description:
+      "Pretty Good Oscillator board — Mark Johnson's mean-distance gauge: (close − N-period SMA) ÷ an N-period EMA of the true range, so the reading is in ATR units and comparable across symbols. Above zero means price is above its mean (uptrend bias), below zero below it; ±3 are the momentum-breakout extremes (a stretch of three average ranges from the mean). Default look-back 89. Shows the PGO, its absolute stretch, and the ±3 zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
