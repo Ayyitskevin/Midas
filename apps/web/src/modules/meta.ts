@@ -152,6 +152,7 @@ export type ModuleCode =
   | 'DOSC'
   | 'PSO'
   | 'VHF'
+  | 'PGO'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -329,6 +330,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DOSC: { code: 'DOSC', title: 'Derivative Oscillator', w: 4, h: 12, minW: 3, minH: 6 },
   PSO: { code: 'PSO', title: 'Premier Stochastic', w: 4, h: 12, minW: 3, minH: 6 },
   VHF: { code: 'VHF', title: 'Vertical Horizontal Filter', w: 4, h: 12, minW: 3, minH: 6 },
+  PGO: { code: 'PGO', title: 'Pretty Good Oscillator', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

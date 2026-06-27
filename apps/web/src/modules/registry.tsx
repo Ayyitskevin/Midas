@@ -164,6 +164,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   DOSC: mod(() => import('./DoscModule'), 'DoscModule'),
   PSO: mod(() => import('./PremierStochModule'), 'PremierStochModule'),
   VHF: mod(() => import('./VhfModule'), 'VhfModule'),
+  PGO: mod(() => import('./PgoModule'), 'PgoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
