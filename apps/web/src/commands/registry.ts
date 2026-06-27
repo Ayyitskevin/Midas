@@ -1099,6 +1099,15 @@ export const COMMANDS: CommandDef[] = [
       "Mass Index board (Dorsey) — Σ over 25 bars of EMA9(range) ÷ EMA9(EMA9(range)) per name, with the reversal-bulge state: bulge (≥ 27), setup (bulged then awaiting the drop), fired (just fell below 26.5 — the reversal warning) or normal. Watches the high-low range expand then contract to anticipate turns; a volatility-of-range signal distinct from the directional oscillators.",
   },
   {
+    code: 'QSTICK',
+    aliases: ['QSTK', 'QS'],
+    title: 'Qstick',
+    module: 'QSTICK',
+    requiresSymbol: false,
+    description:
+      "Qstick board (Chande) — the average candle body (close − open) over N bars per name, as a % of price, with an up/down body-bias side. Above zero means up-closes dominated the window (buying bias), below zero down-closes (selling bias): a simple candle-body sentiment gauge.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
