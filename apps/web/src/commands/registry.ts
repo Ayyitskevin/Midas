@@ -1297,6 +1297,15 @@ export const COMMANDS: CommandDef[] = [
       "KAMA trend board — Kaufman's Adaptive Moving Average, an EMA whose smoothing constant scales with the Efficiency Ratio (net directional travel ÷ total path), so it tracks fast in clean trends and flattens in chop. SC = (ER·(fast − slow SC) + slow SC)², KAMA recurses toward price. Default ER 10 / fast 2 / slow 30, with a 10 / 20 ER-period toggle. Shows the KAMA slope direction, the Efficiency Ratio %, and the % distance of price from KAMA.",
   },
   {
+    code: 'SMIE',
+    aliases: ['SMIERGODIC', 'ERGODIC'],
+    title: 'SMI Ergodic',
+    module: 'SMIE',
+    requiresSymbol: false,
+    description:
+      "SMI Ergodic board — William Blau's ergodic momentum, which is the True Strength Index (double-EMA-smoothed price change ÷ the same smoothing of its absolute value, ×100) paired with an EMA signal line; the histogram is the SMI Ergodic Oscillator. Above zero is net bullish momentum, below bearish, and a signal-line cross (histogram sign flip) is the trigger. Default long 20 / short 5 / signal 5, with a 20 / 12 long-period toggle. Shows the indicator, the histogram, and any fresh bull/bear cross.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
