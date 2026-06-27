@@ -1090,6 +1090,15 @@ export const COMMANDS: CommandDef[] = [
       "Price Volume Trend board — the cumulative ((close − priorClose)/priorClose) × volume line per name, reported as its normalized slope over N bars (volume-weighted % return), its trend, and a fresh N-bar PVT high / low. Like OBV but scaled by the size of each move: a volume-confirmed trend line distinct from OBV and the A/D line.",
   },
   {
+    code: 'MASS',
+    aliases: ['MASSINDEX', 'MASSIDX'],
+    title: 'Mass Index',
+    module: 'MASS',
+    requiresSymbol: false,
+    description:
+      "Mass Index board (Dorsey) — Σ over 25 bars of EMA9(range) ÷ EMA9(EMA9(range)) per name, with the reversal-bulge state: bulge (≥ 27), setup (bulged then awaiting the drop), fired (just fell below 26.5 — the reversal warning) or normal. Watches the high-low range expand then contract to anticipate turns; a volatility-of-range signal distinct from the directional oscillators.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
