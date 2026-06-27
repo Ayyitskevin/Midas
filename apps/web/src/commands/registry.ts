@@ -1252,6 +1252,15 @@ export const COMMANDS: CommandDef[] = [
       "Pretty Good Oscillator board — Mark Johnson's mean-distance gauge: (close − N-period SMA) ÷ an N-period EMA of the true range, so the reading is in ATR units and comparable across symbols. Above zero means price is above its mean (uptrend bias), below zero below it; ±3 are the momentum-breakout extremes (a stretch of three average ranges from the mean). Default look-back 89. Shows the PGO, its absolute stretch, and the ±3 zone.",
   },
   {
+    code: 'IMPULSE',
+    aliases: ['ELDERIMPULSE', 'IMP'],
+    title: 'Elder Impulse',
+    module: 'IMPULSE',
+    requiresSymbol: false,
+    description:
+      "Elder Impulse System board — Dr. Elder's regime censor combining the 13-period EMA slope (trend) with the MACD-histogram slope (momentum): green/bull when both rise, red/bear when both fall, blue/neutral when they disagree or either is flat. Green forbids shorting, red forbids buying, neutral permits both, so a fresh flip on the latest bar is the signal. Shows each symbol's impulse (with a ·new flip tag), its EMA slope %, and histogram %, with an all-bars / fresh-flips filter.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
