@@ -1261,6 +1261,15 @@ export const COMMANDS: CommandDef[] = [
       "Elder Impulse System board — Dr. Elder's regime censor combining the 13-period EMA slope (trend) with the MACD-histogram slope (momentum): green/bull when both rise, red/bear when both fall, blue/neutral when they disagree or either is flat. Green forbids shorting, red forbids buying, neutral permits both, so a fresh flip on the latest bar is the signal. Shows each symbol's impulse (with a ·new flip tag), its EMA slope %, and histogram %, with an all-bars / fresh-flips filter.",
   },
   {
+    code: 'DISP',
+    aliases: ['DISPARITY', 'DI'],
+    title: 'Disparity Index',
+    module: 'DISP',
+    requiresSymbol: false,
+    description:
+      "Disparity Index board — Steve Nison's mean-distance gauge: 100 × (close − N-period EMA) ÷ EMA, i.e. price's percentage distance from its moving average, comparable across symbols regardless of price. Above zero means price trades above its mean (uptrend bias), below zero below it; large readings flag over-extension from the mean. Default look-back 14, with a 14 / 25 toggle. Shows the DI, its absolute stretch, and which side of the mean price sits on.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
