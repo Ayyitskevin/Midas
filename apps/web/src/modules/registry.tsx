@@ -172,6 +172,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   KAMA: mod(() => import('./KamaModule'), 'KamaModule'),
   SMIE: mod(() => import('./SmieModule'), 'SmieModule'),
   RBOW: mod(() => import('./RainbowModule'), 'RainbowModule'),
+  TTF: mod(() => import('./TtfModule'), 'TtfModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
