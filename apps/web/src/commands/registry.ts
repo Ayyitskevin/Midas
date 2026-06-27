@@ -1036,6 +1036,15 @@ export const COMMANDS: CommandDef[] = [
       "Coppock Curve board — a 10-period weighted MA of each name's summed 14- and 11-bar rate-of-change, with its zero-line side and a fresh trough (up) / peak (down) turn. A trough turn near/below zero is Coppock's classic long-term buy signal: a slow, bottom-spotting momentum gauge distinct from the fast oscillator family.",
   },
   {
+    code: 'BOP',
+    aliases: ['BALOP', 'BPOW'],
+    title: 'Balance of Power',
+    module: 'BOP',
+    requiresSymbol: false,
+    description:
+      "Balance of Power board — (close − open) ÷ (high − low) per bar, smoothed over N bars on a −1..+1 scale, per name, with a buyers/sellers side and the latest candle's raw reading. Measures who won each candle (close vs open within the range): a simple buyer/seller-pressure gauge distinct from Elder-Ray.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
