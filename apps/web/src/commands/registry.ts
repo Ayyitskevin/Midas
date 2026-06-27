@@ -1144,6 +1144,15 @@ export const COMMANDS: CommandDef[] = [
       "Schaff Trend Cycle board — per name, a 0–100 cyclical oscillator that runs a stochastic over the 23/50 MACD line, then a second smoothed stochastic over that, so it turns earlier than a plain MACD. ≥ 75 and rising flags a strengthening up-cycle, ≤ 25 a down-cycle; crosses of 25 / 75 are the common triggers. Shows the STC level, its bar-over-bar change, and the bull/bear/mid zone.",
   },
   {
+    code: 'TSI',
+    aliases: ['TRUESTRENGTH', 'TSTRENGTH'],
+    title: 'True Strength Index',
+    module: 'TSI',
+    requiresSymbol: false,
+    description:
+      "True Strength Index board — per name, William Blau's double-smoothed momentum: 100 × EMA(EMA(Δclose, 25), 13) ÷ EMA(EMA(|Δclose|, 25), 13), with a 7-EMA signal line. Bounded ≈ ±100; above zero is net positive (bullish) momentum, below zero bearish, ±25 the common overbought/oversold extremes, and a cross of the signal line the usual trigger. Shows the TSI, its distance from the signal, and the OB/OS/mid zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
