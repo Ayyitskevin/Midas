@@ -1162,6 +1162,15 @@ export const COMMANDS: CommandDef[] = [
       "Connors RSI board — Larry Connors' short-term mean-reversion composite, the average of three 0–100 parts: a 3-period Wilder RSI of the close, a 2-period RSI of the consecutive up/down streak, and the percent-rank of today's 1-bar return over the last 100 bars. Below 10 is washed-out (oversold), above 90 over-extended. Shows the composite plus each component (RSI / STRK / %R).",
   },
   {
+    code: 'KST',
+    aliases: ['KNOWSURETHING', 'PRING'],
+    title: 'Know Sure Thing',
+    module: 'KST',
+    requiresSymbol: false,
+    description:
+      "Know Sure Thing board — Martin Pring's summed rate-of-change momentum: four ROCs (10/15/20/30) each SMA-smoothed, then weighted 1·2·3·4 and added (raw, un-normalized), with a 9-SMA signal line. Oscillates around zero — above zero and above its signal is bullish momentum, below is bearish, and signal crossovers are the trigger. Shows the KST, its distance from the signal, and the above/below-signal and above/below-zero state.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
