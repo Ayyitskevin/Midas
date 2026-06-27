@@ -153,6 +153,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CFO: mod(() => import('./CfoModule'), 'CfoModule'),
   RWI: mod(() => import('./RwiModule'), 'RwiModule'),
   STC: mod(() => import('./StcModule'), 'StcModule'),
+  TSI: mod(() => import('./TsiModule'), 'TsiModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
