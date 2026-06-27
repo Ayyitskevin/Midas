@@ -1180,6 +1180,15 @@ export const COMMANDS: CommandDef[] = [
       "Klinger Volume Oscillator board — Stephen Klinger's volume-force oscillator: a signed force (volume × |2·(dm/cm − 1)| × trend × 100, dm the daily range and cm its trend-cumulative measurement) run through EMA(34) − EMA(55), with a 13-EMA signal. Above zero / above its signal is net accumulation, below is distribution; zero-line and signal crossovers are the triggers. Volume-normalised so symbols compare; shows the value, its distance from the signal, and the accumulation/distribution state.",
   },
   {
+    code: 'RVGI',
+    aliases: ['RVI', 'VIGOR'],
+    title: 'Relative Vigor Index',
+    module: 'RVGI',
+    requiresSymbol: false,
+    description:
+      "Relative Vigor Index board — John Ehlers' conviction gauge: a 1·2·2·1-smoothed (close − open) summed over N bars ÷ the same smoothing of (high − low), with a 1·2·2·1-weighted signal line. Reads where price closes within its range — closing near the high is bullish vigor, near the low bearish. Oscillates around zero (≈ ±1); above the signal is bullish, below bearish, and RVI/signal crossovers are the triggers.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
