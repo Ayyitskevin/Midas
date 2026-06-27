@@ -1153,6 +1153,15 @@ export const COMMANDS: CommandDef[] = [
       "True Strength Index board — per name, William Blau's double-smoothed momentum: 100 × EMA(EMA(Δclose, 25), 13) ÷ EMA(EMA(|Δclose|, 25), 13), with a 7-EMA signal line. Bounded ≈ ±100; above zero is net positive (bullish) momentum, below zero bearish, ±25 the common overbought/oversold extremes, and a cross of the signal line the usual trigger. Shows the TSI, its distance from the signal, and the OB/OS/mid zone.",
   },
   {
+    code: 'CRSI',
+    aliases: ['CONNORS', 'CONNORSRSI'],
+    title: 'Connors RSI',
+    module: 'CRSI',
+    requiresSymbol: false,
+    description:
+      "Connors RSI board — Larry Connors' short-term mean-reversion composite, the average of three 0–100 parts: a 3-period Wilder RSI of the close, a 2-period RSI of the consecutive up/down streak, and the percent-rank of today's 1-bar return over the last 100 bars. Below 10 is washed-out (oversold), above 90 over-extended. Shows the composite plus each component (RSI / STRK / %R).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
