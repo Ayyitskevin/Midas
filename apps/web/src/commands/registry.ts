@@ -1288,6 +1288,15 @@ export const COMMANDS: CommandDef[] = [
       "Chande Kroll Stop board — Chande & Kroll's two-stage ATR trailing stops: preliminary highStop = highestHigh(p) − x·ATR and lowStop = lowestLow(p) + x·ATR, then the final stopShort = highest(highStop, q) (upper band) and stopLong = lowest(lowStop, q) (lower band) using a Wilder ATR. Close above the upper band is an uptrend break, below the lower band a downtrend break, in between is range. Default ATR(10) / stop 9, with a 1× / 3× ATR toggle. Shows the regime and the % distance to each stop.",
   },
   {
+    code: 'KAMA',
+    aliases: ['KAUFMAN', 'ADAPTIVEMA'],
+    title: 'KAMA Trend',
+    module: 'KAMA',
+    requiresSymbol: false,
+    description:
+      "KAMA trend board — Kaufman's Adaptive Moving Average, an EMA whose smoothing constant scales with the Efficiency Ratio (net directional travel ÷ total path), so it tracks fast in clean trends and flattens in chop. SC = (ER·(fast − slow SC) + slow SC)², KAMA recurses toward price. Default ER 10 / fast 2 / slow 30, with a 10 / 20 ER-period toggle. Shows the KAMA slope direction, the Efficiency Ratio %, and the % distance of price from KAMA.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
