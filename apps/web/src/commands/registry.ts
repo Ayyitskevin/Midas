@@ -1216,6 +1216,15 @@ export const COMMANDS: CommandDef[] = [
       "Relative Momentum Index board — Roger Altman's RSI generalised to an M-bar momentum: instead of the 1-bar change it Wilder-smooths the up/down moves of close vs close M bars ago, on a 0–100 scale (length 20, momentum 5). Smoother and less whippy than RSI; > 70 overbought, < 30 oversold, and with momentum = 1 it is exactly a 20-period RSI. Shows the RMI, its bar-over-bar change, and the OB/OS zone.",
   },
   {
+    code: 'DOSC',
+    aliases: ['DERIV', 'DERIVOSC'],
+    title: 'Derivative Oscillator',
+    module: 'DOSC',
+    requiresSymbol: false,
+    description:
+      "Derivative Oscillator board — Constance Brown's refined RSI momentum: a 14-period Wilder RSI double-smoothed by EMAs (5 then 3), minus a 9-period simple moving average of that double-smoothed RSI, plotted as a histogram. Above zero (and rising) is bullish momentum, below zero bearish, and the zero-line and DO/signal crossovers are the triggers. Shows the DOSC histogram, whether it's rising or falling, and the bull/bear side.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

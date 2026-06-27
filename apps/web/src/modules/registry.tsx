@@ -161,6 +161,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   WT: mod(() => import('./WaveTrendModule'), 'WaveTrendModule'),
   SMI: mod(() => import('./SmiModule'), 'SmiModule'),
   RMI: mod(() => import('./RmiModule'), 'RmiModule'),
+  DOSC: mod(() => import('./DoscModule'), 'DoscModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
