@@ -155,6 +155,7 @@ export type ModuleCode =
   | 'PGO'
   | 'IMPULSE'
   | 'DISP'
+  | 'TII'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -335,6 +336,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   PGO: { code: 'PGO', title: 'Pretty Good Oscillator', w: 4, h: 12, minW: 3, minH: 6 },
   IMPULSE: { code: 'IMPULSE', title: 'Elder Impulse', w: 5, h: 12, minW: 4, minH: 6 },
   DISP: { code: 'DISP', title: 'Disparity Index', w: 4, h: 12, minW: 3, minH: 6 },
+  TII: { code: 'TII', title: 'Trend Intensity', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
