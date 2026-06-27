@@ -1234,6 +1234,15 @@ export const COMMANDS: CommandDef[] = [
       "Premier Stochastic board — Lee Leibfarth's stochastic refined to a crisp ±1: a fast %K (length 8) is normalised to 0.1·(%K−50), double-EMA-smoothed (period 5), then squashed through (e^ss−1)/(e^ss+1) = tanh. The exponential sharpens turns — PSO sits near ±1 only on a sustained smoothed extreme; > +0.9 is strongly overbought, < −0.9 strongly oversold, and zero-line crossovers are the triggers. Shows the PSO, its bar-over-bar change, and the OB/OS zone.",
   },
   {
+    code: 'VHF',
+    aliases: ['VERTHOR', 'VHFILTER'],
+    title: 'Vertical Horizontal Filter',
+    module: 'VHF',
+    requiresSymbol: false,
+    description:
+      "Vertical Horizontal Filter board — Adam White's trend-vs-chop regime gauge: the N-bar close range ÷ the sum of |bar-to-bar close moves|, i.e. directional travel over total wiggle, on a 0–1 scale. High (≳ 0.35) means an efficient trend (favour trend-following tools); low (≲ 0.20) means choppy churn (favour oscillators); rising VHF = strengthening trend. Shows the VHF, its bar-over-bar change, and the trend/chop/mid regime.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
