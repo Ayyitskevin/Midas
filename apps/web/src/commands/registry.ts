@@ -1045,6 +1045,15 @@ export const COMMANDS: CommandDef[] = [
       "Balance of Power board — (close − open) ÷ (high − low) per bar, smoothed over N bars on a −1..+1 scale, per name, with a buyers/sellers side and the latest candle's raw reading. Measures who won each candle (close vs open within the range): a simple buyer/seller-pressure gauge distinct from Elder-Ray.",
   },
   {
+    code: 'ADL',
+    aliases: ['ACCDIST', 'CHAIKINAD'],
+    title: 'A/D Line',
+    module: 'ADL',
+    requiresSymbol: false,
+    description:
+      "Accumulation/Distribution line board (Chaikin) — the cumulative money-flow-volume line (close position in range × volume) per name, reported as its normalized slope over N bars (net flow ÷ volume), its trend, and a fresh N-bar A/D high (accumulation breakout) / low (distribution breakdown). A cumulative volume-flow gauge distinct from OBV.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
