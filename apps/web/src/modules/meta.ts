@@ -143,6 +143,7 @@ export type ModuleCode =
   | 'STC'
   | 'TSI'
   | 'CRSI'
+  | 'KST'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -311,6 +312,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   STC: { code: 'STC', title: 'Schaff Trend Cycle', w: 4, h: 12, minW: 3, minH: 6 },
   TSI: { code: 'TSI', title: 'True Strength Index', w: 4, h: 12, minW: 3, minH: 6 },
   CRSI: { code: 'CRSI', title: 'Connors RSI', w: 4, h: 12, minW: 3, minH: 6 },
+  KST: { code: 'KST', title: 'Know Sure Thing', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
