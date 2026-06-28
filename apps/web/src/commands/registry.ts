@@ -1576,6 +1576,15 @@ export const COMMANDS: CommandDef[] = [
       "TD Sequential Countdown board — the second phase of Tom DeMark's TD Sequential, begun once a TD Setup completes (9). Unlike the Setup's consecutive count, the Countdown accumulates qualifying bars that need NOT be consecutive, toward 13: a TD Buy Countdown (armed by a completed buy setup) counts each bar whose close ≤ the low 2 bars earlier; a TD Sell Countdown counts each bar whose close ≥ the high 2 bars earlier. The 13th count only lands when the bar's low ≤ the close of countdown bar 8 (sell: high ≥ bar 8's close) — until then it holds at 12 (deferred, shown 12+). A completed 13 marks deeper exhaustion / a likely reversal beyond the Setup's 9. An opposite-direction setup completing cancels and flips the countdown. Counts compare closes to highs/lows, so the value is scale-free and ranks across symbols. Screens the active direction (BUY = potential bottom / SELL = potential top), the 1–13 count and a completed ✓; sorts highest count first. Complements the TD Setup (TDS) board — Setup arms, Countdown confirms.",
   },
   {
+    code: 'GATOR',
+    aliases: ['ALLIGATOR', 'WILLIAMSALLIGATOR', 'GATR'],
+    title: 'Williams Alligator',
+    module: 'GATOR',
+    requiresSymbol: false,
+    description:
+      "Williams Alligator board — Bill Williams' Alligator, three smoothed moving averages of the median price ((high + low) ÷ 2), each shifted forward in time: Jaw (SMMA 13, displaced 8 bars), Teeth (SMMA 8, displaced 5), Lips (SMMA 5, displaced 3). SMMA is Wilder's smoothed MA. When the three lines are intertwined the alligator 'sleeps' (a range, no trend); when they fan out in order it 'feeds' — Lips > Teeth > Jaw is an uptrend, Lips < Teeth < Jaw a downtrend. The board screens that trend state (FEED ↑ / FEED ↓ / SLEEP) and the fan width as a percent of price (SPREAD% = 100·(Lips − Jaw) ÷ median) — scale-invariant, so a wide positive fan ranks as the strongest uptrend, wide negative the strongest downtrend, near zero asleep. Periods are Williams' fixed 13/8/5 with the 8/5/3 displacements. Sorts strongest up-fan first.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
