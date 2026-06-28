@@ -1378,6 +1378,15 @@ export const COMMANDS: CommandDef[] = [
       "Hull Moving Average slope board — Alan Hull's low-lag MA = WMA(2·WMA(close, n/2) − WMA(close, n), round(√n)), where WMA is the linearly-weighted MA. The double-weighted half-length term minus the full term strips most of the lag; the √n smoothing tames the overshoot, giving a fast, responsive trend line. The board screens by the HMA's slope: because the raw per-bar change is in price units (not comparable across symbols), it sorts cross-symbol on the scale-invariant SLOPE% = 100·(HMA − prior HMA) ÷ prior HMA, with ▲ rising / ▼ falling from the sign. Default period 20 (Hull's daily default ~16), with a slower 55 preset for longer-term trend. Shows the HMA, its percent slope, and the trend direction.",
   },
   {
+    code: 'PROJ',
+    aliases: ['PROJECTION', 'POSC', 'PROJOSC'],
+    title: 'Projection Oscillator',
+    module: 'PROJ',
+    requiresSymbol: false,
+    description:
+      "Projection Oscillator board — Mel Widner's regression-slope-adjusted Stochastic. Over N bars it fits separate least-squares lines to the highs and the lows and projects every bar forward along its own slope to form a tilted band: PBU = max(high[i−k] + slopeH·k), PBL = min(low[i−k] + slopeL·k). The oscillator PO = 100·(close − PBL) ÷ (PBU − PBL) is the close's position in that band (0–100, 50 = mid), with a 5-period EMA signal/trigger. Bounded 0–100 by construction so it ranks cleanly across symbols; above 80 overbought, below 20 oversold. Default period 14, with a faster 7 preset. Shows the PO, its signal, the ▲/▼ trigger relation, and the OB/OS zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
