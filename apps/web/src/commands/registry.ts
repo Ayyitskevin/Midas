@@ -1396,6 +1396,15 @@ export const COMMANDS: CommandDef[] = [
       "MAMA / FAMA board — John Ehlers' MESA Adaptive Moving Average. A Hilbert-transform homodyne discriminator measures the dominant cycle and adapts the EMA smoothing α bar-by-bar (clamped 0.05–0.5); MAMA is the fast adaptive line and FAMA follows at half α, so MAMA leads in trends and the two cross in consolidations. MAMA above FAMA is bullish, below is bearish, crossovers are the signals. The board sorts cross-symbol on the scale-invariant GAP% (MAMA − FAMA as a % of price) and flags fresh crosses; it also shows the live adaptive α. Default FastLimit 0.5 / SlowLimit 0.05, with a smoother 0.25 FastLimit preset. Needs ≥ 40 bars of warm-up.",
   },
   {
+    code: 'T3',
+    aliases: ['TILLSON', 'T3MA'],
+    title: 'T3 Slope',
+    module: 'T3',
+    requiresSymbol: false,
+    description:
+      "T3 Slope board — Tim Tillson's T3, a very smooth low-lag moving average built by nesting his generalized DEMA three times: GD(x) = EMA(x, N)·(1+v) − EMA(EMA(x, N), N)·v, T3 = GD(GD(GD(close))) (equivalently a fixed combination of six chained EMAs). The board screens by the T3's slope: because the raw per-bar change is in price units, it sorts cross-symbol on the scale-invariant SLOPE% = 100·(T3 − prior T3) ÷ prior T3, with ▲ rising / ▼ falling from the sign. Default period 5, volume factor v 0.7 (Tillson's values), with a smoother 14 preset. Shows the T3, its percent slope, and the trend direction.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
