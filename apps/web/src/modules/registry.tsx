@@ -195,6 +195,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   ROOF: mod(() => import('./RoofModule'), 'RoofModule'),
   PFE: mod(() => import('./PfeModule'), 'PfeModule'),
   ALMA: mod(() => import('./AlmaModule'), 'AlmaModule'),
+  CVOL: mod(() => import('./ChaikinVolModule'), 'ChaikinVolModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
