@@ -1450,6 +1450,15 @@ export const COMMANDS: CommandDef[] = [
       "Coral Trend board — LazyBear's Coral Trend Indicator. A six-stage recursive EMA cascade (each stage zero-seeded, smoothing constant from di = (length − 1)/2 + 1) combined with Tillson-T3 weights into a very smooth, low-lag trend line: coral = −cd³·i6 + 3(cd²+cd³)·i5 − 3(2cd²+cd+cd³)·i4 + (3cd+1+cd³+3cd²)·i3. The trend is the sign of coral vs its prior bar — rising = up (green), falling = down (red) — and a change of that sign is a flip. Where the T3 board screens the line's slope, this board screens trend STATE: it sorts by signed trend persistence (longest uptrends first, longest downtrends last), shows how far price sits from the coral line (DIST%, scale-invariant), the AGE in bars of the current trend, and flags fresh flips. Default length 21 / cd 0.4, with a slower 34 preset.",
   },
   {
+    code: 'MCG',
+    aliases: ['MCGINLEY', 'MGD', 'MCGINLEYDYNAMIC'],
+    title: 'McGinley Dynamic',
+    module: 'MCG',
+    requiresSymbol: false,
+    description:
+      "McGinley Dynamic board — John R. McGinley's self-adjusting moving average. Seeded with the first close, then md = md_prev + (close − md_prev) ÷ (N · (close ÷ md_prev)^4): the fourth-power ratio makes the denominator swell when price is above the line (so it crawls and refuses to chase rallies) and shrink when price is below (so it catches declines fast), hugging price far closer than a fixed-period MA without the whipsaw. The constant is plain N (McGinley's optional 0.6·N EMA-emulation scaling is not the default). The line is in price units, so the board screens scale-invariant readings: DIST% (close versus the line), SLOPE% (the line's own trend), and the up/down direction — sorting by how far price has stretched above its adaptive baseline. Default period 14, with a slower 22 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
