@@ -184,6 +184,7 @@ export type ModuleCode =
   | 'PFE'
   | 'ALMA'
   | 'CVOL'
+  | 'STRSI'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -393,6 +394,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   PFE: { code: 'PFE', title: 'Polarized Fractal Efficiency', w: 4, h: 12, minW: 3, minH: 6 },
   ALMA: { code: 'ALMA', title: 'Arnaud Legoux Moving Average', w: 4, h: 12, minW: 3, minH: 6 },
   CVOL: { code: 'CVOL', title: 'Chaikin Volatility', w: 4, h: 12, minW: 3, minH: 6 },
+  STRSI: { code: 'STRSI', title: 'Stochastic RSI', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

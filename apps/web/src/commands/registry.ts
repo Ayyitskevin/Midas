@@ -1531,6 +1531,15 @@ export const COMMANDS: CommandDef[] = [
       "Chaikin Volatility board — Marc Chaikin's gauge of how fast a market's trading range is expanding or contracting. It EMAs the high−low range, then takes its percent rate-of-change: range = high − low; emaHL = EMA(range, N); CVOL = 100 · (emaHL − emaHL[N bars ago]) ÷ emaHL[N bars ago]. Positive = the smoothed range is wider than N bars ago, volatility is EXPANDING (often near tops / breakouts); negative = CONTRACTING (consolidation, frequent before a move). Because it is a percent rate-of-change the price units cancel, so it is inherently scale-invariant and ranks cleanly across symbols. Reuses the repo's first-value-seeded EMA. Default EMA 10 / ROC 10 (Chaikin's original), with a slower 21 preset. Sorts fastest-expanding first. Distinct from Chaikin Money Flow (CMF) and the Accumulation/Distribution line (ADL).",
   },
   {
+    code: 'STRSI',
+    aliases: ['STOCHRSI', 'SRSI', 'STOCHASTICRSI'],
+    title: 'Stochastic RSI',
+    module: 'STRSI',
+    requiresSymbol: false,
+    description:
+      "Stochastic RSI board — Tushar Chande & Stanley Kroll's StochRSI (1994), a Stochastic oscillator applied to the RSI series instead of to price, so it measures where RSI sits within its own recent range: rsi = Wilder RSI(close, N); raw = 100·(rsi − min(rsi, M)) ÷ (max(rsi, M) − min(rsi, M)); %K = SMA(raw, 3); %D = SMA(%K, 3). Far more sensitive than plain RSI — it reaches the 0–100 extremes much more often, so it is a faster overbought/oversold and reversal-timing tool (OB ≥ 80, OS ≤ 20). Bounded and built from RSI (a ratio), so it is inherently scale-invariant and ranks cleanly across symbols; a flat RSI window reads 0. Default RSI 14 / Stoch 14 / K 3 / D 3, with a slower 21 preset. Reuses the repo's Wilder RSI core. Distinct from the RSI (RSI), Stochastic (STOCH), Connors RSI (CRSI) and Relative Momentum Index (RMI) boards.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
