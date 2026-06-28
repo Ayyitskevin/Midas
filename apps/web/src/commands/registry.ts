@@ -1522,6 +1522,15 @@ export const COMMANDS: CommandDef[] = [
       "Arnaud Legoux Moving Average board — ALMA (Arnaud Legoux & Dimitris Kouzis-Loukas), a Gaussian-weighted FIR whose weight peak is slid toward the recent end of the window for a low-lag yet smooth line: m = offset·(N−1); s = N ÷ sigma; w[i] = exp(−(i−m)² ÷ (2·s²)) over the trailing window oldest→newest; ALMA = Σ w[i]·price[i] ÷ Σ w[i]. offset near 1 puts the weight peak on the most recent bars (responsive); near 0 favours older bars (smooth). The peak m is left unfloored by default to match TradingView's ta.alma reference. ALMA is a price-unit line, so the board screens the scale-invariant SLOPE% (the line's trend, 100·(ALMA − ALMA_prev) ÷ ALMA_prev) and DIST% (price vs the line, 100·(close − ALMA) ÷ ALMA) with a rising/falling direction — the same convention as the Hull / McGinley / VIDYA boards. Default window 9 / offset 0.85 / sigma 6, with a slower 21 preset. Formula, the floor convention and window indexing confirmed against TradingView's reference by a multi-agent workflow with a machine-precision fixture.",
   },
   {
+    code: 'CVOL',
+    aliases: ['CHAIKINVOL', 'CVOLATILITY', 'CHAIKINVOLATILITY'],
+    title: 'Chaikin Volatility',
+    module: 'CVOL',
+    requiresSymbol: false,
+    description:
+      "Chaikin Volatility board — Marc Chaikin's gauge of how fast a market's trading range is expanding or contracting. It EMAs the high−low range, then takes its percent rate-of-change: range = high − low; emaHL = EMA(range, N); CVOL = 100 · (emaHL − emaHL[N bars ago]) ÷ emaHL[N bars ago]. Positive = the smoothed range is wider than N bars ago, volatility is EXPANDING (often near tops / breakouts); negative = CONTRACTING (consolidation, frequent before a move). Because it is a percent rate-of-change the price units cancel, so it is inherently scale-invariant and ranks cleanly across symbols. Reuses the repo's first-value-seeded EMA. Default EMA 10 / ROC 10 (Chaikin's original), with a slower 21 preset. Sorts fastest-expanding first. Distinct from Chaikin Money Flow (CMF) and the Accumulation/Distribution line (ADL).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
