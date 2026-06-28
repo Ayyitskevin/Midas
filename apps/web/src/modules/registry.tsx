@@ -178,6 +178,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   GAPO: mod(() => import('./GapoModule'), 'GapoModule'),
   RSL: mod(() => import('./RslModule'), 'RslModule'),
   VRSI: mod(() => import('./VrsiModule'), 'VrsiModule'),
+  HMA: mod(() => import('./HmaModule'), 'HmaModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
