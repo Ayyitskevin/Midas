@@ -1585,6 +1585,15 @@ export const COMMANDS: CommandDef[] = [
       "Williams Alligator board — Bill Williams' Alligator, three smoothed moving averages of the median price ((high + low) ÷ 2), each shifted forward in time: Jaw (SMMA 13, displaced 8 bars), Teeth (SMMA 8, displaced 5), Lips (SMMA 5, displaced 3). SMMA is Wilder's smoothed MA. When the three lines are intertwined the alligator 'sleeps' (a range, no trend); when they fan out in order it 'feeds' — Lips > Teeth > Jaw is an uptrend, Lips < Teeth < Jaw a downtrend. The board screens that trend state (FEED ↑ / FEED ↓ / SLEEP) and the fan width as a percent of price (SPREAD% = 100·(Lips − Jaw) ÷ median) — scale-invariant, so a wide positive fan ranks as the strongest uptrend, wide negative the strongest downtrend, near zero asleep. Periods are Williams' fixed 13/8/5 with the 8/5/3 displacements. Sorts strongest up-fan first.",
   },
   {
+    code: 'AO',
+    aliases: ['AWESOME', 'AWESOMEOSC', 'AOSC'],
+    title: 'Awesome Oscillator',
+    module: 'AO',
+    requiresSymbol: false,
+    description:
+      "Awesome Oscillator board — Bill Williams' AO, the difference of two simple moving averages of the median price ((high + low) ÷ 2): AO = SMA(median, 5) − SMA(median, 34). A zero-line momentum histogram of the market's 'force' — above zero is bullish momentum, below is bearish, and each bar is green when AO rises versus the prior bar (momentum building) or red when it falls (the basis of the saucer and twin-peaks signals). AO is in price units, so the board ranks on AO% = 100·AO ÷ median, which cancels the price scale and is comparable across symbols; the BAR column shows the rising/falling histogram colour. Default 5 / 34 (Williams), with a slower 8 / 55 preset. Pairs with the Williams Alligator (GATOR). Sorts highest AO% first.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
