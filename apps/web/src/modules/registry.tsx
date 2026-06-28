@@ -173,6 +173,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   SMIE: mod(() => import('./SmieModule'), 'SmieModule'),
   RBOW: mod(() => import('./RainbowModule'), 'RainbowModule'),
   TTF: mod(() => import('./TtfModule'), 'TtfModule'),
+  INRT: mod(() => import('./InertiaModule'), 'InertiaModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
