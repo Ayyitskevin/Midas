@@ -1486,6 +1486,15 @@ export const COMMANDS: CommandDef[] = [
       "Ehlers Cyber Cycle board — John Ehlers' dominant-cycle oscillator (Cybernetic Analysis, 2004). A four-bar FIR smoother of the median price ((H+L)/2, weights 1,2,2,1 ÷ 6) feeds a second-order recursive band-pass: Cycle = (1−½α)²·(Smooth − 2·Smooth[1] + Smooth[2]) + 2(1−α)·Cycle[1] − (1−α)²·Cycle[2], with α 0.07; the first six bars use Ehlers' warm-up second difference and the recursion begins on the seventh. The raw cycle is a band-passed price, so the board reports it as a percent of price (scale-invariant) and the trigger is the prior bar's cycle — a cycle-vs-trigger cross (↑/↓) marks a cyclic turn. Default α 0.07, with a faster 0.14 preset.",
   },
   {
+    code: 'RVI',
+    aliases: ['RELVOL', 'RVOL', 'RELVOLATILITY'],
+    title: 'Relative Volatility Index',
+    module: 'RVI',
+    requiresSymbol: false,
+    description:
+      "Relative Volatility Index board — Donald Dorsey's RVI (Stocks & Commodities, 1993), RSI's twin fed the VOLATILITY of price rather than the price change. Each bar's rolling standard deviation of close is routed to an up bucket when price rose or a down bucket when it fell, then Wilder-smoothed into RVI = 100·avgUp ÷ (avgUp + avgDown), bounded 0–100. Above 50 means volatility is expanding on up moves (bullish confirmation), below 50 on down moves; Dorsey's overbought/oversold guides sit at 60/40. Used as a confirmation filter alongside trend indicators. Bounded so it ranks cleanly across symbols; shares its RVI core with the Inertia board (INRT). Default stdev 10, smoothing 14, with a slower 21 preset. Distinct from the Relative Vigor Index (RVGI).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
