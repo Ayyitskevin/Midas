@@ -1333,6 +1333,15 @@ export const COMMANDS: CommandDef[] = [
       "Inertia board — Donald Dorsey's trend-persistence gauge: the Relative Volatility Index (RSI's twin, fed the rolling standard deviation of price bucketed up/down by close direction and Wilder-smoothed) then smoothed by a linear-regression line. Above 50 is positive inertia (the longer-term trend is up / bullish and tends to persist), below 50 negative; it moves slowly. Default stdev 10 / RVI 14 / linreg 20, with a 20 / 10 linreg toggle. Shows the Inertia, the raw RVI, and the bull/bear side.",
   },
   {
+    code: 'VSTOP',
+    aliases: ['VOLSTOP', 'VOLATILITYSTOP', 'WVS'],
+    title: 'Volatility Stop',
+    module: 'VSTOP',
+    requiresSymbol: false,
+    description:
+      "Volatility Stop board — the Wilder Volatility System in its canonical TradingView ta.vstop form: a ratcheting ATR trailing stop. With a Wilder ATR and a multiplier, the stop trails a multiple of ATR below price in an up-trend and above it in a down-trend, only ever tightening within a leg and jumping to the other side of price when the trend flips (close crossing the stop). Price at or above the stop is long / up-trend, below is short; DIST% is the signed cushion from price to the stop. Default length 20 · factor 2 (ta.vstop), with a faster Wilder-classic 7 · 3 preset. Shows the direction, the stop level, the distance %, and a ✦ on a fresh flip.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

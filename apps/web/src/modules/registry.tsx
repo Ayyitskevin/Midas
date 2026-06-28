@@ -174,6 +174,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   RBOW: mod(() => import('./RainbowModule'), 'RainbowModule'),
   TTF: mod(() => import('./TtfModule'), 'TtfModule'),
   INRT: mod(() => import('./InertiaModule'), 'InertiaModule'),
+  VSTOP: mod(() => import('./VstopModule'), 'VstopModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
