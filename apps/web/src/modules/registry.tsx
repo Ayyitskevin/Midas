@@ -189,6 +189,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CORAL: mod(() => import('./CoralModule'), 'CoralModule'),
   MCG: mod(() => import('./McginleyModule'), 'McginleyModule'),
   VIDYA: mod(() => import('./VidyaModule'), 'VidyaModule'),
+  GHLA: mod(() => import('./GannHiLoModule'), 'GannHiLoModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

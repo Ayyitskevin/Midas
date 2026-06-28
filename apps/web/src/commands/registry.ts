@@ -1468,6 +1468,15 @@ export const COMMANDS: CommandDef[] = [
       "Chande VIDYA board — Tushar Chande's Variable Index Dynamic Average, an EMA whose smoothing is scaled bar-by-bar by a volatility index so it tracks fast in trends and flattens in chop: k = |CMO(N)| ÷ 100, alpha = 2 ÷ (N + 1), VIDYA = alpha·k·close + (1 − alpha·k)·VIDYA_prev. When |CMO| ≈ 100 it behaves like a full EMA(N); when |CMO| ≈ 0 the line barely moves. One period N drives both the CMO and alpha; the CMO is the repo's exact definition and the series is seeded with the SMA of the first N closes (the canonical CMO-VIDYA seed — distinct from the unrelated standard-deviation-ratio VIDYA). The line is in price units, so the board screens scale-invariant DIST% (close vs the line), SLOPE% (the line's trend) and the underlying CMO that drives the adaptation, sorting by how far price has stretched above the line. Default period 9, with a slower 14 preset.",
   },
   {
+    code: 'GHLA',
+    aliases: ['GANNHILO', 'HILOACTIVATOR', 'GANN'],
+    title: 'Gann HiLo Activator',
+    module: 'GHLA',
+    requiresSymbol: false,
+    description:
+      "Gann HiLo Activator board — Robert Krausz's stop-and-reverse trend line from two simple moving averages, one of the highs and one of the lows. A close above the PRIOR bar's high-SMA turns the trend up (the activator becomes the low-SMA, trailing as support below price); a close below the prior low-SMA turns it down (the activator becomes the high-SMA, resistance above price); otherwise the trend carries. A close that pierces the opposite band flips it. Where most MA boards screen slope, this screens trend STATE: it sorts by signed trend persistence (longest uptrends first, longest downtrends last), shows DIST% of close from the activator/stop (scale-invariant), the AGE in bars of the current trend, and flags fresh flips. Default period 3 (Krausz), with a slower 10 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
