@@ -1603,6 +1603,15 @@ export const COMMANDS: CommandDef[] = [
       "Accelerator Oscillator board — Bill Williams' AC, the acceleration of momentum: AC = AO − SMA(AO, 5), where AO = SMA(median, 5) − SMA(median, 34) on the median price ((high + low) ÷ 2). It measures whether the driving force behind price is itself speeding up or slowing down — because force precedes price, the AC turns before the AO does, so its zero cross is an earlier signal. Each histogram bar is green when AC rises versus the prior bar and red when it falls; Williams' rule is to buy only on green bars, sell only on red. AC is in price units, so the board ranks on AC% = 100·AC ÷ median, which cancels the price scale and is comparable across symbols; the BAR column shows the rising/falling histogram colour. Williams' signal SMA is fixed at 5; default AO 5 / 34, with a slower 8 / 55 preset. Completes the Bill Williams trio with the Alligator (GATOR) and Awesome Oscillator (AO). Sorts highest AC% first.",
   },
   {
+    code: 'CHO',
+    aliases: ['CHAIKINOSC', 'CHAIKINOSCILLATOR', 'CHADOSC'],
+    title: 'Chaikin Oscillator',
+    module: 'CHO',
+    requiresSymbol: false,
+    description:
+      "Chaikin Oscillator board — Marc Chaikin's oscillator, the momentum of the Accumulation/Distribution Line (ADL): CHO = EMA(ADL, 3) − EMA(ADL, 10), where ADL accumulates moneyFlowMultiplier · volume and the multiplier ((close − low) − (high − close)) ÷ (high − low) weights volume by where the close sits in the bar's range. It applies the MACD idea to volume flow instead of price — above zero, the ADL's short EMA leads its long EMA (accumulation momentum building); below zero, distribution. Zero-line crossovers and divergence from price are the classic signals, and each bar is green when the oscillator rises versus the prior bar, red when it falls. Because the ADL scales with a symbol's volume, the raw CHO isn't comparable across names, so the board ranks on CHO ÷ average volume (the multiplier is already price-scale-free) — the same volume-normalised convention as the Klinger (KVO) board. Default 3 / 10, with a slower 6 / 20 preset. Completes the Chaikin family with Money Flow (CMF) and Volatility (CVOL); distinct from those and from the ADL line, Klinger (KVO) and OBV boards. Sorts most bullish first.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

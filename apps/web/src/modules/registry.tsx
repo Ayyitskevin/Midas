@@ -204,6 +204,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   GATOR: mod(() => import('./AlligatorModule'), 'AlligatorModule'),
   AO: mod(() => import('./AoModule'), 'AoModule'),
   AC: mod(() => import('./AcModule'), 'AcModule'),
+  CHO: mod(() => import('./ChaikinOscModule'), 'ChaikinOscModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
