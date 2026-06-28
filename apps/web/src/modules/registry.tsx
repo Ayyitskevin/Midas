@@ -203,6 +203,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TDC: mod(() => import('./TdCountdownModule'), 'TdCountdownModule'),
   GATOR: mod(() => import('./AlligatorModule'), 'AlligatorModule'),
   AO: mod(() => import('./AoModule'), 'AoModule'),
+  AC: mod(() => import('./AcModule'), 'AcModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),

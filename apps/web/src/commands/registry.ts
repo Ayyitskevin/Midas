@@ -1594,6 +1594,15 @@ export const COMMANDS: CommandDef[] = [
       "Awesome Oscillator board — Bill Williams' AO, the difference of two simple moving averages of the median price ((high + low) ÷ 2): AO = SMA(median, 5) − SMA(median, 34). A zero-line momentum histogram of the market's 'force' — above zero is bullish momentum, below is bearish, and each bar is green when AO rises versus the prior bar (momentum building) or red when it falls (the basis of the saucer and twin-peaks signals). AO is in price units, so the board ranks on AO% = 100·AO ÷ median, which cancels the price scale and is comparable across symbols; the BAR column shows the rising/falling histogram colour. Default 5 / 34 (Williams), with a slower 8 / 55 preset. Pairs with the Williams Alligator (GATOR). Sorts highest AO% first.",
   },
   {
+    code: 'AC',
+    aliases: ['ACCEL', 'ACCELERATOR', 'ACCELOSC'],
+    title: 'Accelerator Oscillator',
+    module: 'AC',
+    requiresSymbol: false,
+    description:
+      "Accelerator Oscillator board — Bill Williams' AC, the acceleration of momentum: AC = AO − SMA(AO, 5), where AO = SMA(median, 5) − SMA(median, 34) on the median price ((high + low) ÷ 2). It measures whether the driving force behind price is itself speeding up or slowing down — because force precedes price, the AC turns before the AO does, so its zero cross is an earlier signal. Each histogram bar is green when AC rises versus the prior bar and red when it falls; Williams' rule is to buy only on green bars, sell only on red. AC is in price units, so the board ranks on AC% = 100·AC ÷ median, which cancels the price scale and is comparable across symbols; the BAR column shows the rising/falling histogram colour. Williams' signal SMA is fixed at 5; default AO 5 / 34, with a slower 8 / 55 preset. Completes the Bill Williams trio with the Alligator (GATOR) and Awesome Oscillator (AO). Sorts highest AC% first.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
