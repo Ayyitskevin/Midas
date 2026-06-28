@@ -1567,6 +1567,15 @@ export const COMMANDS: CommandDef[] = [
       "Zero-Lag EMA board — John Ehlers & Ric Way's Zero-Lag EMA, an EMA fed a de-lagged input so it tracks price with almost no delay: lag = floor((N−1) ÷ 2); deLagged = price + (price − price[lag]) = 2·price − price[lag]; ZLEMA = EMA(deLagged, N). Adding the (price − price[lag]) momentum term shifts the line forward in time, cancelling the bulk of an EMA's lag while keeping its smoothing — a fast, responsive trend line. ZLEMA is a price-unit line, so the board screens the scale-invariant SLOPE% (the line's trend, 100·(ZLEMA − ZLEMA_prev) ÷ ZLEMA_prev) and DIST% (price vs the line, 100·(close − ZLEMA) ÷ ZLEMA) with a rising/falling direction — the same convention as the Hull / ALMA / McGinley / VIDYA boards. Reuses the repo's first-value-seeded EMA. Default period 14, with a slower 34 preset; sorts strongest rising first.",
   },
   {
+    code: 'TDC',
+    aliases: ['TDCOUNTDOWN', 'COUNTDOWN', 'TDCD'],
+    title: 'TD Sequential Countdown',
+    module: 'TDC',
+    requiresSymbol: false,
+    description:
+      "TD Sequential Countdown board — the second phase of Tom DeMark's TD Sequential, begun once a TD Setup completes (9). Unlike the Setup's consecutive count, the Countdown accumulates qualifying bars that need NOT be consecutive, toward 13: a TD Buy Countdown (armed by a completed buy setup) counts each bar whose close ≤ the low 2 bars earlier; a TD Sell Countdown counts each bar whose close ≥ the high 2 bars earlier. The 13th count only lands when the bar's low ≤ the close of countdown bar 8 (sell: high ≥ bar 8's close) — until then it holds at 12 (deferred, shown 12+). A completed 13 marks deeper exhaustion / a likely reversal beyond the Setup's 9. An opposite-direction setup completing cancels and flips the countdown. Counts compare closes to highs/lows, so the value is scale-free and ranks across symbols. Screens the active direction (BUY = potential bottom / SELL = potential top), the 1–13 count and a completed ✓; sorts highest count first. Complements the TD Setup (TDS) board — Setup arms, Countdown confirms.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

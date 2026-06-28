@@ -200,6 +200,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   TDS: mod(() => import('./TdSetupModule'), 'TdSetupModule'),
   DEM: mod(() => import('./DeMarkerModule'), 'DeMarkerModule'),
   ZLEMA: mod(() => import('./ZlemaModule'), 'ZlemaModule'),
+  TDC: mod(() => import('./TdCountdownModule'), 'TdCountdownModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
