@@ -1513,6 +1513,15 @@ export const COMMANDS: CommandDef[] = [
       "Polarized Fractal Efficiency board — Hans Hannula's PFE (Stocks & Commodities, 1994), a measure of how efficient / directional price travel is: the straight-line distance over N bars versus the jagged path price actually took, polarized by the net direction. straightLine = √((C − C[N])² + N²); pathLength = Σ √((C[i] − C[i−1])² + 1); PFE = sign(C − C[N]) · 100 · straightLine ÷ pathLength, EMA-smoothed (α = 2/(M+1)). Bounded exactly ±100 — near +100 is a clean efficient up-trend, deep −100 a clean down-trend, ≈ 0 is choppy/inefficient. The raw formula mixes price units with bar-count units, so it is NOT scale-invariant (sub-dollar coins saturate to ±100, expensive coins compress); the board rebases each N-bar window into %-space (anchor C[t−N], reference 100, so a 1 % bar ≈ 1 vertical unit) before computing, making it fair across crypto of any price. Screens signed PFE (efficient up-trends top, down-trends bottom), |PFE| strength and a trend/chop zone at ±50. Default lookback 10 / EMA 5, with a slower 20 preset. Formula, EMA seeding and the scale-invariance fix confirmed by a multi-agent workflow with a machine-precision fixture.",
   },
   {
+    code: 'ALMA',
+    aliases: ['ARNAUD', 'LEGOUX', 'ARNAUDLEGOUX'],
+    title: 'Arnaud Legoux Moving Average',
+    module: 'ALMA',
+    requiresSymbol: false,
+    description:
+      "Arnaud Legoux Moving Average board — ALMA (Arnaud Legoux & Dimitris Kouzis-Loukas), a Gaussian-weighted FIR whose weight peak is slid toward the recent end of the window for a low-lag yet smooth line: m = offset·(N−1); s = N ÷ sigma; w[i] = exp(−(i−m)² ÷ (2·s²)) over the trailing window oldest→newest; ALMA = Σ w[i]·price[i] ÷ Σ w[i]. offset near 1 puts the weight peak on the most recent bars (responsive); near 0 favours older bars (smooth). The peak m is left unfloored by default to match TradingView's ta.alma reference. ALMA is a price-unit line, so the board screens the scale-invariant SLOPE% (the line's trend, 100·(ALMA − ALMA_prev) ÷ ALMA_prev) and DIST% (price vs the line, 100·(close − ALMA) ÷ ALMA) with a rising/falling direction — the same convention as the Hull / McGinley / VIDYA boards. Default window 9 / offset 0.85 / sigma 6, with a slower 21 preset. Formula, the floor convention and window indexing confirmed against TradingView's reference by a multi-agent workflow with a machine-precision fixture.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
