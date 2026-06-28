@@ -1423,6 +1423,15 @@ export const COMMANDS: CommandDef[] = [
       "Fisher Transform of RSI board — John Ehlers' Fisher Transform fed the Wilder RSI of closes instead of price. Each symbol's RSI is normalized into its recent N-bar range (raw = (RSI − minRSI) ÷ (maxRSI − minRSI)), centred and smoothed (value = 0.66·(raw − 0.5) + 0.67·prior, clamped ±0.999), then Fisher-transformed (0.5·ln((1 + value) ÷ (1 − value)) + 0.5·prior) so turning points are sharp and distinct. It screens how stretched RSI is within its own recent swing — a different lens than the absolute RSI board — with the underlying Wilder RSI shown alongside for the 70/30 context. The output saturates near ±3…±8 (it is NOT bounded to ±1), so it is coloured by sign; TRIG is the prior Fisher and a turn against it flags a reversal. Default RSI 9 / Fisher window 9, with a slower RSI 14 preset.",
   },
   {
+    code: 'TCF',
+    aliases: ['TRENDCONT', 'CONTFACTOR', 'TCFACTOR'],
+    title: 'Trend Continuation Factor',
+    module: 'TCF',
+    requiresSymbol: false,
+    description:
+      "Trend Continuation Factor board — M.H. Pee's TCF (Stocks & Commodities, March 2002), a trend-strength/direction filter used much like ADX. Each bar's move is split into an up part and a down part; each direction accumulates a continuation factor (CF) that resets the moment the trend pauses, and the two factors are netted against the opposite run: +TCF = Σ(plus − CF_minus), −TCF = Σ(minus − CF_plus) over a window. +TCF > 0 marks a strong, clean uptrend and −TCF > 0 a strong downtrend (they cannot both be positive); when both are ≤ 0 the market is consolidating. To compare across symbols the factors are computed on percent returns rather than raw price points (a scale-invariant adaptation), then the board sorts most-bullish (+TCF) first and flags the UP / DOWN / RANGE regime. Default length 35, with a faster 20 preset. Distinct from Pee's Trend Trigger Factor (TTF).",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
