@@ -1387,6 +1387,15 @@ export const COMMANDS: CommandDef[] = [
       "Projection Oscillator board — Mel Widner's regression-slope-adjusted Stochastic. Over N bars it fits separate least-squares lines to the highs and the lows and projects every bar forward along its own slope to form a tilted band: PBU = max(high[i−k] + slopeH·k), PBL = min(low[i−k] + slopeL·k). The oscillator PO = 100·(close − PBL) ÷ (PBU − PBL) is the close's position in that band (0–100, 50 = mid), with a 5-period EMA signal/trigger. Bounded 0–100 by construction so it ranks cleanly across symbols; above 80 overbought, below 20 oversold. Default period 14, with a faster 7 preset. Shows the PO, its signal, the ▲/▼ trigger relation, and the OB/OS zone.",
   },
   {
+    code: 'MAMA',
+    aliases: ['MESA', 'MAMAFAMA', 'ADAPTIVEMA'],
+    title: 'MAMA / FAMA',
+    module: 'MAMA',
+    requiresSymbol: false,
+    description:
+      "MAMA / FAMA board — John Ehlers' MESA Adaptive Moving Average. A Hilbert-transform homodyne discriminator measures the dominant cycle and adapts the EMA smoothing α bar-by-bar (clamped 0.05–0.5); MAMA is the fast adaptive line and FAMA follows at half α, so MAMA leads in trends and the two cross in consolidations. MAMA above FAMA is bullish, below is bearish, crossovers are the signals. The board sorts cross-symbol on the scale-invariant GAP% (MAMA − FAMA as a % of price) and flags fresh crosses; it also shows the live adaptive α. Default FastLimit 0.5 / SlowLimit 0.05, with a smoother 0.25 FastLimit preset. Needs ≥ 40 bars of warm-up.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
