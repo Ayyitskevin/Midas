@@ -170,6 +170,7 @@ export type ModuleCode =
   | 'PROJ'
   | 'MAMA'
   | 'T3'
+  | 'SINE'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -365,6 +366,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   PROJ: { code: 'PROJ', title: 'Projection Oscillator', w: 4, h: 12, minW: 3, minH: 6 },
   MAMA: { code: 'MAMA', title: 'MAMA / FAMA', w: 4, h: 12, minW: 3, minH: 6 },
   T3: { code: 'T3', title: 'T3 Slope', w: 4, h: 12, minW: 3, minH: 6 },
+  SINE: { code: 'SINE', title: 'Ehlers Sinewave', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },

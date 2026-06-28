@@ -1405,6 +1405,15 @@ export const COMMANDS: CommandDef[] = [
       "T3 Slope board — Tim Tillson's T3, a very smooth low-lag moving average built by nesting his generalized DEMA three times: GD(x) = EMA(x, N)·(1+v) − EMA(EMA(x, N), N)·v, T3 = GD(GD(GD(close))) (equivalently a fixed combination of six chained EMAs). The board screens by the T3's slope: because the raw per-bar change is in price units, it sorts cross-symbol on the scale-invariant SLOPE% = 100·(T3 − prior T3) ÷ prior T3, with ▲ rising / ▼ falling from the sign. Default period 5, volume factor v 0.7 (Tillson's values), with a smoother 14 preset. Shows the T3, its percent slope, and the trend direction.",
   },
   {
+    code: 'SINE',
+    aliases: ['SINEWAVE', 'EHLERSSINE'],
+    title: 'Ehlers Sinewave',
+    module: 'SINE',
+    requiresSymbol: false,
+    description:
+      "Ehlers Sinewave board — John Ehlers' Sine Wave Indicator (Rocket Science for Traders). A Hilbert-transform homodyne discriminator measures the dominant cycle, then a correlation of the smoothed price gives the cycle phase, from which two lines are drawn: Sine = sin(phase) and LeadSine = sin(phase + 45°), both bounded −1…+1. LeadSine crossing above Sine is a cyclic up-turn, below a down-turn; in a trend the cycle degrades and the lines flatten and stop crossing. Bounded outputs so they rank cleanly across symbols; sorts by LeadSine and flags fresh crosses. Fully adaptive (no parameters); needs ≥ 63 bars of warm-up.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
