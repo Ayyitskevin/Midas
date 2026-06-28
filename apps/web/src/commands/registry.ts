@@ -1540,6 +1540,15 @@ export const COMMANDS: CommandDef[] = [
       "Stochastic RSI board — Tushar Chande & Stanley Kroll's StochRSI (1994), a Stochastic oscillator applied to the RSI series instead of to price, so it measures where RSI sits within its own recent range: rsi = Wilder RSI(close, N); raw = 100·(rsi − min(rsi, M)) ÷ (max(rsi, M) − min(rsi, M)); %K = SMA(raw, 3); %D = SMA(%K, 3). Far more sensitive than plain RSI — it reaches the 0–100 extremes much more often, so it is a faster overbought/oversold and reversal-timing tool (OB ≥ 80, OS ≤ 20). Bounded and built from RSI (a ratio), so it is inherently scale-invariant and ranks cleanly across symbols; a flat RSI window reads 0. Default RSI 14 / Stoch 14 / K 3 / D 3, with a slower 21 preset. Reuses the repo's Wilder RSI core. Distinct from the RSI (RSI), Stochastic (STOCH), Connors RSI (CRSI) and Relative Momentum Index (RMI) boards.",
   },
   {
+    code: 'TDS',
+    aliases: ['TDSETUP', 'TDSEQ', 'DEMARK'],
+    title: 'TD Sequential Setup',
+    module: 'TDS',
+    requiresSymbol: false,
+    description:
+      "TD Sequential Setup board — the first phase of Tom DeMark's TD Sequential, a price-exhaustion counter (not an oscillator). A TD Buy Setup is 9 consecutive bars whose close is below the close 4 bars earlier (a falling market stretched toward a potential bottom); a TD Sell Setup is 9 consecutive closes above the close 4 bars earlier (stretched toward a top). The count runs 1→9 and resets when a single close breaks the relationship — the bar that resets it is DeMark's TD Price Flip, so the run begins (count 1) only after a flip. At 9 the setup is complete (the count clamps at 9 until a flip). 'Perfection' is a stronger completion: a buy setup is perfected when the low of bar 8 or 9 is ≤ the lows of bars 6 and 7 (sell: high of bar 8/9 ≥ highs of bars 6 and 7) — the tail makes a fresh extreme. Closes drive the scale-free count and each symbol's own highs/lows drive perfection, so it ranks cleanly across symbols. Screens the live direction (BUY = potential bottom / SELL = potential top), the 1–9 count, and a perfected flag; sorts highest count first. Distinct from the price-pattern oscillator boards.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
