@@ -1369,6 +1369,15 @@ export const COMMANDS: CommandDef[] = [
       "Vervoort Smoothed RSI board — Sylvain Vervoort's Smoothed RSI Inverse Fisher Transform (S&C, Oct 2010): close is smoothed by a rainbow average (a 10-deep cascade of 2-period weighted MAs blended 5,4,3,2,1,1,1,1,1,1 ÷ 20), a Wilder RSI runs on that, it is centred (0.1·(RSI−50)) and passed through a zero-lag EMA (2·EMA1 − EMA2), then compressed by an inverse Fisher transform (tanh) into a (−1…+1) line that snaps sharply between extremes. ≥ +0.5 is overbought, ≤ −0.5 oversold (Vervoort's entries cross up through −0.5 / down through +0.5). Default 4 bars for both the RSI and the zero-lag EMA, with an 8/8 smoother preset. Shows the VRSI, its rising/falling direction, and the overbought/oversold zone.",
   },
   {
+    code: 'HMA',
+    aliases: ['HULL', 'HULLMA', 'HMASLOPE'],
+    title: 'Hull MA Slope',
+    module: 'HMA',
+    requiresSymbol: false,
+    description:
+      "Hull Moving Average slope board — Alan Hull's low-lag MA = WMA(2·WMA(close, n/2) − WMA(close, n), round(√n)), where WMA is the linearly-weighted MA. The double-weighted half-length term minus the full term strips most of the lag; the √n smoothing tames the overshoot, giving a fast, responsive trend line. The board screens by the HMA's slope: because the raw per-bar change is in price units (not comparable across symbols), it sorts cross-symbol on the scale-invariant SLOPE% = 100·(HMA − prior HMA) ÷ prior HMA, with ▲ rising / ▼ falling from the sign. Default period 20 (Hull's daily default ~16), with a slower 55 preset for longer-term trend. Shows the HMA, its percent slope, and the trend direction.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
