@@ -1432,6 +1432,15 @@ export const COMMANDS: CommandDef[] = [
       "Trend Continuation Factor board — M.H. Pee's TCF (Stocks & Commodities, March 2002), a trend-strength/direction filter used much like ADX. Each bar's move is split into an up part and a down part; each direction accumulates a continuation factor (CF) that resets the moment the trend pauses, and the two factors are netted against the opposite run: +TCF = Σ(plus − CF_minus), −TCF = Σ(minus − CF_plus) over a window. +TCF > 0 marks a strong, clean uptrend and −TCF > 0 a strong downtrend (they cannot both be positive); when both are ≤ 0 the market is consolidating. To compare across symbols the factors are computed on percent returns rather than raw price points (a scale-invariant adaptation), then the board sorts most-bullish (+TCF) first and flags the UP / DOWN / RANGE regime. Default length 35, with a faster 20 preset. Distinct from Pee's Trend Trigger Factor (TTF).",
   },
   {
+    code: 'CG',
+    aliases: ['COG', 'CENTERGRAVITY', 'EHLERSCG'],
+    title: 'Center of Gravity',
+    module: 'CG',
+    requiresSymbol: false,
+    description:
+      "Center of Gravity board — John Ehlers' CG oscillator (Cybernetic Analysis, 2004). It treats the last N median prices (H+L)/2 as a mass distribution and reports where their centre of gravity sits versus the window midpoint: CG = −Σ(1 + k)·price[k] ÷ Σ price[k] + (N + 1) ÷ 2, where price[k] is k bars ago. The −Σ/Σ term is the price-weighted average bar index (1…N); centring on (N+1)/2 makes CG swing within ±(N−1)/2 around zero. Because it is a ratio of prices it is dimensionless — inherently scale-invariant, so it ranks cleanly across symbols with no normalization. Near-zero-lag and built to call turns: the trigger is the prior bar's CG, and a CG-vs-trigger cross (↑/↓) flags the reversal. Default length 10, with a smoother 20 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
