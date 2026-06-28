@@ -1495,6 +1495,15 @@ export const COMMANDS: CommandDef[] = [
       "Relative Volatility Index board — Donald Dorsey's RVI (Stocks & Commodities, 1993), RSI's twin fed the VOLATILITY of price rather than the price change. Each bar's rolling standard deviation of close is routed to an up bucket when price rose or a down bucket when it fell, then Wilder-smoothed into RVI = 100·avgUp ÷ (avgUp + avgDown), bounded 0–100. Above 50 means volatility is expanding on up moves (bullish confirmation), below 50 on down moves; Dorsey's overbought/oversold guides sit at 60/40. Used as a confirmation filter alongside trend indicators. Bounded so it ranks cleanly across symbols; shares its RVI core with the Inertia board (INRT). Default stdev 10, smoothing 14, with a slower 21 preset. Distinct from the Relative Vigor Index (RVGI).",
   },
   {
+    code: 'ROOF',
+    aliases: ['ROOFING', 'ROOFINGFILTER', 'EHLERSROOF'],
+    title: 'Ehlers Roofing Filter',
+    module: 'ROOF',
+    requiresSymbol: false,
+    description:
+      "Ehlers Roofing Filter board — John Ehlers' band-pass 'roof' (Cycle Analytics for Traders, 2013) that passes only the tradable cycle band. A two-pole high-pass (cutoff 48 bars) strips the trend, then a two-pole SuperSmoother low-pass (cutoff 10 bars) strips the noise: HP = (1−½α₁)²·(C − 2·C[1] + C[2]) + 2(1−α₁)·HP[1] − (1−α₁)²·HP[2], then Filt = c1·(HP + HP[1])/2 + c2·Filt[1] + c3·Filt[2] (degree-convention trig, full-π SuperSmoother coefficients). The raw filter is a zero-centred band-passed price whose amplitude scales with each symbol's volatility, so the board AGC-normalizes it to ±1 (peak = max(|Filt|, 0.991·peak)) for clean cross-symbol ranking — above 0 is the up phase of the cycle, below 0 the down phase, and a cross of the filter past its prior-bar trigger (▲ bull trough / ▼ bear peak) marks a cyclic turn. Default high-pass 48 / SuperSmoother 10, with a smoother 20 preset. Formula, degree convention and warm-up confirmed against Ehlers' source by a multi-agent workflow with a machine-precision fixture.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
