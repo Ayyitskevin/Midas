@@ -1441,6 +1441,15 @@ export const COMMANDS: CommandDef[] = [
       "Center of Gravity board — John Ehlers' CG oscillator (Cybernetic Analysis, 2004). It treats the last N median prices (H+L)/2 as a mass distribution and reports where their centre of gravity sits versus the window midpoint: CG = −Σ(1 + k)·price[k] ÷ Σ price[k] + (N + 1) ÷ 2, where price[k] is k bars ago. The −Σ/Σ term is the price-weighted average bar index (1…N); centring on (N+1)/2 makes CG swing within ±(N−1)/2 around zero. Because it is a ratio of prices it is dimensionless — inherently scale-invariant, so it ranks cleanly across symbols with no normalization. Near-zero-lag and built to call turns: the trigger is the prior bar's CG, and a CG-vs-trigger cross (↑/↓) flags the reversal. Default length 10, with a smoother 20 preset.",
   },
   {
+    code: 'CORAL',
+    aliases: ['CORALTREND', 'CRL'],
+    title: 'Coral Trend',
+    module: 'CORAL',
+    requiresSymbol: false,
+    description:
+      "Coral Trend board — LazyBear's Coral Trend Indicator. A six-stage recursive EMA cascade (each stage zero-seeded, smoothing constant from di = (length − 1)/2 + 1) combined with Tillson-T3 weights into a very smooth, low-lag trend line: coral = −cd³·i6 + 3(cd²+cd³)·i5 − 3(2cd²+cd+cd³)·i4 + (3cd+1+cd³+3cd²)·i3. The trend is the sign of coral vs its prior bar — rising = up (green), falling = down (red) — and a change of that sign is a flip. Where the T3 board screens the line's slope, this board screens trend STATE: it sorts by signed trend persistence (longest uptrends first, longest downtrends last), shows how far price sits from the coral line (DIST%, scale-invariant), the AGE in bars of the current trend, and flags fresh flips. Default length 21 / cd 0.4, with a slower 34 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
