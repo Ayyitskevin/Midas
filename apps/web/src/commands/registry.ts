@@ -1342,6 +1342,15 @@ export const COMMANDS: CommandDef[] = [
       "Volatility Stop board — the Wilder Volatility System in its canonical TradingView ta.vstop form: a ratcheting ATR trailing stop. With a Wilder ATR and a multiplier, the stop trails a multiple of ATR below price in an up-trend and above it in a down-trend, only ever tightening within a leg and jumping to the other side of price when the trend flips (close crossing the stop). Price at or above the stop is long / up-trend, below is short; DIST% is the signed cushion from price to the stop. Default length 20 · factor 2 (ta.vstop), with a faster Wilder-classic 7 · 3 preset. Shows the direction, the stop level, the distance %, and a ✦ on a fresh flip.",
   },
   {
+    code: 'GAPO',
+    aliases: ['GRI', 'RANGEINDEX', 'GOPALAKRISHNAN'],
+    title: 'Range Index',
+    module: 'GAPO',
+    requiresSymbol: false,
+    description:
+      "Gopalakrishnan Range Index board — Jayanthi Gopalakrishnan's log-scaled range gauge: GAPO = ln(highest high − lowest low over N) ÷ ln(N), an unbounded measure of how wide a symbol's recent trading range is (rising = range expanding / volatility up, falling = contracting). Because the raw value is built from the absolute price range it scales with price level, so the board screens cross-symbol on the scale-invariant RANGE% (range as a % of price) by default and offers a GAPO-expansion (slope) sort, while the canonical GAPO is still shown per symbol. Default lookback N 5, with a 5 / 14 toggle. Shows the GAPO, the RANGE%, and whether the range is expanding or contracting.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
