@@ -1477,6 +1477,15 @@ export const COMMANDS: CommandDef[] = [
       "Gann HiLo Activator board — Robert Krausz's stop-and-reverse trend line from two simple moving averages, one of the highs and one of the lows. A close above the PRIOR bar's high-SMA turns the trend up (the activator becomes the low-SMA, trailing as support below price); a close below the prior low-SMA turns it down (the activator becomes the high-SMA, resistance above price); otherwise the trend carries. A close that pierces the opposite band flips it. Where most MA boards screen slope, this screens trend STATE: it sorts by signed trend persistence (longest uptrends first, longest downtrends last), shows DIST% of close from the activator/stop (scale-invariant), the AGE in bars of the current trend, and flags fresh flips. Default period 3 (Krausz), with a slower 10 preset.",
   },
   {
+    code: 'CYBER',
+    aliases: ['CYBERCYCLE', 'CC', 'EHLERSCYCLE'],
+    title: 'Ehlers Cyber Cycle',
+    module: 'CYBER',
+    requiresSymbol: false,
+    description:
+      "Ehlers Cyber Cycle board — John Ehlers' dominant-cycle oscillator (Cybernetic Analysis, 2004). A four-bar FIR smoother of the median price ((H+L)/2, weights 1,2,2,1 ÷ 6) feeds a second-order recursive band-pass: Cycle = (1−½α)²·(Smooth − 2·Smooth[1] + Smooth[2]) + 2(1−α)·Cycle[1] − (1−α)²·Cycle[2], with α 0.07; the first six bars use Ehlers' warm-up second difference and the recursion begins on the seventh. The raw cycle is a band-passed price, so the board reports it as a percent of price (scale-invariant) and the trigger is the prior bar's cycle — a cycle-vs-trigger cross (↑/↓) marks a cyclic turn. Default α 0.07, with a faster 0.14 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
