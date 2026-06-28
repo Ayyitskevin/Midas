@@ -13,10 +13,12 @@
  * Above 50 is positive inertia (the longer-term trend is up / bullish and tends
  * to persist); below 50 is negative. Being a regression of a smoothed volatility
  * ratio, it moves slowly. This uses the close-only one-sided RVI (Dorsey's 1993
- * original, the TradingView form) with Wilder smoothing (matching the RSI board);
- * the 1995 refinement instead averages an RVI of the high and of the low.
+ * original) with Wilder smoothing — matching Dorsey's verbatim formula and the
+ * repo's RVI board, which share the `rviSeries` core in `rvi.ts`; the 1995
+ * refinement instead averages an RVI of the high and of the low.
  * Defaults follow Dorsey: stdev 10, RVI 14, linreg 20.
  */
+import { rviSeries } from './rvi';
 
 export type InertiaSide = 'up' | 'down';
 
@@ -36,18 +38,6 @@ export interface InertiaRow extends InertiaStats {
 }
 
 export type InertiaSort = 'inertia' | 'rvi' | 'symbol';
-
-/** Population standard deviation of a window (÷N, matching the repo's stdev). */
-function popStdev(window: number[]): number {
-  const n = window.length;
-  if (n === 0) return 0;
-  let m = 0;
-  for (const x of window) m += x;
-  m /= n;
-  let v = 0;
-  for (const x of window) v += (x - m) ** 2;
-  return Math.sqrt(v / n);
-}
 
 /** Least-squares regression value at the newest point (LSMA endpoint) of y[0..p-1]. */
 function linregEndpoint(y: number[]): number {
@@ -69,15 +59,6 @@ function linregEndpoint(y: number[]): number {
 }
 
 /**
- * RVI from the smoothed up/down averages. The ratio is taken before the ×100 so
- * a pure trend (avgDown 0 → avgUp/avgUp = 1) reads exactly 100, never a 1-ULP
- * overshoot above the RVI's 0–100 range; 0 when both averages are 0.
- */
-function rviRatio(avgUp: number, avgDown: number): number {
-  return avgUp + avgDown !== 0 ? 100 * (avgUp / (avgUp + avgDown)) : 0;
-}
-
-/**
  * Compute the latest Inertia for one symbol. Needs at least
  * stdevPeriod + rviPeriod + linregPeriod − 2 closes (rolling stdev, then the
  * Wilder RVI, then the regression window); returns null otherwise.
@@ -92,41 +73,8 @@ export function computeInertia(
   const n = closes.length;
   if (n < stdevPeriod + rviPeriod + linregPeriod - 2) return null;
 
-  // Volatility routed into up / down buckets by close direction (one bucket per bar).
-  const firstIdx = Math.max(stdevPeriod - 1, 1); // need the stdev window and a prior close
-  const ups: number[] = [];
-  const downs: number[] = [];
-  for (let i = firstIdx; i < n; i++) {
-    const sd = popStdev(closes.slice(i - stdevPeriod + 1, i + 1));
-    if (closes[i] > closes[i - 1]) {
-      ups.push(sd);
-      downs.push(0);
-    } else if (closes[i] < closes[i - 1]) {
-      ups.push(0);
-      downs.push(sd);
-    } else {
-      ups.push(0);
-      downs.push(0);
-    }
-  }
-  if (ups.length < rviPeriod) return null;
-
-  // RVI = 100·Wilder(up)/(Wilder(up)+Wilder(down)); SMA seed then Wilder recursion.
-  const rvi: number[] = [];
-  let avgUp = 0;
-  let avgDown = 0;
-  for (let k = 0; k < rviPeriod; k++) {
-    avgUp += ups[k];
-    avgDown += downs[k];
-  }
-  avgUp /= rviPeriod;
-  avgDown /= rviPeriod;
-  rvi.push(rviRatio(avgUp, avgDown));
-  for (let k = rviPeriod; k < ups.length; k++) {
-    avgUp = (avgUp * (rviPeriod - 1) + ups[k]) / rviPeriod;
-    avgDown = (avgDown * (rviPeriod - 1) + downs[k]) / rviPeriod;
-    rvi.push(rviRatio(avgUp, avgDown));
-  }
+  // RVI series (population stdev routed up/down, Wilder-smoothed) — shared with rvi.ts.
+  const rvi = rviSeries(closes, stdevPeriod, rviPeriod);
   if (rvi.length < linregPeriod) return null;
 
   const inertia = linregEndpoint(rvi.slice(rvi.length - linregPeriod));

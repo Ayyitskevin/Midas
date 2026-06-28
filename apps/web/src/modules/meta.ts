@@ -179,6 +179,7 @@ export type ModuleCode =
   | 'VIDYA'
   | 'GHLA'
   | 'CYBER'
+  | 'RVI'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -383,6 +384,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   VIDYA: { code: 'VIDYA', title: 'Chande VIDYA', w: 4, h: 12, minW: 3, minH: 6 },
   GHLA: { code: 'GHLA', title: 'Gann HiLo Activator', w: 4, h: 12, minW: 3, minH: 6 },
   CYBER: { code: 'CYBER', title: 'Ehlers Cyber Cycle', w: 4, h: 12, minW: 3, minH: 6 },
+  RVI: { code: 'RVI', title: 'Relative Volatility Index', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
