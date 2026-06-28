@@ -182,6 +182,7 @@ export type ModuleCode =
   | 'RVI'
   | 'ROOF'
   | 'PFE'
+  | 'ALMA'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -389,6 +390,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   RVI: { code: 'RVI', title: 'Relative Volatility Index', w: 4, h: 12, minW: 3, minH: 6 },
   ROOF: { code: 'ROOF', title: 'Ehlers Roofing Filter', w: 4, h: 12, minW: 3, minH: 6 },
   PFE: { code: 'PFE', title: 'Polarized Fractal Efficiency', w: 4, h: 12, minW: 3, minH: 6 },
+  ALMA: { code: 'ALMA', title: 'Arnaud Legoux Moving Average', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
