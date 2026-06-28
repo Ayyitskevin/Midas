@@ -1558,6 +1558,15 @@ export const COMMANDS: CommandDef[] = [
       "DeMarker board — Tom DeMark's DeMarker (DeM), a bounded 0–100 momentum oscillator that reads the highs and lows (not the close): DeMax = high − high[1] when the high makes a new high (else 0); DeMin = low[1] − low when the low makes a new low (else 0); DEM = 100·SMA(DeMax, N) ÷ (SMA(DeMax, N) + SMA(DeMin, N)). It gauges demand vs supply — above 70 = overbought / upside-exhaustion risk, below 30 = oversold, often leading price at turns. The ratio cancels price units, so it is inherently scale-invariant and ranks cleanly across symbols; a perfectly flat window reads 50 (neutral). Default period 14, with a slower 21 preset. Distinct from the RSI / Stochastic-RSI momentum boards (which read closes) and from the TD Sequential Setup (TDS) counter.",
   },
   {
+    code: 'ZLEMA',
+    aliases: ['ZEROLAG', 'ZEROLAGEMA', 'ZLE'],
+    title: 'Zero-Lag EMA',
+    module: 'ZLEMA',
+    requiresSymbol: false,
+    description:
+      "Zero-Lag EMA board — John Ehlers & Ric Way's Zero-Lag EMA, an EMA fed a de-lagged input so it tracks price with almost no delay: lag = floor((N−1) ÷ 2); deLagged = price + (price − price[lag]) = 2·price − price[lag]; ZLEMA = EMA(deLagged, N). Adding the (price − price[lag]) momentum term shifts the line forward in time, cancelling the bulk of an EMA's lag while keeping its smoothing — a fast, responsive trend line. ZLEMA is a price-unit line, so the board screens the scale-invariant SLOPE% (the line's trend, 100·(ZLEMA − ZLEMA_prev) ÷ ZLEMA_prev) and DIST% (price vs the line, 100·(close − ZLEMA) ÷ ZLEMA) with a rising/falling direction — the same convention as the Hull / ALMA / McGinley / VIDYA boards. Reuses the repo's first-value-seeded EMA. Default period 14, with a slower 34 preset; sorts strongest rising first.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
