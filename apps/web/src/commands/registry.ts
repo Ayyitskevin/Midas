@@ -1351,6 +1351,15 @@ export const COMMANDS: CommandDef[] = [
       "Gopalakrishnan Range Index board — Jayanthi Gopalakrishnan's log-scaled range gauge: GAPO = ln(highest high − lowest low over N) ÷ ln(N), an unbounded measure of how wide a symbol's recent trading range is (rising = range expanding / volatility up, falling = contracting). Because the raw value is built from the absolute price range it scales with price level, so the board screens cross-symbol on the scale-invariant RANGE% (range as a % of price) by default and offers a GAPO-expansion (slope) sort, while the canonical GAPO is still shown per symbol. Default lookback N 5, with a 5 / 14 toggle. Shows the GAPO, the RANGE%, and whether the range is expanding or contracting.",
   },
   {
+    code: 'RSL',
+    aliases: ['RELATIVESTRENGTH', 'LEVY', 'RSLEVY'],
+    title: 'Relative Strength (Levy)',
+    module: 'RSL',
+    requiresSymbol: false,
+    description:
+      "Relative Strength (Levy) board — Robert Levy's RSL = close ÷ SMA(close, N), a momentum / trend ratio measuring price against its own moving average. Above 1 the price leads its average (strong / bullish), below 1 it lags (weak / bearish), and 1.0 sits on the average. Being a ratio of two same-scale prices it is naturally scale-invariant, so it ranks cleanly across symbols of any price level; DEV% restates it as the % above/below the average. Default lookback N 130 (Levy's ~27-week window), with a faster 50 preset. Shows the RSL, the DEV%, and the strong/weak side.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
