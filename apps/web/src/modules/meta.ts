@@ -175,6 +175,7 @@ export type ModuleCode =
   | 'TCF'
   | 'CG'
   | 'CORAL'
+  | 'MCG'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -375,6 +376,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   TCF: { code: 'TCF', title: 'Trend Continuation', w: 4, h: 12, minW: 3, minH: 6 },
   CG: { code: 'CG', title: 'Center of Gravity', w: 4, h: 12, minW: 3, minH: 6 },
   CORAL: { code: 'CORAL', title: 'Coral Trend', w: 4, h: 12, minW: 3, minH: 6 },
+  MCG: { code: 'MCG', title: 'McGinley Dynamic', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
