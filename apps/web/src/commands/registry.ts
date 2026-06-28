@@ -1414,6 +1414,15 @@ export const COMMANDS: CommandDef[] = [
       "Ehlers Sinewave board — John Ehlers' Sine Wave Indicator (Rocket Science for Traders). A Hilbert-transform homodyne discriminator measures the dominant cycle, then a correlation of the smoothed price gives the cycle phase, from which two lines are drawn: Sine = sin(phase) and LeadSine = sin(phase + 45°), both bounded −1…+1. LeadSine crossing above Sine is a cyclic up-turn, below a down-turn; in a trend the cycle degrades and the lines flatten and stop crossing. Bounded outputs so they rank cleanly across symbols; sorts by LeadSine and flags fresh crosses. Fully adaptive (no parameters); needs ≥ 63 bars of warm-up.",
   },
   {
+    code: 'FRSI',
+    aliases: ['FISHERRSI', 'FISHRSI', 'RSIFISHER'],
+    title: 'Fisher Transform of RSI',
+    module: 'FRSI',
+    requiresSymbol: false,
+    description:
+      "Fisher Transform of RSI board — John Ehlers' Fisher Transform fed the Wilder RSI of closes instead of price. Each symbol's RSI is normalized into its recent N-bar range (raw = (RSI − minRSI) ÷ (maxRSI − minRSI)), centred and smoothed (value = 0.66·(raw − 0.5) + 0.67·prior, clamped ±0.999), then Fisher-transformed (0.5·ln((1 + value) ÷ (1 − value)) + 0.5·prior) so turning points are sharp and distinct. It screens how stretched RSI is within its own recent swing — a different lens than the absolute RSI board — with the underlying Wilder RSI shown alongside for the 70/30 context. The output saturates near ±3…±8 (it is NOT bounded to ±1), so it is coloured by sign; TRIG is the prior Fisher and a turn against it flags a reversal. Default RSI 9 / Fisher window 9, with a slower RSI 14 preset.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
