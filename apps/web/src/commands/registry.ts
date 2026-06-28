@@ -1549,6 +1549,15 @@ export const COMMANDS: CommandDef[] = [
       "TD Sequential Setup board — the first phase of Tom DeMark's TD Sequential, a price-exhaustion counter (not an oscillator). A TD Buy Setup is 9 consecutive bars whose close is below the close 4 bars earlier (a falling market stretched toward a potential bottom); a TD Sell Setup is 9 consecutive closes above the close 4 bars earlier (stretched toward a top). The count runs 1→9 and resets when a single close breaks the relationship — the bar that resets it is DeMark's TD Price Flip, so the run begins (count 1) only after a flip. At 9 the setup is complete (the count clamps at 9 until a flip). 'Perfection' is a stronger completion: a buy setup is perfected when the low of bar 8 or 9 is ≤ the lows of bars 6 and 7 (sell: high of bar 8/9 ≥ highs of bars 6 and 7) — the tail makes a fresh extreme. Closes drive the scale-free count and each symbol's own highs/lows drive perfection, so it ranks cleanly across symbols. Screens the live direction (BUY = potential bottom / SELL = potential top), the 1–9 count, and a perfected flag; sorts highest count first. Distinct from the price-pattern oscillator boards.",
   },
   {
+    code: 'DEM',
+    aliases: ['DEMARKER', 'DMARK', 'DMK'],
+    title: 'DeMarker',
+    module: 'DEM',
+    requiresSymbol: false,
+    description:
+      "DeMarker board — Tom DeMark's DeMarker (DeM), a bounded 0–100 momentum oscillator that reads the highs and lows (not the close): DeMax = high − high[1] when the high makes a new high (else 0); DeMin = low[1] − low when the low makes a new low (else 0); DEM = 100·SMA(DeMax, N) ÷ (SMA(DeMax, N) + SMA(DeMin, N)). It gauges demand vs supply — above 70 = overbought / upside-exhaustion risk, below 30 = oversold, often leading price at turns. The ratio cancels price units, so it is inherently scale-invariant and ranks cleanly across symbols; a perfectly flat window reads 50 (neutral). Default period 14, with a slower 21 preset. Distinct from the RSI / Stochastic-RSI momentum boards (which read closes) and from the TD Sequential Setup (TDS) counter.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

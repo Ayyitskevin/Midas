@@ -198,6 +198,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CVOL: mod(() => import('./ChaikinVolModule'), 'ChaikinVolModule'),
   STRSI: mod(() => import('./StochRsiModule'), 'StochRsiModule'),
   TDS: mod(() => import('./TdSetupModule'), 'TdSetupModule'),
+  DEM: mod(() => import('./DeMarkerModule'), 'DeMarkerModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
