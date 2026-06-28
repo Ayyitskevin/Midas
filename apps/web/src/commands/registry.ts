@@ -1504,6 +1504,15 @@ export const COMMANDS: CommandDef[] = [
       "Ehlers Roofing Filter board — John Ehlers' band-pass 'roof' (Cycle Analytics for Traders, 2013) that passes only the tradable cycle band. A two-pole high-pass (cutoff 48 bars) strips the trend, then a two-pole SuperSmoother low-pass (cutoff 10 bars) strips the noise: HP = (1−½α₁)²·(C − 2·C[1] + C[2]) + 2(1−α₁)·HP[1] − (1−α₁)²·HP[2], then Filt = c1·(HP + HP[1])/2 + c2·Filt[1] + c3·Filt[2] (degree-convention trig, full-π SuperSmoother coefficients). The raw filter is a zero-centred band-passed price whose amplitude scales with each symbol's volatility, so the board AGC-normalizes it to ±1 (peak = max(|Filt|, 0.991·peak)) for clean cross-symbol ranking — above 0 is the up phase of the cycle, below 0 the down phase, and a cross of the filter past its prior-bar trigger (▲ bull trough / ▼ bear peak) marks a cyclic turn. Default high-pass 48 / SuperSmoother 10, with a smoother 20 preset. Formula, degree convention and warm-up confirmed against Ehlers' source by a multi-agent workflow with a machine-precision fixture.",
   },
   {
+    code: 'PFE',
+    aliases: ['POLARIZED', 'PFEFF', 'FRACTALEFF'],
+    title: 'Polarized Fractal Efficiency',
+    module: 'PFE',
+    requiresSymbol: false,
+    description:
+      "Polarized Fractal Efficiency board — Hans Hannula's PFE (Stocks & Commodities, 1994), a measure of how efficient / directional price travel is: the straight-line distance over N bars versus the jagged path price actually took, polarized by the net direction. straightLine = √((C − C[N])² + N²); pathLength = Σ √((C[i] − C[i−1])² + 1); PFE = sign(C − C[N]) · 100 · straightLine ÷ pathLength, EMA-smoothed (α = 2/(M+1)). Bounded exactly ±100 — near +100 is a clean efficient up-trend, deep −100 a clean down-trend, ≈ 0 is choppy/inefficient. The raw formula mixes price units with bar-count units, so it is NOT scale-invariant (sub-dollar coins saturate to ±100, expensive coins compress); the board rebases each N-bar window into %-space (anchor C[t−N], reference 100, so a 1 % bar ≈ 1 vertical unit) before computing, making it fair across crypto of any price. Screens signed PFE (efficient up-trends top, down-trends bottom), |PFE| strength and a trend/chop zone at ±50. Default lookback 10 / EMA 5, with a slower 20 preset. Formula, EMA seeding and the scale-invariance fix confirmed by a multi-agent workflow with a machine-precision fixture.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

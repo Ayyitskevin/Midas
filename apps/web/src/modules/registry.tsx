@@ -193,6 +193,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   CYBER: mod(() => import('./CyberCycleModule'), 'CyberCycleModule'),
   RVI: mod(() => import('./RviModule'), 'RviModule'),
   ROOF: mod(() => import('./RoofModule'), 'RoofModule'),
+  PFE: mod(() => import('./PfeModule'), 'PfeModule'),
   ALERT: mod(() => import('./AlertsModule'), 'AlertsModule'),
   NOTE: mod(() => import('./NotesModule'), 'NotesModule'),
   RISK: mod(() => import('./RiskModule'), 'RiskModule'),
