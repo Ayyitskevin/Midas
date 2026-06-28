@@ -1324,6 +1324,15 @@ export const COMMANDS: CommandDef[] = [
       "Trend Trigger Factor board — M.H. Pee's range-geometry oscillator comparing the most recent N-bar high/low range against the prior N bars: buyPower = recent highest high − prior lowest low; sellPower = prior highest high − recent lowest low; TTF = 100·(buyPower − sellPower) ÷ (0.5·(buyPower + sellPower)). It oscillates around 0 and beyond ±100 — above +100 is a strong uptrend (buy), below −100 a strong downtrend (sell), in between is neutral. Default lookback 15 (so 30 bars), with a 15 / 30 toggle. Shows the TTF, its magnitude, and the buy/sell/flat zone.",
   },
   {
+    code: 'INRT',
+    aliases: ['INERTIA', 'RVI'],
+    title: 'Inertia',
+    module: 'INRT',
+    requiresSymbol: false,
+    description:
+      "Inertia board — Donald Dorsey's trend-persistence gauge: the Relative Volatility Index (RSI's twin, fed the rolling standard deviation of price bucketed up/down by close direction and Wilder-smoothed) then smoothed by a linear-regression line. Above 50 is positive inertia (the longer-term trend is up / bullish and tends to persist), below 50 negative; it moves slowly. Default stdev 10 / RVI 14 / linreg 20, with a 20 / 10 linreg toggle. Shows the Inertia, the raw RVI, and the bull/bear side.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',

@@ -161,6 +161,7 @@ export type ModuleCode =
   | 'SMIE'
   | 'RBOW'
   | 'TTF'
+  | 'INRT'
   | 'ALERT'
   | 'NOTE'
   | 'RISK'
@@ -347,6 +348,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   SMIE: { code: 'SMIE', title: 'SMI Ergodic', w: 4, h: 12, minW: 3, minH: 6 },
   RBOW: { code: 'RBOW', title: 'Rainbow Osc', w: 4, h: 12, minW: 3, minH: 6 },
   TTF: { code: 'TTF', title: 'Trend Trigger', w: 4, h: 12, minW: 3, minH: 6 },
+  INRT: { code: 'INRT', title: 'Inertia', w: 4, h: 12, minW: 3, minH: 6 },
   ALERT: { code: 'ALERT', title: 'Alerts', w: 5, h: 12, minW: 4, minH: 8 },
   NOTE: { code: 'NOTE', title: 'Notes', w: 4, h: 9, minW: 3, minH: 5 },
   RISK: { code: 'RISK', title: 'Position Sizer', w: 4, h: 13, minW: 3, minH: 9 },
