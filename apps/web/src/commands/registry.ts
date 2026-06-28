@@ -1360,6 +1360,15 @@ export const COMMANDS: CommandDef[] = [
       "Relative Strength (Levy) board — Robert Levy's RSL = close ÷ SMA(close, N), a momentum / trend ratio measuring price against its own moving average. Above 1 the price leads its average (strong / bullish), below 1 it lags (weak / bearish), and 1.0 sits on the average. Being a ratio of two same-scale prices it is naturally scale-invariant, so it ranks cleanly across symbols of any price level; DEV% restates it as the % above/below the average. Default lookback N 130 (Levy's ~27-week window), with a faster 50 preset. Shows the RSL, the DEV%, and the strong/weak side.",
   },
   {
+    code: 'VRSI',
+    aliases: ['VERVOORT', 'SMOOTHEDRSI', 'IFTRSI'],
+    title: 'Vervoort Smoothed RSI',
+    module: 'VRSI',
+    requiresSymbol: false,
+    description:
+      "Vervoort Smoothed RSI board — Sylvain Vervoort's Smoothed RSI Inverse Fisher Transform (S&C, Oct 2010): close is smoothed by a rainbow average (a 10-deep cascade of 2-period weighted MAs blended 5,4,3,2,1,1,1,1,1,1 ÷ 20), a Wilder RSI runs on that, it is centred (0.1·(RSI−50)) and passed through a zero-lag EMA (2·EMA1 − EMA2), then compressed by an inverse Fisher transform (tanh) into a (−1…+1) line that snaps sharply between extremes. ≥ +0.5 is overbought, ≤ −0.5 oversold (Vervoort's entries cross up through −0.5 / down through +0.5). Default 4 bars for both the RSI and the zero-lag EMA, with an 8/8 smoother preset. Shows the VRSI, its rising/falling direction, and the overbought/oversold zone.",
+  },
+  {
     code: 'ALERT',
     aliases: ['ALERTS', 'ALRT', 'AL'],
     title: 'Alerts',
