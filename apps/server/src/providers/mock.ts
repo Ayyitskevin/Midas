@@ -1,6 +1,8 @@
 import type {
   Candle,
   DerivativesInfo,
+  DexPool,
+  DexPools,
   FundingHistoryPoint,
   HistoryResponse,
   LiquidationsProvenance,
@@ -175,6 +177,15 @@ function resolveEntry(rawSymbol: string): RosterEntry {
   };
 }
 
+/** Synthetic DEX pools the mock fabricates per asset (name, fee tier, quote). */
+const DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
+  { dex: 'Uniswap v3', feeBps: 5, quote: 'USDC' },
+  { dex: 'Uniswap v3', feeBps: 30, quote: 'USDC' },
+  { dex: 'Curve', feeBps: 4, quote: 'USDT' },
+  { dex: 'PancakeSwap', feeBps: 25, quote: 'USDT' },
+  { dex: 'Balancer', feeBps: 10, quote: 'DAI' },
+];
+
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
  * terminal feels alive) but are stable within a given minute, and historical
@@ -296,6 +307,32 @@ export class MockProvider implements DataProvider {
       source: 'mock',
       available: true,
       note: 'Synthetic liquidations for offline/demo use — not real market data.',
+    };
+  }
+
+  async getDexPools(symbol: string): Promise<DexPools> {
+    const entry = resolveEntry(symbol);
+    const mid = this.buildQuote(entry).price;
+    const base = entry.symbol.split('/')[0].replace(/:.*$/, '');
+    const day = Math.floor(Date.now() / 86_400_000);
+    const pools: DexPool[] = DEX_VENUES.map(({ dex, feeBps, quote }) => {
+      // Each pool prices slightly off mid and carries its own TVL/volume.
+      const rng = seeded(entry.symbol, dex, feeBps, day, 'dex');
+      const liquidityUsd = Math.floor(uniform(rng, 0.5, 40) * 1_000_000);
+      return {
+        dex,
+        pair: `${base}/${quote}`,
+        priceUsd: round(mid * (1 + gaussian(rng) * 0.002), 6),
+        liquidityUsd,
+        volume24hUsd: Math.floor(uniform(rng, 0.1, 3) * liquidityUsd),
+        feeBps,
+      };
+    });
+    return {
+      symbol: base,
+      provenance: 'synthetic',
+      note: 'Synthetic DEX pools for offline/demo use — not real on-chain data.',
+      pools,
     };
   }
 

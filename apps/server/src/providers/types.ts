@@ -1,5 +1,6 @@
 import type {
   DerivativesInfo,
+  DexPools,
   FundingHistoryPoint,
   HistoryResponse,
   Interval,
@@ -48,6 +49,8 @@ export interface DataProvider {
   getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]>;
   /** Provenance + availability of the liquidation feed, for honest labeling. */
   liquidationsProvenance(): LiquidationsProvenance;
+  /** On-chain/DEX pool snapshot for a base asset, honestly labeled live/synthetic/unavailable. */
+  getDexPools(symbol: string): Promise<DexPools>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

@@ -243,6 +243,35 @@ export interface LiquidationsFeed {
   meta: LiquidationsMeta;
 }
 
+/** Whether an on-chain/DEX snapshot is real, synthetic, or unavailable for this provider. */
+export type OnChainProvenance = 'live' | 'synthetic' | 'unavailable';
+
+/** A read-only snapshot of one DEX liquidity pool for a base asset. */
+export interface DexPool {
+  /** DEX / protocol name, e.g. 'Uniswap v3'. */
+  dex: string;
+  /** Pool pair label, e.g. 'WETH/USDC'. */
+  pair: string;
+  /** Spot price in USD implied by the pool; null if unknown. */
+  priceUsd: number | null;
+  /** Total value locked in the pool, USD; null if unknown. */
+  liquidityUsd: number | null;
+  /** Trailing 24h swap volume, USD; null if unknown. */
+  volume24hUsd: number | null;
+  /** Swap fee tier in basis points (e.g. 5, 30, 100); null if n/a. */
+  feeBps: number | null;
+}
+
+/** On-chain / DEX pools for a base asset, with honest provenance labeling. */
+export interface DexPools {
+  /** The base asset the pools are for, e.g. ETH. */
+  symbol: string;
+  provenance: OnChainProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  pools: DexPool[];
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */

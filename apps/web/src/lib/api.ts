@@ -6,6 +6,7 @@ import type {
   AuthSession,
   AuthStatus,
   DerivativesInfo,
+  DexPools,
   FundingHistoryPoint,
   FundingRow,
   LiquidationsFeed,
@@ -118,6 +119,9 @@ export const api = {
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
+
+  dexPools: (symbol: string, signal?: AbortSignal) =>
+    apiGet<DexPools>(`/api/onchain/${encodeURIComponent(symbol)}`, signal),
 
   fundingHistory: (symbol: string, limit = 90, signal?: AbortSignal) =>
     apiGet<FundingHistoryPoint[]>(

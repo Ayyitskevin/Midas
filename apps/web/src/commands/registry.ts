@@ -94,6 +94,14 @@ export const COMMANDS: CommandDef[] = [
     description: 'Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track.',
   },
   {
+    code: 'DEX',
+    aliases: ['ONCHAIN', 'POOLS', 'DEXPOOLS'],
+    title: 'DEX Pools',
+    module: 'DEX',
+    requiresSymbol: true,
+    description: 'On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume and fee tier per pool, with a live/synthetic data-honesty badge (synthetic until an on-chain source is configured).',
+  },
+  {
     code: 'TAS',
     aliases: ['PRINTS', 'TS', 'TRADES'],
     title: 'Time & Sales',

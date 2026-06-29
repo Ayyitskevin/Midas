@@ -24,6 +24,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   PAIR: mod(() => import('./PairsModule'), 'PairsModule'),
   BOOK: mod(() => import('./OrderBookModule'), 'OrderBookModule'),
   DEPTH: mod(() => import('./OrderBookDepthHeatmapModule'), 'OrderBookDepthHeatmapModule'),
+  DEX: mod(() => import('./OnChainModule'), 'OnChainModule'),
   TAS: mod(() => import('./TradesModule'), 'TradesModule'),
   CVD: mod(() => import('./OrderFlowModule'), 'OrderFlowModule'),
   IMB: mod(() => import('./ImbalanceModule'), 'ImbalanceModule'),
