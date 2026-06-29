@@ -208,6 +208,7 @@ export type ModuleCode =
   | 'ACCT'
   | 'PREF'
   | 'REPORT'
+  | 'BOARDS'
   | 'HELP'
   | 'SECF';
 
@@ -427,6 +428,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   ACCT: { code: 'ACCT', title: 'Account', w: 4, h: 10, minW: 3, minH: 6 },
   PREF: { code: 'PREF', title: 'Preferences', w: 4, h: 13, minW: 3, minH: 8 },
   REPORT: { code: 'REPORT', title: 'Reports / Export', w: 4, h: 13, minW: 3, minH: 6 },
+  BOARDS: { code: 'BOARDS', title: 'Screener Catalog', w: 6, h: 13, minW: 4, minH: 7 },
   HELP: { code: 'HELP', title: 'Help', w: 5, h: 10, minW: 3, minH: 6 },
   SECF: { code: 'SECF', title: 'Security Finder', w: 4, h: 9, minW: 3, minH: 5 },
 };

@@ -221,6 +221,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   PREF: mod(() => import('./SettingsModule'), 'SettingsModule'),
   REPORT: mod(() => import('./ReportModule'), 'ReportModule'),
   N: mod(() => import('./NewsModule'), 'NewsModule'),
+  BOARDS: mod(() => import('./ScreenerCatalogModule'), 'ScreenerCatalogModule'),
   HELP: mod(() => import('./HelpModule'), 'HelpModule'),
   SECF: mod(() => import('./SecurityFinderModule'), 'SecurityFinderModule'),
 };

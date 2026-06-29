@@ -311,6 +311,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `N`     | `NEWS`, `CN`   | optional     | Headlines for a symbol (or market if omitted).|
 | `TOP`   | `MKT`          | no           | Top market-wide news.                         |
 | `SECF`  | `FIND`, `SRCH` | no           | Search for securities by ticker or name.      |
+| `BOARDS` | `CATALOG`, `SCREENS`, `INDICATORS` | no | Screener catalog — one searchable, categorized directory of every indicator/analytics board (Momentum, Trend, Volatility, Volume, Cycles, Risk & Performance). Type to filter, click a code to open — instead of memorizing ~115 mnemonics. Derived from the command registry itself. |
 | `HELP`  | `H`, `?`       | no           | Command list and usage.                       |
 
 **Grammar:** `BTC/USDT` → description · `BTC/USDT GP` → chart · `BTC/USDT BOOK` → order book ·
