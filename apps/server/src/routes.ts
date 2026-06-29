@@ -1,6 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { isInterval, isRange } from '@midas/shared';
-import type { FundingRow, HealthResponse, Interval, LiquidationEvent, Range } from '@midas/shared';
+import type {
+  FundingRow,
+  HealthResponse,
+  Interval,
+  LiquidationEvent,
+  LiquidationsFeed,
+  Range,
+} from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { config } from './config';
@@ -163,7 +170,12 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
         }
       }),
     );
-    return perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
+    const events = perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
+    const feed: LiquidationsFeed = {
+      events,
+      meta: { ...provider.liquidationsProvenance(), asOf: Date.now() },
+    };
+    return feed;
   });
 
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {

@@ -3,6 +3,7 @@ import type { Exchange, Ticker } from 'ccxt';
 import type {
   Candle,
   DerivativesInfo,
+  LiquidationsProvenance,
   FundingHistoryPoint,
   HistoryResponse,
   Interval,
@@ -228,6 +229,14 @@ export class CcxtProvider implements DataProvider {
     }
 
     return out;
+  }
+
+  liquidationsProvenance(): LiquidationsProvenance {
+    const available = Boolean(this.exchange.has['fetchLiquidations']);
+    const note = available
+      ? 'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.'
+      : `${this.name} exposes no public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE at a venue that publishes liquidations, or use cross-exchange aggregation.`;
+    return { source: this.name, available, note };
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {

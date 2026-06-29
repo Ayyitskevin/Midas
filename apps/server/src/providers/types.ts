@@ -3,6 +3,7 @@ import type {
   FundingHistoryPoint,
   HistoryResponse,
   Interval,
+  LiquidationsProvenance,
   NewsItem,
   OrderBook,
   Quote,
@@ -42,6 +43,8 @@ export interface DataProvider {
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
   getDerivatives(symbol: string): Promise<DerivativesInfo>;
+  /** Provenance + availability of the liquidation feed, for honest labeling. */
+  liquidationsProvenance(): LiquidationsProvenance;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

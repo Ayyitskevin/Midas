@@ -119,7 +119,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
 | `FUNDR` | `RATES`, `CARRY` | no         | Funding + open interest across the top perps, sortable.|
-| `LIQS`  | `LIQUIDATIONS`, `REKT` | no   | Market-wide liquidations feed across the top perps.|
+| `LIQS`  | `LIQUIDATIONS`, `REKT` | no   | Market-wide liquidations feed across the top perps — **honestly labeled**: shows the data source, whether the exchange actually publishes a public liquidation feed (many don't — Binance removed its in 2021), the freshness, and a throttling/under-reporting caveat instead of a silent empty "live" feed.|
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW` | no    | Market overview — top gainers, losers, most active + breadth.|

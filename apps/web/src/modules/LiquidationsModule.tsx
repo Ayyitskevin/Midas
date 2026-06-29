@@ -14,15 +14,43 @@ export function LiquidationsModule({ panel }: ModuleProps) {
     { intervalMs: 8000 },
   );
 
-  const summary = useMemo(() => summarizeLiquidations(data ?? []), [data]);
+  const events = useMemo(() => data?.events ?? [], [data]);
+  const meta = data?.meta;
+  const summary = useMemo(() => summarizeLiquidations(events), [events]);
   const longPct = summary.total > 0 ? (summary.longValue / summary.total) * 100 : 0;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">LIQUIDATIONS</span>
-        <span className="text-term-dim">perps · live</span>
+        {meta && (
+          <span className="flex items-center gap-1 text-term-dim">
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full ${
+                meta.available ? 'bg-term-up' : 'bg-term-amber'
+              }`}
+              title={meta.available ? 'Source publishes liquidations' : 'Source has no public liquidation feed'}
+            />
+            <span className="text-term-muted">{meta.source}</span>
+            <span>· {meta.available ? 'live' : 'no feed'}</span>
+            <span>· {fmtTimeAgo(meta.asOf)}</span>
+          </span>
+        )}
       </div>
+
+      {/* Honesty banner — why the feed may be empty/partial or under-reported. */}
+      {meta?.note && (
+        <div
+          className={`border-b px-2 py-1 text-2xs leading-snug ${
+            meta.available
+              ? 'border-term-border text-term-dim'
+              : 'border-term-amber/40 bg-term-amber/10 text-term-amber'
+          }`}
+        >
+          {meta.available ? '⚠ ' : '⚠ '}
+          {meta.note}
+        </div>
+      )}
 
       {/* Long vs short summary */}
       <div className="border-b border-term-border px-2 py-1.5">
@@ -42,8 +70,14 @@ export function LiquidationsModule({ panel }: ModuleProps) {
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading liquidations" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
-        {data && data.length === 0 && <EmptyState>No recent liquidations.</EmptyState>}
-        {data && data.length > 0 && (
+        {data && events.length === 0 && (
+          <EmptyState>
+            {meta && !meta.available
+              ? 'This source publishes no liquidation feed — connect an exchange that does.'
+              : 'No liquidations in the recent window.'}
+          </EmptyState>
+        )}
+        {events.length > 0 && (
           <table className="w-full text-2xs">
             <thead className="sticky top-0 bg-term-panel">
               <tr className="text-term-muted">
@@ -55,7 +89,7 @@ export function LiquidationsModule({ panel }: ModuleProps) {
               </tr>
             </thead>
             <tbody>
-              {data.map((l, i) => {
+              {events.map((l, i) => {
                 const isLong = l.side === 'sell';
                 return (
                   <tr key={`${l.symbol}-${l.timestamp}-${i}`} className="border-b border-term-border/30 hover:bg-term-header/60">

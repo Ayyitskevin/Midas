@@ -3,6 +3,7 @@ import type {
   DerivativesInfo,
   FundingHistoryPoint,
   HistoryResponse,
+  LiquidationsProvenance,
   MarketState,
   NewsItem,
   OrderBook,
@@ -266,6 +267,14 @@ export class MockProvider implements DataProvider {
       openInterestValue: Math.floor(oiBase * mid),
       recentLiquidations,
       timestamp: Date.now(),
+    };
+  }
+
+  liquidationsProvenance(): LiquidationsProvenance {
+    return {
+      source: 'mock',
+      available: true,
+      note: 'Synthetic liquidations for offline/demo use — not real market data.',
     };
   }
 

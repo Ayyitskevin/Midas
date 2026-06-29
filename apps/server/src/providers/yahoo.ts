@@ -2,6 +2,7 @@ import type {
   Candle,
   DerivativesInfo,
   HistoryResponse,
+  LiquidationsProvenance,
   MarketState,
   NewsItem,
   OrderBook,
@@ -139,6 +140,14 @@ export class YahooProvider implements DataProvider {
       501,
       symbol,
     );
+  }
+
+  liquidationsProvenance(): LiquidationsProvenance {
+    return {
+      source: this.name,
+      available: false,
+      note: 'Liquidations are a crypto feature — switch to the ccxt provider.',
+    };
   }
 
   async screen(_opts: ScreenerOptions): Promise<ScreenerRow[]> {
