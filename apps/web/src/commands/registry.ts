@@ -560,7 +560,7 @@ export const COMMANDS: CommandDef[] = [
     module: 'TICKET',
     requiresSymbol: true,
     description:
-      'Order ticket — build & validate a market/limit order and preview its execution against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Preview only and non-custodial: Midas checks the order but never submits it — placement is disabled in this read-only build. The order-entry seam before live execution.',
+      'Order ticket — build & validate a market/limit order and preview its execution against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Previews by default and never submits — placement is OFF unless the operator explicitly enables live trading on the server (MIDAS_TRADING_ENABLED + trade keys + auth). When live, the panel shows a red LIVE banner and requires a two-step confirm; every order is validated and notional-capped (MIDAS_MAX_ORDER_USD) server-side.',
   },
   {
     code: 'RHEAT',

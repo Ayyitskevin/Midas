@@ -1,0 +1,113 @@
+import type { OrderRequest, PlacedOrder, TradingStatus } from '@midas/shared';
+
+/**
+ * Live-trading safety core — pure, defensive, and heavily tested. Live order
+ * placement is OFF by default and gated by defense in depth: a master switch,
+ * a live keyed provider, an auth requirement (with an explicit override), and a
+ * hard per-order notional cap. The actual `createOrder` call lives in the ccxt
+ * provider and is only reachable when {@link computeTradingStatus} reports
+ * enabled AND the request passes validation AND the notional cap.
+ *
+ * Keeping every gate here pure means the rules are unit-testable without a live
+ * exchange — which, for code that can move real money, is the point.
+ */
+export interface TradingConfig {
+  /** MIDAS_TRADING_ENABLED — the master switch. */
+  enabled: boolean;
+  /** MIDAS_TRADING_ALLOW_NO_AUTH — permit trading without login on a trusted host. */
+  allowNoAuth: boolean;
+  /** MIDAS_MAX_ORDER_USD — hard per-order notional cap (0 = uncapped). */
+  maxOrderUsd: number;
+  /** MIDAS_AUTH_ENABLED — whether the API requires login. */
+  authEnabled: boolean;
+}
+
+export interface ProviderContext {
+  /** Provider id, e.g. 'ccxt:binance' or 'mock'. */
+  providerName: string;
+  /** True only for a live upstream (ccxt); mock/yahoo are false. */
+  providerLive: boolean;
+  /** Whether read/trade API keys are configured. */
+  hasKeys: boolean;
+}
+
+/**
+ * Effective trading status — every gate must pass. Returns the reasons it is off
+ * so the operator (via the UI) sees exactly what to fix. Pure.
+ */
+export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): TradingStatus {
+  const reasons: string[] = [];
+  if (!cfg.enabled) reasons.push('Set MIDAS_TRADING_ENABLED=true to enable live order placement.');
+  if (!ctx.providerLive) reasons.push('Live trading requires the ccxt provider (MIDAS_DATA_PROVIDER=ccxt).');
+  if (!ctx.hasKeys) reasons.push('Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET (keys must have trade permission).');
+  if (!cfg.authEnabled && !cfg.allowNoAuth) {
+    reasons.push(
+      'Refusing to trade without auth — set MIDAS_AUTH_ENABLED=true, or MIDAS_TRADING_ALLOW_NO_AUTH=true to override on a trusted host.',
+    );
+  }
+  const enabled = reasons.length === 0;
+  return {
+    enabled,
+    reason: enabled
+      ? 'Live trading is ENABLED — orders placed here are real and will execute on the exchange.'
+      : reasons.join(' '),
+    maxOrderUsd: cfg.maxOrderUsd > 0 ? cfg.maxOrderUsd : null,
+    source: ctx.providerName,
+  };
+}
+
+export interface OrderValidation {
+  ok: boolean;
+  errors: string[];
+}
+
+/** Validate a raw order body, defensively. Pure. */
+export function validateOrderRequest(body: unknown): OrderValidation {
+  const b = body as Partial<OrderRequest> | null | undefined;
+  if (!b || typeof b !== 'object') return { ok: false, errors: ['Missing order body.'] };
+  const errors: string[] = [];
+  if (typeof b.symbol !== 'string' || !b.symbol.trim()) errors.push('symbol is required.');
+  if (b.side !== 'buy' && b.side !== 'sell') errors.push("side must be 'buy' or 'sell'.");
+  if (b.type !== 'market' && b.type !== 'limit') errors.push("type must be 'market' or 'limit'.");
+  if (!(typeof b.amount === 'number' && Number.isFinite(b.amount) && b.amount > 0)) {
+    errors.push('amount must be a positive number.');
+  }
+  if (b.type === 'limit' && !(typeof b.price === 'number' && Number.isFinite(b.price) && b.price > 0)) {
+    errors.push('limit orders require a positive price.');
+  }
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Estimated USD notional for the cap check: limit uses its own price, market uses
+ * the supplied reference price. Returns null when it can't be priced — the caller
+ * treats null as "can't bound risk → reject" (fail safe). Pure.
+ */
+export function estimateNotionalUsd(req: OrderRequest, refPrice: number | null): number | null {
+  const px = req.type === 'limit' ? req.price ?? null : refPrice;
+  if (px == null || !(px > 0)) return null;
+  return req.amount * px;
+}
+
+const toNum = (v: unknown): number | null => {
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+/** Map a ccxt `createOrder` result to our PlacedOrder, falling back to the request. Pure. */
+export function mapPlacedOrder(raw: unknown, req: OrderRequest): PlacedOrder {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: str(o.id) || str(o.clientOrderId) || '—',
+    clientOrderId: str(o.clientOrderId) || req.clientOrderId || null,
+    symbol: str(o.symbol) || req.symbol,
+    side: o.side === 'sell' ? 'sell' : 'buy',
+    type: str(o.type) || req.type,
+    price: toNum(o.price) ?? (req.type === 'limit' ? req.price ?? null : null),
+    amount: toNum(o.amount) ?? req.amount,
+    filled: toNum(o.filled) ?? 0,
+    status: str(o.status) || 'open',
+    timestamp: toNum(o.timestamp),
+  };
+}

@@ -201,7 +201,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `BAL`   | `BALANCE`, `BALANCES`, `ACCTBAL` | no | Read-only exchange account balances — per-asset free/used/total, USD value & allocation %, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server env (`ccxt` provider); Midas never places orders or holds funds. Synthetic demo book until keys are set. |
 | `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Read-only open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial: reads only (`fetchOpenOrders`) — never places or cancels orders. Synthetic demo set until read-only keys are set. |
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
-| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Preview only** — non-custodial; Midas checks the order but never submits it (placement is disabled in this read-only build). |
+| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
 | `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `PBETA` | `PORTBETA`, `BWEIGHT`, `NETBETA` | no | Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions. |
@@ -455,6 +455,24 @@ Server (environment variables):
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
+| `MIDAS_TRADING_ENABLED` | `false`   | **Master switch for LIVE order placement (`TICKET`). Off by default.** When `true` (and the ccxt provider has trade-permissioned keys, and auth is on) the order ticket can place real orders. |
+| `MIDAS_MAX_ORDER_USD` | `1000`      | Hard per-order notional cap the server enforces; orders above it are rejected. `0` = uncapped (not recommended). |
+| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Escape hatch to allow trading without login on a trusted single-user/localhost host. Leave off; enabling it on a network-reachable instance is dangerous. |
+
+### Live trading (opt-in, off by default)
+
+Midas is read-only and non-custodial unless you deliberately turn trading on.
+Order placement (the `TICKET` panel) stays a preview until **every** gate passes:
+
+1. `MIDAS_TRADING_ENABLED=true` (master switch), **and**
+2. the `ccxt` provider with **trade-permissioned** `MIDAS_CCXT_API_KEY` / `MIDAS_CCXT_SECRET`, **and**
+3. `MIDAS_AUTH_ENABLED=true` (or the explicit `MIDAS_TRADING_ALLOW_NO_AUTH=true` override on a trusted host).
+
+Even then, every order is validated and capped at `MIDAS_MAX_ORDER_USD` server-side,
+the panel shows a red **LIVE** banner, and placement requires a two-step confirm.
+The single `createOrder` call is the only write in Midas; keys never leave your
+server. Trading on a network-exposed instance without auth is strongly discouraged —
+see [SECURITY.md](./SECURITY.md).
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).

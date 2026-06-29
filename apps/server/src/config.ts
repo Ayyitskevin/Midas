@@ -30,6 +30,12 @@ export interface Config {
   watchlistsFile: string;
   /** JSON file backing the per-user notes snapshot store. */
   notesFile: string;
+  /** Master switch for LIVE order placement. Off by default — opt-in only. */
+  tradingEnabled: boolean;
+  /** Allow trading without auth on a trusted host (escape hatch; default off). */
+  tradingAllowNoAuth: boolean;
+  /** Hard per-order USD notional cap the server enforces (0 = uncapped). */
+  maxOrderUsd: number;
   version: string;
 }
 
@@ -64,5 +70,8 @@ export const config: Config = {
     `${env('MIDAS_DATA_DIR', './data')}/watchlists.json`,
   ),
   notesFile: env('MIDAS_NOTES_FILE', `${env('MIDAS_DATA_DIR', './data')}/notes.json`),
+  tradingEnabled: env('MIDAS_TRADING_ENABLED', 'false').toLowerCase() === 'true',
+  tradingAllowNoAuth: env('MIDAS_TRADING_ALLOW_NO_AUTH', 'false').toLowerCase() === 'true',
+  maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
   version: '0.1.0',
 };
