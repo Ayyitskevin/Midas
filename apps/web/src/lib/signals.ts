@@ -121,3 +121,49 @@ export function sortSignals(rows: SignalRow[], sort: SignalSort): SignalRow[] {
   });
   return out;
 }
+
+// ── Saved-scan criteria ──────────────────────────────────────────────────────
+// A "scan" is just a filter over the computed signals: pick a trend / RSI /
+// range state (or "any") plus an optional minimum bull/bear score. Saved by
+// name (useSavedScans) so a setup like "oversold dips inside an uptrend" can be
+// re-run instead of re-dialed each visit. Pure and synchronous.
+
+export interface ScanCriteria {
+  trend: Trend | 'any';
+  rsi: RsiState | 'any';
+  range: RangeState | 'any';
+  /** Minimum net bull/bear score (inclusive), or null for no floor. */
+  minScore: number | null;
+}
+
+/** The no-op scan: matches every symbol. */
+export const ANY_CRITERIA: ScanCriteria = { trend: 'any', rsi: 'any', range: 'any', minScore: null };
+
+/** Does one scanned row satisfy every set criterion? ("any" fields are skipped.) */
+export function matchesCriteria(row: SignalRow, c: ScanCriteria): boolean {
+  if (c.trend !== 'any' && row.trend !== c.trend) return false;
+  if (c.rsi !== 'any' && row.rsiState !== c.rsi) return false;
+  if (c.range !== 'any' && row.rangeState !== c.range) return false;
+  if (c.minScore != null && row.score < c.minScore) return false;
+  return true;
+}
+
+/** Keep only the rows matching the criteria (order preserved). */
+export function filterSignals(rows: SignalRow[], c: ScanCriteria): SignalRow[] {
+  return rows.filter((r) => matchesCriteria(r, c));
+}
+
+/** True when at least one criterion is set (i.e. the scan actually filters). */
+export function isActiveCriteria(c: ScanCriteria): boolean {
+  return c.trend !== 'any' || c.rsi !== 'any' || c.range !== 'any' || c.minScore != null;
+}
+
+/** Short human label for a criteria set, e.g. "uptrend · oversold · score ≥ 1". */
+export function describeCriteria(c: ScanCriteria): string {
+  const parts: string[] = [];
+  if (c.trend !== 'any') parts.push(c.trend === 'up' ? 'uptrend' : 'downtrend');
+  if (c.rsi !== 'any') parts.push(c.rsi);
+  if (c.range !== 'any') parts.push(`${c.range} range`);
+  if (c.minScore != null) parts.push(`score ≥ ${c.minScore}`);
+  return parts.length ? parts.join(' · ') : 'all symbols';
+}

@@ -388,7 +388,7 @@ export const COMMANDS: CommandDef[] = [
     title: 'Signal Scan',
     module: 'SCAN',
     requiresSymbol: false,
-    description: 'Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold and 52-week range position, ranked by a bull/bear score.',
+    description: 'Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold and 52-week range position, ranked by a bull/bear score; filter by criteria and save named scans you re-run.',
   },
   {
     code: 'MTF',

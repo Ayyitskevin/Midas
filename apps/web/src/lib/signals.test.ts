@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { rsi, smaLast, computeSignals, signalBoard } from './signals';
+import {
+  rsi,
+  smaLast,
+  computeSignals,
+  signalBoard,
+  matchesCriteria,
+  filterSignals,
+  isActiveCriteria,
+  describeCriteria,
+  ANY_CRITERIA,
+  type SignalRow,
+} from './signals';
 
 const rng = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
@@ -76,5 +87,48 @@ describe('signalBoard', () => {
       'symbol',
     );
     expect(board.map((r) => r.symbol)).toEqual(['A', 'B']);
+  });
+});
+
+describe('scan criteria', () => {
+  const mkRow = (over: Partial<SignalRow>): SignalRow => ({
+    symbol: 'X',
+    last: 100,
+    sma20: null,
+    sma50: null,
+    trend: null,
+    rsi: null,
+    rsiState: null,
+    rangePct: null,
+    rangeState: null,
+    score: 0,
+    ...over,
+  });
+  const up = mkRow({ symbol: 'UP', trend: 'up', rsiState: 'oversold', rangeState: 'low', score: 2 });
+  const dn = mkRow({ symbol: 'DN', trend: 'down', rsiState: 'overbought', rangeState: 'high', score: -2 });
+  const flat = mkRow({ symbol: 'FL', trend: 'up', rsiState: 'neutral', rangeState: 'mid', score: 1 });
+  const rows = [up, dn, flat];
+  const codes = (rs: SignalRow[]) => rs.map((r) => r.symbol);
+
+  it('ANY_CRITERIA matches everything and reads as inactive', () => {
+    expect(isActiveCriteria(ANY_CRITERIA)).toBe(false);
+    expect(rows.every((r) => matchesCriteria(r, ANY_CRITERIA))).toBe(true);
+    expect(describeCriteria(ANY_CRITERIA)).toBe('all symbols');
+  });
+
+  it('filters by trend / rsi / range and a minimum score', () => {
+    expect(codes(filterSignals(rows, { ...ANY_CRITERIA, trend: 'up' }))).toEqual(['UP', 'FL']);
+    expect(codes(filterSignals(rows, { ...ANY_CRITERIA, rsi: 'oversold' }))).toEqual(['UP']);
+    expect(codes(filterSignals(rows, { ...ANY_CRITERIA, range: 'high' }))).toEqual(['DN']);
+    expect(codes(filterSignals(rows, { ...ANY_CRITERIA, minScore: 2 }))).toEqual(['UP']);
+  });
+
+  it('ANDs fields together and describes a compound set', () => {
+    // up AND score ≥ 2 → only UP (FL is up but score 1)
+    expect(codes(filterSignals(rows, { ...ANY_CRITERIA, trend: 'up', minScore: 2 }))).toEqual(['UP']);
+    expect(isActiveCriteria({ ...ANY_CRITERIA, trend: 'up' })).toBe(true);
+    expect(describeCriteria({ trend: 'up', rsi: 'oversold', range: 'any', minScore: 1 })).toBe(
+      'uptrend · oversold · score ≥ 1',
+    );
   });
 });
