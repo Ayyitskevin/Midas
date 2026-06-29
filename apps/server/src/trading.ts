@@ -20,6 +20,8 @@ export interface TradingConfig {
   maxOrderUsd: number;
   /** MIDAS_AUTH_ENABLED — whether the API requires login. */
   authEnabled: boolean;
+  /** MIDAS_CORS_ORIGIN — allowed browser origin ('*' = any). */
+  corsOrigin: string;
 }
 
 export interface ProviderContext {
@@ -40,10 +42,20 @@ export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): 
   if (!cfg.enabled) reasons.push('Set MIDAS_TRADING_ENABLED=true to enable live order placement.');
   if (!ctx.providerLive) reasons.push('Live trading requires the ccxt provider (MIDAS_DATA_PROVIDER=ccxt).');
   if (!ctx.hasKeys) reasons.push('Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET (keys must have trade permission).');
-  if (!cfg.authEnabled && !cfg.allowNoAuth) {
-    reasons.push(
-      'Refusing to trade without auth — set MIDAS_AUTH_ENABLED=true, or MIDAS_TRADING_ALLOW_NO_AUTH=true to override on a trusted host.',
-    );
+  if (!cfg.authEnabled) {
+    if (!cfg.allowNoAuth) {
+      reasons.push(
+        'Refusing to trade without auth — set MIDAS_AUTH_ENABLED=true, or MIDAS_TRADING_ALLOW_NO_AUTH=true to override on a trusted host.',
+      );
+    } else if (cfg.corsOrigin.trim() === '*') {
+      // No-auth + wildcard CORS is a CSRF vector: a page the operator visits
+      // could POST an order to a localhost/LAN instance cross-origin (auth would
+      // otherwise require a bearer token that browsers don't send cross-site).
+      // Force a pinned origin so the browser's preflight blocks foreign pages.
+      reasons.push(
+        'Refusing to trade with no auth and a wildcard CORS origin — a malicious web page could place orders cross-origin. Set a specific MIDAS_CORS_ORIGIN, or enable MIDAS_AUTH_ENABLED.',
+      );
+    }
   }
   const enabled = reasons.length === 0;
   return {

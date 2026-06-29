@@ -44,7 +44,11 @@ Recommendations if you enable trading:
   IP-allowlist the keys at the exchange.
 - Keep `MIDAS_MAX_ORDER_USD` as low as your use allows; it is your blast-radius cap.
 - Require auth (`MIDAS_AUTH_ENABLED=true`) and TLS for any non-localhost instance;
-  do not use the no-auth override on a network-reachable host.
+  do not use the no-auth override on a network-reachable host. The server **refuses
+  to enable no-auth trading while `MIDAS_CORS_ORIGIN=*`** (the default), since that
+  combination is a cross-site request-forgery vector — pin `MIDAS_CORS_ORIGIN` to
+  your terminal's exact origin, or just enable auth (bearer tokens are not sent
+  cross-site).
 - The master switch is your kill switch: set `MIDAS_TRADING_ENABLED=false` and
   restart to disable placement instantly.
 

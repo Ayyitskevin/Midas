@@ -128,6 +128,7 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     allowNoAuth: config.tradingAllowNoAuth,
     maxOrderUsd: config.maxOrderUsd,
     authEnabled: config.authEnabled,
+    corsOrigin: config.corsOrigin,
   };
   const tradingStatus = () =>
     computeTradingStatus(tradingCfg, {

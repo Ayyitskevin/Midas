@@ -10,7 +10,13 @@ import type { OrderRequest } from '@midas/shared';
 
 const liveCtx = { providerName: 'ccxt:binance', providerLive: true, hasKeys: true };
 // Every gate passing: master on, live provider, keys, auth on.
-const onCfg: TradingConfig = { enabled: true, allowNoAuth: false, maxOrderUsd: 1000, authEnabled: true };
+const onCfg: TradingConfig = {
+  enabled: true,
+  allowNoAuth: false,
+  maxOrderUsd: 1000,
+  authEnabled: true,
+  corsOrigin: '*',
+};
 
 describe('computeTradingStatus — defense in depth', () => {
   it('is enabled only when every gate passes', () => {
@@ -31,12 +37,26 @@ describe('computeTradingStatus — defense in depth', () => {
     expect(computeTradingStatus(onCfg, { ...liveCtx, hasKeys: false }).enabled).toBe(false);
   });
 
-  it('refuses to trade without auth unless explicitly overridden', () => {
+  it('refuses to trade without auth unless overridden AND a CORS origin is pinned', () => {
     const noAuth = computeTradingStatus({ ...onCfg, authEnabled: false }, liveCtx);
     expect(noAuth.enabled).toBe(false);
     expect(noAuth.reason).toMatch(/without auth/i);
-    // explicit escape hatch
-    const overridden = computeTradingStatus({ ...onCfg, authEnabled: false, allowNoAuth: true }, liveCtx);
+
+    // The no-auth override alone is not enough with wildcard CORS — that is a
+    // CSRF vector (a malicious page could place orders cross-origin).
+    const wildcard = computeTradingStatus(
+      { ...onCfg, authEnabled: false, allowNoAuth: true, corsOrigin: '*' },
+      liveCtx,
+    );
+    expect(wildcard.enabled).toBe(false);
+    expect(wildcard.reason).toMatch(/cross-origin|CORS/i);
+
+    // Override + a pinned CORS origin → the browser preflight blocks foreign
+    // pages, so trading may enable.
+    const overridden = computeTradingStatus(
+      { ...onCfg, authEnabled: false, allowNoAuth: true, corsOrigin: 'http://localhost:5173' },
+      liveCtx,
+    );
     expect(overridden.enabled).toBe(true);
   });
 
