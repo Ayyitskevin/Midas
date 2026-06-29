@@ -3,6 +3,8 @@ import { useAlerts } from '@/store/useAlerts';
 import { useToasts } from '@/store/useToasts';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useAlertActions } from '@/store/useAlertActions';
+import { ALERT_ACTIONS } from '@/lib/alertAction';
 import {
   canNotify,
   describeThreshold,
@@ -45,6 +47,8 @@ export function AlertsModule({ panel }: ModuleProps) {
   const toggleAlert = useAlerts((s) => s.toggleAlert);
   const rearmAlert = useAlerts((s) => s.rearmAlert);
   const clearLog = useAlerts((s) => s.clearLog);
+  const alertActions = useAlertActions((s) => s.actions);
+  const setAction = useAlertActions((s) => s.setAction);
   const pushToast = useToasts((s) => s.push);
 
   // In server mode the rules + log come from the API (the server evaluates).
@@ -250,7 +254,19 @@ export function AlertsModule({ panel }: ModuleProps) {
                       {a.repeat && <div className="text-term-dim">repeat</div>}
                     </td>
                     <td className="py-1 pr-2 text-right">
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <select
+                          value={alertActions[a.id] ?? ''}
+                          onChange={(e) => setAction(a.id, e.target.value)}
+                          title="On fire, open a panel for this symbol"
+                          className="no-drag rounded-sm border border-term-border bg-term-panel px-0.5 py-0 text-2xs text-term-muted outline-none focus:border-term-amber"
+                        >
+                          {ALERT_ACTIONS.map((o) => (
+                            <option key={o.code} value={o.code}>
+                              {o.code === '' ? '↳ —' : `↳ ${o.code}`}
+                            </option>
+                          ))}
+                        </select>
                         {a.status === 'triggered' && (
                           <button
                             onClick={() => onRearm(a)}
