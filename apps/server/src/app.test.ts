@@ -99,10 +99,11 @@ describe('GET /api/funding', () => {
 });
 
 describe('GET /api/liquidations', () => {
-  it('returns a merged, newest-first feed with notional values', async () => {
+  it('returns a merged, newest-first feed with notional values and provenance meta', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
     expect(res.statusCode).toBe(200);
-    const events = res.json();
+    const feed = res.json();
+    const events = feed.events;
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBeGreaterThan(0);
     expect(events[0]).toHaveProperty('symbol');
@@ -112,6 +113,10 @@ describe('GET /api/liquidations', () => {
     for (let i = 1; i < events.length; i++) {
       expect(events[i - 1].timestamp).toBeGreaterThanOrEqual(events[i].timestamp);
     }
+    // honest provenance metadata
+    expect(typeof feed.meta.source).toBe('string');
+    expect(typeof feed.meta.available).toBe('boolean');
+    expect(typeof feed.meta.asOf).toBe('number');
   });
 });
 

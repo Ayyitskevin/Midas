@@ -195,6 +195,37 @@ export interface LiquidationEvent {
   timestamp: number;
 }
 
+/**
+ * Provenance + availability for the liquidation feed, so the UI can be honest
+ * about where the numbers come from and why they may be empty or unreliable.
+ *
+ * Liquidation data is the least trustworthy feed in crypto: most exchanges
+ * either expose no public liquidation stream at all (Binance removed its public
+ * stream in 2021) or throttle it to ~1/sec, which is widely documented to
+ * under-report true liquidations many-fold. Rather than silently show an empty
+ * "live" feed, Midas labels the source and surfaces the caveat.
+ */
+export interface LiquidationsProvenance {
+  /** Where the data came from — an exchange id/name, or 'mock'. */
+  source: string;
+  /** Whether the source actually exposes a public liquidation feed. */
+  available: boolean;
+  /** Honest caveat: why the feed may be empty/partial, the throttling warning, etc. */
+  note?: string;
+}
+
+/** {@link LiquidationsProvenance} stamped with the time the feed was assembled. */
+export interface LiquidationsMeta extends LiquidationsProvenance {
+  /** Epoch millis the feed was assembled. */
+  asOf: number;
+}
+
+/** The market-wide liquidations feed plus its provenance metadata. */
+export interface LiquidationsFeed {
+  events: LiquidationEvent[];
+  meta: LiquidationsMeta;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */
