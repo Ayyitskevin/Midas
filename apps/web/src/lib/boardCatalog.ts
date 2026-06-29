@@ -95,3 +95,13 @@ export function boardCatalog(commands: CommandDef[], query = ''): BoardGroup[] {
 export function boardCount(commands: CommandDef[]): number {
   return commands.filter(isBoard).length;
 }
+
+/** The board entries for a set of favorited codes (catalog order; non-boards ignored). */
+export function pinnedBoards(commands: CommandDef[], codes: string[]): BoardEntry[] {
+  const set = new Set(codes);
+  return commands
+    .filter(isBoard)
+    .filter((c) => set.has(c.code))
+    .map((c) => ({ code: c.code, title: c.title, description: c.description, category: classifyBoard(c) }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+}
