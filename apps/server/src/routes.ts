@@ -8,9 +8,12 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
+import type { OrderRequest } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
+import { ccxtKeysConfigured } from './providers/balances';
 import { config } from './config';
+import { computeTradingStatus, validateOrderRequest, estimateNotionalUsd, type TradingConfig } from './trading';
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
 
@@ -114,6 +117,69 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
   app.get('/api/balances', async () => provider.getBalances());
   app.get('/api/orders', async () => provider.getOpenOrders());
   app.get('/api/positions', async () => provider.getPositions());
+
+  // --- Live trading (opt-in, OFF by default) -------------------------------
+  // Every gate lives in trading.ts (pure + tested). The status endpoint tells
+  // the UI whether placement is possible; the POST is the ONLY write path, and
+  // it re-checks the gate, validates, and enforces a hard notional cap on every
+  // request before reaching the provider's single createOrder call.
+  const tradingCfg: TradingConfig = {
+    enabled: config.tradingEnabled,
+    allowNoAuth: config.tradingAllowNoAuth,
+    maxOrderUsd: config.maxOrderUsd,
+    authEnabled: config.authEnabled,
+    corsOrigin: config.corsOrigin,
+  };
+  const tradingStatus = () =>
+    computeTradingStatus(tradingCfg, {
+      providerName: provider.name,
+      providerLive: provider.live,
+      hasKeys: ccxtKeysConfigured(),
+    });
+
+  app.get('/api/trading/status', async () => tradingStatus());
+
+  app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
+    const status = tradingStatus();
+    if (!status.enabled) {
+      reply.status(403);
+      return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
+    }
+    const v = validateOrderRequest(req.body);
+    if (!v.ok) throw new ProviderError(v.errors.join(' '), 400);
+    if (!provider.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
+
+    const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
+
+    // Hard notional cap: price the order and reject anything over the ceiling.
+    if (status.maxOrderUsd != null) {
+      let refPrice: number | null = null;
+      if (body.type === 'market') {
+        try {
+          refPrice = (await provider.getQuote(body.symbol)).price;
+        } catch {
+          refPrice = null;
+        }
+      }
+      const notional = estimateNotionalUsd(body, refPrice);
+      if (notional == null) {
+        throw new ProviderError('Could not price the order to enforce the notional cap — rejected.', 400);
+      }
+      if (notional > status.maxOrderUsd) {
+        throw new ProviderError(
+          `Order notional ~$${Math.round(notional)} exceeds the per-order cap of $${status.maxOrderUsd} (raise MIDAS_MAX_ORDER_USD to allow it).`,
+          400,
+        );
+      }
+    }
+
+    // Audit: every live placement attempt is logged with who/what.
+    app.log.warn(
+      { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId },
+      'LIVE order placement',
+    );
+    return provider.placeOrder(body);
+  });
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',

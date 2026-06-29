@@ -5,6 +5,8 @@ import type {
   DexPools,
   FundingHistoryPoint,
   OpenOrders,
+  OrderRequest,
+  PlacedOrder,
   HistoryResponse,
   Interval,
   LiquidationsProvenance,
@@ -62,6 +64,12 @@ export interface DataProvider {
   getPositions(): Promise<AccountPositions>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
+  /**
+   * Place a LIVE order (optional — ccxt only). The single write in the data layer.
+   * Reached only when live trading is explicitly enabled, validated and capped by
+   * the route; providers that omit it cannot trade.
+   */
+  placeOrder?(req: OrderRequest): Promise<PlacedOrder>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;

@@ -16,7 +16,10 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
 
 - **Your funds never touch Midas.** The terminal reads market data and (when you
   configure a provider) reads from your exchange — it does not custody assets.
-- **No order placement** is built in. Midas is a read/analytics terminal.
+- **Read-only by default; trading is strictly opt-in.** Account access starts
+  read-only (balances/orders/positions), and live order placement is **off**
+  unless you deliberately enable it (see below). Midas never moves or withdraws
+  funds — the only write it can perform is placing an order you explicitly confirm.
 - **Bring-your-own data source.** With the default `mock` provider, nothing
   leaves your machine. Live providers (`ccxt`, `yahoo`) talk to public market
   endpoints; any exchange credentials you supply stay in your own deployment's
@@ -26,6 +29,28 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
 
 If you operate a shared or internet-exposed instance, enable authentication, put
 it behind TLS, and treat any configured provider credentials as secrets.
+
+## Live trading (opt-in)
+
+Live order placement is gated by defense in depth and **off by default**. It
+activates only when all of these hold: `MIDAS_TRADING_ENABLED=true`, the `ccxt`
+provider with **trade-permissioned** API keys, and auth enabled (or an explicit
+`MIDAS_TRADING_ALLOW_NO_AUTH=true` override). Every order is validated and capped
+at `MIDAS_MAX_ORDER_USD` server-side before the single `createOrder` call.
+
+Recommendations if you enable trading:
+
+- Use API keys scoped to **trade only** — never enable withdrawal permission, and
+  IP-allowlist the keys at the exchange.
+- Keep `MIDAS_MAX_ORDER_USD` as low as your use allows; it is your blast-radius cap.
+- Require auth (`MIDAS_AUTH_ENABLED=true`) and TLS for any non-localhost instance;
+  do not use the no-auth override on a network-reachable host. The server **refuses
+  to enable no-auth trading while `MIDAS_CORS_ORIGIN=*`** (the default), since that
+  combination is a cross-site request-forgery vector — pin `MIDAS_CORS_ORIGIN` to
+  your terminal's exact origin, or just enable auth (bearer tokens are not sent
+  cross-site).
+- The master switch is your kill switch: set `MIDAS_TRADING_ENABLED=false` and
+  restart to disable placement instantly.
 
 ## Data honesty is a safety property
 

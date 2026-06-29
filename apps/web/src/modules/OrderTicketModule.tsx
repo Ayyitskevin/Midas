@@ -1,9 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
 import type { Level, Side } from '@/lib/slippage';
+import type { PlacedOrder } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -38,11 +39,13 @@ const inputCls =
 /**
  * TICKET — an order ticket that builds, validates and previews a market/limit
  * order against the live L2 book (average fill, fees, slippage, marketable vs
- * resting). The order-entry seam before live placement.
+ * resting).
  *
- * Read-only and non-custodial: this previews only. There is no submit — Midas
- * never places orders or moves funds. (Live placement is a separate, explicitly
- * gated step that is not part of this build.)
+ * Placement is OFF by default: the panel previews only, and the place button is
+ * disabled, unless the operator has explicitly enabled live trading on the server
+ * (MIDAS_TRADING_ENABLED + trade keys + auth). When live, the button arms a
+ * two-step confirm and the panel shows a red LIVE banner so the mode is never
+ * ambiguous — every order is validated and notional-capped server-side.
  */
 export function OrderTicketModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
@@ -52,11 +55,19 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   const [limit, setLimit] = useState('');
   const [feeBps, setFeeBps] = useState('5');
 
+  // Live-placement state. Only reachable when the server reports trading enabled.
+  const [armed, setArmed] = useState(false);
+  const [placing, setPlacing] = useState(false);
+  const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+  const [placeError, setPlaceError] = useState<string | null>(null);
+
   const { data, error, loading, refresh } = useFetch(
     (signal) => api.orderbook(symbol!, 100, signal),
     [symbol],
     { intervalMs: 5000, enabled: !!symbol },
   );
+  const trading = useFetch((signal) => api.tradingStatus(signal), [], { intervalMs: 60_000 });
+  const live = trading.data?.enabled ?? false;
 
   const bids: Level[] = useMemo(() => (data?.bids ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
   const asks: Level[] = useMemo(() => (data?.asks ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
@@ -69,6 +80,36 @@ export function OrderTicketModule({ panel }: ModuleProps) {
       ),
     [bids, asks, side, type, amount, limit, feeBps],
   );
+
+  // Any change to the order invalidates a pending confirm or a prior result, so
+  // the user can never confirm a different order than the one shown.
+  useEffect(() => {
+    setArmed(false);
+    setPlaceError(null);
+    setPlaced(null);
+  }, [symbol, side, type, amount, limit]);
+
+  async function doPlace() {
+    if (!preview.ok || !symbol) return;
+    setPlacing(true);
+    setPlaceError(null);
+    try {
+      const res = await api.placeOrder({
+        symbol,
+        side,
+        type,
+        amount: num(amount),
+        price: type === 'limit' ? num(limit) : null,
+        clientOrderId: crypto.randomUUID(),
+      });
+      setPlaced(res);
+      setArmed(false);
+    } catch (e) {
+      setPlaceError(e instanceof Error ? e.message : 'Order failed.');
+    } finally {
+      setPlacing(false);
+    }
+  }
 
   if (!symbol) {
     return (
@@ -85,16 +126,27 @@ export function OrderTicketModule({ panel }: ModuleProps) {
 
   return (
     <div className="no-drag scroll-term flex h-full flex-col gap-2 overflow-y-auto p-2">
-      {/* Honesty banner: this is a preview, never a live order. */}
-      <div className="flex items-start gap-2 rounded-sm border border-term-amber/40 bg-term-amber/10 px-2 py-1.5">
-        <span className="rounded-sm bg-term-amber/20 px-1.5 py-0.5 text-2xs font-semibold text-term-amber">
-          PREVIEW ONLY
-        </span>
-        <span className="text-2xs leading-relaxed text-term-text">
-          Midas builds and checks this order against the live book but never submits it — placement is non-custodial and
-          disabled.
-        </span>
-      </div>
+      {/* Mode banner: red LIVE when trading is enabled, amber PREVIEW otherwise. */}
+      {live ? (
+        <div className="flex items-start gap-2 rounded-sm border border-term-down/50 bg-term-down/10 px-2 py-1.5">
+          <span className="rounded-sm bg-term-down/25 px-1.5 py-0.5 text-2xs font-semibold text-term-down">● LIVE</span>
+          <span className="text-2xs leading-relaxed text-term-text">
+            Live trading is ENABLED — orders you confirm here are real and execute on{' '}
+            {trading.data?.source ?? 'the exchange'}.
+            {trading.data?.maxOrderUsd != null ? ` Per-order cap $${fmtCompact(trading.data.maxOrderUsd)}.` : ''}
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-sm border border-term-amber/40 bg-term-amber/10 px-2 py-1.5">
+          <span className="rounded-sm bg-term-amber/20 px-1.5 py-0.5 text-2xs font-semibold text-term-amber">
+            PREVIEW ONLY
+          </span>
+          <span className="text-2xs leading-relaxed text-term-text">
+            Midas builds and checks this order against the live book but never submits it — placement is disabled until
+            live trading is explicitly enabled on the server.
+          </span>
+        </div>
+      )}
 
       {/* Side + type toggles */}
       <div className="flex gap-2">
@@ -215,19 +267,81 @@ export function OrderTicketModule({ panel }: ModuleProps) {
         </div>
       )}
 
-      {/* The placement affordance — deliberately disabled (read-only build). */}
-      <button
-        type="button"
-        disabled
-        title="Order placement is disabled — Midas is read-only and non-custodial."
-        className="cursor-not-allowed rounded-sm border border-term-border bg-term-panel/40 py-1.5 text-2xs font-semibold uppercase tracking-wide text-term-dim opacity-70"
-      >
-        Place order — disabled (read-only)
-      </button>
+      {/* Placement — disabled unless live trading is enabled on the server. */}
+      {!live ? (
+        <button
+          type="button"
+          disabled
+          title={trading.data?.reason ?? 'Live trading is disabled — preview only.'}
+          className="cursor-not-allowed rounded-sm border border-term-border bg-term-panel/40 py-1.5 text-2xs font-semibold uppercase tracking-wide text-term-dim opacity-70"
+        >
+          Place order — disabled (preview only)
+        </button>
+      ) : placed ? (
+        <div className="rounded-sm border border-term-up/50 bg-term-up/10 p-2">
+          <div className="text-2xs font-semibold text-term-up">✓ Order placed (live)</div>
+          <Row label="ID">{placed.id}</Row>
+          <Row label="Status">{placed.status}</Row>
+          <button
+            type="button"
+            onClick={() => setPlaced(null)}
+            className="mt-1 w-full rounded-sm border border-term-border py-1 text-2xs uppercase text-term-muted hover:text-term-text"
+          >
+            New order
+          </button>
+        </div>
+      ) : armed ? (
+        <div className="rounded-sm border border-term-down/50 bg-term-down/5 p-2">
+          <div className="mb-1.5 text-2xs leading-relaxed text-term-text">
+            Confirm a <span className={`font-semibold ${sideUp ? 'text-term-up' : 'text-term-down'}`}>LIVE {side} {type}</span>{' '}
+            of {amount} {base}
+            {type === 'limit' ? ` @ ${limit} ${quote}` : ' at market'} on {trading.data?.source ?? 'the exchange'}.
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setArmed(false)}
+              disabled={placing}
+              className="flex-1 rounded-sm border border-term-border py-1 text-2xs uppercase text-term-muted hover:text-term-text disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={doPlace}
+              disabled={placing}
+              className={`flex-1 rounded-sm border py-1 text-2xs font-semibold uppercase disabled:opacity-50 ${
+                sideUp
+                  ? 'border-term-up/60 bg-term-up/20 text-term-up hover:bg-term-up/30'
+                  : 'border-term-down/60 bg-term-down/20 text-term-down hover:bg-term-down/30'
+              }`}
+            >
+              {placing ? 'Placing…' : `Confirm LIVE ${side}`}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setArmed(true)}
+          disabled={!preview.ok || placing}
+          className={`rounded-sm py-1.5 text-2xs font-semibold uppercase tracking-wide ${
+            preview.ok
+              ? sideUp
+                ? 'border border-term-up/50 bg-term-up/15 text-term-up hover:bg-term-up/25'
+                : 'border border-term-down/50 bg-term-down/15 text-term-down hover:bg-term-down/25'
+              : 'cursor-not-allowed border border-term-border bg-term-panel/40 text-term-dim opacity-70'
+          }`}
+        >
+          Review &amp; place (LIVE)
+        </button>
+      )}
+
+      {placeError && <div className="rounded-sm border border-term-down/40 bg-term-down/10 px-2 py-1 text-2xs text-term-down">⚠ {placeError}</div>}
 
       <p className="px-1 text-2xs leading-relaxed text-term-dim">
-        Walks the live L2 book to estimate the fill. Snapshot depth only; gross of funding. A preview, not a routed
-        quote — and never an order.
+        Walks the live L2 book to estimate the fill. Snapshot depth only; gross of funding. The preview is an estimate,
+        not a routed quote.
       </p>
     </div>
   );

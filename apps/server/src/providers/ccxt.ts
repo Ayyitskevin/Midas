@@ -13,6 +13,8 @@ import type {
   NewsItem,
   OpenOrders,
   OrderBook,
+  OrderRequest,
+  PlacedOrder,
   Quote,
   ScreenerRow,
   SearchResult,
@@ -24,6 +26,7 @@ import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
+import { mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
@@ -473,6 +476,29 @@ export class CcxtProvider implements DataProvider {
         asOf,
       };
     }
+  }
+
+  /**
+   * Place a LIVE order. This is the ONLY write call in Midas. It is reached only
+   * after the route confirms live trading is enabled and the request has been
+   * validated and notional-capped — this method does not re-gate, it executes.
+   */
+  async placeOrder(req: OrderRequest): Promise<PlacedOrder> {
+    if (!this.exchange.has['createOrder']) {
+      throw new ProviderError(`${this.name} does not support order placement.`, 501);
+    }
+    const symbol = this.normalize(req.symbol);
+    const params: Record<string, unknown> = {};
+    if (req.clientOrderId) params.clientOrderId = req.clientOrderId;
+    const raw = await this.exchange.createOrder(
+      symbol,
+      req.type,
+      req.side,
+      req.amount,
+      req.type === 'limit' ? req.price ?? undefined : undefined,
+      params,
+    );
+    return mapPlacedOrder(raw, { ...req, symbol });
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {

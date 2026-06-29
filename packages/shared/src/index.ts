@@ -381,6 +381,54 @@ export interface AccountPositions {
   asOf: number;
 }
 
+/**
+ * A request to place a live order. Live trading is strictly opt-in and off by
+ * default — see {@link TradingStatus}. Midas only places an order when the
+ * operator has explicitly enabled trading and provisioned trade-permissioned
+ * keys; every order is gated, validated and notional-capped server-side.
+ */
+export interface OrderRequest {
+  symbol: string;
+  side: 'buy' | 'sell';
+  type: 'market' | 'limit';
+  /** Order size in base units. */
+  amount: number;
+  /** Limit price (required for limit; ignored for market). */
+  price?: number | null;
+  /** Idempotency key so a retry / double-submit does not double-place. */
+  clientOrderId?: string;
+}
+
+/** The exchange's response to a placed order. */
+export interface PlacedOrder {
+  id: string;
+  clientOrderId: string | null;
+  symbol: string;
+  side: 'buy' | 'sell';
+  type: string;
+  amount: number;
+  price: number | null;
+  filled: number;
+  status: string;
+  /** Epoch millis the order was accepted; null if unknown. */
+  timestamp: number | null;
+}
+
+/**
+ * Whether live order placement is currently enabled, plus the reason and limits —
+ * so the UI can stay honest about LIVE vs preview mode and never imply an order
+ * can be placed when it can't (or vice versa).
+ */
+export interface TradingStatus {
+  enabled: boolean;
+  /** Why trading is off (when disabled), or a confirmation note when on. */
+  reason: string;
+  /** Per-order USD notional cap the server enforces, or null if uncapped. */
+  maxOrderUsd: number | null;
+  /** The source that would receive orders, e.g. 'ccxt:binance'. */
+  source: string;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */

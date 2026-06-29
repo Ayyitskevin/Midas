@@ -18,10 +18,13 @@ import type {
   Interval,
   NewsItem,
   OrderBook,
+  OrderRequest,
+  PlacedOrder,
   Quote,
   Range,
   ScreenerRow,
   SearchResult,
+  TradingStatus,
   User,
   VenueDerivatives,
   VenueQuote,
@@ -130,6 +133,11 @@ export const api = {
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),
   openOrders: (signal?: AbortSignal) => apiGet<OpenOrders>('/api/orders', signal),
   positions: (signal?: AbortSignal) => apiGet<AccountPositions>('/api/positions', signal),
+
+  // Live trading (opt-in, off by default). status() tells the UI whether placement
+  // is possible; placeOrder() is the only call that can submit a real order.
+  tradingStatus: (signal?: AbortSignal) => apiGet<TradingStatus>('/api/trading/status', signal),
+  placeOrder: (req: OrderRequest, signal?: AbortSignal) => apiPost<PlacedOrder>('/api/orders', req, signal),
 
   fundingHistory: (symbol: string, limit = 90, signal?: AbortSignal) =>
     apiGet<FundingHistoryPoint[]>(
