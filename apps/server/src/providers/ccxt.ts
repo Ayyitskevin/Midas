@@ -205,11 +205,20 @@ export class CcxtProvider implements DataProvider {
         return out;
       }),
     );
-    // Keep only venues that actually report a perp (drop all-null spot-only venues).
+    // Keep venues that reported any perp field (funding, OI, mark or next-funding);
+    // drop only the all-null spot-only venues. A venue can answer fetchFundingRate
+    // with a markPrice/next time but a null fundingRate (the ccxt fields are
+    // independently optional), so don't gate solely on fundingRate/OI.
     return settled
       .filter((r): r is PromiseFulfilledResult<VenueDerivatives> => r.status === 'fulfilled')
       .map((r) => r.value)
-      .filter((v) => v.fundingRate !== null || v.openInterestValue !== null);
+      .filter(
+        (v) =>
+          v.fundingRate !== null ||
+          v.openInterestValue !== null ||
+          v.markPrice !== null ||
+          v.nextFundingTime !== null,
+      );
   }
 
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {
