@@ -8,6 +8,8 @@ import {
   filterSignals,
   isActiveCriteria,
   describeCriteria,
+  coerceCriteria,
+  sameCriteria,
   ANY_CRITERIA,
   type SignalRow,
 } from './signals';
@@ -130,5 +132,33 @@ describe('scan criteria', () => {
     expect(describeCriteria({ trend: 'up', rsi: 'oversold', range: 'any', minScore: 1 })).toBe(
       'uptrend · oversold · score ≥ 1',
     );
+  });
+});
+
+describe('coerceCriteria', () => {
+  it('passes valid fields through and drops invalid ones to any/null', () => {
+    expect(coerceCriteria({ trend: 'up', rsi: 'oversold', range: 'low', minScore: 2 })).toEqual({
+      trend: 'up',
+      rsi: 'oversold',
+      range: 'low',
+      minScore: 2,
+    });
+    expect(coerceCriteria({ trend: 'sideways', rsi: 7, range: 'XL', minScore: 'lots' })).toEqual(ANY_CRITERIA);
+  });
+
+  it('returns ANY_CRITERIA for non-objects and rejects non-finite scores', () => {
+    expect(coerceCriteria(null)).toEqual(ANY_CRITERIA);
+    expect(coerceCriteria('nope')).toEqual(ANY_CRITERIA);
+    expect(coerceCriteria({ minScore: Infinity })).toEqual(ANY_CRITERIA);
+    expect(coerceCriteria({ minScore: 0 }).minScore).toBe(0); // 0 is a valid floor
+  });
+});
+
+describe('sameCriteria', () => {
+  it('compares all four fields by value', () => {
+    expect(sameCriteria(ANY_CRITERIA, { ...ANY_CRITERIA })).toBe(true);
+    expect(sameCriteria({ ...ANY_CRITERIA, trend: 'up' }, { ...ANY_CRITERIA, trend: 'up' })).toBe(true);
+    expect(sameCriteria({ ...ANY_CRITERIA, trend: 'up' }, { ...ANY_CRITERIA, trend: 'down' })).toBe(false);
+    expect(sameCriteria({ ...ANY_CRITERIA, minScore: 1 }, { ...ANY_CRITERIA, minScore: null })).toBe(false);
   });
 });

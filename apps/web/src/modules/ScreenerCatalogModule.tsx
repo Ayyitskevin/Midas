@@ -3,9 +3,22 @@ import { COMMANDS } from '@/commands/registry';
 import { openModule } from '@/commands/execute';
 import { boardCatalog, boardCount, pinnedBoards, type BoardEntry } from '@/lib/boardCatalog';
 import { useBoardFavorites } from '@/store/useBoardFavorites';
+import { useToasts } from '@/store/useToasts';
+import { encodeBoard, shareUrl } from '@/lib/deepLink';
+import { copyToClipboard } from '@/lib/clipboard';
 import { EmptyState } from '@/components/Feedback';
 
-function BoardRow({ b, fav, onToggle }: { b: BoardEntry; fav: boolean; onToggle: (code: string) => void }) {
+function BoardRow({
+  b,
+  fav,
+  onToggle,
+  onShare,
+}: {
+  b: BoardEntry;
+  fav: boolean;
+  onToggle: (code: string) => void;
+  onShare: (code: string) => void;
+}) {
   return (
     <tr className="border-b border-term-border/20 hover:bg-term-header/40">
       <td className="w-5 px-1 py-0.5 align-top text-center">
@@ -35,6 +48,15 @@ function BoardRow({ b, fav, onToggle }: { b: BoardEntry; fav: boolean; onToggle:
           <span className="text-term-dim"> — {b.description.split(' — ')[1]?.split('.')[0] ?? ''}</span>
         </button>
       </td>
+      <td className="w-5 px-1 py-0.5 align-top text-center">
+        <button
+          onClick={() => onShare(b.code)}
+          className="no-drag text-term-dim hover:text-term-amber"
+          title={`Copy a shareable link to ${b.code}`}
+        >
+          ⧉
+        </button>
+      </td>
     </tr>
   );
 }
@@ -44,6 +66,16 @@ export function ScreenerCatalogModule() {
   const favCodes = useBoardFavorites((s) => s.favorites);
   const isFav = useBoardFavorites((s) => s.isFavorite);
   const toggleFav = useBoardFavorites((s) => s.toggle);
+  const pushToast = useToasts((s) => s.push);
+
+  const onShare = async (code: string) => {
+    const ok = await copyToClipboard(shareUrl(encodeBoard(code)));
+    pushToast(
+      ok
+        ? { title: 'Board link copied', body: `Paste to share ${code}`, tone: 'info' }
+        : { title: 'Copy failed', body: 'Clipboard unavailable', tone: 'down' },
+    );
+  };
 
   const total = useMemo(() => boardCount(COMMANDS), []);
   const groups = useMemo(() => boardCatalog(COMMANDS, query), [query]);
@@ -75,7 +107,7 @@ export function ScreenerCatalogModule() {
             <table className="w-full text-2xs">
               <tbody>
                 {favs.map((b) => (
-                  <BoardRow key={`fav-${b.code}`} b={b} fav onToggle={toggleFav} />
+                  <BoardRow key={`fav-${b.code}`} b={b} fav onToggle={toggleFav} onShare={onShare} />
                 ))}
               </tbody>
             </table>
@@ -93,7 +125,7 @@ export function ScreenerCatalogModule() {
               <table className="w-full text-2xs">
                 <tbody>
                   {g.boards.map((b) => (
-                    <BoardRow key={b.code} b={b} fav={isFav(b.code)} onToggle={toggleFav} />
+                    <BoardRow key={b.code} b={b} fav={isFav(b.code)} onToggle={toggleFav} onShare={onShare} />
                   ))}
                 </tbody>
               </table>
@@ -103,7 +135,7 @@ export function ScreenerCatalogModule() {
       </div>
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        Every indicator/analytics board in one place — type to filter, ★ to pin, click a code to open.
+        Every indicator/analytics board in one place — type to filter, ★ to pin, ⧉ to copy a share link, click a code to open.
       </div>
     </div>
   );

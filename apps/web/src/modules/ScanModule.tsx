@@ -1,13 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useWatchlist } from '@/store/useWatchlist';
 import { useSavedScans } from '@/store/useSavedScans';
 import { useScanWatches } from '@/store/useScanWatches';
+import { usePanels } from '@/store/usePanels';
+import { useToasts } from '@/store/useToasts';
 import {
   signalBoard,
   filterSignals,
   isActiveCriteria,
+  coerceCriteria,
+  sameCriteria,
   ANY_CRITERIA,
   type SignalSort,
   type RsiState,
@@ -15,9 +19,16 @@ import {
   type Trend,
   type ScanCriteria,
 } from '@/lib/signals';
+import { encodeScan, shareUrl } from '@/lib/deepLink';
+import { copyToClipboard } from '@/lib/clipboard';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
 import type { ModuleProps } from './types';
+
+/** Seed the scan filter from a deep link / persisted panel param, else show all. */
+function initialCriteria(panel: ModuleProps['panel']): ScanCriteria {
+  return panel.params?.criteria ? coerceCriteria(panel.params.criteria) : ANY_CRITERIA;
+}
 
 const MAX = 24;
 const base = (sym: string) => sym.replace(/\/.*$/, '');
@@ -100,12 +111,39 @@ export function ScanModule({ panel }: ModuleProps) {
   const watched = useScanWatches((s) => s.watched);
   const toggleWatch = useScanWatches((s) => s.toggle);
   const removeWatch = useScanWatches((s) => s.remove);
+  const setPanelParams = usePanels((s) => s.setPanelParams);
+  const pushToast = useToasts((s) => s.push);
 
   const [sort, setSort] = useState<SignalSort>('score');
-  const [criteria, setCriteria] = useState<ScanCriteria>(ANY_CRITERIA);
+  const [criteria, setCriteria] = useState<ScanCriteria>(() => initialCriteria(panel));
   const [name, setName] = useState('');
 
   const setCrit = (patch: Partial<ScanCriteria>) => setCriteria((c) => ({ ...c, ...patch }));
+
+  // Adopt criteria handed to an already-open panel — e.g. a deep link that
+  // re-targets this SCAN panel. openPanel dedupes by module+symbol and merges
+  // the new params in; without this the store would update but the on-screen
+  // chips would stay stale. The sameCriteria guard keeps this from looping with
+  // the write-back below (a value-equal update returns the prior reference).
+  useEffect(() => {
+    const incoming = initialCriteria(panel);
+    setCriteria((prev) => (sameCriteria(prev, incoming) ? prev : incoming));
+  }, [panel.params?.criteria]);
+
+  // Persist the filter so the panel (and a workspace export / server sync, and a
+  // deep link opened into it) remembers it across reloads.
+  useEffect(() => {
+    setPanelParams(panel.id, { criteria });
+  }, [criteria, panel.id, setPanelParams]);
+
+  const onShare = async () => {
+    const ok = await copyToClipboard(shareUrl(encodeScan(criteria)));
+    pushToast(
+      ok
+        ? { title: 'Scan link copied', body: 'Paste to share this filter', tone: 'info' }
+        : { title: 'Copy failed', body: 'Clipboard unavailable', tone: 'down' },
+    );
+  };
 
   const fetchSyms = useMemo(() => watchlist.slice(0, MAX), [watchlist]);
 
@@ -174,6 +212,13 @@ export function ScanModule({ panel }: ModuleProps) {
           <span className="text-term-text">{rows.length}</span>
           {active ? `/${allRows.length}` : ''} match
         </span>
+        <button
+          onClick={onShare}
+          title="Copy a shareable link to this scan filter"
+          className="no-drag text-term-muted hover:text-term-amber"
+        >
+          ⧉ share
+        </button>
         {active && (
           <button
             onClick={() => setCriteria(ANY_CRITERIA)}
