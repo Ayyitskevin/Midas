@@ -311,6 +311,76 @@ export interface Balances {
   asOf: number;
 }
 
+/** Whether an account read (orders/positions) is a real keyed read, synthetic demo, or unavailable. */
+export type AccountProvenance = 'live' | 'synthetic' | 'unavailable';
+
+/** A single resting (open) order on the account. Read-only — Midas never places or cancels orders. */
+export interface OpenOrder {
+  id: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  /** Order type, e.g. 'limit' | 'market' | 'stop'. */
+  type: string;
+  /** Limit price; null for market orders. */
+  price: number | null;
+  /** Ordered base amount. */
+  amount: number;
+  /** Filled base amount so far. */
+  filled: number;
+  /** Remaining (unfilled) base amount. */
+  remaining: number;
+  /** Notional in the quote currency (price × amount); null when not priceable. */
+  value: number | null;
+  /** Epoch millis the order was placed; null if unknown. */
+  timestamp: number | null;
+  /** Order status, e.g. 'open' | 'partial'. */
+  status: string;
+}
+
+/** Read-only snapshot of the account's open orders, with honest provenance labeling. */
+export interface OpenOrders {
+  /** Where the orders came from, e.g. 'ccxt:binance' or 'mock'. */
+  source: string;
+  provenance: AccountProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  orders: OpenOrder[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/** A single open derivatives position on the account. Read-only — Midas never opens or closes positions. */
+export interface AccountPosition {
+  symbol: string;
+  side: 'long' | 'short';
+  /** Position size in base units / contracts (absolute). */
+  contracts: number;
+  /** Notional value in the settlement currency (≈ USD for linear perps); null if unknown. */
+  notionalUsd: number | null;
+  entryPrice: number | null;
+  markPrice: number | null;
+  /** Unrealized P&L in the settlement currency (≈ USD for linear perps); null if unknown. */
+  unrealizedPnlUsd: number | null;
+  /** Unrealized P&L as a percentage; null if unknown. */
+  pnlPct: number | null;
+  liquidationPrice: number | null;
+  leverage: number | null;
+}
+
+/** Read-only snapshot of the account's open positions, with honest provenance labeling. */
+export interface AccountPositions {
+  /** Where the positions came from, e.g. 'ccxt:binance' or 'mock'. */
+  source: string;
+  provenance: AccountProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Total unrealized P&L across positions (≈ USD); null if none priced. */
+  totalUnrealizedPnlUsd: number | null;
+  positions: AccountPosition[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */

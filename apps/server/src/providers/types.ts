@@ -1,8 +1,10 @@
 import type {
+  AccountPositions,
   Balances,
   DerivativesInfo,
   DexPools,
   FundingHistoryPoint,
+  OpenOrders,
   HistoryResponse,
   Interval,
   LiquidationsProvenance,
@@ -54,6 +56,10 @@ export interface DataProvider {
   getDexPools(symbol: string): Promise<DexPools>;
   /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
   getBalances(): Promise<Balances>;
+  /** Read-only open orders (non-custodial; reads only — never places/cancels), honestly labeled. */
+  getOpenOrders(): Promise<OpenOrders>;
+  /** Read-only open positions (non-custodial; reads only), honestly labeled. */
+  getPositions(): Promise<AccountPositions>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

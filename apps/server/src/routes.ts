@@ -108,10 +108,12 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getDexPools(symbol);
   });
 
-  // Read-only account balances (non-custodial; keys live only in the operator's
+  // Read-only account reads (non-custodial; keys live only in the operator's
   // server env). Account-wide, so no symbol. Auth-guarded when auth is enabled —
-  // /api/balances is not a public prefix, so the onRequest guard covers it.
+  // these are not public prefixes, so the onRequest guard covers them.
   app.get('/api/balances', async () => provider.getBalances());
+  app.get('/api/orders', async () => provider.getOpenOrders());
+  app.get('/api/positions', async () => provider.getPositions());
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',
