@@ -9,6 +9,7 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
@@ -129,6 +130,14 @@ export class YahooProvider implements DataProvider {
   async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
     throw new ProviderError(
       'Multi-exchange compare is a crypto feature — use the ccxt provider',
+      501,
+      symbol,
+    );
+  }
+
+  async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
+    throw new ProviderError(
+      'Cross-exchange derivatives is a crypto feature — use the ccxt provider',
       501,
       symbol,
     );

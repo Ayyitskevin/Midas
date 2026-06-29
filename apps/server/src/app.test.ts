@@ -120,6 +120,22 @@ describe('GET /api/liquidations', () => {
   });
 });
 
+describe('GET /api/venue-derivatives/:symbol', () => {
+  it('returns per-venue funding & open interest across the compare set', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/venue-derivatives/BTC%2FUSDT' });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json();
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(1); // several venues
+    expect(rows[0]).toHaveProperty('exchange');
+    expect(rows[0]).toHaveProperty('fundingRate');
+    expect(rows[0]).toHaveProperty('openInterestValue');
+    // funding diverges across venues (a non-zero cross-venue spread)
+    const fundings = rows.map((r: { fundingRate: number | null }) => r.fundingRate).filter((f: number | null): f is number => f != null);
+    expect(Math.max(...fundings)).not.toBe(Math.min(...fundings));
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

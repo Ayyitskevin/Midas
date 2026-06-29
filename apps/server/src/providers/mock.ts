@@ -11,6 +11,7 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
@@ -230,6 +231,26 @@ export class MockProvider implements DataProvider {
         ask: round(price + spread / 2, 6),
         changePercent: round(gaussian(rng) * 1.2, 2),
         volume: Math.floor(uniform(rng, 0.3, 1.5) * (mid > 1000 ? 5_000 : 5_000_000)),
+        timestamp: Date.now(),
+      };
+    });
+  }
+
+  async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
+    const entry = resolveEntry(symbol);
+    const mid = this.buildQuote(entry).price;
+    const eightHour = Math.floor(Date.now() / (8 * 3_600_000));
+    const nextFunding = (eightHour + 1) * (8 * 3_600_000);
+    return COMPARE_VENUES.map((venue) => {
+      // Each venue funds slightly differently → a realistic cross-venue spread.
+      const rng = seeded(entry.symbol, venue, eightHour, 'venuederiv');
+      const oiBase = Math.floor(uniform(rng, 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
+      return {
+        exchange: venue,
+        fundingRate: round(gaussian(rng) * 0.0001, 6),
+        nextFundingTime: nextFunding,
+        markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
+        openInterestValue: Math.floor(oiBase * mid),
         timestamp: Date.now(),
       };
     });

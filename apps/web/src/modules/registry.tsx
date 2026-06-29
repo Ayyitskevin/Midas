@@ -29,6 +29,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   IMB: mod(() => import('./ImbalanceModule'), 'ImbalanceModule'),
   LQA: mod(() => import('./LiquidityModule'), 'LiquidityModule'),
   ALLQ: mod(() => import('./MultiExchangeModule'), 'MultiExchangeModule'),
+  DXV: mod(() => import('./VenueDerivativesModule'), 'VenueDerivativesModule'),
   FUND: mod(() => import('./DerivativesModule'), 'DerivativesModule'),
   FUNDR: mod(() => import('./FundingBoardModule'), 'FundingBoardModule'),
   CARRY: mod(() => import('./FundingCarryModule'), 'FundingCarryModule'),

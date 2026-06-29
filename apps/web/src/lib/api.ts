@@ -19,6 +19,7 @@ import type {
   ScreenerRow,
   SearchResult,
   User,
+  VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 import { authToken } from './authToken';
@@ -111,6 +112,9 @@ export const api = {
 
   exchangeQuotes: (symbol: string, signal?: AbortSignal) =>
     apiGet<VenueQuote[]>(`/api/exchange-quotes/${encodeURIComponent(symbol)}`, signal),
+
+  venueDerivatives: (symbol: string, signal?: AbortSignal) =>
+    apiGet<VenueDerivatives[]>(`/api/venue-derivatives/${encodeURIComponent(symbol)}`, signal),
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
