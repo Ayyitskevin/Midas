@@ -102,6 +102,12 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getDerivatives(symbol);
   });
 
+  app.get<{ Params: { symbol: string } }>('/api/onchain/:symbol', async (req) => {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    return provider.getDexPools(symbol);
+  });
+
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',
     async (req) => {

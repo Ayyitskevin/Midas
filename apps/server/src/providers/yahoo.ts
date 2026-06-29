@@ -1,6 +1,7 @@
 import type {
   Candle,
   DerivativesInfo,
+  DexPools,
   HistoryResponse,
   LiquidationsProvenance,
   MarketState,
@@ -156,6 +157,15 @@ export class YahooProvider implements DataProvider {
       source: this.name,
       available: false,
       note: 'Liquidations are a crypto feature — switch to the ccxt provider.',
+    };
+  }
+
+  async getDexPools(symbol: string): Promise<DexPools> {
+    return {
+      symbol: symbol.split('/')[0].toUpperCase(),
+      provenance: 'unavailable',
+      note: 'On-chain/DEX data is a crypto feature — switch to the ccxt provider.',
+      pools: [],
     };
   }
 

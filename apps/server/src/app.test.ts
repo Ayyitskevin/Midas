@@ -136,6 +136,27 @@ describe('GET /api/venue-derivatives/:symbol', () => {
   });
 });
 
+describe('GET /api/onchain/:symbol', () => {
+  it('returns synthetic DEX pools with honest provenance from the mock provider', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/onchain/ETH%2FUSDT' });
+    expect(res.statusCode).toBe(200);
+    const feed = res.json();
+    expect(feed.symbol).toBe('ETH');
+    expect(feed.provenance).toBe('synthetic'); // mock is never passed off as live
+    expect(typeof feed.note).toBe('string');
+    expect(Array.isArray(feed.pools)).toBe(true);
+    expect(feed.pools.length).toBeGreaterThan(1);
+    expect(feed.pools[0]).toHaveProperty('dex');
+    expect(feed.pools[0]).toHaveProperty('liquidityUsd');
+  });
+
+  it('is deterministic for a given symbol within the day', async () => {
+    const a = await app.inject({ method: 'GET', url: '/api/onchain/SOL%2FUSDT' });
+    const b = await app.inject({ method: 'GET', url: '/api/onchain/SOL%2FUSDT' });
+    expect(a.json()).toEqual(b.json());
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });
