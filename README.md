@@ -1,35 +1,65 @@
 # MIDAS
 
-A self-hosted, **Bloomberg-style market terminal** you run yourself. Type
-mnemonic commands (`AAPL DES`, `NVDA GP`, `W`, `N`) into a command line to spawn
-tiling panels — quotes, charts, watchlists, news — across a dense, dark
-workspace. Inspired by [Gödel Terminal](https://godelterminal.com).
+**A self-hosted, Bloomberg-style terminal for crypto.** Type mnemonic commands
+(`BTC/USDT GP`, `ETH/USDT BOOK`, `W`, `SCAN`) into a command line to spawn tiling
+panels — charts, L2 order books, derivatives, ~115 indicator/analytics boards,
+on-chain/DEX, alerts and portfolio — across a dense, dark workspace. Your
+machine, your data, your keys. Inspired by [Gödel Terminal](https://godelterminal.com).
 
-> Status: **v0.1 — foundation.** A working end-to-end vertical slice (command
-> bar → tiling panels → live-updating modules → pluggable data backend). Built
-> to grow for months. See the [Roadmap](#roadmap).
->
-> **Direction:** Midas is heading toward a command-driven, self-hosted,
-> **crypto-native** terminal (CCXT, no API keys). See [`VISION.md`](./VISION.md)
-> and the [competitive teardown](./docs/research/godel-competitive-teardown.md).
+[![CI](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml/badge.svg)](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+
+<!-- The single biggest adoption win is a screenshot or GIF. Drop one in and
+     uncomment:
+<p align="center"><img src="docs/screenshot.png" alt="The Midas terminal" width="900"></p>
+-->
+
+> **Try it in 60 seconds — no API keys, fully offline:** `pnpm install && pnpm dev`.
+> The default provider serves a deterministic *synthetic* market, so the whole
+> terminal runs with zero config; point it at a live source when you're ready.
+
+## Why Midas
+
+- **Crypto-native.** Multi-exchange via [CCXT](https://github.com/ccxt/ccxt) —
+  spot, perps, funding/OI, honest liquidations, on-chain/DEX. Symbols are
+  `BASE/QUOTE` (e.g. `BTC/USDT`).
+- **Honest about its data.** Every surface labels whether it's **live**,
+  **synthetic**, or **unavailable** — Midas never passes mock or delayed data off
+  as real. It's a first-class principle, not an afterthought.
+- **Self-hosted & non-custodial.** Runs on your machine; it *reads* markets and
+  never custodies funds or places orders.
+- **Deep, fast, keyboard-first.** ~115 indicator/analytics boards, a ⌘K palette,
+  tiling panels, saved scans and shareable deep-links — all driven from the
+  command line.
 
 ---
 
 ## Highlights
 
-- **Command-driven UI.** A Bloomberg-style command line with history,
-  fuzzy autocomplete and "type anywhere to focus." `TICKER FUNCTION` grammar.
-  A **⌘K / Ctrl-K command palette** fuzzy-jumps to any command or symbol.
+- **Command-driven UI.** A Bloomberg-style command line (`SYMBOL FUNCTION`
+  grammar) with history and fuzzy autocomplete, plus a **⌘K / Ctrl-K palette**
+  that jumps to any command or symbol.
 - **Tiling panel workspace.** Drag, resize and arrange panels on a 12-column
-  grid. Layout + watchlist persist in your browser.
-- **Starter modules:** Description/quote (`DES`), price chart (`GP`/`GIP`),
-  watchlist (`W`), quote monitor (`Q`), news (`N`/`TOP`), security finder
-  (`SECF`), help (`HELP`).
-- **Pluggable data layer.** Swap data sources behind one interface:
-  - `mock` — deterministic synthetic market (default; works fully offline).
-  - `yahoo` — live Yahoo Finance data (no API key).
-- **Live ticker tape** and second-by-second market clock.
-- **Honest data labelling.** The status bar always shows the active data source and whether it's **live** or **synthetic/offline** — the terminal never passes mock data off as real.
+  grid; named workspaces and layout/watchlists persist locally and (optionally)
+  sync per-user to the server.
+- **Charts & microstructure.** Candles with overlays (SMA/EMA/Bollinger/MACD/
+  VWAP/Volume Profile) and drawings, L2 order book (`BOOK`), depth heatmap
+  (`DEPTH`), time & sales, CVD.
+- **Crypto derivatives.** Funding rates, open interest, basis/premium, honest
+  liquidations with provenance, and cross-exchange aggregation.
+- **~115 indicator & analytics boards.** Momentum, trend, volatility, volume,
+  Ehlers cycles, plus a deep risk/performance suite (Sharpe, Sortino, Calmar,
+  drawdown, VaR, Monte-Carlo, portfolio optimizers) — all in one searchable
+  catalog (`BOARDS`).
+- **Screening & alerts.** A signal `SCAN` with saveable criteria and scan-watch
+  alerts; price/funding/%-change alerts that can open a panel when they fire.
+- **On-chain / DEX.** DEX pools, CEX↔DEX basis and a swap price-impact estimate
+  (`DEX`) — synthetic by default, live via Dexscreener when configured.
+- **Portfolio.** Positions with live P&L, realized P&L, import/export.
+- **Pluggable data layer.** `mock` (deterministic, offline), `ccxt` (live
+  multi-exchange crypto), `yahoo` (equities) — swap behind one interface.
 - **Typed end-to-end** with a shared data contract package.
 
 ---
@@ -83,7 +113,8 @@ MIDAS_DATA_PROVIDER=yahoo pnpm dev
 ```
 
 For **live crypto** (no API key needed) via any [CCXT](https://github.com/ccxt/ccxt)
-exchange — the cornerstone of Midas's [crypto-native direction](./VISION.md):
+exchange — the cornerstone of Midas's crypto-native direction (see the
+[competitive teardown](./docs/research/godel-competitive-teardown.md)):
 
 ```bash
 MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
@@ -446,19 +477,23 @@ TradingView lightweight-charts · Fastify · pnpm workspaces.
 
 ## Roadmap
 
-The foundation is intentionally small and extensible. Likely next steps:
+Midas is well past the foundation: a crypto-native command terminal with charts
+and microstructure, derivatives, ~115 indicator/analytics boards, screening,
+alerts, portfolio, and an on-chain/DEX read layer — all behind a data-honesty
+guarantee. It ships from `main`.
 
-- **Data:** more providers (Finnhub, Polygon, Alpha Vantage), real-time
-  streaming via WebSocket, richer fundamentals (market cap, P/E, financials),
-  server-side caching.
-- **Modules:** options chain, depth/level-2, economic calendar, equity
-  screener, portfolio/positions, comparison overlays, technical studies.
-- **Workspaces:** multiple named layouts, panel linking (a symbol typed in one
-  panel updates linked panels), command-driven panel targeting.
-- **Charts:** multi-symbol compare overlays, persisted studies & drawings.
-- **Platform:** multi-user auth for self-hosting, broader test coverage (UI /
-  component tests). _(Docker Compose deploy + a Vitest suite wired into
-  typecheck/build/test CI already shipped.)_
+Where it's heading (open-core, open-source first):
+
+- **Distribution & DX:** stay genuinely open and easy to adopt — strong docs, a
+  one-command demo, contributor-friendly internals.
+- **Live data depth:** more first-class live sources behind the honest seam
+  (on-chain/DEX, etc.), without ever mislabeling provenance.
+- **Read-only, non-custodial keys:** bring-your-own exchange keys for balances,
+  positions and live P&L — Midas never custodies funds or places orders.
+- **Optional hosted tier:** a zero-setup instance for people who don't want to
+  self-host, funding the open core (the terminal stays free and open).
+
+Have an idea or want a board? Open an issue — see [CONTRIBUTING](./CONTRIBUTING.md).
 
 ---
 
