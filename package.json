@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Midas — a self-hosted, Bloomberg-style market terminal. Inspired by Gödel Terminal.",
+  "license": "MIT",
   "engines": {
     "node": ">=20"
   },
