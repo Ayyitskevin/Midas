@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isBoard, classifyBoard, boardCatalog, boardCount } from './boardCatalog';
+import { isBoard, classifyBoard, boardCatalog, boardCount, pinnedBoards } from './boardCatalog';
 import type { CommandDef } from '@/commands/registry';
 import { COMMANDS } from '@/commands/registry';
 
@@ -69,5 +69,23 @@ describe('boardCatalog', () => {
     expect(total).toBeGreaterThan(80); // the ~115 indicator boards
     // every board is reachable and the count matches the grouped total (no drops)
     expect(groups.every((g) => g.boards.length > 0)).toBe(true);
+  });
+});
+
+describe('pinnedBoards', () => {
+  const cmds: CommandDef[] = [
+    mk({ code: 'RSI', title: 'RSI', description: 'RSI board — momentum.' }),
+    mk({ code: 'OBV', title: 'OBV', description: 'OBV board — volume.' }),
+    mk({ code: 'FUND', title: 'Derivatives', description: 'Funding rate, OI.' }), // not a board
+  ];
+
+  it('returns the board entries for favorited codes in catalog order, ignoring non-boards', () => {
+    const pinned = pinnedBoards(cmds, ['OBV', 'RSI', 'FUND']);
+    expect(pinned.map((b) => b.code)).toEqual(['OBV', 'RSI']); // sorted; FUND dropped (not a board)
+    expect(pinned[0]).toHaveProperty('category');
+  });
+
+  it('returns empty for no favorites', () => {
+    expect(pinnedBoards(cmds, [])).toEqual([]);
   });
 });
