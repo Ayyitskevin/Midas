@@ -29,6 +29,7 @@ workspace. Inspired by [Gödel Terminal](https://godelterminal.com).
   - `mock` — deterministic synthetic market (default; works fully offline).
   - `yahoo` — live Yahoo Finance data (no API key).
 - **Live ticker tape** and second-by-second market clock.
+- **Honest data labelling.** The status bar always shows the active data source and whether it's **live** or **synthetic/offline** — the terminal never passes mock data off as real.
 - **Typed end-to-end** with a shared data contract package.
 
 ---
