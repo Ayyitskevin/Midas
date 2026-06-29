@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { TopBar } from './components/TopBar';
+import { DemoBanner } from './components/DemoBanner';
 import { Ticker } from './components/Ticker';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { Workspace } from './components/Workspace';
@@ -45,6 +46,7 @@ export default function App() {
     <LoginGate>
       <div className="flex h-full flex-col">
         <TopBar />
+        <DemoBanner />
         {showTicker && <Ticker />}
         <WorkspaceTabs />
         <main className="min-h-0 flex-1">

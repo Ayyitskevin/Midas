@@ -32,3 +32,23 @@ export function sourceView(provider: string, live: boolean): SourceView {
     title: `Synthetic / offline data (${provider}) — not real market data`,
   };
 }
+
+export interface DemoBannerView {
+  /** Headline — states plainly that the data is synthetic. */
+  text: string;
+  /** How to switch to real data. */
+  hint: string;
+}
+
+/**
+ * First-run honesty: when the active provider is synthetic (not live), return a
+ * banner telling a new visitor they're on demo data and how to go live. Returns
+ * null for any live provider, so the banner never shows over real market data.
+ */
+export function demoBanner(provider: string, live: boolean): DemoBannerView | null {
+  if (live) return null;
+  return {
+    text: `Demo mode — you're viewing synthetic “${provider}” data, not real markets.`,
+    hint: 'Set MIDAS_DATA_PROVIDER=ccxt for live crypto.',
+  };
+}
