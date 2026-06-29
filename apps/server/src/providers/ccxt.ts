@@ -18,6 +18,7 @@ import type {
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
+import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
@@ -293,10 +294,12 @@ export class CcxtProvider implements DataProvider {
 
   async getDexPools(symbol: string): Promise<DexPools> {
     const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
+    // Opt-in live on-chain read (Dexscreener); otherwise honestly unavailable.
+    if (dexscreenerEnabled()) return fetchDexPools(base);
     return {
       symbol: base,
       provenance: 'unavailable',
-      note: `On-chain/DEX pools need an on-chain data source; ${this.name} reads centralized-exchange markets only.`,
+      note: `On-chain/DEX pools need an on-chain source; ${this.name} reads centralized exchanges only. Set MIDAS_DEX_SOURCE=dexscreener for a live read.`,
       pools: [],
     };
   }

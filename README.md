@@ -404,6 +404,7 @@ Server (environment variables):
 | --------------------- | ----------- | ------------------------------------ |
 | `MIDAS_DATA_PROVIDER` | `mock`      | `mock`, `yahoo`, or `ccxt`.          |
 | `MIDAS_CCXT_EXCHANGE` | `binance`   | Exchange id when provider is `ccxt`. |
+| `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` to read live on-chain/DEX pools (`DEX`) from Dexscreener's public API; otherwise DEX data is honestly labeled unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
