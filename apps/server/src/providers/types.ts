@@ -1,4 +1,5 @@
 import type {
+  Balances,
   DerivativesInfo,
   DexPools,
   FundingHistoryPoint,
@@ -51,6 +52,8 @@ export interface DataProvider {
   liquidationsProvenance(): LiquidationsProvenance;
   /** On-chain/DEX pool snapshot for a base asset, honestly labeled live/synthetic/unavailable. */
   getDexPools(symbol: string): Promise<DexPools>;
+  /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
+  getBalances(): Promise<Balances>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

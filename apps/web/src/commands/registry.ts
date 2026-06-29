@@ -527,6 +527,15 @@ export const COMMANDS: CommandDef[] = [
     description: 'Paper portfolio — track positions and live unrealized P&L.',
   },
   {
+    code: 'BAL',
+    aliases: ['BALANCE', 'BALANCES', 'ACCTBAL'],
+    title: 'Balances',
+    module: 'BAL',
+    requiresSymbol: false,
+    description:
+      'Read-only exchange account balances — per-asset free / used / total, USD value and allocation %, with a total and a live/demo data-honesty badge. Non-custodial: balances are read with read-only API keys supplied via the server environment (MIDAS_CCXT_API_KEY / MIDAS_CCXT_SECRET on the ccxt provider); Midas never places orders or holds funds. Shows a synthetic demo book until keys are configured.',
+  },
+  {
     code: 'RHEAT',
     aliases: ['EXPOSURE', 'PRISK'],
     title: 'Position Risk',

@@ -5,6 +5,7 @@ import type {
   ApiError,
   AuthSession,
   AuthStatus,
+  Balances,
   DerivativesInfo,
   DexPools,
   FundingHistoryPoint,
@@ -122,6 +123,9 @@ export const api = {
 
   dexPools: (symbol: string, signal?: AbortSignal) =>
     apiGet<DexPools>(`/api/onchain/${encodeURIComponent(symbol)}`, signal),
+
+  // Read-only account balances (non-custodial; keyed via the server env).
+  balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),
 
   fundingHistory: (symbol: string, limit = 90, signal?: AbortSignal) =>
     apiGet<FundingHistoryPoint[]>(

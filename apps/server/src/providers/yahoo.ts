@@ -1,4 +1,5 @@
 import type {
+  Balances,
   Candle,
   DerivativesInfo,
   DexPools,
@@ -166,6 +167,17 @@ export class YahooProvider implements DataProvider {
       provenance: 'unavailable',
       note: 'On-chain/DEX data is a crypto feature — switch to the ccxt provider.',
       pools: [],
+    };
+  }
+
+  async getBalances(): Promise<Balances> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Account balances are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
+      totalValueUsd: null,
+      balances: [],
+      asOf: Date.now(),
     };
   }
 

@@ -272,6 +272,45 @@ export interface DexPools {
   pools: DexPool[];
 }
 
+/** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
+export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
+
+/** A single asset's balance within an account. */
+export interface AccountBalance {
+  /** Asset ticker, e.g. BTC, USDT. */
+  asset: string;
+  /** Free (available to trade) amount. */
+  free: number;
+  /** Used (locked in open orders / margin) amount. */
+  used: number;
+  /** Total holding (free + used). */
+  total: number;
+  /** Best-effort USD value of the total holding; null when it can't be priced. */
+  valueUsd: number | null;
+}
+
+/**
+ * A read-only snapshot of account balances, with honest provenance labeling.
+ *
+ * Midas is strictly non-custodial and read-only: balances are fetched with
+ * read-only exchange API keys that live only in the operator's own server
+ * environment, and the terminal never places orders or moves funds. When no
+ * keys are configured the snapshot is honestly `unavailable`; the mock provider
+ * returns a clearly-labeled `synthetic` demo book so the panel is useful offline.
+ */
+export interface Balances {
+  /** Where the balances came from, e.g. 'ccxt:binance' or 'mock'. */
+  source: string;
+  provenance: BalancesProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Total portfolio value in USD across priced assets; null if nothing could be priced. */
+  totalValueUsd: number | null;
+  balances: AccountBalance[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */

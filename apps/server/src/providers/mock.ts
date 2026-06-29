@@ -1,4 +1,6 @@
 import type {
+  AccountBalance,
+  Balances,
   Candle,
   DerivativesInfo,
   DexPool,
@@ -17,6 +19,7 @@ import type {
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
+import { STABLES, sumValueUsd } from './balances';
 import {
   INTERVAL_SECONDS,
   RANGE_SECONDS,
@@ -333,6 +336,34 @@ export class MockProvider implements DataProvider {
       provenance: 'synthetic',
       note: 'Synthetic DEX pools for offline/demo use — not real on-chain data.',
       pools,
+    };
+  }
+
+  async getBalances(): Promise<Balances> {
+    // A small deterministic demo book so the BAL panel is useful offline. Clearly
+    // labeled synthetic — never a real account. The `used` column is exercised by
+    // a couple of holdings so the free/used split isn't all zeros in the demo.
+    const book: Array<{ asset: string; free: number; used: number }> = [
+      { asset: 'BTC', free: 0.6231, used: 0 },
+      { asset: 'ETH', free: 6.42, used: 1.0 },
+      { asset: 'SOL', free: 145.8, used: 0 },
+      { asset: 'USDT', free: 8650, used: 350 },
+    ];
+    const balances: AccountBalance[] = book.map(({ asset, free, used }) => {
+      const total = round(free + used, 6);
+      const priceUsd = STABLES.has(asset) ? 1 : this.buildQuote(resolveEntry(`${asset}/USDT`)).price;
+      return { asset, free, used, total, valueUsd: round(priceUsd * total) };
+    });
+    balances.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note:
+        'Synthetic demo balances for offline/demo use — not a real account. ' +
+        'Configure read-only exchange API keys (ccxt provider) for live balances.',
+      totalValueUsd: sumValueUsd(balances),
+      balances,
+      asOf: Date.now(),
     };
   }
 
