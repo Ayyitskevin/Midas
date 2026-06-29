@@ -1,6 +1,7 @@
 import * as ccxt from 'ccxt';
 import type { Exchange, Ticker } from 'ccxt';
 import type {
+  Balances,
   Candle,
   DerivativesInfo,
   DexPools,
@@ -19,6 +20,7 @@ import type {
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
+import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
@@ -64,7 +66,20 @@ export class CcxtProvider implements DataProvider {
     if (typeof ExchangeCtor !== 'function') {
       throw new Error(`Unknown ccxt exchange "${id}". See ccxt.exchanges for valid ids.`);
     }
-    this.exchange = new ExchangeCtor({ enableRateLimit: true });
+    // Optional READ-ONLY API keys for account reads (balances). Supplied via the
+    // operator's own environment; Midas is non-custodial and only ever calls read
+    // methods — it never places orders or moves funds. Without keys the exchange
+    // is constructed key-less and only public market data is available.
+    const exchangeConfig: Record<string, unknown> = { enableRateLimit: true };
+    const apiKey = process.env.MIDAS_CCXT_API_KEY;
+    const secret = process.env.MIDAS_CCXT_SECRET;
+    const password = process.env.MIDAS_CCXT_PASSWORD; // some venues (OKX, KuCoin) require a passphrase
+    if (apiKey && secret) {
+      exchangeConfig.apiKey = apiKey;
+      exchangeConfig.secret = secret;
+      if (password) exchangeConfig.password = password;
+    }
+    this.exchange = new ExchangeCtor(exchangeConfig);
     this.name = `ccxt:${id}`;
   }
 
@@ -302,6 +317,74 @@ export class CcxtProvider implements DataProvider {
       note: `On-chain/DEX pools need an on-chain source; ${this.name} reads centralized exchanges only. Set MIDAS_DEX_SOURCE=dexscreener for a live read.`,
       pools: [],
     };
+  }
+
+  async getBalances(): Promise<Balances> {
+    if (!ccxtKeysConfigured()) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note:
+          'Read-only balances need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
+          '(use read-only keys — Midas never places orders and never holds your funds).',
+        totalValueUsd: null,
+        balances: [],
+        asOf: Date.now(),
+      };
+    }
+    try {
+      // READ-ONLY account read. Midas is non-custodial: this calls only
+      // fetchBalance — never createOrder or any write/withdraw method.
+      const raw = await this.exchange.fetchBalance();
+      const totals = (raw as { total?: Record<string, unknown> }).total ?? {};
+      const assets = Object.keys(totals).filter((a) => {
+        const n = Number((totals as Record<string, unknown>)[a]);
+        return Number.isFinite(n) && n > 0;
+      });
+      const prices = await this.priceAssetsUsd(assets);
+      const balances = mapCcxtBalance(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
+      return {
+        source: this.name,
+        provenance: 'live',
+        note: null,
+        totalValueUsd: sumValueUsd(balances),
+        balances,
+        asOf: Date.now(),
+      };
+    } catch (err) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `Balance read failed — ${err instanceof Error ? err.message : 'error'}. Check that the API key is valid and has read access (read-only is sufficient).`,
+        totalValueUsd: null,
+        balances: [],
+        asOf: Date.now(),
+      };
+    }
+  }
+
+  /** Best-effort USD prices for a set of assets (stables = $1; others via ASSET/USDT tickers). */
+  private async priceAssetsUsd(assets: string[]): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    const need: string[] = [];
+    for (const a of assets) {
+      const up = a.toUpperCase();
+      if (STABLES.has(up)) map.set(up, 1);
+      else need.push(up);
+    }
+    if (need.length === 0) return map;
+    try {
+      const tickers = await this.exchange.fetchTickers(need.map((a) => `${a}/USDT`));
+      for (const a of need) {
+        const t = tickers[`${a}/USDT`];
+        const px = t ? t.last ?? t.close : null;
+        if (typeof px === 'number' && Number.isFinite(px) && px > 0) map.set(a, px);
+      }
+    } catch {
+      // Best-effort valuation: any failure just leaves those assets unpriced
+      // (valueUsd: null) rather than failing the whole balances read.
+    }
+    return map;
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {

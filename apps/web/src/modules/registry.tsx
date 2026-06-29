@@ -78,6 +78,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   W: mod(() => import('./WatchlistModule'), 'WatchlistModule'),
   Q: mod(() => import('./QuoteMonitorModule'), 'QuoteMonitorModule'),
   PORT: mod(() => import('./PortfolioModule'), 'PortfolioModule'),
+  BAL: mod(() => import('./BalancesModule'), 'BalancesModule'),
   RHEAT: mod(() => import('./PortfolioRiskModule'), 'PortfolioRiskModule'),
   EXP: mod(() => import('./ExposureModule'), 'ExposureModule'),
   PBETA: mod(() => import('./PortfolioBetaModule'), 'PortfolioBetaModule'),
