@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dexBadge, summarizeDexPools, cexDexBasis } from './dexView';
+import { dexBadge, summarizeDexPools, cexDexBasis, estimatePriceImpactPct } from './dexView';
 import type { DexPool, DexPools } from '@midas/shared';
 
 const pool = (over: Partial<DexPool> = {}): DexPool => ({
@@ -65,5 +65,24 @@ describe('cexDexBasis', () => {
     expect(cexDexBasis(null, 100).basisPct).toBeNull();
     expect(cexDexBasis(100, null).basisPct).toBeNull();
     expect(cexDexBasis(0, 100).basisPct).toBeNull();
+  });
+});
+
+describe('estimatePriceImpactPct', () => {
+  it('grows with trade size relative to pool reserve (R = TVL/2)', () => {
+    // TVL 2,000,000 → reserve 1,000,000; T=10,000 → 10000/990000
+    expect(estimatePriceImpactPct(2_000_000, 10_000)).toBeCloseTo((10_000 / 990_000) * 100, 9);
+    // larger size → larger impact
+    expect(estimatePriceImpactPct(2_000_000, 100_000)!).toBeGreaterThan(
+      estimatePriceImpactPct(2_000_000, 10_000)!,
+    );
+  });
+
+  it('is null for unpriceable inputs or sizes that meet/exceed the reserve', () => {
+    expect(estimatePriceImpactPct(null, 1_000)).toBeNull();
+    expect(estimatePriceImpactPct(0, 1_000)).toBeNull();
+    expect(estimatePriceImpactPct(2_000_000, 0)).toBeNull();
+    expect(estimatePriceImpactPct(2_000_000, 1_000_000)).toBeNull(); // == reserve
+    expect(estimatePriceImpactPct(2_000_000, 5_000_000)).toBeNull(); // > reserve
   });
 });

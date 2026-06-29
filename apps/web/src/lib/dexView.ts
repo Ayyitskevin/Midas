@@ -78,3 +78,17 @@ export function cexDexBasis(cexMid: number | null, dexVwap: number | null): CexD
     cexMid != null && cexMid !== 0 && dexVwap != null ? ((dexVwap - cexMid) / cexMid) * 100 : null;
   return { cexMid, dexVwap, basisPct };
 }
+
+/**
+ * Rough constant-product (x·y=k) price impact of a USD-sized swap against a pool.
+ * Approximates a balanced pool as USD reserve R = liquidityUsd / 2 on the side
+ * being depleted; impact = T / (R − T). Returns null when the size can't be
+ * priced (no/zero liquidity, non-positive size) or meets/exceeds the reserve
+ * (the pool can't absorb it). An estimate from TVL alone — not a routed quote.
+ */
+export function estimatePriceImpactPct(liquidityUsd: number | null, tradeSizeUsd: number): number | null {
+  if (liquidityUsd == null || liquidityUsd <= 0 || tradeSizeUsd <= 0) return null;
+  const reserve = liquidityUsd / 2;
+  if (tradeSizeUsd >= reserve) return null;
+  return (tradeSizeUsd / (reserve - tradeSizeUsd)) * 100;
+}
