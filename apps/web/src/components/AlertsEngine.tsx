@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 import { useAlerts } from '@/store/useAlerts';
+import { useAlertActions } from '@/store/useAlertActions';
 import { useToasts } from '@/store/useToasts';
 import { useSettings } from '@/store/useSettings';
+import { openModule } from '@/commands/execute';
 import {
   newTriggersSince,
   notifyTrigger,
@@ -42,6 +44,17 @@ export function AlertsEngine() {
         if (desktopOn) notifyTrigger(t);
       }
       if (fired.length > 0 && useAlerts.getState().soundEnabled) playBeep();
+      // Alert → action: jump to the configured panel (for the alert's symbol) of
+      // the first fired alert that has one — at most one panel per tick, so a
+      // burst of fires doesn't bury the user in windows.
+      const actions = useAlertActions.getState();
+      for (const t of fired) {
+        const code = actions.actionFor(t.alertId);
+        if (code) {
+          openModule(code, t.symbol);
+          break;
+        }
+      }
     };
 
     async function tick(): Promise<void> {
