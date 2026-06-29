@@ -5,6 +5,7 @@ import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
+import { ScanWatchEngine } from './components/ScanWatchEngine';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
 import { CommandPalette } from './components/CommandPalette';
@@ -50,6 +51,7 @@ export default function App() {
         </main>
         <StatusBar />
         <AlertsEngine />
+        <ScanWatchEngine />
         <ToastHost />
         <CommandPalette />
         <Hotkeys />

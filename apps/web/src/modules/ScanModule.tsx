@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useWatchlist } from '@/store/useWatchlist';
 import { useSavedScans } from '@/store/useSavedScans';
+import { useScanWatches } from '@/store/useScanWatches';
 import {
   signalBoard,
   filterSignals,
@@ -96,6 +97,9 @@ export function ScanModule({ panel }: ModuleProps) {
   const scans = useSavedScans((s) => s.scans);
   const saveScan = useSavedScans((s) => s.save);
   const removeScan = useSavedScans((s) => s.remove);
+  const watched = useScanWatches((s) => s.watched);
+  const toggleWatch = useScanWatches((s) => s.toggle);
+  const removeWatch = useScanWatches((s) => s.remove);
 
   const [sort, setSort] = useState<SignalSort>('score');
   const [criteria, setCriteria] = useState<ScanCriteria>(ANY_CRITERIA);
@@ -124,6 +128,7 @@ export function ScanModule({ panel }: ModuleProps) {
   const active = isActiveCriteria(criteria);
   const trimmed = name.trim();
   const isSaved = scans.some((s) => s.name === trimmed);
+  const isWatching = watched.includes(trimmed);
 
   if (watchlist.length === 0) {
     return <EmptyState>Add watchlist symbols (W) to scan for technical signals.</EmptyState>;
@@ -215,8 +220,22 @@ export function ScanModule({ panel }: ModuleProps) {
         </button>
         {isSaved && (
           <button
+            onClick={() => toggleWatch(trimmed)}
+            title={isWatching ? 'Stop watching this scan' : 'Watch: notify when new symbols match'}
+            className={`no-drag rounded-sm border px-1.5 py-0.5 ${
+              isWatching
+                ? 'border-term-amber/60 text-term-amber'
+                : 'border-term-border text-term-muted hover:border-term-amber hover:text-term-amber'
+            }`}
+          >
+            {isWatching ? '👁 watching' : 'watch'}
+          </button>
+        )}
+        {isSaved && (
+          <button
             onClick={() => {
               removeScan(trimmed);
+              removeWatch(trimmed);
               setName('');
             }}
             title="Delete saved scan"
@@ -290,7 +309,7 @@ export function ScanModule({ panel }: ModuleProps) {
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
         <span className="text-term-up">▲</span> SMA20&gt;50 · RSI <span className="text-term-up">≤30</span>/
-        <span className="text-term-down">≥70</span> · 52w range · filter &amp; save scans you re-run
+        <span className="text-term-down">≥70</span> · 52w range · filter, save &amp; 👁 watch scans for new matches
       </div>
     </div>
   );

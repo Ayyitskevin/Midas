@@ -149,7 +149,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `STRETCH` | `OVERSOLD`, `BBANDS`, `MEANREV` | no | Mean-reversion screener — watchlist ranked by z-score & Bollinger %B vs its moving average, flagging overbought/oversold. |
 | `HURST` | `REGIME`, `TRENDREV`, `FRACTAL` | no | Trend vs mean-reversion board — each symbol’s Hurst exponent (R/S) classifying trending, mean-reverting or random-walk. |
 | `EFFICIENCY` | `EFFRATIO`, `KER` | no | Trend-efficiency board — Kaufman’s Efficiency Ratio (net move ÷ path) ranks how clean vs choppy each symbol’s trend is. |
-| `SCAN`  | `SCANNER`, `SIGNALS`, `SETUP` | no | Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold & 52-week range position, ranked by a bull/bear score; filter by criteria and save named scans you re-run. |
+| `SCAN`  | `SCANNER`, `SIGNALS`, `SETUP` | no | Signal scanner — watchlist SMA20/50 trend, RSI(14) overbought/oversold & 52-week range position, ranked by a bull/bear score; filter by criteria, save named scans, and watch a scan to be notified when new symbols match. |
 | `MTF`   | `MULTITF`, `TIMEFRAMES`, `MTREND` | yes | Multi-timeframe trend — SMA trend & RSI across 1H/1D/1W/1M with a consensus read of whether the frames are in gear. |
 | `RRG`   | `ROTATION`, `ROT` | no       | Relative rotation graph — watchlist symbols by RS-Ratio × RS-Momentum vs BTC, with rotation tails. |
 | `SEAS`  | `SEASON`, `SEASONALITY`, `TOD` | yes | Returns seasonality — average return by UTC hour-of-day and day-of-week as a heat grid. |
