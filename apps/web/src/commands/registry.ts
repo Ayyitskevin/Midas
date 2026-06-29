@@ -1757,6 +1757,15 @@ export const COMMANDS: CommandDef[] = [
     description: 'Search for securities by ticker or name.',
   },
   {
+    code: 'BOARDS',
+    aliases: ['CATALOG', 'SCREENS', 'INDICATORS'],
+    title: 'Screener Catalog',
+    module: 'BOARDS',
+    requiresSymbol: false,
+    description:
+      'Screener catalog — a single searchable, categorized directory of every indicator/analytics screener board in the terminal (Momentum, Trend, Volatility, Volume, Cycles, Risk & Performance). Type to filter by code/name/description and click a code to open it, instead of memorizing ~115 mnemonics. The list is derived from the command registry itself.',
+  },
+  {
     code: 'HELP',
     aliases: ['H', '?'],
     title: 'Help',
