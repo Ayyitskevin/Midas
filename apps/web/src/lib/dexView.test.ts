@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dexBadge, summarizeDexPools } from './dexView';
+import { dexBadge, summarizeDexPools, cexDexBasis } from './dexView';
 import type { DexPool, DexPools } from '@midas/shared';
 
 const pool = (over: Partial<DexPool> = {}): DexPool => ({
@@ -51,5 +51,19 @@ describe('summarizeDexPools', () => {
     expect(none.vwapUsd).toBeNull();
     expect(none.priceSpreadPct).toBeNull();
     expect(summarizeDexPools([]).poolCount).toBe(0);
+  });
+});
+
+describe('cexDexBasis', () => {
+  it('computes the DEX premium/discount vs the CEX mid', () => {
+    expect(cexDexBasis(100, 101).basisPct).toBeCloseTo(1, 9); // +1% premium
+    expect(cexDexBasis(100, 98).basisPct).toBeCloseTo(-2, 9); // −2% discount
+    expect(cexDexBasis(100, 100).basisPct).toBe(0);
+  });
+
+  it('is null when either price is missing or the CEX mid is zero', () => {
+    expect(cexDexBasis(null, 100).basisPct).toBeNull();
+    expect(cexDexBasis(100, null).basisPct).toBeNull();
+    expect(cexDexBasis(0, 100).basisPct).toBeNull();
   });
 });

@@ -64,3 +64,17 @@ export function summarizeDexPools(pools: DexPool[]): DexSummary {
 
   return { poolCount: pools.length, totalLiquidityUsd, totalVolume24hUsd, vwapUsd, priceSpreadPct };
 }
+
+export interface CexDexCompare {
+  cexMid: number | null;
+  dexVwap: number | null;
+  /** DEX premium (+) / discount (−) vs the CEX mid, in percent; null if either side is missing. */
+  basisPct: number | null;
+}
+
+/** Basis of the DEX VWAP against the centralized-exchange mid — the arb the two markets imply. */
+export function cexDexBasis(cexMid: number | null, dexVwap: number | null): CexDexCompare {
+  const basisPct =
+    cexMid != null && cexMid !== 0 && dexVwap != null ? ((dexVwap - cexMid) / cexMid) * 100 : null;
+  return { cexMid, dexVwap, basisPct };
+}

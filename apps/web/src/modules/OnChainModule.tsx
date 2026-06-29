@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice } from '@/lib/format';
-import { dexBadge, summarizeDexPools, type DexTone } from '@/lib/dexView';
+import { dexBadge, summarizeDexPools, cexDexBasis, type DexTone } from '@/lib/dexView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -23,7 +23,14 @@ export function OnChainModule({ panel }: ModuleProps) {
     { intervalMs: 30_000 },
   );
 
+  // Centralized-exchange mid for the same asset, to price the CEX↔DEX basis.
+  const cex = useFetch((signal) => api.quote(symbol, signal), [symbol], { intervalMs: 30_000 });
+
   const summary = useMemo(() => (data ? summarizeDexPools(data.pools) : null), [data]);
+  const compare = useMemo(
+    () => cexDexBasis(cex.data?.price ?? null, summary?.vwapUsd ?? null),
+    [cex.data, summary],
+  );
   const badge = data ? dexBadge(data) : null;
 
   return (
@@ -40,6 +47,26 @@ export function OnChainModule({ panel }: ModuleProps) {
           </span>
         )}
       </div>
+
+      {/* CEX ↔ DEX basis — what arb the centralized mid and the on-chain VWAP imply. */}
+      {compare.basisPct != null && (
+        <div className="flex items-center gap-3 border-b border-term-border px-2 py-0.5 text-2xs text-term-dim">
+          <span>
+            CEX <span className="text-term-text">{compare.cexMid == null ? '—' : fmtPrice(compare.cexMid)}</span>
+          </span>
+          <span>
+            DEX <span className="text-term-text">{compare.dexVwap == null ? '—' : fmtPrice(compare.dexVwap)}</span>
+          </span>
+          <span>
+            basis{' '}
+            <span className={compare.basisPct >= 0 ? 'text-term-up' : 'text-term-down'}>
+              {compare.basisPct >= 0 ? '+' : ''}
+              {compare.basisPct.toFixed(2)}%
+            </span>
+          </span>
+          <span className="ml-auto text-term-dim">DEX vs CEX</span>
+        </div>
+      )}
 
       <div className="scroll-term min-h-0 flex-1 overflow-auto">
         {loading && !data ? (
