@@ -1,6 +1,7 @@
 import * as ccxt from 'ccxt';
 import type { Exchange, Ticker } from 'ccxt';
 import type {
+  AccountPositions,
   Balances,
   Candle,
   DerivativesInfo,
@@ -10,6 +11,7 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OpenOrders,
   OrderBook,
   Quote,
   ScreenerRow,
@@ -21,6 +23,7 @@ import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
+import { mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
@@ -385,6 +388,91 @@ export class CcxtProvider implements DataProvider {
       // (valueUsd: null) rather than failing the whole balances read.
     }
     return map;
+  }
+
+  async getOpenOrders(): Promise<OpenOrders> {
+    const asOf = Date.now();
+    if (!ccxtKeysConfigured()) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note:
+          'Read-only open orders need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
+          '(use read-only keys — Midas never places or cancels orders).',
+        orders: [],
+        asOf,
+      };
+    }
+    if (!this.exchange.has['fetchOpenOrders']) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `${this.name} does not expose a fetchOpenOrders endpoint.`,
+        orders: [],
+        asOf,
+      };
+    }
+    try {
+      // READ-ONLY: fetchOpenOrders only — never createOrder/cancelOrder/editOrder.
+      const raw = await this.exchange.fetchOpenOrders();
+      return { source: this.name, provenance: 'live', note: null, orders: mapOpenOrders(raw), asOf };
+    } catch (err) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `Open-orders read failed — ${err instanceof Error ? err.message : 'error'}. Check the API key (read access is sufficient).`,
+        orders: [],
+        asOf,
+      };
+    }
+  }
+
+  async getPositions(): Promise<AccountPositions> {
+    const asOf = Date.now();
+    if (!ccxtKeysConfigured()) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note:
+          'Read-only positions need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
+          '(use read-only keys — Midas never opens or closes positions).',
+        totalUnrealizedPnlUsd: null,
+        positions: [],
+        asOf,
+      };
+    }
+    if (!this.exchange.has['fetchPositions']) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `${this.name} does not expose a fetchPositions endpoint (spot-only account or exchange).`,
+        totalUnrealizedPnlUsd: null,
+        positions: [],
+        asOf,
+      };
+    }
+    try {
+      // READ-ONLY: fetchPositions only — never any order/position write method.
+      const raw = await this.exchange.fetchPositions();
+      const positions = mapPositions(raw);
+      return {
+        source: this.name,
+        provenance: 'live',
+        note: null,
+        totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
+        positions,
+        asOf,
+      };
+    } catch (err) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `Positions read failed — ${err instanceof Error ? err.message : 'error'}. Check the API key (read access is sufficient).`,
+        totalUnrealizedPnlUsd: null,
+        positions: [],
+        asOf,
+      };
+    }
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {

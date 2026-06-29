@@ -1,4 +1,5 @@
 import type {
+  AccountPositions,
   Alert,
   AlertInput,
   AlertTrigger,
@@ -8,6 +9,7 @@ import type {
   Balances,
   DerivativesInfo,
   DexPools,
+  OpenOrders,
   FundingHistoryPoint,
   FundingRow,
   LiquidationsFeed,
@@ -124,8 +126,10 @@ export const api = {
   dexPools: (symbol: string, signal?: AbortSignal) =>
     apiGet<DexPools>(`/api/onchain/${encodeURIComponent(symbol)}`, signal),
 
-  // Read-only account balances (non-custodial; keyed via the server env).
+  // Read-only account reads (non-custodial; keyed via the server env).
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),
+  openOrders: (signal?: AbortSignal) => apiGet<OpenOrders>('/api/orders', signal),
+  positions: (signal?: AbortSignal) => apiGet<AccountPositions>('/api/positions', signal),
 
   fundingHistory: (symbol: string, limit = 90, signal?: AbortSignal) =>
     apiGet<FundingHistoryPoint[]>(

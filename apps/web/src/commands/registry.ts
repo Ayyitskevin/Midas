@@ -536,6 +536,24 @@ export const COMMANDS: CommandDef[] = [
       'Read-only exchange account balances — per-asset free / used / total, USD value and allocation %, with a total and a live/demo data-honesty badge. Non-custodial: balances are read with read-only API keys supplied via the server environment (MIDAS_CCXT_API_KEY / MIDAS_CCXT_SECRET on the ccxt provider); Midas never places orders or holds funds. Shows a synthetic demo book until keys are configured.',
   },
   {
+    code: 'ORD',
+    aliases: ['ORDERS', 'OPENORDERS', 'OO'],
+    title: 'Open Orders',
+    module: 'ORD',
+    requiresSymbol: false,
+    description:
+      'Read-only open (resting) orders on your exchange account — symbol, side, type, price, amount, filled % and quote value, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchOpenOrders) — it never places or cancels orders. Shows a synthetic demo set until keys are configured.',
+  },
+  {
+    code: 'POSN',
+    aliases: ['POSITIONS', 'LIVEPOS', 'XPOS'],
+    title: 'Positions',
+    module: 'POSN',
+    requiresSymbol: false,
+    description:
+      'Read-only open derivatives positions on your exchange account — side, size, entry, mark, unrealized P&L (and %), liquidation price and leverage, with a total uPnL and a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchPositions) — it never opens or closes positions. Shows a synthetic demo set until keys are configured.',
+  },
+  {
     code: 'RHEAT',
     aliases: ['EXPOSURE', 'PRISK'],
     title: 'Position Risk',

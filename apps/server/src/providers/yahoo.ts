@@ -1,4 +1,5 @@
 import type {
+  AccountPositions,
   Balances,
   Candle,
   DerivativesInfo,
@@ -7,6 +8,7 @@ import type {
   LiquidationsProvenance,
   MarketState,
   NewsItem,
+  OpenOrders,
   OrderBook,
   Quote,
   ScreenerRow,
@@ -177,6 +179,27 @@ export class YahooProvider implements DataProvider {
       note: 'Account balances are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       totalValueUsd: null,
       balances: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getOpenOrders(): Promise<OpenOrders> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Open orders are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
+      orders: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getPositions(): Promise<AccountPositions> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Open positions are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
+      totalUnrealizedPnlUsd: null,
+      positions: [],
       asOf: Date.now(),
     };
   }

@@ -1,5 +1,7 @@
 import type {
   AccountBalance,
+  AccountPosition,
+  AccountPositions,
   Balances,
   Candle,
   DerivativesInfo,
@@ -10,6 +12,8 @@ import type {
   LiquidationsProvenance,
   MarketState,
   NewsItem,
+  OpenOrder,
+  OpenOrders,
   OrderBook,
   OrderBookLevel,
   Quote,
@@ -20,6 +24,7 @@ import type {
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { STABLES, sumValueUsd } from './balances';
+import { sumUnrealizedPnl } from './accountReads';
 import {
   INTERVAL_SECONDS,
   RANGE_SECONDS,
@@ -364,6 +369,86 @@ export class MockProvider implements DataProvider {
       totalValueUsd: sumValueUsd(balances),
       balances,
       asOf: Date.now(),
+    };
+  }
+
+  async getOpenOrders(): Promise<OpenOrders> {
+    // A couple of resting limit orders around the live mock price so the ORD
+    // panel is useful offline. Clearly labeled synthetic — never a real account.
+    const specs: Array<{ symbol: string; side: 'buy' | 'sell'; offsetPct: number; amount: number; filledPct: number }> = [
+      { symbol: 'BTC/USDT', side: 'buy', offsetPct: -0.03, amount: 0.25, filledPct: 0.2 },
+      { symbol: 'ETH/USDT', side: 'sell', offsetPct: 0.04, amount: 4, filledPct: 0 },
+      { symbol: 'SOL/USDT', side: 'buy', offsetPct: -0.06, amount: 60, filledPct: 0 },
+    ];
+    const now = Date.now();
+    const orders: OpenOrder[] = specs.map((s, i) => {
+      const mid = this.buildQuote(resolveEntry(s.symbol)).price;
+      const price = round(mid * (1 + s.offsetPct), 6);
+      const filled = round(s.amount * s.filledPct, 6);
+      return {
+        id: `demo-${i + 1}`,
+        symbol: s.symbol,
+        side: s.side,
+        type: 'limit',
+        price,
+        amount: s.amount,
+        filled,
+        remaining: round(s.amount - filled, 6),
+        value: round(price * s.amount),
+        timestamp: now - (i + 1) * 3_600_000,
+        status: filled > 0 ? 'partial' : 'open',
+      };
+    });
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note:
+        'Synthetic demo orders for offline/demo use — not a real account. ' +
+        'Configure read-only exchange API keys (ccxt provider) for live orders.',
+      orders,
+      asOf: now,
+    };
+  }
+
+  async getPositions(): Promise<AccountPositions> {
+    // Two demo perp positions so the POSN panel is useful offline. Synthetic.
+    const specs: Array<{ symbol: string; side: 'long' | 'short'; contracts: number; entryOffsetPct: number; leverage: number }> = [
+      { symbol: 'BTC/USDT', side: 'long', contracts: 0.4, entryOffsetPct: -0.05, leverage: 10 },
+      { symbol: 'ETH/USDT', side: 'short', contracts: 5, entryOffsetPct: 0.03, leverage: 5 },
+    ];
+    const now = Date.now();
+    const positions: AccountPosition[] = specs.map((s) => {
+      const mark = this.buildQuote(resolveEntry(s.symbol)).price;
+      const entry = round(mark * (1 + s.entryOffsetPct), 6);
+      const notionalUsd = round(mark * s.contracts);
+      const dir = s.side === 'long' ? 1 : -1;
+      const unrealizedPnlUsd = round(dir * (mark - entry) * s.contracts);
+      const margin = notionalUsd / s.leverage;
+      const pnlPct = margin > 0 ? round((unrealizedPnlUsd / margin) * 100, 2) : null;
+      // Rough synthetic liquidation: entry moved against by ~1/leverage.
+      const liquidationPrice = round(entry * (1 - dir / s.leverage), 6);
+      return {
+        symbol: `${s.symbol}:${s.symbol.split('/')[1]}`,
+        side: s.side,
+        contracts: s.contracts,
+        notionalUsd,
+        entryPrice: entry,
+        markPrice: round(mark, 6),
+        unrealizedPnlUsd,
+        pnlPct,
+        liquidationPrice,
+        leverage: s.leverage,
+      };
+    });
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note:
+        'Synthetic demo positions for offline/demo use — not a real account. ' +
+        'Configure read-only exchange API keys (ccxt provider) for live positions.',
+      totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
+      positions,
+      asOf: now,
     };
   }
 
