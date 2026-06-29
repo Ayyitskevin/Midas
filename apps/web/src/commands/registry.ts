@@ -554,6 +554,15 @@ export const COMMANDS: CommandDef[] = [
       'Read-only open derivatives positions on your exchange account — side, size, entry, mark, unrealized P&L (and %), liquidation price and leverage, with a total uPnL and a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchPositions) — it never opens or closes positions. Shows a synthetic demo set until keys are configured.',
   },
   {
+    code: 'TICKET',
+    aliases: ['ORDER', 'OE', 'PREVIEW'],
+    title: 'Order Ticket',
+    module: 'TICKET',
+    requiresSymbol: true,
+    description:
+      'Order ticket — build & validate a market/limit order and preview its execution against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Preview only and non-custodial: Midas checks the order but never submits it — placement is disabled in this read-only build. The order-entry seam before live execution.',
+  },
+  {
     code: 'RHEAT',
     aliases: ['EXPOSURE', 'PRISK'],
     title: 'Position Risk',
