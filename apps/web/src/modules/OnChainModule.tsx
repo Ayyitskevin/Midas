@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice } from '@/lib/format';
-import { dexBadge, summarizeDexPools, cexDexBasis, type DexTone } from '@/lib/dexView';
+import { dexBadge, summarizeDexPools, cexDexBasis, estimatePriceImpactPct, type DexTone } from '@/lib/dexView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -16,6 +16,7 @@ const TONE: Record<DexTone, string> = {
 
 export function OnChainModule({ panel }: ModuleProps) {
   const symbol = panel.symbol ?? 'ETH/USDT';
+  const [size, setSize] = useState(10_000); // swap size (USD) for the price-impact estimate
 
   const { data, error, loading, refresh } = useFetch(
     (signal) => api.dexPools(symbol, signal),
@@ -38,6 +39,16 @@ export function OnChainModule({ panel }: ModuleProps) {
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-text">{base(symbol)}</span>
         <span className="text-term-dim">DEX pools</span>
+        <label className="flex items-center gap-1 text-term-dim" title="Swap size (USD) for the price-impact estimate">
+          impact $
+          <input
+            type="number"
+            min={0}
+            value={size}
+            onChange={(e) => setSize(Math.max(0, Number(e.target.value) || 0))}
+            className="no-drag w-20 rounded-sm border border-term-border bg-term-panel px-1 py-0.5 text-term-text outline-none focus:border-term-amber"
+          />
+        </label>
         {badge && (
           <span
             className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`}
@@ -85,6 +96,9 @@ export function OnChainModule({ panel }: ModuleProps) {
                 <th className="px-2 py-1 text-right font-normal">LIQUIDITY</th>
                 <th className="px-2 py-1 text-right font-normal">24H VOL</th>
                 <th className="px-2 py-1 text-right font-normal">FEE</th>
+                <th className="px-2 py-1 text-right font-normal" title="Estimated constant-product price impact of the swap size">
+                  IMPACT
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -100,6 +114,15 @@ export function OnChainModule({ panel }: ModuleProps) {
                     {p.volume24hUsd == null ? '—' : `$${fmtCompact(p.volume24hUsd)}`}
                   </td>
                   <td className="px-2 py-0.5 text-right text-term-dim">{p.feeBps == null ? '—' : `${p.feeBps}bp`}</td>
+                  {(() => {
+                    const imp = estimatePriceImpactPct(p.liquidityUsd, size);
+                    const cls = imp == null ? 'text-term-dim' : imp < 0.5 ? 'text-term-up' : imp < 2 ? 'text-term-muted' : 'text-term-down';
+                    return (
+                      <td className={`px-2 py-0.5 text-right ${cls}`}>
+                        {imp == null ? '—' : `${imp.toFixed(imp < 1 ? 3 : 2)}%`}
+                      </td>
+                    );
+                  })()}
                 </tr>
               ))}
             </tbody>
