@@ -31,6 +31,10 @@ apps/server       Fastify API + pluggable DataProvider implementations (mock/ccx
 apps/web          React/Vite terminal UI (Zustand stores, Tailwind, command bar)
 ```
 
+For how the pieces fit together — the data contract, the provider seam, the
+command/panel/module system, and the data-honesty model — see
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
 ## The gates (run before every PR)
 
 CI runs these on every PR; please run them locally first:
