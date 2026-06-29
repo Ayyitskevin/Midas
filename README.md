@@ -117,6 +117,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `IMB`   | `IMBALANCE`, `OBI` | yes      | Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge. |
 | `LQA`   | `LIQUIDITY`, `SPREADS` | no   | Liquidity board — watchlist ranked by bid/ask spread (bps) and top-of-book depth. |
 | `ALLQ`  | `XQ`, `VENUES` | yes          | Compare a pair across exchanges (best bid/ask).|
+| `DXV`   | `FUNDV`, `VFUND`, `VENUEDERIVS` | yes | Cross-exchange derivatives — a perp's funding rate and open interest across every venue side-by-side, with the cross-venue funding spread (Δfund) as a funding-arb signal (long the cheapest, short the dearest) and aggregate OI. Complements `ALLQ` (spot) and `FUND` (single-venue). |
 | `FUND`  | `OI`, `LIQ`    | yes          | Funding rate, open interest, liquidations.     |
 | `FUNDR` | `RATES`, `CARRY` | no         | Funding + open interest across the top perps, sortable.|
 | `LIQS`  | `LIQUIDATIONS`, `REKT` | no   | Market-wide liquidations feed across the top perps — **honestly labeled**: shows the data source, whether the exchange actually publishes a public liquidation feed (many don't — Binance removed its in 2021), the freshness, and a throttling/under-reporting caveat instead of a silent empty "live" feed.|

@@ -12,6 +12,7 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
@@ -168,6 +169,47 @@ export class CcxtProvider implements DataProvider {
     return settled
       .filter((r): r is PromiseFulfilledResult<VenueQuote> => r.status === 'fulfilled')
       .map((r) => r.value);
+  }
+
+  async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
+    const spot = this.normalize(symbol);
+    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    const settled = await Promise.allSettled(
+      this.getCompareExchanges().map(async (ex): Promise<VenueDerivatives> => {
+        const out: VenueDerivatives = {
+          exchange: ex.name ?? ex.id,
+          fundingRate: null,
+          nextFundingTime: null,
+          markPrice: null,
+          openInterestValue: null,
+          timestamp: Date.now(),
+        };
+        if (ex.has['fetchFundingRate']) {
+          try {
+            const f = await ex.fetchFundingRate(perp);
+            out.fundingRate = f.fundingRate ?? null;
+            out.nextFundingTime = f.fundingTimestamp ?? f.nextFundingTimestamp ?? null;
+            out.markPrice = f.markPrice ?? null;
+          } catch {
+            // funding not available on this venue (e.g. spot-only exchange)
+          }
+        }
+        if (ex.has['fetchOpenInterest']) {
+          try {
+            const oi = await ex.fetchOpenInterest(perp);
+            out.openInterestValue = oi.openInterestValue ?? null;
+          } catch {
+            // open interest not available on this venue
+          }
+        }
+        return out;
+      }),
+    );
+    // Keep only venues that actually report a perp (drop all-null spot-only venues).
+    return settled
+      .filter((r): r is PromiseFulfilledResult<VenueDerivatives> => r.status === 'fulfilled')
+      .map((r) => r.value)
+      .filter((v) => v.fundingRate !== null || v.openInterestValue !== null);
   }
 
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {

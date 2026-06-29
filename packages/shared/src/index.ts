@@ -166,6 +166,23 @@ export interface VenueQuote {
   timestamp: number;
 }
 
+/**
+ * A single venue's perpetual funding & open interest, for the cross-exchange
+ * derivatives view (same perp, many exchanges). Funding diverges across venues,
+ * so comparing them surfaces funding-arbitrage and crowding signals.
+ */
+export interface VenueDerivatives {
+  exchange: string;
+  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  fundingRate: number | null;
+  /** Epoch millis of the next funding. */
+  nextFundingTime: number | null;
+  markPrice: number | null;
+  /** Open interest notional in quote units; null if unavailable. */
+  openInterestValue: number | null;
+  timestamp: number;
+}
+
 /** A single executed trade (print), streamed by the live trades feed. */
 export interface Trade {
   price: number;

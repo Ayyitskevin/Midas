@@ -89,6 +89,13 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     return provider.getExchangeQuotes(symbol);
   });
 
+  // Per-venue funding & open interest for a perp across the compare set.
+  app.get<{ Params: { symbol: string } }>('/api/venue-derivatives/:symbol', async (req) => {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    return provider.getVenueDerivatives(symbol);
+  });
+
   app.get<{ Params: { symbol: string } }>('/api/derivatives/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing symbol', 400);

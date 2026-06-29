@@ -134,6 +134,15 @@ export const COMMANDS: CommandDef[] = [
     description: 'Compare a pair across exchanges — best bid/ask and cross-exchange spread.',
   },
   {
+    code: 'DXV',
+    aliases: ['FUNDV', 'VFUND', 'VENUEDERIVS'],
+    title: 'Derivatives by Venue',
+    module: 'DXV',
+    requiresSymbol: true,
+    description:
+      "Cross-exchange derivatives — a perp's funding rate and open interest across every venue in the compare set (Binance, OKX, Bybit, …), side by side. Funding diverges across exchanges, so the board surfaces the cross-venue funding spread (Δfund) as a funding-arbitrage signal (long the cheapest venue, short the dearest) and aggregates open interest. Complements ALLQ (spot quotes across venues) and FUND (single-venue funding/OI/liqs). Crypto-only (ccxt provider).",
+  },
+  {
     code: 'FUND',
     aliases: ['OI', 'LIQ', 'PERP'],
     title: 'Derivatives',

@@ -10,6 +10,7 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 
@@ -43,6 +44,8 @@ export interface DataProvider {
   getOrderBook(symbol: string, depth?: number): Promise<OrderBook>;
   getExchangeQuotes(symbol: string): Promise<VenueQuote[]>;
   getDerivatives(symbol: string): Promise<DerivativesInfo>;
+  /** Per-venue funding & open interest for a perp, across the compare set (crypto only). */
+  getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]>;
   /** Provenance + availability of the liquidation feed, for honest labeling. */
   liquidationsProvenance(): LiquidationsProvenance;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
