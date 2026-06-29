@@ -6,6 +6,7 @@ import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
 import { ScanWatchEngine } from './components/ScanWatchEngine';
+import { DeepLinkLoader } from './components/DeepLinkLoader';
 import { ToastHost } from './components/ToastHost';
 import { LoginGate } from './components/LoginGate';
 import { CommandPalette } from './components/CommandPalette';
@@ -52,6 +53,7 @@ export default function App() {
         <StatusBar />
         <AlertsEngine />
         <ScanWatchEngine />
+        <DeepLinkLoader />
         <ToastHost />
         <CommandPalette />
         <Hotkeys />

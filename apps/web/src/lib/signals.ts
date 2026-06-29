@@ -167,3 +167,24 @@ export function describeCriteria(c: ScanCriteria): string {
   if (c.minScore != null) parts.push(`score ≥ ${c.minScore}`);
   return parts.length ? parts.join(' · ') : 'all symbols';
 }
+
+/** Value equality across all four criteria fields. */
+export function sameCriteria(a: ScanCriteria, b: ScanCriteria): boolean {
+  return a.trend === b.trend && a.rsi === b.rsi && a.range === b.range && a.minScore === b.minScore;
+}
+
+/**
+ * Defensively coerce an untrusted value (a persisted panel param, or a decoded
+ * deep link) into a valid ScanCriteria — unknown field values fall back to
+ * 'any' / null, so a stale or hand-edited input can never produce a bad filter.
+ */
+export function coerceCriteria(raw: unknown): ScanCriteria {
+  if (!raw || typeof raw !== 'object') return ANY_CRITERIA;
+  const o = raw as Record<string, unknown>;
+  return {
+    trend: o.trend === 'up' || o.trend === 'down' ? o.trend : 'any',
+    rsi: o.rsi === 'overbought' || o.rsi === 'oversold' || o.rsi === 'neutral' ? o.rsi : 'any',
+    range: o.range === 'high' || o.range === 'mid' || o.range === 'low' ? o.range : 'any',
+    minScore: typeof o.minScore === 'number' && Number.isFinite(o.minScore) ? o.minScore : null,
+  };
+}
