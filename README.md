@@ -463,6 +463,7 @@ Server (environment variables):
 | `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios, watchlists, notes) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
+| `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a summary of alerts fired + order flow observed to the webhook (`168` = weekly, `0` = off, floored at 1). |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |

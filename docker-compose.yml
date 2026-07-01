@@ -40,6 +40,8 @@ services:
       MIDAS_CCXT_PASSWORD: ${MIDAS_CCXT_PASSWORD:-}
       # Fill notifications: open-order watch cadence in ms (0 = off).
       MIDAS_ACCOUNT_WATCH_MS: ${MIDAS_ACCOUNT_WATCH_MS:-10000}
+      # Operator digest cadence in hours (0 = off; 168 = weekly).
+      MIDAS_DIGEST_HOURS: ${MIDAS_DIGEST_HOURS:-0}
       # Optional live on-chain/DEX source for the DEX panel.
       MIDAS_DEX_SOURCE: ${MIDAS_DEX_SOURCE:-}
       # LIVE trading — OFF by default; see SECURITY.md before enabling.

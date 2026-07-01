@@ -7,6 +7,7 @@ import { createNotifier } from './alerts/notify';
 import { startAccountWatch } from './accountWatch';
 import { ccxtKeysConfigured } from './providers/balances';
 import { postWebhookText } from './webhook';
+import { createDigestSource, startDigestLoop } from './digest';
 import { WorkspaceRepo } from './workspaces/repo';
 import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
@@ -65,6 +66,28 @@ async function main(): Promise<void> {
   });
   if (config.alertWebhook) app.log.info('alert webhook delivery enabled');
 
+  // Operator digest: a periodic webhook summary of alerts fired + order flow
+  // observed since the last one. Opt-in and pointless without a webhook.
+  const digest =
+    config.digestHours > 0 && config.alertWebhook
+      ? createDigestSource({
+          providerName: provider.name,
+          providerLive: provider.live,
+          version: config.version,
+          watcher: accountWatch,
+        })
+      : null;
+  if (digest) {
+    const hours = Math.max(1, config.digestHours); // floor: never spammier than hourly
+    startDigestLoop(
+      digest,
+      hours * 3_600_000,
+      (text) => postWebhookText(config.alertWebhook, text),
+      (err) => app.log.error(err, 'digest error'),
+    );
+    app.log.info({ hours }, 'operator digest enabled');
+  }
+
   startAlertLoop(
     alertRepo,
     provider,
@@ -72,6 +95,7 @@ async function main(): Promise<void> {
     (fired) => {
       app.log.info({ count: fired.length }, 'alert(s) fired');
       void notifier.deliver(fired);
+      digest?.addAlertFires(fired.length);
     },
     (err) => app.log.error(err, 'alert loop error'),
   );
