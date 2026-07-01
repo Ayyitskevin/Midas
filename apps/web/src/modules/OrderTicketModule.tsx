@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
-import { emitAccountChange } from '@/lib/accountBus';
+import { emitAccountChange, usePricePick } from '@/lib/accountBus';
 import { quickSizeAmount, capBlockReason } from '@/lib/quickSize';
 import type { Level, Side } from '@/lib/slippage';
 import type { PlacedOrder } from '@midas/shared';
@@ -94,6 +94,13 @@ export function OrderTicketModule({ panel }: ModuleProps) {
     setPlaceError(null);
     setPlaced(null);
   }, [symbol, side, type, amount, limit]);
+
+  // A click on a linked order-book level takes that price as the limit.
+  usePricePick((pick) => {
+    if (!panel.link || pick.group !== panel.link) return;
+    setType('limit');
+    setLimit(String(pick.price));
+  });
 
   async function doPlace() {
     if (!preview.ok || !symbol) return;

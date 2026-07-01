@@ -27,3 +27,32 @@ export function useAccountRefresh(refresh: () => void): void {
     };
   }, []);
 }
+
+/**
+ * Price-pick channel for cross-panel flow: clicking a level in a linked order
+ * book sends that price to the order ticket in the same link group (classic
+ * terminal ergonomics — point at liquidity, ticket takes the price).
+ */
+export interface PricePick {
+  /** The link-group color both panels share. */
+  group: string;
+  price: number;
+}
+
+const priceListeners = new Set<(pick: PricePick) => void>();
+
+export function emitPricePick(pick: PricePick): void {
+  for (const listener of [...priceListeners]) listener(pick);
+}
+
+export function usePricePick(handler: (pick: PricePick) => void): void {
+  const ref = useRef(handler);
+  ref.current = handler;
+  useEffect(() => {
+    const listener = (pick: PricePick) => ref.current(pick);
+    priceListeners.add(listener);
+    return () => {
+      priceListeners.delete(listener);
+    };
+  }, []);
+}

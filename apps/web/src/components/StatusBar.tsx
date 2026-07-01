@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { usePanels } from '@/store/usePanels';
 import { useAuth } from '@/store/useAuth';
 import { useHotkeyHelp } from '@/store/useHotkeyHelp';
@@ -8,6 +9,23 @@ import { useFetch } from '@/lib/hooks';
 import { sourceView } from '@/lib/sourceStatus';
 import { useTradingStatus } from '@/lib/useTradingStatus';
 
+/** UTC wall clock — crypto settles on UTC (funding, daily candles, cap resets). */
+function UtcClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const hh = String(now.getUTCHours()).padStart(2, '0');
+  const mm = String(now.getUTCMinutes()).padStart(2, '0');
+  const ss = String(now.getUTCSeconds()).padStart(2, '0');
+  return (
+    <span className="tabular-nums text-term-muted" title="UTC — funding, daily candles and caps roll on this clock">
+      {hh}:{mm}:{ss} UTC
+    </span>
+  );
+}
+
 export function StatusBar() {
   const panelCount = usePanels((s) => s.panels.length);
   const reset = usePanels((s) => s.resetWorkspace);
@@ -16,7 +34,17 @@ export function StatusBar() {
   const logout = useAuth((s) => s.clear);
   const status = useStreamStatus();
   const conn = streamStatusView(status, stream.subscriberCount());
-  const { data: health } = useFetch((signal) => api.health(signal), [], { intervalMs: 30000 });
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
+  const { data: health } = useFetch(
+    async (signal) => {
+      const t0 = performance.now();
+      const h = await api.health(signal);
+      setLatencyMs(Math.round(performance.now() - t0));
+      return h;
+    },
+    [],
+    { intervalMs: 30000 },
+  );
   const src = health ? sourceView(health.provider, health.live) : null;
   const trading = useTradingStatus();
 
@@ -50,6 +78,15 @@ export function StatusBar() {
         )}
       </div>
       <div className="flex items-center gap-3">
+        {latencyMs != null && (
+          <span
+            className={`hidden tabular-nums sm:inline ${latencyMs > 500 ? 'text-term-amber' : 'text-term-dim'}`}
+            title="API round-trip (health poll)"
+          >
+            {latencyMs}ms
+          </span>
+        )}
+        <UtcClock />
         <span className="hidden md:inline">
           type a ticker then <span className="text-term-text">DES · GP · N</span> — or{' '}
           <span className="text-term-text">HELP</span>

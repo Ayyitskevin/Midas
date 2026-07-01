@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
-import type { AlertTrigger } from '@midas/shared';
+import type { AccountFill, AlertTrigger, OpenOrder } from '@midas/shared';
+import { api } from '@/lib/api';
+import { useFetch } from '@/lib/hooks';
 import { useJournal } from '@/store/useJournal';
 import { usePortfolio, type Transaction, type Position } from '@/store/usePortfolio';
 import { useAlerts } from '@/store/useAlerts';
@@ -43,6 +45,10 @@ export function ReportModule(_props: ModuleProps) {
   const saved = useWatchlist((s) => s.saved);
   const activeId = useWatchlist((s) => s.activeId);
   const push = useToasts((s) => s.push);
+
+  // Account data comes from the server seam (read-only; synthetic in demo mode).
+  const openOrders = useFetch((signal) => api.openOrders(signal), []);
+  const fills = useFetch((signal) => api.fills(undefined, signal), []);
 
   const datasets = useMemo<Dataset[]>(() => {
     const tradeRows: TradeRow[] = trades.map((t) => ({ t, d: deriveTrade(t) }));
@@ -99,6 +105,31 @@ export function ReportModule(_props: ModuleProps) {
       { header: 'Position', value: (r) => r.position },
     ];
 
+    const orderRows: OpenOrder[] = openOrders.data?.orders ?? [];
+    const orderCols: CsvColumn<OpenOrder>[] = [
+      { header: 'Placed', value: (o) => (o.timestamp == null ? '' : isoFromMs(o.timestamp)) },
+      { header: 'Symbol', value: (o) => o.symbol },
+      { header: 'Side', value: (o) => o.side },
+      { header: 'Type', value: (o) => o.type },
+      { header: 'Price', value: (o) => o.price ?? '' },
+      { header: 'Amount', value: (o) => o.amount },
+      { header: 'Filled', value: (o) => o.filled },
+      { header: 'Status', value: (o) => o.status },
+    ];
+
+    const fillRows: AccountFill[] = fills.data?.fills ?? [];
+    const fillCols: CsvColumn<AccountFill>[] = [
+      { header: 'Time', value: (f) => (f.timestamp == null ? '' : isoFromMs(f.timestamp)) },
+      { header: 'Symbol', value: (f) => f.symbol },
+      { header: 'Side', value: (f) => f.side },
+      { header: 'Price', value: (f) => f.price },
+      { header: 'Amount', value: (f) => f.amount },
+      { header: 'Cost', value: (f) => f.cost },
+      { header: 'Fee', value: (f) => f.fee ?? '' },
+      { header: 'Fee currency', value: (f) => f.feeCurrency ?? '' },
+      { header: 'Maker/Taker', value: (f) => f.takerOrMaker ?? '' },
+    ];
+
     return [
       {
         key: 'journal',
@@ -140,8 +171,24 @@ export function ReportModule(_props: ModuleProps) {
         filename: 'midas-watchlists.csv',
         build: () => toCsv(watchRows, watchCols),
       },
+      {
+        key: 'account-orders',
+        label: 'Exchange open orders',
+        description: `Resting orders on the connected account (${openOrders.data?.provenance ?? 'loading…'})`,
+        count: orderRows.length,
+        filename: 'midas-open-orders.csv',
+        build: () => toCsv(orderRows, orderCols),
+      },
+      {
+        key: 'account-fills',
+        label: 'Exchange fills',
+        description: `Recent executions on the connected account (${fills.data?.provenance ?? 'loading…'})`,
+        count: fillRows.length,
+        filename: 'midas-fills.csv',
+        build: () => toCsv(fillRows, fillCols),
+      },
     ];
-  }, [trades, transactions, positions, alertLog, symbols, lists, saved, activeId]);
+  }, [trades, transactions, positions, alertLog, symbols, lists, saved, activeId, openOrders.data, fills.data]);
 
   const exportCsv = (ds: Dataset) => {
     downloadCsv(ds.filename, ds.build());

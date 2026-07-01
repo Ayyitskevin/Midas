@@ -33,6 +33,9 @@ export function BalancesModule(_props: ModuleProps) {
     intervalMs: 30_000,
   });
   useAccountRefresh(refresh);
+  // Positions feed the equity read-out: equity ≈ balance value + unrealized P&L.
+  const positions = useFetch((signal) => api.positions(signal), [], { intervalMs: 30_000 });
+  const uPnl = positions.data?.totalUnrealizedPnlUsd ?? null;
 
   const badge = data ? balancesBadge(data) : null;
   const allocByAsset = useMemo(() => {
@@ -49,6 +52,14 @@ export function BalancesModule(_props: ModuleProps) {
         {data?.totalValueUsd != null && (
           <span className="text-term-dim">
             total <span className="text-term-text">${fmtCompact(data.totalValueUsd)}</span>
+          </span>
+        )}
+        {data?.totalValueUsd != null && uPnl != null && (
+          <span className="text-term-dim" title="Balance value + unrealized P&L on open positions">
+            equity{' '}
+            <span className={uPnl >= 0 ? 'text-term-up' : 'text-term-down'}>
+              ${fmtCompact(data.totalValueUsd + uPnl)}
+            </span>
           </span>
         )}
         {badge && (

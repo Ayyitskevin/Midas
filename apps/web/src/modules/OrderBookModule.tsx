@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { OrderBook, OrderBookLevel } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { emitPricePick } from '@/lib/accountBus';
 import { useStream } from '@/lib/stream';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -81,7 +82,7 @@ export function OrderBookModule({ panel }: ModuleProps) {
       {/* Asks — worst at top, best ask just above the spread. */}
       <div className="flex flex-1 flex-col justify-end overflow-hidden">
         {[...view.asks].reverse().map((r) => (
-          <DomRow key={`a-${r.price}`} row={r} max={view.max} side="ask" />
+          <DomRow key={`a-${r.price}`} row={r} max={view.max} side="ask" link={panel.link} />
         ))}
       </div>
 
@@ -96,19 +97,28 @@ export function OrderBookModule({ panel }: ModuleProps) {
       {/* Bids — best bid just below the spread. */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {view.bids.map((r) => (
-          <DomRow key={`b-${r.price}`} row={r} max={view.max} side="bid" />
+          <DomRow key={`b-${r.price}`} row={r} max={view.max} side="bid" link={panel.link} />
         ))}
       </div>
     </div>
   );
 }
 
-function DomRow({ row, max, side }: { row: Row; max: number; side: 'ask' | 'bid' }) {
+function DomRow({ row, max, side, link }: { row: Row; max: number; side: 'ask' | 'bid'; link?: string }) {
   const pct = max > 0 ? (row.cumulative / max) * 100 : 0;
   const bar = side === 'ask' ? 'rgba(239,77,86,0.16)' : 'rgba(38,194,129,0.16)';
   const priceColor = side === 'ask' ? 'text-term-down' : 'text-term-up';
+  // When this book is in a link group, clicking a level sends the price to the
+  // order ticket in the same group (open both via the Trade Desk template).
+  const pick = link ? () => emitPricePick({ group: link, price: row.price }) : undefined;
   return (
-    <div className="relative grid grid-cols-2 px-2 py-[1.5px] tabular-nums">
+    <div
+      className={`relative grid grid-cols-2 px-2 py-[1.5px] tabular-nums ${
+        pick ? 'no-drag cursor-pointer hover:bg-term-header/60' : ''
+      }`}
+      onClick={pick}
+      title={pick ? 'Send this price to the linked order ticket' : undefined}
+    >
       <div className="absolute inset-y-0 right-0" style={{ width: `${pct}%`, background: bar }} />
       <span className={`relative ${priceColor}`}>{fmtBookPrice(row.price)}</span>
       <span className="relative text-right text-term-text">{fmtAmount(row.amount)}</span>
