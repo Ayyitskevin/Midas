@@ -108,7 +108,7 @@ export function OrdersModule(_props: ModuleProps) {
                 const busy = cancelingId === o.id;
                 return (
                   <tr key={o.id} className="border-b border-term-border/20 hover:bg-term-header/40">
-                    <td className="px-2 py-0.5 text-term-text">{o.symbol}</td>
+                    <td className="px-2 py-0.5 text-term-text">{o.symbol}{o.venue && <span className="ml-1 text-term-dim" title={`venue: ${o.venue}`}>·{o.venue}</span>}</td>
                     <td className={`px-2 py-0.5 ${o.side === 'buy' ? 'text-term-up' : 'text-term-down'}`}>
                       {o.side.toUpperCase()}
                     </td>

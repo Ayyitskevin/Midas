@@ -287,6 +287,8 @@ export interface AccountBalance {
   total: number;
   /** Best-effort USD value of the total holding; null when it can't be priced. */
   valueUsd: number | null;
+  /** Venue the row came from (multi-venue accounts); absent for a single venue. */
+  venue?: string;
 }
 
 /**
@@ -335,6 +337,8 @@ export interface OpenOrder {
   timestamp: number | null;
   /** Order status, e.g. 'open' | 'partial'. */
   status: string;
+  /** Venue the row came from (multi-venue accounts); absent for a single venue. */
+  venue?: string;
 }
 
 /** Read-only snapshot of the account's open orders, with honest provenance labeling. */
@@ -365,6 +369,8 @@ export interface AccountPosition {
   pnlPct: number | null;
   liquidationPrice: number | null;
   leverage: number | null;
+  /** Venue the row came from (multi-venue accounts); absent for a single venue. */
+  venue?: string;
 }
 
 /** Read-only snapshot of the account's open positions, with honest provenance labeling. */
@@ -400,6 +406,8 @@ export interface AccountFill {
   takerOrMaker: string | null;
   /** Epoch millis of execution; null if unknown. */
   timestamp: number | null;
+  /** Venue the row came from (multi-venue accounts); absent for a single venue. */
+  venue?: string;
 }
 
 /** Read-only snapshot of recent account fills, with honest provenance labeling. */

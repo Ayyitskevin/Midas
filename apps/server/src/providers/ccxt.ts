@@ -27,7 +27,7 @@ import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
-import { mapMyTrades, mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
+import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
@@ -91,6 +91,41 @@ export class CcxtProvider implements DataProvider {
     this.exchange = new ExchangeCtor(exchangeConfig);
     this.exchangeId = id;
     this.name = `ccxt:${id}`;
+
+    // Optional SECOND keyed venue for the multi-venue account view. Same
+    // non-custodial rules: read-only keys from the operator's env, account
+    // reads only — the trading write path never touches this client.
+    const id2 = (process.env.MIDAS_CCXT_EXCHANGE_2 ?? '').toLowerCase();
+    const key2 = process.env.MIDAS_CCXT_API_KEY_2;
+    const secret2 = process.env.MIDAS_CCXT_SECRET_2;
+    if (id2 && id2 !== id && key2 && secret2) {
+      const Ctor2 = registry[id2];
+      if (typeof Ctor2 === 'function') {
+        const cfg2: Record<string, unknown> = { enableRateLimit: true, apiKey: key2, secret: secret2 };
+        if (process.env.MIDAS_CCXT_PASSWORD_2) cfg2.password = process.env.MIDAS_CCXT_PASSWORD_2;
+        this.secondary = { ex: new Ctor2(cfg2), id: id2 };
+      }
+    }
+  }
+
+  private readonly secondary: { ex: Exchange; id: string } | null = null;
+
+  /**
+   * Run the same account read against the second venue. A secondary failure
+   * never breaks the primary result — it comes back as an honest note.
+   */
+  private async fromSecondary<Row>(
+    read: (ex: Exchange) => Promise<Row[]>,
+  ): Promise<{ rows: Row[]; note: string | null } | null> {
+    if (!this.secondary) return null;
+    try {
+      return { rows: await read(this.secondary.ex), note: null };
+    } catch (err) {
+      return {
+        rows: [],
+        note: `Second venue (${this.secondary.id}) unreadable — ${err instanceof Error ? err.message : 'error'}.`,
+      };
+    }
   }
 
   /**
@@ -387,18 +422,25 @@ export class CcxtProvider implements DataProvider {
     try {
       // READ-ONLY account read. Midas is non-custodial: this calls only
       // fetchBalance — never createOrder or any write/withdraw method.
-      const raw = await this.exchange.fetchBalance();
-      const totals = (raw as { total?: Record<string, unknown> }).total ?? {};
-      const assets = Object.keys(totals).filter((a) => {
-        const n = Number((totals as Record<string, unknown>)[a]);
-        return Number.isFinite(n) && n > 0;
-      });
-      const prices = await this.priceAssetsUsd(assets);
-      const balances = mapCcxtBalance(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
+      const readBalances = async (ex: Exchange): Promise<ReturnType<typeof mapCcxtBalance>> => {
+        const raw = await ex.fetchBalance();
+        const totals = (raw as { total?: Record<string, unknown> }).total ?? {};
+        const assets = Object.keys(totals).filter((a) => {
+          const n = Number((totals as Record<string, unknown>)[a]);
+          return Number.isFinite(n) && n > 0;
+        });
+        const prices = await this.priceAssetsUsd(assets, ex);
+        return mapCcxtBalance(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
+      };
+      let balances = await readBalances(this.exchange);
+      const second = await this.fromSecondary(readBalances);
+      if (second) {
+        balances = mergeVenueRows(balances, this.exchangeId, second.rows, this.secondary!.id, (b) => b.valueUsd);
+      }
       return {
         source: this.name,
         provenance: 'live',
-        note: null,
+        note: second?.note ?? null,
         totalValueUsd: sumValueUsd(balances),
         balances,
         asOf: Date.now(),
@@ -416,7 +458,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   /** Best-effort USD prices for a set of assets (stables = $1; others via ASSET/USDT tickers). */
-  private async priceAssetsUsd(assets: string[]): Promise<Map<string, number>> {
+  private async priceAssetsUsd(assets: string[], exchange: Exchange = this.exchange): Promise<Map<string, number>> {
     const map = new Map<string, number>();
     const need: string[] = [];
     for (const a of assets) {
@@ -426,7 +468,7 @@ export class CcxtProvider implements DataProvider {
     }
     if (need.length === 0) return map;
     try {
-      const tickers = await this.exchange.fetchTickers(need.map((a) => `${a}/USDT`));
+      const tickers = await exchange.fetchTickers(need.map((a) => `${a}/USDT`));
       for (const a of need) {
         const t = tickers[`${a}/USDT`];
         const px = t ? t.last ?? t.close : null;
@@ -464,7 +506,14 @@ export class CcxtProvider implements DataProvider {
     try {
       // READ-ONLY: fetchOpenOrders only — never createOrder/cancelOrder/editOrder.
       const raw = await this.exchange.fetchOpenOrders();
-      return { source: this.name, provenance: 'live', note: null, orders: mapOpenOrders(raw), asOf };
+      let orders = mapOpenOrders(raw);
+      const second = await this.fromSecondary(async (ex) =>
+        ex.has['fetchOpenOrders'] ? mapOpenOrders(await ex.fetchOpenOrders()) : [],
+      );
+      if (second) {
+        orders = mergeVenueRows(orders, this.exchangeId, second.rows, this.secondary!.id, (o) => o.timestamp);
+      }
+      return { source: this.name, provenance: 'live', note: second?.note ?? null, orders, asOf };
     } catch (err) {
       return {
         source: this.name,
@@ -503,11 +552,17 @@ export class CcxtProvider implements DataProvider {
     try {
       // READ-ONLY: fetchPositions only — never any order/position write method.
       const raw = await this.exchange.fetchPositions();
-      const positions = mapPositions(raw);
+      let positions = mapPositions(raw);
+      const second = await this.fromSecondary(async (ex) =>
+        ex.has['fetchPositions'] ? mapPositions(await ex.fetchPositions()) : [],
+      );
+      if (second) {
+        positions = mergeVenueRows(positions, this.exchangeId, second.rows, this.secondary!.id, (p) => p.notionalUsd);
+      }
       return {
         source: this.name,
         provenance: 'live',
-        note: null,
+        note: second?.note ?? null,
         totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
         positions,
         asOf,
@@ -549,8 +604,16 @@ export class CcxtProvider implements DataProvider {
     try {
       // READ-ONLY: fetchMyTrades only. Many venues (e.g. Binance) require a
       // symbol for this endpoint — surface that honestly instead of guessing.
-      const raw = await this.exchange.fetchMyTrades(symbol ? this.normalize(symbol) : undefined, undefined, 100);
-      return { source: this.name, provenance: 'live', note: null, fills: mapMyTrades(raw), asOf };
+      const sym = symbol ? this.normalize(symbol) : undefined;
+      const raw = await this.exchange.fetchMyTrades(sym, undefined, 100);
+      let fills = mapMyTrades(raw);
+      const second = await this.fromSecondary(async (ex) =>
+        ex.has['fetchMyTrades'] ? mapMyTrades(await ex.fetchMyTrades(sym, undefined, 100)) : [],
+      );
+      if (second) {
+        fills = mergeVenueRows(fills, this.exchangeId, second.rows, this.secondary!.id, (f) => f.timestamp);
+      }
+      return { source: this.name, provenance: 'live', note: second?.note ?? null, fills, asOf };
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'error';
       const needsSymbol = /symbol|argument/i.test(msg) && !symbol;

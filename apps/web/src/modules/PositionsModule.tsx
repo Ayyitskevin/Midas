@@ -75,7 +75,7 @@ export function PositionsModule(_props: ModuleProps) {
             <tbody>
               {data.positions.map((p, i) => (
                 <tr key={`${p.symbol}-${i}`} className="border-b border-term-border/20 hover:bg-term-header/40">
-                  <td className="px-2 py-0.5 text-term-text">{displaySymbol(p.symbol)}</td>
+                  <td className="px-2 py-0.5 text-term-text">{displaySymbol(p.symbol)}{p.venue && <span className="ml-1 text-term-dim" title={`venue: ${p.venue}`}>·{p.venue}</span>}</td>
                   <td className={`px-2 py-0.5 ${p.side === 'long' ? 'text-term-up' : 'text-term-down'}`}>
                     {p.side.toUpperCase()}
                   </td>

@@ -116,3 +116,23 @@ export function sumUnrealizedPnl(positions: AccountPosition[]): number | null {
   }
   return any ? sum : null;
 }
+
+/**
+ * Merge account rows from two venues into one honest list: every row tagged
+ * with where it came from, re-sorted by the given key (nulls sink). Pure —
+ * the provider decides what to do when one venue fails; this only merges.
+ */
+export function mergeVenueRows<T extends { venue?: string }>(
+  primary: T[],
+  primaryVenue: string,
+  secondary: T[],
+  secondaryVenue: string,
+  sortKey: (row: T) => number | null,
+): T[] {
+  const tagged = [
+    ...primary.map((r) => ({ ...r, venue: primaryVenue })),
+    ...secondary.map((r) => ({ ...r, venue: secondaryVenue })),
+  ];
+  tagged.sort((a, b) => (sortKey(b) ?? -Infinity) - (sortKey(a) ?? -Infinity));
+  return tagged;
+}
