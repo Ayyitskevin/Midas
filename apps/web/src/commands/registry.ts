@@ -160,7 +160,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'FUNDR',
-    aliases: ['RATES', 'CARRY'],
+    aliases: ['RATES'],
     title: 'Funding Rates',
     module: 'FUNDR',
     requiresSymbol: false,
@@ -320,7 +320,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'SKEW',
-    aliases: ['SHAPE', 'KURTOSIS', 'TAILS'],
+    aliases: ['SHAPE', 'KURTOSIS'],
     title: 'Return Shape',
     module: 'SKEW',
     requiresSymbol: false,
@@ -464,7 +464,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'PREM',
-    aliases: ['PREMIUM', 'SPREAD'],
+    aliases: ['PREMIUM'],
     title: 'Basis Monitor',
     module: 'PREM',
     requiresSymbol: true,
@@ -552,6 +552,15 @@ export const COMMANDS: CommandDef[] = [
     requiresSymbol: false,
     description:
       'Read-only open derivatives positions on your exchange account — side, size, entry, mark, unrealized P&L (and %), liquidation price and leverage, with a total uPnL and a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchPositions) — it never opens or closes positions. Shows a synthetic demo set until keys are configured.',
+  },
+  {
+    code: 'FILLS',
+    aliases: ['MYTRADES', 'FILLHIST', 'EXECUTIONS'],
+    title: 'Fills',
+    module: 'FILLS',
+    requiresSymbol: false,
+    description:
+      'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
   {
     code: 'TICKET',
@@ -1234,7 +1243,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'RVGI',
-    aliases: ['RVI', 'VIGOR'],
+    aliases: ['VIGOR'],
     title: 'Relative Vigor Index',
     module: 'RVGI',
     requiresSymbol: false,
@@ -1378,7 +1387,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'INRT',
-    aliases: ['INERTIA', 'RVI'],
+    aliases: ['INERTIA'],
     title: 'Inertia',
     module: 'INRT',
     requiresSymbol: false,
@@ -1441,7 +1450,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'MAMA',
-    aliases: ['MESA', 'MAMAFAMA', 'ADAPTIVEMA'],
+    aliases: ['MESA', 'MAMAFAMA'],
     title: 'MAMA / FAMA',
     module: 'MAMA',
     requiresSymbol: false,
@@ -1513,7 +1522,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'VIDYA',
-    aliases: ['CHANDEVIDYA', 'VAR'],
+    aliases: ['CHANDEVIDYA'],
     title: 'Chande VIDYA',
     module: 'VIDYA',
     requiresSymbol: false,
@@ -1540,7 +1549,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'RVI',
-    aliases: ['RELVOL', 'RVOL', 'RELVOLATILITY'],
+    aliases: ['RELVOLATILITY'],
     title: 'Relative Volatility Index',
     module: 'RVI',
     requiresSymbol: false,
@@ -1754,7 +1763,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'EQ',
-    aliases: ['EQUITY', 'CURVE', 'DRAWDOWN'],
+    aliases: ['EQUITY', 'CURVE'],
     title: 'Equity Curve',
     module: 'EQ',
     requiresSymbol: false,

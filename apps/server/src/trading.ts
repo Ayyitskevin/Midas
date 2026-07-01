@@ -18,6 +18,8 @@ export interface TradingConfig {
   allowNoAuth: boolean;
   /** MIDAS_MAX_ORDER_USD — hard per-order notional cap (0 = uncapped). */
   maxOrderUsd: number;
+  /** MIDAS_MAX_DAILY_USD — cumulative UTC-day notional cap (0 = uncapped). */
+  maxDailyUsd: number;
   /** MIDAS_AUTH_ENABLED — whether the API requires login. */
   authEnabled: boolean;
   /** MIDAS_CORS_ORIGIN — allowed browser origin ('*' = any). */
@@ -37,7 +39,11 @@ export interface ProviderContext {
  * Effective trading status — every gate must pass. Returns the reasons it is off
  * so the operator (via the UI) sees exactly what to fix. Pure.
  */
-export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): TradingStatus {
+export function computeTradingStatus(
+  cfg: TradingConfig,
+  ctx: ProviderContext,
+  dailyUsedUsd = 0,
+): TradingStatus {
   const reasons: string[] = [];
   if (!cfg.enabled) reasons.push('Set MIDAS_TRADING_ENABLED=true to enable live order placement.');
   if (!ctx.providerLive) reasons.push('Live trading requires the ccxt provider (MIDAS_DATA_PROVIDER=ccxt).');
@@ -64,8 +70,56 @@ export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): 
       ? 'Live trading is ENABLED — orders placed here are real and will execute on the exchange.'
       : reasons.join(' '),
     maxOrderUsd: cfg.maxOrderUsd > 0 ? cfg.maxOrderUsd : null,
+    dailyCapUsd: cfg.maxDailyUsd > 0 ? cfg.maxDailyUsd : null,
+    dailyUsedUsd,
     source: ctx.providerName,
   };
+}
+
+/**
+ * Rolling UTC-day notional ledger. A per-order cap alone doesn't stop a
+ * runaway loop or a fat-fingered session from firing dozens of just-under-cap
+ * orders — the daily ledger bounds the whole day's exposure. In-memory by
+ * design (resets on restart; the restart IS the kill switch), clock injected
+ * for testability.
+ */
+export interface DailyLedger {
+  used(nowMs: number): number;
+  /** Positive = reserve/spend; negative = release a failed reservation. Floors at 0. */
+  add(notionalUsd: number, nowMs: number): void;
+}
+
+export function createDailyLedger(): DailyLedger {
+  let day = '';
+  let used = 0;
+  const roll = (nowMs: number) => {
+    const key = new Date(nowMs).toISOString().slice(0, 10); // UTC day
+    if (key !== day) {
+      day = key;
+      used = 0;
+    }
+  };
+  return {
+    used(nowMs) {
+      roll(nowMs);
+      return used;
+    },
+    add(notionalUsd, nowMs) {
+      roll(nowMs);
+      used = Math.max(0, used + notionalUsd);
+    },
+  };
+}
+
+/** Reject reason when an order would push the day over its cumulative cap; null when allowed. Pure. */
+export function checkDailyCap(capUsd: number | null, usedUsd: number, notionalUsd: number): string | null {
+  if (capUsd == null || capUsd <= 0) return null;
+  if (usedUsd + notionalUsd <= capUsd) return null;
+  return (
+    `Order notional ~$${Math.round(notionalUsd)} would push today's total to ` +
+    `$${Math.round(usedUsd + notionalUsd)}, over the daily cap of $${capUsd} ` +
+    `(raise MIDAS_MAX_DAILY_USD or wait for the UTC day to roll).`
+  );
 }
 
 export interface OrderValidation {
@@ -99,6 +153,45 @@ export function estimateNotionalUsd(req: OrderRequest, refPrice: number | null):
   const px = req.type === 'limit' ? req.price ?? null : refPrice;
   if (px == null || !(px > 0)) return null;
   return req.amount * px;
+}
+
+/**
+ * Server-side idempotency for order placement. The clientOrderId is forwarded
+ * to the exchange, but not every venue honors it — so a network retry or a
+ * double-submit could place twice. Remembering recent (id → result) pairs lets
+ * the route return the original acknowledgement instead of re-placing. Bounded
+ * (LRU-ish, insertion-order eviction) and TTL'd; the clock is injected so the
+ * behavior is unit-testable.
+ */
+export interface IdempotencyCache {
+  recall(id: string, nowMs: number): PlacedOrder | null;
+  remember(id: string, order: PlacedOrder, nowMs: number): void;
+  size(): number;
+}
+
+export function createIdempotencyCache(ttlMs = 10 * 60_000, maxEntries = 500): IdempotencyCache {
+  const entries = new Map<string, { at: number; order: PlacedOrder }>();
+  return {
+    recall(id, nowMs) {
+      if (!id) return null;
+      const hit = entries.get(id);
+      if (!hit) return null;
+      if (nowMs - hit.at > ttlMs) {
+        entries.delete(id);
+        return null;
+      }
+      return hit.order;
+    },
+    remember(id, order, nowMs) {
+      if (!id) return;
+      entries.set(id, { at: nowMs, order });
+      if (entries.size > maxEntries) {
+        const oldest = entries.keys().next().value;
+        if (oldest !== undefined) entries.delete(oldest);
+      }
+    },
+    size: () => entries.size,
+  };
 }
 
 const toNum = (v: unknown): number | null => {

@@ -1,5 +1,7 @@
 import type {
   AccountBalance,
+  AccountFill,
+  AccountFills,
   AccountPosition,
   AccountPositions,
   Balances,
@@ -448,6 +450,47 @@ export class MockProvider implements DataProvider {
         'Configure read-only exchange API keys (ccxt provider) for live positions.',
       totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
       positions,
+      asOf: now,
+    };
+  }
+
+  async getFills(symbol?: string): Promise<AccountFills> {
+    // A dozen deterministic demo fills across the demo book's symbols so the
+    // FILLS panel is useful offline. Clearly labeled synthetic.
+    const symbols = symbol ? [symbol.toUpperCase()] : ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
+    const now = Date.now();
+    const hourBucket = Math.floor(now / 3_600_000);
+    const fills: AccountFill[] = [];
+    for (let i = 0; i < 12; i++) {
+      const sym = symbols[i % symbols.length];
+      const mid = this.buildQuote(resolveEntry(sym)).price;
+      const rng = seeded(sym, hourBucket, i, 'fills');
+      const side = rng() > 0.5 ? ('buy' as const) : ('sell' as const);
+      const price = round(mid * (1 + gaussian(rng) * 0.004), 6);
+      const amount = round(uniform(rng, 0.05, 2) * (mid > 1000 ? 0.4 : 40), 4);
+      const cost = round(price * amount);
+      fills.push({
+        id: `demo-fill-${hourBucket}-${i}`,
+        orderId: `demo-${(i % 3) + 1}`,
+        symbol: sym,
+        side,
+        price,
+        amount,
+        cost,
+        fee: round(cost * 0.001, 4),
+        feeCurrency: sym.split('/')[1] ?? 'USDT',
+        takerOrMaker: rng() > 0.4 ? 'taker' : 'maker',
+        timestamp: now - i * uniform(rng, 0.5, 4) * 3_600_000,
+      });
+    }
+    fills.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note:
+        'Synthetic demo fills for offline/demo use — not a real account. ' +
+        'Configure read-only exchange API keys (ccxt provider) for live fills.',
+      fills,
       asOf: now,
     };
   }

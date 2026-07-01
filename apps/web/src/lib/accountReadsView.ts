@@ -1,4 +1,4 @@
-import type { AccountProvenance, AccountPositions, OpenOrders } from '@midas/shared';
+import type { AccountFills, AccountProvenance, AccountPositions, OpenOrders } from '@midas/shared';
 
 /**
  * Pure view helpers for the read-only account panels (ORD open orders, POSN
@@ -49,5 +49,15 @@ export function positionsBadge(p: AccountPositions): AccountBadge {
     'live',
     `Live read-only positions from ${p.source}.`,
     'Synthetic demo positions — not a real account.',
+  );
+}
+
+export function fillsBadge(f: AccountFills): AccountBadge {
+  return badge(
+    f.provenance,
+    f.note,
+    'live',
+    `Live read-only fills from ${f.source}.`,
+    'Synthetic demo fills — not a real account.',
   );
 }

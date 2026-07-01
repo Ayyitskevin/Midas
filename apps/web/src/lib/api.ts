@@ -1,4 +1,5 @@
 import type {
+  AccountFills,
   AccountPositions,
   Alert,
   AlertInput,
@@ -7,6 +8,7 @@ import type {
   AuthSession,
   AuthStatus,
   Balances,
+  CancelResult,
   DerivativesInfo,
   DexPools,
   OpenOrders,
@@ -133,11 +135,20 @@ export const api = {
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),
   openOrders: (signal?: AbortSignal) => apiGet<OpenOrders>('/api/orders', signal),
   positions: (signal?: AbortSignal) => apiGet<AccountPositions>('/api/positions', signal),
+  fills: (symbol?: string, signal?: AbortSignal) =>
+    apiGet<AccountFills>(`/api/fills${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`, signal),
 
   // Live trading (opt-in, off by default). status() tells the UI whether placement
   // is possible; placeOrder() is the only call that can submit a real order.
   tradingStatus: (signal?: AbortSignal) => apiGet<TradingStatus>('/api/trading/status', signal),
   placeOrder: (req: OrderRequest, signal?: AbortSignal) => apiPost<PlacedOrder>('/api/orders', req, signal),
+  cancelOrder: (id: string, symbol: string, signal?: AbortSignal) =>
+    apiSend<CancelResult>(
+      'DELETE',
+      `/api/orders/${encodeURIComponent(id)}?symbol=${encodeURIComponent(symbol)}`,
+      undefined,
+      signal,
+    ),
 
   fundingHistory: (symbol: string, limit = 90, signal?: AbortSignal) =>
     apiGet<FundingHistoryPoint[]>(

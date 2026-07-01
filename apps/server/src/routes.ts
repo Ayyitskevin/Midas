@@ -8,12 +8,20 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
-import type { OrderRequest } from '@midas/shared';
+import type { OrderRequest, PlacedOrder } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { ccxtKeysConfigured } from './providers/balances';
 import { config } from './config';
-import { computeTradingStatus, validateOrderRequest, estimateNotionalUsd, type TradingConfig } from './trading';
+import {
+  checkDailyCap,
+  computeTradingStatus,
+  createDailyLedger,
+  createIdempotencyCache,
+  estimateNotionalUsd,
+  validateOrderRequest,
+  type TradingConfig,
+} from './trading';
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
 
@@ -23,6 +31,23 @@ const MAX_BATCH_SYMBOLS = 50;
 
 function normalizeSymbol(raw: string): string {
   return raw.trim().toUpperCase();
+}
+
+/**
+ * Fire-and-forget operator notification to the configured alert webhook
+ * (Discord `content` / Slack `text` compatible). Live account mutations —
+ * order placed, order canceled — are exactly the events an operator wants
+ * pushed out-of-band; failures never affect the request.
+ */
+function notifyWebhook(text: string): void {
+  if (!config.alertWebhook) return;
+  fetch(config.alertWebhook, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: text, text }),
+  }).catch(() => {
+    /* best-effort */
+  });
 }
 
 /** Register all Midas API routes against the given provider. */
@@ -117,6 +142,10 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
   app.get('/api/balances', async () => provider.getBalances());
   app.get('/api/orders', async () => provider.getOpenOrders());
   app.get('/api/positions', async () => provider.getPositions());
+  app.get<{ Querystring: { symbol?: string } }>('/api/fills', async (req) => {
+    const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
+    return provider.getFills(symbol);
+  });
 
   // --- Live trading (opt-in, OFF by default) -------------------------------
   // Every gate lives in trading.ts (pure + tested). The status endpoint tells
@@ -127,17 +156,29 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     enabled: config.tradingEnabled,
     allowNoAuth: config.tradingAllowNoAuth,
     maxOrderUsd: config.maxOrderUsd,
+    maxDailyUsd: config.maxDailyUsd,
     authEnabled: config.authEnabled,
     corsOrigin: config.corsOrigin,
   };
+  // Cumulative UTC-day notional across all placed orders (in-memory; a restart
+  // resets the budget — the restart is also the kill switch).
+  const dailyLedger = createDailyLedger();
   const tradingStatus = () =>
-    computeTradingStatus(tradingCfg, {
-      providerName: provider.name,
-      providerLive: provider.live,
-      hasKeys: ccxtKeysConfigured(),
-    });
+    computeTradingStatus(
+      tradingCfg,
+      {
+        providerName: provider.name,
+        providerLive: provider.live,
+        hasKeys: ccxtKeysConfigured(),
+      },
+      dailyLedger.used(Date.now()),
+    );
 
   app.get('/api/trading/status', async () => tradingStatus());
+
+  // Recent placements by clientOrderId, so a retry/double-submit returns the
+  // original acknowledgement instead of placing twice.
+  const placedOrders = createIdempotencyCache();
 
   app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
     const status = tradingStatus();
@@ -151,8 +192,20 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
 
     const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
 
-    // Hard notional cap: price the order and reject anything over the ceiling.
-    if (status.maxOrderUsd != null) {
+    // Idempotency: a duplicate clientOrderId within the TTL is answered from
+    // the cache — the exchange is never asked to place a second time.
+    if (body.clientOrderId) {
+      const duplicate = placedOrders.recall(body.clientOrderId, Date.now());
+      if (duplicate) {
+        app.log.warn({ clientOrderId: body.clientOrderId }, 'duplicate order suppressed (idempotency)');
+        return duplicate;
+      }
+    }
+
+    // Hard notional caps: price the order and reject anything over the
+    // per-order ceiling OR anything that would breach the cumulative daily cap.
+    let placedNotional: number | null = null;
+    if (status.maxOrderUsd != null || status.dailyCapUsd != null) {
       let refPrice: number | null = null;
       if (body.type === 'market') {
         try {
@@ -163,14 +216,17 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       }
       const notional = estimateNotionalUsd(body, refPrice);
       if (notional == null) {
-        throw new ProviderError('Could not price the order to enforce the notional cap — rejected.', 400);
+        throw new ProviderError('Could not price the order to enforce the notional caps — rejected.', 400);
       }
-      if (notional > status.maxOrderUsd) {
+      if (status.maxOrderUsd != null && notional > status.maxOrderUsd) {
         throw new ProviderError(
           `Order notional ~$${Math.round(notional)} exceeds the per-order cap of $${status.maxOrderUsd} (raise MIDAS_MAX_ORDER_USD to allow it).`,
           400,
         );
       }
+      const dailyReject = checkDailyCap(status.dailyCapUsd, dailyLedger.used(Date.now()), notional);
+      if (dailyReject) throw new ProviderError(dailyReject, 400);
+      placedNotional = notional;
     }
 
     // Audit: every live placement attempt is logged with who/what.
@@ -178,8 +234,47 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId },
       'LIVE order placement',
     );
-    return provider.placeOrder(body);
+    // Reserve against the daily cap BEFORE placing, so two in-flight orders
+    // can't both squeeze under it while the exchange call is awaited; release
+    // the reservation if the placement fails.
+    if (placedNotional != null) dailyLedger.add(placedNotional, Date.now());
+    let placed: PlacedOrder;
+    try {
+      placed = await provider.placeOrder(body);
+    } catch (err) {
+      if (placedNotional != null) dailyLedger.add(-placedNotional, Date.now());
+      throw err;
+    }
+    if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
+    notifyWebhook(
+      `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
+        `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,
+    );
+    return placed;
   });
+
+  // Cancel a resting order. Risk-reducing, but still a write: gated by the
+  // exact same trading switches as placement, audited and notified.
+  app.delete<{ Params: { id: string }; Querystring: { symbol?: string } }>(
+    '/api/orders/:id',
+    async (req, reply) => {
+      const status = tradingStatus();
+      if (!status.enabled) {
+        reply.status(403);
+        return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
+      }
+      const id = req.params.id.trim();
+      const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
+      if (!id) throw new ProviderError('Missing order id', 400);
+      if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to cancel)', 400);
+      if (!provider.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
+
+      app.log.warn({ orderId: id, symbol, userId: req.userId }, 'LIVE order cancel');
+      const result = await provider.cancelOrder(id, symbol);
+      notifyWebhook(`🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status})`);
+      return result;
+    },
+  );
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',

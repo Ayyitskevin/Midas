@@ -50,6 +50,13 @@ export const TEMPLATES: WorkspaceTemplate[] = [
     description: 'Watchlist, live quote grid, top market news and the AI copilot.',
     commands: ['W', 'Q', 'TOP', 'AI'],
   },
+  {
+    id: 'trade-desk',
+    name: 'Trade Desk',
+    description: 'Chart, book and order ticket beside your balances, open orders and positions.',
+    commands: ['BTC/USDT GP', 'BTC/USDT BOOK', 'BTC/USDT TICKET', 'ORD', 'POSN', 'BAL'],
+    link: ['GP', 'BOOK', 'TICKET'],
+  },
 ];
 
 /**

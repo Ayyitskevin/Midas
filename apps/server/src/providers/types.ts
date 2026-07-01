@@ -1,6 +1,8 @@
 import type {
+  AccountFills,
   AccountPositions,
   Balances,
+  CancelResult,
   DerivativesInfo,
   DexPools,
   FundingHistoryPoint,
@@ -62,6 +64,8 @@ export interface DataProvider {
   getOpenOrders(): Promise<OpenOrders>;
   /** Read-only open positions (non-custodial; reads only), honestly labeled. */
   getPositions(): Promise<AccountPositions>;
+  /** Read-only recent fills / my-trades (non-custodial), honestly labeled. Some venues require a symbol. */
+  getFills(symbol?: string): Promise<AccountFills>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   /**
@@ -70,6 +74,12 @@ export interface DataProvider {
    * the route; providers that omit it cannot trade.
    */
   placeOrder?(req: OrderRequest): Promise<PlacedOrder>;
+  /**
+   * Cancel a resting order (optional — ccxt only). Risk-REDUCING write, gated
+   * by the same trading switches as placement: a trader who can place a limit
+   * order must be able to pull it.
+   */
+  cancelOrder?(id: string, symbol: string): Promise<CancelResult>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;

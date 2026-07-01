@@ -58,6 +58,12 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 - **On-chain / DEX.** DEX pools, CEX↔DEX basis and a swap price-impact estimate
   (`DEX`) — synthetic by default, live via Dexscreener when configured.
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
+- **Account & execution (non-custodial, opt-in).** Read-only keys light up your
+  real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
+  (`FILLS`); explicitly enable trading and the order ticket (`TICKET`) places —
+  and `ORD` cancels — real orders behind two-step confirms, per-order **and**
+  daily notional caps, idempotency, audit logs and webhook notifications. A red
+  **LIVE TRADING** badge shows terminal-wide whenever it's on.
 - **Pluggable data layer.** `mock` (deterministic, offline), `ccxt` (live
   multi-exchange crypto), `yahoo` (equities) — swap behind one interface.
 - **Typed end-to-end** with a shared data contract package.
@@ -201,7 +207,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `BAL`   | `BALANCE`, `BALANCES`, `ACCTBAL` | no | Read-only exchange account balances — per-asset free/used/total, USD value & allocation %, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server env (`ccxt` provider); Midas never places orders or holds funds. Synthetic demo book until keys are set. |
 | `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Read-only open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial: reads only (`fetchOpenOrders`) — never places or cancels orders. Synthetic demo set until read-only keys are set. |
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
-| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. |
+| `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
+| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. When trading is live, `ORD` also gains a two-step per-order **cancel**. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
 | `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `PBETA` | `PORTBETA`, `BWEIGHT`, `NETBETA` | no | Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions. |
@@ -457,6 +464,7 @@ Server (environment variables):
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
 | `MIDAS_TRADING_ENABLED` | `false`   | **Master switch for LIVE order placement (`TICKET`). Off by default.** When `true` (and the ccxt provider has trade-permissioned keys, and auth is on) the order ticket can place real orders. |
 | `MIDAS_MAX_ORDER_USD` | `1000`      | Hard per-order notional cap the server enforces; orders above it are rejected. `0` = uncapped (not recommended). |
+| `MIDAS_MAX_DAILY_USD` | `5000`      | Cumulative UTC-day notional cap across all orders — bounds a whole session's exposure, not just one order. In-memory (resets on restart). `0` = uncapped. |
 | `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Escape hatch to allow trading without login on a trusted single-user/localhost host. Leave off; enabling it on a network-reachable instance is dangerous. Requires a pinned `MIDAS_CORS_ORIGIN` (not `*`) — the server refuses no-auth trading with wildcard CORS to avoid cross-site order placement. |
 
 ### Live trading (opt-in, off by default)
@@ -502,19 +510,21 @@ TradingView lightweight-charts · Fastify · pnpm workspaces.
 
 ## Roadmap
 
-Midas is well past the foundation: a crypto-native command terminal with charts
-and microstructure, derivatives, ~115 indicator/analytics boards, screening,
-alerts, portfolio, and an on-chain/DEX read layer — all behind a data-honesty
-guarantee. It ships from `main`.
+Midas is a full crypto-native terminal: command line + tiling panels, charts and
+microstructure, derivatives, ~115 indicator/analytics boards, screening, alerts,
+portfolio, an on-chain/DEX read layer, and a complete **non-custodial account &
+execution suite** (read-only by default; live trading strictly opt-in behind
+caps and confirms) — all behind a data-honesty guarantee. It ships from `main`.
 
-Where it's heading (open-core, open-source first):
+Where it's heading (open-core, open-source first) — the detailed 30-day plan
+lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md):
 
+- **Order lifecycle depth:** fill notifications, order-status tracking, and
+  post-trade analytics (realized slippage vs the preview).
+- **Live data depth:** more first-class live sources behind the honest seam,
+  never mislabeling provenance.
 - **Distribution & DX:** stay genuinely open and easy to adopt — strong docs, a
   one-command demo, contributor-friendly internals.
-- **Live data depth:** more first-class live sources behind the honest seam
-  (on-chain/DEX, etc.), without ever mislabeling provenance.
-- **Read-only, non-custodial keys:** bring-your-own exchange keys for balances,
-  positions and live P&L — Midas never custodies funds or places orders.
 - **Optional hosted tier:** a zero-setup instance for people who don't want to
   self-host, funding the open core (the terminal stays free and open).
 
