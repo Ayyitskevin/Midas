@@ -3,12 +3,15 @@ import type { ApiError, AuthSession, AuthStatus, User } from '@midas/shared';
 import { UserRepo, toPublic, type StoredUser } from './users';
 import { hashPassword, verifyPassword } from './password';
 import { signToken, verifyToken } from './token';
+import { createLoginThrottle, type LoginThrottle } from './throttle';
 
 export interface AuthDeps {
   enabled: boolean;
   allowSignup: boolean;
   secret: string;
   users: UserRepo;
+  /** Login brute-force brake; a default is created when omitted (tests inject). */
+  throttle?: LoginThrottle;
 }
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -85,6 +88,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
     },
   );
 
+  const throttle = deps.throttle ?? createLoginThrottle();
+
   app.post<{ Body: { username?: string; password?: string } }>(
     '/api/auth/login',
     async (req, reply): Promise<AuthSession | ApiError> => {
@@ -93,12 +98,24 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         return err(400, 'BadRequest', 'Auth is disabled');
       }
       const username = (req.body?.username ?? '').trim();
+      // Throttle per username+ip pair: repeated failures lock the pair out
+      // briefly, making online password guessing impractically slow without
+      // letting an attacker lock a victim out from a different address.
+      const throttleKey = `${username.toLowerCase()}|${req.ip}`;
+      const waitMs = throttle.check(throttleKey, Date.now());
+      if (waitMs != null) {
+        app.log.warn({ username, ip: req.ip }, 'login throttled');
+        reply.code(429);
+        return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(waitMs / 1000)}s.`);
+      }
       const user = deps.users.findByUsername(username);
       const ok = user ? await verifyPassword(req.body?.password ?? '', user.passwordHash) : false;
       if (!user || !ok) {
+        throttle.fail(throttleKey, Date.now());
         reply.code(401);
         return err(401, 'Unauthorized', 'Invalid username or password');
       }
+      throttle.succeed(throttleKey);
       return session(user);
     },
   );

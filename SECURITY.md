@@ -24,11 +24,27 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   leaves your machine. Live providers (`ccxt`, `yahoo`) talk to public market
   endpoints; any exchange credentials you supply stay in your own deployment's
   environment.
-- **Optional auth.** Authentication is off by default for a personal local
-  instance and can be enabled for shared/hosted deployments.
+- **Optional auth, hardened by default.** Authentication is off by default for
+  a personal local instance and can be enabled for shared/hosted deployments.
+  When it is on, repeated failed logins lock the username+IP pair out briefly
+  (in-memory throttle) and lockouts are logged; API responses always carry
+  baseline security headers (`X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`).
 
 If you operate a shared or internet-exposed instance, enable authentication, put
-it behind TLS, and treat any configured provider credentials as secrets.
+it behind TLS, and treat any configured provider credentials as secrets. The
+recommended checklist:
+
+1. `MIDAS_AUTH_ENABLED=true` and a fixed `MIDAS_AUTH_SECRET` (e.g.
+   `openssl rand -hex 32` — `scripts/deploy.sh` generates one for you).
+2. Pin `MIDAS_CORS_ORIGIN` to your terminal's exact origin — required for the
+   no-auth trading override, sensible everywhere else.
+3. TLS in front (Caddy/nginx/Traefik); never expose the raw HTTP port.
+4. Read-only exchange keys unless you have deliberately enabled trading; keys
+   with withdrawal permission are never appropriate — Midas has no withdrawal
+   code path to use them, and their blast radius if leaked is total.
+5. Keep `MIDAS_MAX_ORDER_USD` / `MIDAS_MAX_DAILY_USD` at values you can afford
+   to lose to a bug — yours or an exchange's.
 
 ## Live trading (opt-in)
 
