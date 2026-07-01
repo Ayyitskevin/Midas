@@ -563,6 +563,15 @@ export const COMMANDS: CommandDef[] = [
       'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
   {
+    code: 'START',
+    aliases: ['TOUR', 'GETSTART', 'INTRO'],
+    title: 'Get Started',
+    module: 'START',
+    requiresSymbol: false,
+    description:
+      'The first-run tour — six one-click rows that each run a real command (chart, book, screener, alert, account, what\'s new), teaching the SYMBOL FUNCTION grammar by doing. Opens automatically on the very first visit; run START any time to bring it back.',
+  },
+  {
     code: 'XQL',
     aliases: ['EXECQ', 'TCA'],
     title: 'Execution Quality',

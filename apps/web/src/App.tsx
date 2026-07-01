@@ -41,6 +41,9 @@ export default function App() {
         const p = seeded.find((pp) => pp.module === m);
         if (p) setPanelLink(p.id, 'red');
       }
+      // The tour opens last (on top): the very first thing a new user sees is
+      // "here's how to drive this" — run START any time to bring it back.
+      runCommand('START');
     }
   }, []);
 
