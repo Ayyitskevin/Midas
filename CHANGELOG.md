@@ -4,6 +4,19 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
+## [Unreleased]
+
+### Added
+- **Per-user exchange keys** (hosted-tier groundwork, PR 1–2 of the design):
+  signed-in users store their own read-only keys via `PUT /api/account/keys`
+  — AES-256-GCM encrypted at rest (`MIDAS_KEYS_KMS_SECRET`), metadata-only
+  reads, one-action delete — and the account panels resolve to *their*
+  exchange client through a bounded provider pool. User-keyed providers are
+  strictly isolated from the operator's env (no secondary venue, no stream);
+  trading remains on the operator's gates until per-user trading ships.
+- **Rate limiting** (`MIDAS_RATE_LIMIT_RPM`) — per-IP request ceiling with
+  honest 429s; demo mode defaults it on.
+
 ## [0.4.0] — 2026-07-01
 
 The "whole roadmap" release: execution analytics, account intelligence,

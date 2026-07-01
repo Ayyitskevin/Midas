@@ -9,6 +9,7 @@ import { ccxtKeysConfigured } from './providers/balances';
 import { postWebhookText } from './webhook';
 import { createDigestSource, startDigestLoop } from './digest';
 import { EquityRepo, startEquityLoop } from './equity';
+import { KeyRepo } from './keys/repo';
 import { WorkspaceRepo } from './workspaces/repo';
 import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
@@ -46,6 +47,10 @@ async function main(): Promise<void> {
     ? { repo: new EquityRepo(config.equityFile), watching: true }
     : null;
 
+  // Per-user exchange keys (encrypted at rest) — file-backed so they survive
+  // restarts; off entirely until the operator sets the KMS secret.
+  const keyRepo = config.keysKmsSecret ? new KeyRepo(config.keysKmsSecret, config.keysFile) : null;
+
   // Filled in as the loops start below; the SYS route reads them at request time.
   let nudgeActive = false;
   const serverStartedAt = Date.now();
@@ -59,6 +64,7 @@ async function main(): Promise<void> {
     notesRepo,
     accountWatch,
     accountEquity,
+    keyRepo,
     systemInfo: () => ({
       provider: provider.name,
       live: provider.live,
@@ -83,6 +89,8 @@ async function main(): Promise<void> {
     }),
   });
   if (config.authEnabled) app.log.info('auth enabled — login required');
+  if (keyRepo) app.log.info('per-user exchange keys enabled (encrypted at rest)');
+  if (config.rateLimitRpm > 0) app.log.info({ rpm: config.rateLimitRpm }, 'rate limiting on');
   if (accountWatch) {
     app.log.info(
       { intervalMs: Math.max(2000, config.accountWatchMs) },

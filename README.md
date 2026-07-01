@@ -480,6 +480,8 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
+| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys** (hosted groundwork): signed-in users store their own read-only keys — encrypted at rest with this secret, never returned after write — and the account panels read *their* account. Needs `MIDAS_AUTH_ENABLED=true`. Reads only for now; per-user trading ships separately. |
+| `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
 | `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data, disables live trading (both switches) and closes signups — regardless of everything else. Makes an instance safe to expose as a try-before-you-buy demo. |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
