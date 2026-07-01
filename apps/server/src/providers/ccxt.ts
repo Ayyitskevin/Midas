@@ -64,6 +64,7 @@ export class CcxtProvider implements DataProvider {
   readonly name: string;
   readonly live = true;
   private readonly exchange: Exchange;
+  private readonly exchangeId: string;
   private marketsPromise: Promise<unknown> | null = null;
   private compareExchanges: Exchange[] | null = null;
 
@@ -88,7 +89,50 @@ export class CcxtProvider implements DataProvider {
       if (password) exchangeConfig.password = password;
     }
     this.exchange = new ExchangeCtor(exchangeConfig);
+    this.exchangeId = id;
     this.name = `ccxt:${id}`;
+  }
+
+  /**
+   * Best-effort account-change nudge via ccxt.pro watchOrders. READ-ONLY —
+   * the stream only tells us "something changed"; the watcher's REST poll
+   * stays the source of truth, so a broken stream degrades to plain polling.
+   */
+  streamAccountNudge(onChange: () => void): (() => void) | null {
+    if (!ccxtKeysConfigured()) return null;
+    const pro = (ccxt as unknown as { pro?: Record<string, new (config: object) => Exchange> }).pro;
+    const Ctor = pro?.[this.exchangeId];
+    if (typeof Ctor !== 'function') return null;
+    const config: Record<string, unknown> = {
+      enableRateLimit: true,
+      apiKey: process.env.MIDAS_CCXT_API_KEY,
+      secret: process.env.MIDAS_CCXT_SECRET,
+    };
+    if (process.env.MIDAS_CCXT_PASSWORD) config.password = process.env.MIDAS_CCXT_PASSWORD;
+    const ws = new Ctor(config) as Exchange & {
+      watchOrders?: () => Promise<unknown>;
+      close?: () => Promise<void>;
+    };
+    if (!ws.has['watchOrders'] || typeof ws.watchOrders !== 'function') {
+      void ws.close?.();
+      return null;
+    }
+    let stopped = false;
+    void (async () => {
+      while (!stopped) {
+        try {
+          await ws.watchOrders!();
+          if (!stopped) onChange();
+        } catch {
+          // Stream hiccup — back off, then resubscribe; polling covers the gap.
+          await new Promise((resolve) => setTimeout(resolve, 5000).unref?.());
+        }
+      }
+    })();
+    return () => {
+      stopped = true;
+      void ws.close?.();
+    };
   }
 
   async getQuote(symbol: string): Promise<Quote> {

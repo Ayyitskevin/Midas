@@ -72,6 +72,14 @@ export interface DataProvider {
    * the TICKET panel to track a placement to filled/canceled.
    */
   getOrder?(id: string, symbol: string): Promise<PlacedOrder>;
+  /**
+   * Subscribe to a NUDGE whenever the account's orders change (optional —
+   * ccxt.pro watchOrders where the venue supports it). READ-ONLY and
+   * best-effort: the account watcher polls immediately on a nudge instead of
+   * waiting out its interval, but REST polling remains the source of truth.
+   * Returns a stop function, or null when streaming isn't available.
+   */
+  streamAccountNudge?(onChange: () => void): (() => void) | null;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   /**
