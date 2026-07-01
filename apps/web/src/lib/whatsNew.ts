@@ -16,6 +16,18 @@ export interface Release {
 /** Newest first. Keep entries short — headlines, not commit logs. */
 export const RELEASES: Release[] = [
   {
+    version: '0.4.0',
+    date: '2026-07-01',
+    title: 'The whole-roadmap release',
+    highlights: [
+      'Post-trade slippage in FILLS + execution quality board (XQL) — realized vs estimated, maker/taker, fees',
+      'Account equity curve (AEQ): server-side snapshots, charted with truthful gaps',
+      'Alerts on your account: position P&L (upnl) and total equity thresholds, webhook-delivered',
+      'Near-realtime fills via ccxt.pro stream nudge; optional second keyed venue with per-row tags',
+      'First-run tour (START), system status (SYS), and a public-demo mode for try-before-you-buy',
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-07-01',
     title: 'Launch polish: digest, announcements, hardening',

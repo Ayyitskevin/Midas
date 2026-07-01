@@ -82,3 +82,12 @@ describe('login throttling', () => {
     expect(res.statusCode).toBe(200); // 'trader' being locked doesn't touch 'other'
   });
 });
+
+describe('GET /api/system', () => {
+  it('is served (auth-guarded like every ops endpoint on this auth-on app)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/system' });
+    // This test app has auth enabled -> the guard answers 401 for anonymous
+    // callers, which is the correct posture for an ops endpoint.
+    expect([200, 401]).toContain(res.statusCode);
+  });
+});

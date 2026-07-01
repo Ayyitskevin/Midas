@@ -221,6 +221,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
 | `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. After placement the ticket **tracks the order live** (open → partially filled → filled/canceled, with a fill progress bar). When trading is live, `ORD` also gains a two-step per-order **cancel**. |
+| `START` | `TOUR`, `GETSTART`, `INTRO` | no | First-run tour — six one-click rows that each **run** a real command, teaching the grammar by doing. Opens automatically on the very first visit. |
+| `SYS`   | `STATUS`, `SYSTEM` | no | System status — provider, version, uptime, and which background loops are actually running (watcher, stream nudge, digest, equity snapshots, trading gate). |
 | `WN`    | `WHATSNEW`, `CHANGELOG`, `RELEASES` | no | What's New — release highlights in-terminal, newest first. Pairs with a one-time "Midas updated to vX" toast when your server moves to a new version. |
 | `AEQ`   | `ACCTEQ`, `ACCTCURVE` | no | Your real account's **equity curve** — periodic server-side snapshots of total value + unrealized P&L (read-only), persisted across restarts and accruing with no browser open (`MIDAS_EQUITY_SNAP_MS`, default hourly). Outages render as honest gaps, never interpolated points. |
 | `XQL`   | `EXECQ`, `TCA` | no | **Execution quality** from your own fills — maker/taker mix, fee totals by currency, notional, and realized slippage vs the estimates `TICKET` recorded at placement (notional-weighted, with an honest coverage %). Per-symbol breakdown; symbol-aware like `FILLS`. |
@@ -478,6 +480,7 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
+| `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data, disables live trading (both switches) and closes signups — regardless of everything else. Makes an instance safe to expose as a try-before-you-buy demo. |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
@@ -571,6 +574,10 @@ charge $30–60/month and still meter your indicators, alerts and layouts. Midas
 gives you every panel, every board, unlimited alerts and live execution
 tooling — self-hosted for $0, or hosted for less than most people's exchange
 fees in a week.
+
+Planned tiers (waitlist replies size the split): **$20/mo solo** — one venue,
+full terminal, alerts + digests; **$49/mo desk** — two venues, multi-user,
+trading gates. Self-hosting always includes everything.
 
 **[→ Join the waitlist](https://github.com/ayyitskevin/midas/issues/new?title=Hosted+Midas+waitlist&body=Add+me+to+the+hosted-tier+waitlist.+%28Optional%3A+which+exchange%28s%29+do+you+trade%3F%29&labels=hosted-waitlist)**
 — it's a GitHub issue; a 👍 on an existing waitlist issue counts too. Nothing

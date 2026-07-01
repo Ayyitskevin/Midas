@@ -54,6 +54,7 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       live: provider.live,
       time: Date.now(),
       version: config.version,
+      demo: config.demoMode,
     };
   });
 

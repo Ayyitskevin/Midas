@@ -46,6 +46,10 @@ async function main(): Promise<void> {
     ? { repo: new EquityRepo(config.equityFile), watching: true }
     : null;
 
+  // Filled in as the loops start below; the SYS route reads them at request time.
+  let nudgeActive = false;
+  const serverStartedAt = Date.now();
+
   const app = await buildApp(provider, {
     alertRepo,
     userRepo,
@@ -55,6 +59,28 @@ async function main(): Promise<void> {
     notesRepo,
     accountWatch,
     accountEquity,
+    systemInfo: () => ({
+      provider: provider.name,
+      live: provider.live,
+      demo: config.demoMode,
+      version: config.version,
+      startedAt: serverStartedAt,
+      accountWatch: {
+        on: accountWatch != null,
+        intervalMs: accountWatch ? Math.max(2000, config.accountWatchMs) : null,
+      },
+      streamNudge: nudgeActive,
+      digest: {
+        on: config.digestHours > 0 && Boolean(config.alertWebhook),
+        hours: config.digestHours > 0 ? Math.max(1, config.digestHours) : null,
+      },
+      equity: {
+        on: accountEquity != null,
+        intervalMs: accountEquity ? Math.max(60_000, config.equitySnapMs) : null,
+      },
+      tradingEnabled: config.tradingEnabled,
+      authEnabled: config.authEnabled,
+    }),
   });
   if (config.authEnabled) app.log.info('auth enabled — login required');
   if (accountWatch) {
@@ -68,7 +94,10 @@ async function main(): Promise<void> {
     const stopNudge = provider.streamAccountNudge?.(
       createNudgeDebouncer(() => void accountWatch.tick()),
     );
-    if (stopNudge) app.log.info('account stream nudge active (ccxt.pro watchOrders)');
+    if (stopNudge) {
+      nudgeActive = true;
+      app.log.info('account stream nudge active (ccxt.pro watchOrders)');
+    }
   }
   if (accountEquity) {
     const snapMs = Math.max(60_000, config.equitySnapMs); // floor: once a minute

@@ -86,6 +86,8 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   WN: mod(() => import('./WhatsNewModule'), 'WhatsNewModule'),
   AEQ: mod(() => import('./AccountEquityModule'), 'AccountEquityModule'),
   XQL: mod(() => import('./ExecQualityModule'), 'ExecQualityModule'),
+  START: mod(() => import('./StartModule'), 'StartModule'),
+  SYS: mod(() => import('./SysModule'), 'SysModule'),
   RHEAT: mod(() => import('./PortfolioRiskModule'), 'PortfolioRiskModule'),
   EXP: mod(() => import('./ExposureModule'), 'ExposureModule'),
   PBETA: mod(() => import('./PortfolioBetaModule'), 'PortfolioBetaModule'),

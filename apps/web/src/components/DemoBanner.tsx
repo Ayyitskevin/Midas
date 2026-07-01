@@ -23,8 +23,6 @@ export function DemoBanner() {
   const { data: health } = useFetch((signal) => api.health(signal), [], { intervalMs: 60_000 });
 
   if (dismissed || !health) return null;
-  const banner = demoBanner(health.provider, health.live);
-  if (!banner) return null;
 
   const dismiss = () => {
     setDismissed(true);
@@ -34,6 +32,41 @@ export function DemoBanner() {
       /* storage unavailable — banner just reappears next load */
     }
   };
+
+  // Public-demo posture: a richer strip with the two calls to action — this
+  // banner IS the demo instance's funnel.
+  if (health.demo) {
+    return (
+      <div className="flex items-center gap-2 border-b border-term-amber/30 bg-term-amber/10 px-3 py-1 text-2xs">
+        <span className="rounded-sm bg-term-amber/20 px-1.5 py-0.5 font-semibold text-term-amber">PUBLIC DEMO</span>
+        <span className="text-term-text">
+          Synthetic market — nothing here is real, and nothing can be traded.
+        </span>
+        <a
+          href="https://github.com/ayyitskevin/midas#quickstart"
+          target="_blank"
+          rel="noreferrer"
+          className="no-drag text-term-amber hover:underline"
+        >
+          Deploy your own in 60s →
+        </a>
+        <a
+          href="https://github.com/ayyitskevin/midas#hosted-midas--20month-flat"
+          target="_blank"
+          rel="noreferrer"
+          className="no-drag hidden text-term-amber hover:underline sm:inline"
+        >
+          Hosted waitlist →
+        </a>
+        <button onClick={dismiss} title="Dismiss" className="no-drag ml-auto text-term-amber hover:text-term-text">
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  const banner = demoBanner(health.provider, health.live);
+  if (!banner) return null;
 
   return (
     <div className="flex items-center gap-2 border-b border-term-amber/30 bg-term-amber/10 px-3 py-1 text-2xs">
