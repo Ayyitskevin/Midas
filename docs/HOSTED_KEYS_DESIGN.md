@@ -64,9 +64,13 @@ exchange account, on shared infrastructure).
 
 ### Rollout
 
-1. PR 1: KeyRepo + crypto + routes + tests (no behavior change without keys).
-2. PR 2: ProviderPool + account-read resolution + per-user watcher/equity.
-3. PR 3: per-user trading gates + ledgers; security review before merge.
+1. ✅ PR 1: KeyRepo + crypto + routes + tests (no behavior change without keys).
+2. ✅ PR 2: ProviderPool + account-read resolution. *(Shipped without
+   per-user background loops — the watcher/equity/digest stay on the
+   operator's env keys for now; per-user loops move to PR 3 with trading,
+   where their lifecycle and caps get one review together.)*
+3. PR 3: per-user trading gates + ledgers + per-user loops; security review
+   before merge (roadmap-v2 Week 3).
 
 ### Open questions
 

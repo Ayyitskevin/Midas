@@ -31,6 +31,12 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   baseline security headers (`X-Content-Type-Options: nosniff`,
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`).
 
+- **Per-user keys are encrypted at rest.** With `MIDAS_KEYS_KMS_SECRET` set,
+  signed-in users may store their own read-only exchange keys: AES-256-GCM at
+  rest, write-only API (metadata comes back, secrets never), one-action
+  delete, and strict isolation — a user-keyed client never touches the
+  operator's env keys, and the trading write path never uses user keys.
+
 If you operate a shared or internet-exposed instance, enable authentication, put
 it behind TLS, and treat any configured provider credentials as secrets. The
 recommended checklist:

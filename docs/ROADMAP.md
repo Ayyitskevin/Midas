@@ -23,14 +23,15 @@ many users).
 
 ## Week 2 — monetization groundwork (hosted tier)
 
-- **Per-user exchange keys, PR 1–2** — implement
-  [HOSTED_KEYS_DESIGN.md](./HOSTED_KEYS_DESIGN.md): encrypted KeyRepo +
-  key routes, then the ProviderPool with per-user account reads. Self-host
-  behavior unchanged.
+- ✅ **Per-user exchange keys, PR 1–2.** *(Shipped)* Encrypted KeyRepo +
+  write-only key routes, and the ProviderPool resolving account reads to the
+  requesting user's own client. Self-host behavior unchanged; per-user
+  background loops and trading remain PR 3 (Week 3).
 - **Waitlist → pipeline** — label + triage hosted-waitlist issues; first
   cohort email (size the $20 solo vs $49 desk split from replies).
-- **Rate limiting on public surfaces** (demo + auth endpoints) — protect the
-  demo box before it is popular.
+- ✅ **Rate limiting on public surfaces.** *(Shipped)* Per-IP rpm ceiling
+  (`MIDAS_RATE_LIMIT_RPM`), on by default for demo boxes, `/api/health`
+  exempt.
 
 ## Week 3 — retention (the weekly habit)
 

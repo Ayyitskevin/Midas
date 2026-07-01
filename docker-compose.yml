@@ -25,6 +25,10 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Public demo posture: mock data, no trading, no signups.
       MIDAS_DEMO_MODE: ${MIDAS_DEMO_MODE:-false}
+      # Per-user exchange keys (encrypted at rest; needs auth). Blank = off.
+      MIDAS_KEYS_KMS_SECRET: ${MIDAS_KEYS_KMS_SECRET:-}
+      # Per-IP request ceiling in rpm (0 = off; demo defaults to 120).
+      MIDAS_RATE_LIMIT_RPM: ${MIDAS_RATE_LIMIT_RPM:-0}
       HOST: 0.0.0.0
       PORT: "4000"
       # Background alert engine — rules + triggers persist in the data volume.
