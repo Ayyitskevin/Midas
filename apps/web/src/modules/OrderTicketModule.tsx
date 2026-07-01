@@ -6,6 +6,7 @@ import { previewOrder, type OrderType } from '@/lib/orderPreview';
 import { emitAccountChange, usePricePick } from '@/lib/accountBus';
 import { quickSizeAmount, capBlockReason } from '@/lib/quickSize';
 import { describeOrderTrack, isTerminalOrderStatus } from '@/lib/orderTrack';
+import { useFillBaselines } from '@/store/useFillBaselines';
 import type { Level, Side } from '@/lib/slippage';
 import type { PlacedOrder } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
@@ -153,6 +154,17 @@ export function OrderTicketModule({ panel }: ModuleProps) {
       });
       setPlaced(res);
       setArmed(false);
+      // Remember the preview's estimated avg price so FILLS/XQL can show
+      // realized-vs-predicted slippage once executions arrive.
+      if (res.id && res.id !== '—' && preview.avgPrice != null) {
+        useFillBaselines.getState().record({
+          orderId: res.id,
+          symbol,
+          side,
+          estPrice: preview.avgPrice,
+          at: Date.now(),
+        });
+      }
       emitAccountChange(); // open ORD/BAL/POSN panels refresh immediately
     } catch (e) {
       setPlaceError(e instanceof Error ? e.message : 'Order failed.');
