@@ -14,8 +14,9 @@ the repo has used throughout.
 - ✅ **Order status tracking in TICKET.** *(Shipped)* After placement the ticket
   polls the read-only `GET /api/orders/:id` lookup until filled/canceled and
   shows the progression inline (placed → partial → filled) with a progress bar.
-- **Post-trade slippage.** Compare each fill against the preview's estimated
-  avg price and surface realized-vs-predicted slippage in FILLS.
+- ✅ **Post-trade slippage.** *(Shipped)* TICKET records its estimated avg
+  fill per placement; FILLS shows signed realized-vs-predicted slippage (bp)
+  per fill, honestly blank for orders placed outside Midas.
 
 ## Week 2 — market data depth
 
@@ -28,10 +29,12 @@ the repo has used throughout.
 
 ## Week 3 — analytics that close the loop
 
-- **Execution quality board (XQL).** Maker/taker mix, average slippage, fee
-  totals by symbol/day, from FILLS data.
-- **Account equity curve.** Persist periodic equity snapshots server-side and
-  chart them (the paper-portfolio EQ board pattern, applied to the real account).
+- ✅ **Execution quality board (XQL).** *(Shipped)* Maker/taker mix, fee totals
+  by currency, notional and notional-weighted realized slippage (with honest
+  coverage %), account-wide or per symbol, from FILLS data.
+- ✅ **Account equity curve (AEQ).** *(Shipped)* Periodic server-side equity
+  snapshots (file-backed, hourly by default) charted in-terminal — the paper
+  EQ board pattern applied to the real account, with truthful gaps.
 - **Alert on account events.** Alert rules on position P&L and balance drift,
   not just prices.
 

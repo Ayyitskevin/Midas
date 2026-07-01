@@ -4,6 +4,19 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
+## [Unreleased]
+
+### Added
+- **Post-trade slippage in `FILLS`** — realized vs the estimate `TICKET`
+  recorded at placement, signed so positive is always worse; fills placed
+  outside Midas honestly show no baseline.
+- **Account equity curve (`AEQ`)** — periodic read-only snapshots of total
+  account value + unrealized P&L, persisted server-side
+  (`MIDAS_EQUITY_SNAP_MS`, default hourly) and charted with truthful gaps.
+- **Execution quality board (`XQL`)** — maker/taker mix, fee totals by
+  currency, notional and notional-weighted realized slippage with an honest
+  coverage %, account-wide or per symbol.
+
 ## [0.3.0] — 2026-07-01
 
 The launch-polish release: the terminal now tells you what it saw and what
