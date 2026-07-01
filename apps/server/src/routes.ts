@@ -25,6 +25,23 @@ function normalizeSymbol(raw: string): string {
   return raw.trim().toUpperCase();
 }
 
+/**
+ * Fire-and-forget operator notification to the configured alert webhook
+ * (Discord `content` / Slack `text` compatible). Live account mutations —
+ * order placed, order canceled — are exactly the events an operator wants
+ * pushed out-of-band; failures never affect the request.
+ */
+function notifyWebhook(text: string): void {
+  if (!config.alertWebhook) return;
+  fetch(config.alertWebhook, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content: text, text }),
+  }).catch(() => {
+    /* best-effort */
+  });
+}
+
 /** Register all Midas API routes against the given provider. */
 export function registerRoutes(app: FastifyInstance, provider: DataProvider): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
@@ -178,7 +195,12 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId },
       'LIVE order placement',
     );
-    return provider.placeOrder(body);
+    const placed = await provider.placeOrder(body);
+    notifyWebhook(
+      `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
+        `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,
+    );
+    return placed;
   });
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(

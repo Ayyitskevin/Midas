@@ -6,6 +6,7 @@ import { streamStatusView } from '@/lib/streamStatus';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { sourceView } from '@/lib/sourceStatus';
+import { useTradingStatus } from '@/lib/useTradingStatus';
 
 export function StatusBar() {
   const panelCount = usePanels((s) => s.panels.length);
@@ -17,12 +18,13 @@ export function StatusBar() {
   const conn = streamStatusView(status, stream.subscriberCount());
   const { data: health } = useFetch((signal) => api.health(signal), [], { intervalMs: 30000 });
   const src = health ? sourceView(health.provider, health.live) : null;
+  const trading = useTradingStatus();
 
   return (
     <div className="flex items-center justify-between border-t border-term-border bg-term-header px-3 py-1 text-2xs text-term-muted">
       <div className="flex items-center gap-3">
         <span className="text-term-amber">MIDAS</span>
-        <span className="text-term-dim">v0.1.0</span>
+        {health && <span className="text-term-dim">v{health.version}</span>}
         <span>
           {panelCount} panel{panelCount === 1 ? '' : 's'}
         </span>
@@ -37,6 +39,13 @@ export function StatusBar() {
               {src.label}
               {src.tone === 'synthetic' && <span className="text-term-amber"> · synthetic</span>}
             </span>
+          </span>
+        )}
+        {/* Terminal-wide honesty about live trading — not just inside the TICKET panel. */}
+        {trading?.enabled && (
+          <span className="flex items-center gap-1 font-semibold text-term-down" title={trading.reason}>
+            <span>●</span>
+            <span>LIVE TRADING</span>
           </span>
         )}
       </div>

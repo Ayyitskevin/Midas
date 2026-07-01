@@ -3,6 +3,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
+import { emitAccountChange } from '@/lib/accountBus';
 import type { Level, Side } from '@/lib/slippage';
 import type { PlacedOrder } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
@@ -104,6 +105,7 @@ export function OrderTicketModule({ panel }: ModuleProps) {
       });
       setPlaced(res);
       setArmed(false);
+      emitAccountChange(); // open ORD/BAL/POSN panels refresh immediately
     } catch (e) {
       setPlaceError(e instanceof Error ? e.message : 'Order failed.');
     } finally {

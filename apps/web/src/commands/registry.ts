@@ -160,7 +160,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'FUNDR',
-    aliases: ['RATES', 'CARRY'],
+    aliases: ['RATES'],
     title: 'Funding Rates',
     module: 'FUNDR',
     requiresSymbol: false,
@@ -320,7 +320,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'SKEW',
-    aliases: ['SHAPE', 'KURTOSIS', 'TAILS'],
+    aliases: ['SHAPE', 'KURTOSIS'],
     title: 'Return Shape',
     module: 'SKEW',
     requiresSymbol: false,
@@ -464,7 +464,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'PREM',
-    aliases: ['PREMIUM', 'SPREAD'],
+    aliases: ['PREMIUM'],
     title: 'Basis Monitor',
     module: 'PREM',
     requiresSymbol: true,
@@ -1234,7 +1234,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'RVGI',
-    aliases: ['RVI', 'VIGOR'],
+    aliases: ['VIGOR'],
     title: 'Relative Vigor Index',
     module: 'RVGI',
     requiresSymbol: false,
@@ -1378,7 +1378,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'INRT',
-    aliases: ['INERTIA', 'RVI'],
+    aliases: ['INERTIA'],
     title: 'Inertia',
     module: 'INRT',
     requiresSymbol: false,
@@ -1441,7 +1441,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'MAMA',
-    aliases: ['MESA', 'MAMAFAMA', 'ADAPTIVEMA'],
+    aliases: ['MESA', 'MAMAFAMA'],
     title: 'MAMA / FAMA',
     module: 'MAMA',
     requiresSymbol: false,
@@ -1513,7 +1513,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'VIDYA',
-    aliases: ['CHANDEVIDYA', 'VAR'],
+    aliases: ['CHANDEVIDYA'],
     title: 'Chande VIDYA',
     module: 'VIDYA',
     requiresSymbol: false,
@@ -1540,7 +1540,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'RVI',
-    aliases: ['RELVOL', 'RVOL', 'RELVOLATILITY'],
+    aliases: ['RELVOLATILITY'],
     title: 'Relative Volatility Index',
     module: 'RVI',
     requiresSymbol: false,
@@ -1754,7 +1754,7 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     code: 'EQ',
-    aliases: ['EQUITY', 'CURVE', 'DRAWDOWN'],
+    aliases: ['EQUITY', 'CURVE'],
     title: 'Equity Curve',
     module: 'EQ',
     requiresSymbol: false,

@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useAccountRefresh } from '@/lib/accountBus';
 import { fmtCompact, fmtPrice } from '@/lib/format';
 import { ordersBadge, type AccountTone } from '@/lib/accountReadsView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
@@ -24,6 +25,7 @@ export function OrdersModule(_props: ModuleProps) {
   const { data, error, loading, refresh } = useFetch((signal) => api.openOrders(signal), [], {
     intervalMs: 30_000,
   });
+  useAccountRefresh(refresh);
   const badge = data ? ordersBadge(data) : null;
 
   return (

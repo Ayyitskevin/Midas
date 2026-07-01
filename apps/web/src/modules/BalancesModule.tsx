@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
+import { useAccountRefresh } from '@/lib/accountBus';
 import { fmtCompact } from '@/lib/format';
 import { allocations, balancesBadge, type BalancesTone } from '@/lib/balancesView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
@@ -31,6 +32,7 @@ export function BalancesModule(_props: ModuleProps) {
   const { data, error, loading, refresh } = useFetch((signal) => api.balances(signal), [], {
     intervalMs: 30_000,
   });
+  useAccountRefresh(refresh);
 
   const badge = data ? balancesBadge(data) : null;
   const allocByAsset = useMemo(() => {
