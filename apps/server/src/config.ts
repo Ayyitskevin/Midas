@@ -82,5 +82,5 @@ export const config: Config = {
   maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
   accountWatchMs: Number(env('MIDAS_ACCOUNT_WATCH_MS', '10000')),
   digestHours: Number(env('MIDAS_DIGEST_HOURS', '0')),
-  version: '0.2.0',
+  version: '0.3.0',
 };

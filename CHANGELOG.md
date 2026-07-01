@@ -1,0 +1,77 @@
+# Changelog
+
+All notable changes to Midas. The in-terminal `WN` panel shows the same
+highlights; this file is the complete record. Versions follow semver;
+`apps/server` reports the running version at `/api/health`.
+
+## [0.3.0] — 2026-07-01
+
+The launch-polish release: the terminal now tells you what it saw and what
+changed, and the server ships hardened by default.
+
+### Added
+- **Operator digest** — every `MIDAS_DIGEST_HOURS` hours, a summary of alerts
+  fired and order flow observed (from the account watcher) POSTs to your
+  webhook, with honest "counts are minimums" labeling if the event buffer
+  overflowed between digests.
+- **What's New panel (`WN`)** — release highlights in-terminal, plus a one-time
+  "Midas updated to vX" toast when your server moves to a new version.
+- **Login throttling** — repeated failed logins lock the account+IP pair out
+  briefly (in-memory, resets on restart); failures are logged for operators.
+- **Security response headers** on every API response (`X-Content-Type-Options`,
+  `X-Frame-Options`, `Referrer-Policy`).
+- **One-command production deploy** — `scripts/deploy.sh` bootstraps `.env`
+  (random auth secret), builds, starts compose and health-checks the stack.
+
+## [0.2.0] — 2026-07-01
+
+The execution release: Midas closes the loop from watching markets to acting
+on them — without ever custodying funds.
+
+### Added
+- **Non-custodial account suite**: `BAL` balances, `ORD` open orders (with
+  per-order cancel), `POSN` positions, `FILLS` executions — all read-only,
+  honestly labeled live/demo, keyed via server env only.
+- **Gated live trading** in `TICKET`: OFF by default behind a master switch +
+  live keyed provider + auth (or explicit no-auth override that **requires** a
+  pinned CORS origin); per-order (`MIDAS_MAX_ORDER_USD`) and UTC-daily
+  (`MIDAS_MAX_DAILY_USD`) notional caps enforced server-side (fail-safe:
+  unpriceable → reject), server-side idempotency on `clientOrderId`, audit
+  logs and webhook notification on every write.
+- **Fill notifications**: a read-only account watcher diffs open orders and
+  pushes fills/cancels as terminal toasts + webhook messages — including
+  orders placed outside Midas (`MIDAS_ACCOUNT_WATCH_MS`).
+- **Order tracking in `TICKET`**: placed → partially filled → filled/canceled,
+  live, with a fill progress bar.
+- **Trade Desk** workspace template: chart, book, tape, ticket and account
+  panels linked — click a book level to load that price into the ticket.
+- Daily notional ledger with reserve-before-place/release-on-failure
+  semantics (a concurrency race found and fixed during review).
+
+### Fixed
+- 8 command-namespace collisions (aliases silently shadowing other panels),
+  now guarded by a CI registry-integrity test.
+- Docker compose now passes through every account/trading/DEX variable, so
+  deploys have feature parity with `pnpm dev`.
+
+## [0.1.0] — 2026-06
+
+The terminal: everything you need to *watch* crypto markets like a pro.
+
+### Added
+- Command-driven tiling workspace (`SYMBOL FUNCTION`), ⌘K palette, linked
+  panel groups, named workspaces + templates, import/export.
+- Charts (candles, overlays, drawings, live streaming), L2 order book, depth
+  heatmap, time & sales, CVD, volume profile.
+- Crypto derivatives: funding, open interest, basis, honest liquidations with
+  provenance, cross-exchange compare; on-chain/DEX read layer.
+- ~115 indicator/analytics boards in a searchable catalog (`BOARDS`), unified
+  screener, saved scans, scan-watch alerts, shareable deep-links.
+- Price/funding/%-change alerts (client or server engine) with webhook
+  delivery and alert→action panel opening.
+- Portfolio with live P&L, realized P&L, journal, equity curve, reports/CSV.
+- Pluggable data providers (`mock`/`yahoo`/`ccxt`), WebSocket streaming
+  (ccxt.pro where available), one-command Docker deploy, optional multi-user
+  auth with per-user server sync, AI copilot.
+- Data honesty as a first-class principle: every surface labels live /
+  synthetic / unavailable.
