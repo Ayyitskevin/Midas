@@ -18,6 +18,8 @@ export interface TradingConfig {
   allowNoAuth: boolean;
   /** MIDAS_MAX_ORDER_USD — hard per-order notional cap (0 = uncapped). */
   maxOrderUsd: number;
+  /** MIDAS_MAX_DAILY_USD — cumulative UTC-day notional cap (0 = uncapped). */
+  maxDailyUsd: number;
   /** MIDAS_AUTH_ENABLED — whether the API requires login. */
   authEnabled: boolean;
   /** MIDAS_CORS_ORIGIN — allowed browser origin ('*' = any). */
@@ -37,7 +39,11 @@ export interface ProviderContext {
  * Effective trading status — every gate must pass. Returns the reasons it is off
  * so the operator (via the UI) sees exactly what to fix. Pure.
  */
-export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): TradingStatus {
+export function computeTradingStatus(
+  cfg: TradingConfig,
+  ctx: ProviderContext,
+  dailyUsedUsd = 0,
+): TradingStatus {
   const reasons: string[] = [];
   if (!cfg.enabled) reasons.push('Set MIDAS_TRADING_ENABLED=true to enable live order placement.');
   if (!ctx.providerLive) reasons.push('Live trading requires the ccxt provider (MIDAS_DATA_PROVIDER=ccxt).');
@@ -64,8 +70,55 @@ export function computeTradingStatus(cfg: TradingConfig, ctx: ProviderContext): 
       ? 'Live trading is ENABLED — orders placed here are real and will execute on the exchange.'
       : reasons.join(' '),
     maxOrderUsd: cfg.maxOrderUsd > 0 ? cfg.maxOrderUsd : null,
+    dailyCapUsd: cfg.maxDailyUsd > 0 ? cfg.maxDailyUsd : null,
+    dailyUsedUsd,
     source: ctx.providerName,
   };
+}
+
+/**
+ * Rolling UTC-day notional ledger. A per-order cap alone doesn't stop a
+ * runaway loop or a fat-fingered session from firing dozens of just-under-cap
+ * orders — the daily ledger bounds the whole day's exposure. In-memory by
+ * design (resets on restart; the restart IS the kill switch), clock injected
+ * for testability.
+ */
+export interface DailyLedger {
+  used(nowMs: number): number;
+  add(notionalUsd: number, nowMs: number): void;
+}
+
+export function createDailyLedger(): DailyLedger {
+  let day = '';
+  let used = 0;
+  const roll = (nowMs: number) => {
+    const key = new Date(nowMs).toISOString().slice(0, 10); // UTC day
+    if (key !== day) {
+      day = key;
+      used = 0;
+    }
+  };
+  return {
+    used(nowMs) {
+      roll(nowMs);
+      return used;
+    },
+    add(notionalUsd, nowMs) {
+      roll(nowMs);
+      used += Math.max(0, notionalUsd);
+    },
+  };
+}
+
+/** Reject reason when an order would push the day over its cumulative cap; null when allowed. Pure. */
+export function checkDailyCap(capUsd: number | null, usedUsd: number, notionalUsd: number): string | null {
+  if (capUsd == null || capUsd <= 0) return null;
+  if (usedUsd + notionalUsd <= capUsd) return null;
+  return (
+    `Order notional ~$${Math.round(notionalUsd)} would push today's total to ` +
+    `$${Math.round(usedUsd + notionalUsd)}, over the daily cap of $${capUsd} ` +
+    `(raise MIDAS_MAX_DAILY_USD or wait for the UTC day to roll).`
+  );
 }
 
 export interface OrderValidation {

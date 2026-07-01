@@ -458,6 +458,7 @@ Server (environment variables):
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
 | `MIDAS_TRADING_ENABLED` | `false`   | **Master switch for LIVE order placement (`TICKET`). Off by default.** When `true` (and the ccxt provider has trade-permissioned keys, and auth is on) the order ticket can place real orders. |
 | `MIDAS_MAX_ORDER_USD` | `1000`      | Hard per-order notional cap the server enforces; orders above it are rejected. `0` = uncapped (not recommended). |
+| `MIDAS_MAX_DAILY_USD` | `5000`      | Cumulative UTC-day notional cap across all orders — bounds a whole session's exposure, not just one order. In-memory (resets on restart). `0` = uncapped. |
 | `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Escape hatch to allow trading without login on a trusted single-user/localhost host. Leave off; enabling it on a network-reachable instance is dangerous. Requires a pinned `MIDAS_CORS_ORIGIN` (not `*`) — the server refuses no-auth trading with wildcard CORS to avoid cross-site order placement. |
 
 ### Live trading (opt-in, off by default)

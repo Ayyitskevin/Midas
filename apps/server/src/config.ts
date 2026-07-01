@@ -36,6 +36,8 @@ export interface Config {
   tradingAllowNoAuth: boolean;
   /** Hard per-order USD notional cap the server enforces (0 = uncapped). */
   maxOrderUsd: number;
+  /** Cumulative UTC-day USD notional cap across all orders (0 = uncapped). */
+  maxDailyUsd: number;
   version: string;
 }
 
@@ -73,5 +75,6 @@ export const config: Config = {
   tradingEnabled: env('MIDAS_TRADING_ENABLED', 'false').toLowerCase() === 'true',
   tradingAllowNoAuth: env('MIDAS_TRADING_ALLOW_NO_AUTH', 'false').toLowerCase() === 'true',
   maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
+  maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
   version: '0.1.0',
 };

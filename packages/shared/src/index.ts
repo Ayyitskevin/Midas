@@ -464,6 +464,10 @@ export interface TradingStatus {
   reason: string;
   /** Per-order USD notional cap the server enforces, or null if uncapped. */
   maxOrderUsd: number | null;
+  /** Cumulative UTC-day USD notional cap, or null if uncapped. */
+  dailyCapUsd: number | null;
+  /** Notional already placed today (UTC), USD. Resets on server restart. */
+  dailyUsedUsd: number;
   /** The source that would receive orders, e.g. 'ccxt:binance'. */
   source: string;
 }

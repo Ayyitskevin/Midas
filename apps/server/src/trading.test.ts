@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
+  checkDailyCap,
   computeTradingStatus,
+  createDailyLedger,
   createIdempotencyCache,
   validateOrderRequest,
   estimateNotionalUsd,
@@ -16,6 +18,7 @@ const onCfg: TradingConfig = {
   enabled: true,
   allowNoAuth: false,
   maxOrderUsd: 1000,
+  maxDailyUsd: 5000,
   authEnabled: true,
   corsOrigin: '*',
 };
@@ -64,6 +67,33 @@ describe('computeTradingStatus — defense in depth', () => {
 
   it('reports an uncapped configuration as maxOrderUsd null', () => {
     expect(computeTradingStatus({ ...onCfg, maxOrderUsd: 0 }, liveCtx).maxOrderUsd).toBeNull();
+  });
+
+  it('surfaces the daily cap and current usage', () => {
+    const s = computeTradingStatus(onCfg, liveCtx, 1234);
+    expect(s.dailyCapUsd).toBe(5000);
+    expect(s.dailyUsedUsd).toBe(1234);
+    expect(computeTradingStatus({ ...onCfg, maxDailyUsd: 0 }, liveCtx).dailyCapUsd).toBeNull();
+  });
+});
+
+describe('daily notional ledger + cap', () => {
+  const DAY = 86_400_000;
+
+  it('accumulates within a UTC day and resets when the day rolls', () => {
+    const ledger = createDailyLedger();
+    expect(ledger.used(0)).toBe(0);
+    ledger.add(900, 0);
+    ledger.add(900, 1000);
+    expect(ledger.used(2000)).toBe(1800);
+    expect(ledger.used(DAY + 1)).toBe(0); // next UTC day → fresh budget
+  });
+
+  it('checkDailyCap rejects only when the order would breach the cap', () => {
+    expect(checkDailyCap(5000, 4000, 900)).toBeNull(); // 4900 ≤ 5000
+    expect(checkDailyCap(5000, 4500, 900)).toMatch(/daily cap/i); // 5400 > 5000
+    expect(checkDailyCap(null, 99999, 900)).toBeNull(); // uncapped
+    expect(checkDailyCap(0, 99999, 900)).toBeNull(); // 0 = off
   });
 });
 

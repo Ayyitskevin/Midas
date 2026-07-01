@@ -4,6 +4,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
 import { emitAccountChange } from '@/lib/accountBus';
+import { quickSizeAmount, capBlockReason } from '@/lib/quickSize';
 import type { Level, Side } from '@/lib/slippage';
 import type { PlacedOrder } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
@@ -69,6 +70,10 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   );
   const trading = useFetch((signal) => api.tradingStatus(signal), [], { intervalMs: 60_000 });
   const live = trading.data?.enabled ?? false;
+  // Balances power the %-of-balance quick-size buttons (synthetic in demo mode).
+  const balances = useFetch((signal) => api.balances(signal), [], { intervalMs: 30_000 });
+  const freeOf = (asset: string): number =>
+    balances.data?.balances.find((b) => b.asset === asset.toUpperCase())?.free ?? 0;
 
   const bids: Level[] = useMemo(() => (data?.bids ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
   const asks: Level[] = useMemo(() => (data?.asks ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
@@ -126,6 +131,19 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   const { base, quote } = assets(symbol);
   const sideUp = side === 'buy';
 
+  // Reference price for sizing + client-side cap warnings: the limit price when
+  // set, else the touch. The server re-prices and re-checks authoritatively.
+  const limitNum = num(limit);
+  const priceRef =
+    type === 'limit' ? (Number.isFinite(limitNum) && limitNum > 0 ? limitNum : null) : preview.bestPrice;
+  const estNotional = preview.ok && priceRef != null ? preview.amount * priceRef : null;
+  const capBlock = live ? capBlockReason(estNotional, trading.data ?? null) : null;
+
+  const applyQuickSize = (fraction: number) => {
+    const amt = quickSizeAmount(side, fraction, freeOf(base), freeOf(quote), priceRef ?? 0);
+    if (amt != null && amt > 0) setAmount(String(Number(amt.toFixed(6))));
+  };
+
   return (
     <div className="no-drag scroll-term flex h-full flex-col gap-2 overflow-y-auto p-2">
       {/* Mode banner: red LIVE when trading is enabled, amber PREVIEW otherwise. */}
@@ -136,6 +154,9 @@ export function OrderTicketModule({ panel }: ModuleProps) {
             Live trading is ENABLED — orders you confirm here are real and execute on{' '}
             {trading.data?.source ?? 'the exchange'}.
             {trading.data?.maxOrderUsd != null ? ` Per-order cap $${fmtCompact(trading.data.maxOrderUsd)}.` : ''}
+            {trading.data?.dailyCapUsd != null
+              ? ` Today $${fmtCompact(trading.data.dailyUsedUsd)} of $${fmtCompact(trading.data.dailyCapUsd)} used.`
+              : ''}
           </span>
         </div>
       ) : (
@@ -222,6 +243,25 @@ export function OrderTicketModule({ panel }: ModuleProps) {
         </Field>
       </div>
 
+      {/* %-of-balance quick sizing: a sell sizes from free base, a buy from free quote at the ref price. */}
+      <div className="flex items-center gap-1 text-2xs text-term-dim">
+        <span>
+          size from balance ({side === 'sell' ? base : quote} {fmtCompact(freeOf(side === 'sell' ? base : quote))})
+        </span>
+        {[0.25, 0.5, 1].map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => applyQuickSize(f)}
+            disabled={!balances.data || (side === 'buy' && priceRef == null)}
+            className="rounded-sm border border-term-border px-1.5 py-0.5 text-term-muted hover:border-term-amber/50 hover:text-term-amber disabled:opacity-40"
+            title={side === 'buy' && priceRef == null ? 'Needs a limit price or a live touch price' : undefined}
+          >
+            {f === 1 ? 'MAX' : `${f * 100}%`}
+          </button>
+        ))}
+      </div>
+
       {/* Validation errors, or the preview */}
       {!preview.ok ? (
         <div className="rounded-sm border border-term-border bg-term-panel/40 px-3 py-3 text-center text-2xs text-term-muted">
@@ -299,6 +339,14 @@ export function OrderTicketModule({ panel }: ModuleProps) {
             of {amount} {base}
             {type === 'limit' ? ` @ ${limit} ${quote}` : ' at market'} on {trading.data?.source ?? 'the exchange'}.
           </div>
+          {/* What you're about to do, in numbers — est. fill, cash and cap usage. */}
+          <div className="mb-1.5 rounded-sm bg-term-bg/40 px-1.5 py-1 font-mono text-2xs text-term-muted">
+            est. fill {preview.avgPrice == null ? '—' : fmtPrice(preview.avgPrice)} · {sideUp ? 'cost' : 'proceeds'}{' '}
+            {fmtCompact(preview.cashValue)} {quote} · fee {fmtCompact(preview.fee)}
+            {trading.data?.dailyCapUsd != null && estNotional != null
+              ? ` · today after: $${fmtCompact(trading.data.dailyUsedUsd + estNotional)} / $${fmtCompact(trading.data.dailyCapUsd)}`
+              : ''}
+          </div>
           <div className="flex gap-2">
             <button
               type="button"
@@ -326,9 +374,9 @@ export function OrderTicketModule({ panel }: ModuleProps) {
         <button
           type="button"
           onClick={() => setArmed(true)}
-          disabled={!preview.ok || placing}
+          disabled={!preview.ok || placing || capBlock != null}
           className={`rounded-sm py-1.5 text-2xs font-semibold uppercase tracking-wide ${
-            preview.ok
+            preview.ok && capBlock == null
               ? sideUp
                 ? 'border border-term-up/50 bg-term-up/15 text-term-up hover:bg-term-up/25'
                 : 'border border-term-down/50 bg-term-down/15 text-term-down hover:bg-term-down/25'
@@ -337,6 +385,12 @@ export function OrderTicketModule({ panel }: ModuleProps) {
         >
           Review &amp; place (LIVE)
         </button>
+      )}
+
+      {capBlock && (
+        <div className="rounded-sm border border-term-amber/40 bg-term-amber/10 px-2 py-1 text-2xs text-term-amber">
+          ⚠ {capBlock}
+        </div>
       )}
 
       {placeError && <div className="rounded-sm border border-term-down/40 bg-term-down/10 px-2 py-1 text-2xs text-term-down">⚠ {placeError}</div>}

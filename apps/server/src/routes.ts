@@ -14,7 +14,9 @@ import { ProviderError } from './providers';
 import { ccxtKeysConfigured } from './providers/balances';
 import { config } from './config';
 import {
+  checkDailyCap,
   computeTradingStatus,
+  createDailyLedger,
   createIdempotencyCache,
   estimateNotionalUsd,
   validateOrderRequest,
@@ -154,15 +156,23 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     enabled: config.tradingEnabled,
     allowNoAuth: config.tradingAllowNoAuth,
     maxOrderUsd: config.maxOrderUsd,
+    maxDailyUsd: config.maxDailyUsd,
     authEnabled: config.authEnabled,
     corsOrigin: config.corsOrigin,
   };
+  // Cumulative UTC-day notional across all placed orders (in-memory; a restart
+  // resets the budget — the restart is also the kill switch).
+  const dailyLedger = createDailyLedger();
   const tradingStatus = () =>
-    computeTradingStatus(tradingCfg, {
-      providerName: provider.name,
-      providerLive: provider.live,
-      hasKeys: ccxtKeysConfigured(),
-    });
+    computeTradingStatus(
+      tradingCfg,
+      {
+        providerName: provider.name,
+        providerLive: provider.live,
+        hasKeys: ccxtKeysConfigured(),
+      },
+      dailyLedger.used(Date.now()),
+    );
 
   app.get('/api/trading/status', async () => tradingStatus());
 
@@ -192,8 +202,10 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       }
     }
 
-    // Hard notional cap: price the order and reject anything over the ceiling.
-    if (status.maxOrderUsd != null) {
+    // Hard notional caps: price the order and reject anything over the
+    // per-order ceiling OR anything that would breach the cumulative daily cap.
+    let placedNotional: number | null = null;
+    if (status.maxOrderUsd != null || status.dailyCapUsd != null) {
       let refPrice: number | null = null;
       if (body.type === 'market') {
         try {
@@ -204,14 +216,17 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       }
       const notional = estimateNotionalUsd(body, refPrice);
       if (notional == null) {
-        throw new ProviderError('Could not price the order to enforce the notional cap — rejected.', 400);
+        throw new ProviderError('Could not price the order to enforce the notional caps — rejected.', 400);
       }
-      if (notional > status.maxOrderUsd) {
+      if (status.maxOrderUsd != null && notional > status.maxOrderUsd) {
         throw new ProviderError(
           `Order notional ~$${Math.round(notional)} exceeds the per-order cap of $${status.maxOrderUsd} (raise MIDAS_MAX_ORDER_USD to allow it).`,
           400,
         );
       }
+      const dailyReject = checkDailyCap(status.dailyCapUsd, dailyLedger.used(Date.now()), notional);
+      if (dailyReject) throw new ProviderError(dailyReject, 400);
+      placedNotional = notional;
     }
 
     // Audit: every live placement attempt is logged with who/what.
@@ -221,6 +236,7 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     );
     const placed = await provider.placeOrder(body);
     if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
+    if (placedNotional != null) dailyLedger.add(placedNotional, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
         `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,
