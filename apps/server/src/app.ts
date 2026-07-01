@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import type { ApiError } from '@midas/shared';
+import type { ApiError, SystemStatus } from '@midas/shared';
 import { config } from './config';
 import { ProviderError, type DataProvider } from './providers';
 import { registerRoutes } from './routes';
@@ -40,6 +40,8 @@ export interface BuildAppOptions {
   accountWatch?: AccountWatchHandle | null;
   /** Equity snapshot store + whether its loop runs; null/omitted = off. */
   accountEquity?: { repo: EquityRepo; watching: boolean } | null;
+  /** Live operational self-description (index.ts injects the real loop states). */
+  systemInfo?: () => SystemStatus;
 }
 
 /**
@@ -79,6 +81,26 @@ export async function buildApp(
   registerRoutes(app, provider);
   registerAccountEventsRoute(app, opts.accountWatch ?? null);
   registerEquityRoute(app, opts.accountEquity ?? null);
+
+  // Operational self-description (SYS panel). Defaults are the honest "no
+  // background loops" answer; index.ts injects the real states.
+  const startedAt = Date.now();
+  const systemInfo =
+    opts.systemInfo ??
+    ((): SystemStatus => ({
+      provider: provider.name,
+      live: provider.live,
+      demo: config.demoMode,
+      version: config.version,
+      startedAt,
+      accountWatch: { on: false, intervalMs: null },
+      streamNudge: false,
+      digest: { on: false, hours: null },
+      equity: { on: false, intervalMs: null },
+      tradingEnabled: config.tradingEnabled,
+      authEnabled: authDeps.enabled,
+    }));
+  app.get('/api/system', async () => systemInfo());
   registerAlertRoutes(app, opts.alertRepo ?? new AlertRepo());
   registerSnapshotRoutes(app, opts.workspaceRepo ?? new WorkspaceRepo(), '/api/workspaces');
   registerSnapshotRoutes(app, opts.portfolioRepo ?? new PortfolioRepo(), '/api/portfolio');

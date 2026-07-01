@@ -75,6 +75,7 @@ export type ModuleCode =
   | 'AEQ'
   | 'XQL'
   | 'START'
+  | 'SYS'
   | 'RHEAT'
   | 'EXP'
   | 'PBETA'
@@ -304,6 +305,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   AEQ: { code: 'AEQ', title: 'Account Equity', w: 6, h: 9, minW: 4, minH: 5 },
   XQL: { code: 'XQL', title: 'Execution Quality', w: 6, h: 10, minW: 4, minH: 5 },
   START: { code: 'START', title: 'Get Started', w: 5, h: 11, minW: 4, minH: 6 },
+  SYS: { code: 'SYS', title: 'System Status', w: 4, h: 10, minW: 3, minH: 6 },
   TICKET: { code: 'TICKET', title: 'Order Ticket', w: 4, h: 13, minW: 3, minH: 9 },
   RHEAT: { code: 'RHEAT', title: 'Position Risk', w: 6, h: 11, minW: 4, minH: 6 },
   EXP: { code: 'EXP', title: 'Exposure', w: 6, h: 11, minW: 4, minH: 6 },

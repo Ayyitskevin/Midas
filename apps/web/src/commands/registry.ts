@@ -563,6 +563,15 @@ export const COMMANDS: CommandDef[] = [
       'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
   {
+    code: 'SYS',
+    aliases: ['STATUS', 'SYSTEM'],
+    title: 'System Status',
+    module: 'SYS',
+    requiresSymbol: false,
+    description:
+      "The server's operational self-description — provider and live flag, version, uptime, and which background loops are actually running (account watcher, ccxt.pro stream nudge, operator digest, equity snapshots, live-trading gate, auth). The honest answer to \"is it on?\" without reading server logs.",
+  },
+  {
     code: 'START',
     aliases: ['TOUR', 'GETSTART', 'INTRO'],
     title: 'Get Started',

@@ -28,6 +28,7 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SystemStatus,
   TradingStatus,
   User,
   VenueDerivatives,
@@ -146,6 +147,8 @@ export const api = {
   // The server's persisted account equity series (read-only snapshots).
   accountEquity: (signal?: AbortSignal) =>
     apiGet<AccountEquityResponse>('/api/account/equity', signal),
+  // Operational self-description (SYS panel): which loops are running.
+  system: (signal?: AbortSignal) => apiGet<SystemStatus>('/api/system', signal),
   // Read-only single-order lookup — TICKET tracks a placement with this.
   getOrder: (id: string, symbol: string, signal?: AbortSignal) =>
     apiGet<PlacedOrder>(

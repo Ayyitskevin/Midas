@@ -513,6 +513,28 @@ export interface AccountOrderEvent {
   status: string | null;
 }
 
+/**
+ * Operational self-description: which background capabilities this server is
+ * actually running. Powers the SYS panel — the honest answer to "is the
+ * watcher on? is anything streaming? what version is this?" without reading
+ * server logs.
+ */
+export interface SystemStatus {
+  provider: string;
+  live: boolean;
+  demo: boolean;
+  version: string;
+  /** Epoch millis the server process started (uptime = now - startedAt). */
+  startedAt: number;
+  accountWatch: { on: boolean; intervalMs: number | null };
+  /** Whether a ccxt.pro order stream is nudging the watcher. */
+  streamNudge: boolean;
+  digest: { on: boolean; hours: number | null };
+  equity: { on: boolean; intervalMs: number | null };
+  tradingEnabled: boolean;
+  authEnabled: boolean;
+}
+
 /** One periodic snapshot of real account value (read-only observation). */
 export interface EquityPoint {
   /** Epoch millis the snapshot was taken. */
