@@ -46,6 +46,8 @@ export interface Config {
   equitySnapMs: number;
   /** JSON file backing the equity snapshot series. */
   equityFile: string;
+  /** MIDAS_DEMO_MODE — public-demo posture: mock data, no trading, no signup. */
+  demoMode: boolean;
   version: string;
 }
 
@@ -54,7 +56,24 @@ function env(key: string, fallback: string): string {
   return value === undefined || value === '' ? fallback : value;
 }
 
-export const config: Config = {
+/**
+ * Demo-mode posture: one flag that makes an instance safe to expose as a
+ * public demo, no matter what else the environment says — synthetic data
+ * only, live trading impossible, no account signups. Pure and applied last,
+ * so a stray MIDAS_TRADING_ENABLED=true on a demo box cannot win.
+ */
+export function applyDemoMode(cfg: Config): Config {
+  if (!cfg.demoMode) return cfg;
+  return {
+    ...cfg,
+    provider: 'mock',
+    tradingEnabled: false,
+    tradingAllowNoAuth: false,
+    authAllowSignup: false,
+  };
+}
+
+const baseConfig: Config = {
   host: env('HOST', '0.0.0.0'),
   port: Number(env('PORT', '4000')),
   provider: env('MIDAS_DATA_PROVIDER', 'mock').toLowerCase(),
@@ -88,5 +107,8 @@ export const config: Config = {
   digestHours: Number(env('MIDAS_DIGEST_HOURS', '0')),
   equitySnapMs: Number(env('MIDAS_EQUITY_SNAP_MS', '3600000')),
   equityFile: env('MIDAS_EQUITY_FILE', `${env('MIDAS_DATA_DIR', './data')}/equity.json`),
+  demoMode: env('MIDAS_DEMO_MODE', 'false').toLowerCase() === 'true',
   version: '0.3.0',
 };
+
+export const config: Config = applyDemoMode(baseConfig);

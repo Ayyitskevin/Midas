@@ -23,6 +23,8 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       MIDAS_AI_MODEL: ${MIDAS_AI_MODEL:-claude-sonnet-4-6}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Public demo posture: mock data, no trading, no signups.
+      MIDAS_DEMO_MODE: ${MIDAS_DEMO_MODE:-false}
       HOST: 0.0.0.0
       PORT: "4000"
       # Background alert engine — rules + triggers persist in the data volume.

@@ -615,6 +615,8 @@ export interface HealthResponse {
   live: boolean;
   time: number;
   version: string;
+  /** True when the server runs in public-demo posture (mock data, no trading, no signup). */
+  demo?: boolean;
 }
 
 // ---------------------------------------------------------------------------
