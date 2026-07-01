@@ -38,6 +38,8 @@ services:
       MIDAS_CCXT_API_KEY: ${MIDAS_CCXT_API_KEY:-}
       MIDAS_CCXT_SECRET: ${MIDAS_CCXT_SECRET:-}
       MIDAS_CCXT_PASSWORD: ${MIDAS_CCXT_PASSWORD:-}
+      # Fill notifications: open-order watch cadence in ms (0 = off).
+      MIDAS_ACCOUNT_WATCH_MS: ${MIDAS_ACCOUNT_WATCH_MS:-10000}
       # Optional live on-chain/DEX source for the DEX panel.
       MIDAS_DEX_SOURCE: ${MIDAS_DEX_SOURCE:-}
       # LIVE trading — OFF by default; see SECURITY.md before enabling.

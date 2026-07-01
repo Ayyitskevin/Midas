@@ -523,6 +523,20 @@ export class CcxtProvider implements DataProvider {
   }
 
   /**
+   * Look up one order's current state. READ-ONLY — fetchOrder only; feeds the
+   * account watcher's closed-order resolution and TICKET's status tracking.
+   * The mapPlacedOrder fallbacks only apply to fields the exchange omits.
+   */
+  async getOrder(id: string, symbol: string): Promise<PlacedOrder> {
+    if (!this.exchange.has['fetchOrder']) {
+      throw new ProviderError(`${this.name} does not support single-order lookup.`, 501);
+    }
+    const sym = this.normalize(symbol);
+    const raw = await this.exchange.fetchOrder(id, sym);
+    return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
+  }
+
+  /**
    * Cancel a resting order. A risk-REDUCING write, gated by the route behind
    * the same trading switches as placement — a trader who can place a limit
    * order must be able to pull it.

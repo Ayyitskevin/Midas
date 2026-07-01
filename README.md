@@ -60,10 +60,13 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
 - **Account & execution (non-custodial, opt-in).** Read-only keys light up your
   real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
-  (`FILLS`); explicitly enable trading and the order ticket (`TICKET`) places —
-  and `ORD` cancels — real orders behind two-step confirms, per-order **and**
-  daily notional caps, idempotency, audit logs and webhook notifications. A red
-  **LIVE TRADING** badge shows terminal-wide whenever it's on.
+  (`FILLS`), and a read-only account watcher turns every fill/cancel into a
+  terminal toast + webhook push — even for orders placed outside Midas.
+  Explicitly enable trading and the order ticket (`TICKET`) places — and `ORD`
+  cancels — real orders behind two-step confirms, per-order **and** daily
+  notional caps, idempotency, audit logs and webhook notifications, then tracks
+  each placement live to filled/canceled. A red **LIVE TRADING** badge shows
+  terminal-wide whenever it's on.
 - **Pluggable data layer.** `mock` (deterministic, offline), `ccxt` (live
   multi-exchange crypto), `yahoo` (equities) — swap behind one interface.
 - **Typed end-to-end** with a shared data contract package.
@@ -208,7 +211,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Read-only open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial: reads only (`fetchOpenOrders`) — never places or cancels orders. Synthetic demo set until read-only keys are set. |
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
-| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. When trading is live, `ORD` also gains a two-step per-order **cancel**. |
+| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. After placement the ticket **tracks the order live** (open → partially filled → filled/canceled, with a fill progress bar). When trading is live, `ORD` also gains a two-step per-order **cancel**. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
 | `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `PBETA` | `PORTBETA`, `BWEIGHT`, `NETBETA` | no | Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions. |
@@ -449,6 +452,7 @@ Server (environment variables):
 | `MIDAS_CCXT_API_KEY`  | _(unset)_   | **Read-only** exchange API key for live account balances (`BAL`). Non-custodial: Midas only ever reads (`fetchBalance`) — it never places orders or moves funds. Leave unset to keep balances in synthetic demo mode. |
 | `MIDAS_CCXT_SECRET`   | _(unset)_   | Secret paired with `MIDAS_CCXT_API_KEY`. Both must be set to enable live balances. |
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
+| `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
 | `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` to read live on-chain/DEX pools (`DEX`) from Dexscreener's public API; otherwise DEX data is honestly labeled unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |

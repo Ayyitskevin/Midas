@@ -5,6 +5,7 @@ import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
 import { emitAccountChange, usePricePick } from '@/lib/accountBus';
 import { quickSizeAmount, capBlockReason } from '@/lib/quickSize';
+import { describeOrderTrack, isTerminalOrderStatus } from '@/lib/orderTrack';
 import type { Level, Side } from '@/lib/slippage';
 import type { PlacedOrder } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
@@ -61,6 +62,9 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   const [armed, setArmed] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+  // Latest lookup of the placed order — drives the placed → partial → filled/
+  // canceled progression shown after placement.
+  const [tracked, setTracked] = useState<PlacedOrder | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
 
   const { data, error, loading, refresh } = useFetch(
@@ -101,6 +105,38 @@ export function OrderTicketModule({ panel }: ModuleProps) {
     setType('limit');
     setLimit(String(pick.price));
   });
+
+  // Track a placed order to its terminal state: a read-only 3s lookup poll
+  // that stops on filled/canceled (or when the user starts a new order).
+  useEffect(() => {
+    setTracked(null);
+    if (!placed || placed.id === '—' || isTerminalOrderStatus(placed.status)) return;
+    let cancelled = false;
+    let inFlight = false;
+    const controller = new AbortController();
+    const timer = setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const o = await api.getOrder(placed.id, placed.symbol, controller.signal);
+        if (cancelled) return;
+        setTracked(o);
+        if (isTerminalOrderStatus(o.status)) {
+          clearInterval(timer);
+          emitAccountChange(); // final state reached — refresh ORD/FILLS/BAL
+        }
+      } catch {
+        /* lookup unavailable this tick — keep the last known state */
+      } finally {
+        inFlight = false;
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, [placed]);
 
   async function doPlace() {
     if (!preview.ok || !symbol) return;
@@ -327,18 +363,48 @@ export function OrderTicketModule({ panel }: ModuleProps) {
           Place order — disabled (preview only)
         </button>
       ) : placed ? (
-        <div className="rounded-sm border border-term-up/50 bg-term-up/10 p-2">
-          <div className="text-2xs font-semibold text-term-up">✓ Order placed (live)</div>
-          <Row label="ID">{placed.id}</Row>
-          <Row label="Status">{placed.status}</Row>
-          <button
-            type="button"
-            onClick={() => setPlaced(null)}
-            className="mt-1 w-full rounded-sm border border-term-border py-1 text-2xs uppercase text-term-muted hover:text-term-text"
-          >
-            New order
-          </button>
-        </div>
+        (() => {
+          const track = describeOrderTrack(tracked ?? placed);
+          const boxCls =
+            track.done && track.tone === 'down'
+              ? 'border-term-down/50 bg-term-down/10'
+              : 'border-term-up/50 bg-term-up/10';
+          const toneCls =
+            track.tone === 'up' ? 'text-term-up' : track.tone === 'down' ? 'text-term-down' : 'text-term-text';
+          return (
+            <div className={`rounded-sm border p-2 ${boxCls}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-2xs font-semibold ${track.done ? toneCls : 'text-term-up'}`}>
+                  {track.done
+                    ? track.tone === 'up'
+                      ? '✓ Order filled (live)'
+                      : '✖ Order ended (live)'
+                    : '✓ Order placed (live)'}
+                </span>
+                {!track.done && <span className="text-2xs text-term-dim">tracking…</span>}
+              </div>
+              <Row label="ID">{placed.id}</Row>
+              <Row label="Status">
+                <span className={toneCls}>{track.label}</span>
+              </Row>
+              {track.progress != null && (
+                <div className="mt-1 h-1 overflow-hidden rounded-sm bg-term-bg/60">
+                  <div
+                    className={`h-full ${track.tone === 'down' ? 'bg-term-down/60' : 'bg-term-up/60'}`}
+                    style={{ width: `${Math.round(track.progress * 100)}%` }}
+                  />
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setPlaced(null)}
+                className="mt-1 w-full rounded-sm border border-term-border py-1 text-2xs uppercase text-term-muted hover:text-term-text"
+              >
+                New order
+              </button>
+            </div>
+          );
+        })()
       ) : armed ? (
         <div className="rounded-sm border border-term-down/50 bg-term-down/5 p-2">
           <div className="mb-1.5 text-2xs leading-relaxed text-term-text">

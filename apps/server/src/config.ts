@@ -38,6 +38,8 @@ export interface Config {
   maxOrderUsd: number;
   /** Cumulative UTC-day USD notional cap across all orders (0 = uncapped). */
   maxDailyUsd: number;
+  /** How often the account watcher polls open orders for fill events, in ms (0 = off). */
+  accountWatchMs: number;
   version: string;
 }
 
@@ -76,5 +78,6 @@ export const config: Config = {
   tradingAllowNoAuth: env('MIDAS_TRADING_ALLOW_NO_AUTH', 'false').toLowerCase() === 'true',
   maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
   maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
+  accountWatchMs: Number(env('MIDAS_ACCOUNT_WATCH_MS', '10000')),
   version: '0.2.0',
 };

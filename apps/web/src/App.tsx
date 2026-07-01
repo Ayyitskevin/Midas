@@ -6,6 +6,7 @@ import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { Workspace } from './components/Workspace';
 import { StatusBar } from './components/StatusBar';
 import { AlertsEngine } from './components/AlertsEngine';
+import { AccountEventsEngine } from './components/AccountEventsEngine';
 import { ScanWatchEngine } from './components/ScanWatchEngine';
 import { DeepLinkLoader } from './components/DeepLinkLoader';
 import { ToastHost } from './components/ToastHost';
@@ -54,6 +55,7 @@ export default function App() {
         </main>
         <StatusBar />
         <AlertsEngine />
+        <AccountEventsEngine />
         <ScanWatchEngine />
         <DeepLinkLoader />
         <ToastHost />

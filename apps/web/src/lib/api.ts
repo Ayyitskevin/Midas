@@ -1,4 +1,5 @@
 import type {
+  AccountEventsResponse,
   AccountFills,
   AccountPositions,
   Alert,
@@ -137,6 +138,16 @@ export const api = {
   positions: (signal?: AbortSignal) => apiGet<AccountPositions>('/api/positions', signal),
   fills: (symbol?: string, signal?: AbortSignal) =>
     apiGet<AccountFills>(`/api/fills${symbol ? `?symbol=${encodeURIComponent(symbol)}` : ''}`, signal),
+  // The account watcher's event feed (order placed / filled / canceled).
+  // Pass the last seen id to receive only newer events.
+  accountEvents: (since?: number, signal?: AbortSignal) =>
+    apiGet<AccountEventsResponse>(`/api/account/events${since ? `?since=${since}` : ''}`, signal),
+  // Read-only single-order lookup — TICKET tracks a placement with this.
+  getOrder: (id: string, symbol: string, signal?: AbortSignal) =>
+    apiGet<PlacedOrder>(
+      `/api/orders/${encodeURIComponent(id)}?symbol=${encodeURIComponent(symbol)}`,
+      signal,
+    ),
 
   // Live trading (opt-in, off by default). status() tells the UI whether placement
   // is possible; placeOrder() is the only call that can submit a real order.

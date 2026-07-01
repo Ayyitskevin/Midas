@@ -472,6 +472,51 @@ export interface TradingStatus {
   source: string;
 }
 
+/**
+ * What happened to an order between two open-order snapshots:
+ * - 'new'      — appeared on the book (placed via Midas or externally)
+ * - 'fill'     — partially executed (still open; filled increased)
+ * - 'filled'   — left the book fully executed
+ * - 'canceled' — left the book canceled / expired / rejected
+ * - 'closed'   — left the book but the final status could not be resolved
+ *                (the provider has no order lookup) — honestly unknown.
+ */
+export type AccountOrderEventKind = 'new' | 'fill' | 'filled' | 'canceled' | 'closed';
+
+/** One observed order transition on the live account. Read-only — observation, never action. */
+export interface AccountOrderEvent {
+  /** Monotonic id within this server run — poll with ?since= to get only new events. */
+  id: number;
+  /** Epoch millis the watcher observed the transition (not when the exchange executed it). */
+  at: number;
+  kind: AccountOrderEventKind;
+  orderId: string;
+  symbol: string;
+  side: 'buy' | 'sell';
+  /** Order (limit) price; null for market orders / unknown. */
+  price: number | null;
+  /** Ordered base amount. */
+  amount: number;
+  /** Cumulative filled base amount at observation. */
+  filled: number;
+  /** Base amount newly filled since the previous snapshot; null when not a fill. */
+  filledDelta: number | null;
+  /** Exchange status when known ('open', 'closed', 'canceled', …); null if unknown. */
+  status: string | null;
+}
+
+/** The account event feed: what the server-side order watcher has observed. */
+export interface AccountEventsResponse {
+  /** Whether the watcher loop is running (keys + live provider + interval > 0). */
+  watching: boolean;
+  /** Newest event id (0 when none yet) — pass back as ?since= on the next poll. */
+  latestId: number;
+  /** Events with id > since, oldest first. */
+  events: AccountOrderEvent[];
+  /** Why the watcher is off, or null when it is running. */
+  note: string | null;
+}
+
 /** Perpetual-swap derivatives snapshot: funding, open interest, liquidations. */
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */

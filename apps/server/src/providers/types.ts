@@ -66,6 +66,12 @@ export interface DataProvider {
   getPositions(): Promise<AccountPositions>;
   /** Read-only recent fills / my-trades (non-custodial), honestly labeled. Some venues require a symbol. */
   getFills(symbol?: string): Promise<AccountFills>;
+  /**
+   * Look up a single order's current state (optional — ccxt only). READ-ONLY:
+   * used by the account watcher to resolve how an order left the book, and by
+   * the TICKET panel to track a placement to filled/canceled.
+   */
+  getOrder?(id: string, symbol: string): Promise<PlacedOrder>;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   /**

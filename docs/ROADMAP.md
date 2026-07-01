@@ -7,11 +7,13 @@ the repo has used throughout.
 
 ## Week 1 — order lifecycle depth
 
-- **Fill notifications.** A keyed background poll (reusing the alert engine's
-  loop) that diffs open orders / fills and pushes "order filled" toasts + the
-  operator webhook. The single most-requested follow-up to live trading.
-- **Order status tracking in TICKET.** After placement, poll the order until
-  filled/canceled and show the progression inline (placed → partial → filled).
+- ✅ **Fill notifications.** *(Shipped)* The account watcher (a keyed, read-only
+  background poll mirroring the alert engine's loop) diffs open-order snapshots
+  and pushes fill/cancel toasts + the operator webhook
+  (`MIDAS_ACCOUNT_WATCH_MS`, `GET /api/account/events`).
+- ✅ **Order status tracking in TICKET.** *(Shipped)* After placement the ticket
+  polls the read-only `GET /api/orders/:id` lookup until filled/canceled and
+  shows the progression inline (placed → partial → filled) with a progress bar.
 - **Post-trade slippage.** Compare each fill against the preview's estimated
   avg price and surface realized-vs-predicted slippage in FILLS.
 

@@ -18,6 +18,7 @@ import { registerSnapshotRoutes } from './snapshots/routes';
 import { UserRepo } from './auth/users';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
 import { installAuthGuard } from './auth/guard';
+import { registerAccountEventsRoute, type AccountWatchHandle } from './accountWatch';
 
 export interface BuildAppOptions {
   /** Alert store; defaults to an in-memory repo (tests). index.ts injects a file-backed one. */
@@ -34,6 +35,8 @@ export interface BuildAppOptions {
   userRepo?: UserRepo;
   /** Auth overrides (tests); falls back to config. */
   auth?: { enabled?: boolean; allowSignup?: boolean; secret?: string };
+  /** Account order watcher (index.ts starts one when keyed + live); null/omitted = off. */
+  accountWatch?: AccountWatchHandle | null;
 }
 
 /**
@@ -62,6 +65,7 @@ export async function buildApp(
   registerAuthRoutes(app, authDeps);
 
   registerRoutes(app, provider);
+  registerAccountEventsRoute(app, opts.accountWatch ?? null);
   registerAlertRoutes(app, opts.alertRepo ?? new AlertRepo());
   registerSnapshotRoutes(app, opts.workspaceRepo ?? new WorkspaceRepo(), '/api/workspaces');
   registerSnapshotRoutes(app, opts.portfolioRepo ?? new PortfolioRepo(), '/api/portfolio');
