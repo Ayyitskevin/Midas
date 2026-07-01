@@ -4,9 +4,21 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
-## [Unreleased]
+## [0.4.0] — 2026-07-01
+
+The "whole roadmap" release: execution analytics, account intelligence,
+multi-venue, and the launch funnel — Weeks 1–3 of the 30-day plan plus the
+public-demo posture, all shipped.
 
 ### Added
+- **Demo mode** (`MIDAS_DEMO_MODE`) — one flag that makes an instance safe
+  to host publicly: mock data only, trading impossible, signups closed —
+  applied over the whole config so a stray env var cannot win. The web
+  banner becomes the funnel (deploy-your-own + hosted waitlist CTAs).
+- **First-run tour (`START`)** — six one-click rows that each run a real
+  command, teaching the grammar by doing; opens once on first visit.
+- **System status (`SYS`)** — provider, version, uptime and which
+  background loops are actually running, without reading server logs.
 - **Post-trade slippage in `FILLS`** — realized vs the estimate `TICKET`
   recorded at placement, signed so positive is always worse; fills placed
   outside Midas honestly show no baseline.

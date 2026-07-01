@@ -1,65 +1,64 @@
-# Midas — 30-day roadmap
+# Midas — 30-day roadmap (v2)
 
-The next month of development, in dependency order. Grounded in what shipped in
-v0.2.0 (full non-custodial account & execution suite, safeguards, pro-terminal
-UX). Each item is a small, verifiable slice — the same one-PR-per-slice cadence
-the repo has used throughout.
+The second 30 days: from "feature-complete terminal" to "MicroSaaS people
+pay for". The v1 roadmap (order lifecycle, data depth, closing-the-loop
+analytics, distribution) shipped in full across v0.2.0–v0.4.0 — see
+[CHANGELOG.md](../CHANGELOG.md). This plan optimizes for four things at the
+$20–$49 price point: **conversion** (try → deploy → waitlist), **retention**
+(the terminal earns its keep weekly), **monetization groundwork** (hosted
+tier without breaking self-host), and **scalability** (one operator can run
+many users).
 
-## Week 1 — order lifecycle depth
+## Week 1 — launch essentials (conversion)
 
-- ✅ **Fill notifications.** *(Shipped)* The account watcher (a keyed, read-only
-  background poll mirroring the alert engine's loop) diffs open-order snapshots
-  and pushes fill/cancel toasts + the operator webhook
-  (`MIDAS_ACCOUNT_WATCH_MS`, `GET /api/account/events`).
-- ✅ **Order status tracking in TICKET.** *(Shipped)* After placement the ticket
-  polls the read-only `GET /api/orders/:id` lookup until filled/canceled and
-  shows the progression inline (placed → partial → filled) with a progress bar.
-- ✅ **Post-trade slippage.** *(Shipped)* TICKET records its estimated avg
-  fill per placement; FILLS shows signed realized-vs-predicted slippage (bp)
-  per fill, honestly blank for orders placed outside Midas.
+- ✅ **Demo mode** (`MIDAS_DEMO_MODE`) — public try-before-you-buy instance,
+  safe by construction; banner carries the deploy + waitlist CTAs. *(Shipped)*
+- ✅ **First-run tour (`START`)** — teach the grammar by running it. *(Shipped)*
+- ✅ **System status (`SYS`)** — "is it on?" without server logs. *(Shipped)*
+- ✅ **v0.4.0 release readiness** — changelog, WN entry, version. *(Shipped;
+  tag after merge)*
+- **Hero screenshot/GIF + public demo VPS** *(operator)* — the two remaining
+  launch blockers; `scripts/deploy.sh` + demo mode make the VPS a 10-minute job.
+- **Launch**: X thread, Show HN, r/algotrading post.
 
-## Week 2 — market data depth
+## Week 2 — monetization groundwork (hosted tier)
 
-- ✅ **WebSocket account streams.** *(Shipped)* Where ccxt.pro supports
-  watchOrders, the stream NUDGES the account watcher to poll immediately —
-  fills surface in ~1s. REST stays the source of truth, so unsupported venues
-  degrade to plain polling.
-- ✅ **Multi-venue account view.** *(Shipped)* Optional second keyed exchange
-  (`MIDAS_CCXT_EXCHANGE_2` + keys); BAL/ORD/POSN/FILLS merge both accounts
-  with per-row venue tags and honest secondary-failure notes.
-- ✅ **More DEX sources.** *(Shipped)* GeckoTerminal joins Dexscreener behind
-  the honest on-chain seam (`MIDAS_DEX_SOURCE=geckoterminal`).
+- **Per-user exchange keys, PR 1–2** — implement
+  [HOSTED_KEYS_DESIGN.md](./HOSTED_KEYS_DESIGN.md): encrypted KeyRepo +
+  key routes, then the ProviderPool with per-user account reads. Self-host
+  behavior unchanged.
+- **Waitlist → pipeline** — label + triage hosted-waitlist issues; first
+  cohort email (size the $20 solo vs $49 desk split from replies).
+- **Rate limiting on public surfaces** (demo + auth endpoints) — protect the
+  demo box before it is popular.
 
-## Week 3 — analytics that close the loop
+## Week 3 — retention (the weekly habit)
 
-- ✅ **Execution quality board (XQL).** *(Shipped)* Maker/taker mix, fee totals
-  by currency, notional and notional-weighted realized slippage (with honest
-  coverage %), account-wide or per symbol, from FILLS data.
-- ✅ **Account equity curve (AEQ).** *(Shipped)* Periodic server-side equity
-  snapshots (file-backed, hourly by default) charted in-terminal — the paper
-  EQ board pattern applied to the real account, with truthful gaps.
-- ✅ **Alert on account events.** *(Shipped)* Alert rules on position
-  unrealized P&L (`upnl`, USD, per symbol) and total account equity
-  (`equity`, USD) — evaluated by the same engine, webhook-delivered, and
-  honest: an unreadable account leaves rules armed rather than firing on
-  demo/stale numbers.
+- **Daily P&L recap** — extend the digest with equity change, realized
+  fills P&L and top movers; the email/webhook people *want* every morning.
+- **Alert templates** — one-click classic setups (funding flip, equity
+  drawdown, %-move) from the ALERT panel.
+- **Workspace share links** — export a workspace as a URL; the viral loop
+  for trader Discords/X ("here's my funding desk" → click → your Midas).
+- **Per-user keys, PR 3** — per-user trading gates + ledgers, security
+  review before merge.
 
-## Week 4 — distribution & (optional) SaaS groundwork
+## Week 4 — scale & polish (worth $49)
 
-- **Real README screenshot/GIF** of the Trade Desk workspace.
-- **Demo instance** (mock provider, trading off) behind a tiny VPS + caddy —
-  the "try it in 5 seconds" funnel. ✅ *Half-shipped:* `scripts/deploy.sh`
-  one-command production deploy; the public instance itself remains.
-- **Per-user API keys (hosted-tier groundwork).** Move exchange keys from
-  process env to encrypted per-user server storage — the one architectural
-  change a multi-tenant hosted tier needs. Design doc first. The hosted-tier
-  **waitlist** (README) is live to size demand first.
-- ✅ **Release tags + changelog.** *(Shipped in v0.3.0)* `CHANGELOG.md`, the
-  in-terminal `WN` panel, and a one-time update toast per version.
+- **Hosted tier private beta** — first 5 waitlist users on managed
+  instances; $20 solo (1 venue, read+alerts) / $49 desk (2 venues,
+  multi-user, trading gates) — billing via Stripe Payment Links first,
+  engineering later.
+- **Docs site** (mkdocs or plain GitHub Pages from /docs) — searchable
+  configuration + panel reference.
+- **Performance pass** — bundle budget, server memory profile with 50
+  keyed users (from the pool design), load test the demo box.
+- **v0.5.0** — release + retro; roadmap v3 from beta feedback.
 
-## Standing invariants (never traded away)
+## Standing invariants (unchanged, non-negotiable)
 
 1. Read-only by default; every write opt-in, capped, confirmed, audited.
 2. Data honesty: synthetic/delayed/unavailable is always labeled.
-3. Keys never leave the operator's server; Midas never custodies funds.
-4. Every slice lands with tests + the four gates green.
+3. Keys never leave the server they were given to; Midas never custodies funds.
+4. Self-hosting stays free and full-featured, forever.
+5. Every slice lands with tests + the four gates green.

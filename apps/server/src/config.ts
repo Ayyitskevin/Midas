@@ -108,7 +108,7 @@ const baseConfig: Config = {
   equitySnapMs: Number(env('MIDAS_EQUITY_SNAP_MS', '3600000')),
   equityFile: env('MIDAS_EQUITY_FILE', `${env('MIDAS_DATA_DIR', './data')}/equity.json`),
   demoMode: env('MIDAS_DEMO_MODE', 'false').toLowerCase() === 'true',
-  version: '0.3.0',
+  version: '0.4.0',
 };
 
 export const config: Config = applyDemoMode(baseConfig);
