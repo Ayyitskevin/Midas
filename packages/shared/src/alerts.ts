@@ -5,9 +5,15 @@
  * implementation drives both sides with no drift.
  */
 
-export type AlertMetric = 'price' | 'funding' | 'change';
+export type AlertMetric = 'price' | 'funding' | 'change' | 'upnl' | 'equity';
 export type AlertOp = 'above' | 'below' | 'cross';
 export type AlertStatus = 'armed' | 'triggered';
+
+/**
+ * The pseudo-symbol account-wide alerts key on (metric 'equity'): total
+ * account value has no pair, so rules and readings meet under this constant.
+ */
+export const ACCOUNT_SYMBOL = 'ACCOUNT';
 
 export interface Alert {
   id: string;
@@ -62,10 +68,14 @@ export interface Reading {
   funding?: number;
   /** 24h price change, in percent. */
   change?: number;
+  /** Unrealized P&L of the account's position on this symbol, in USD. */
+  upnl?: number;
+  /** Total account value in USD (read under {@link ACCOUNT_SYMBOL}). */
+  equity?: number;
 }
 export type Readings = Record<string, Reading>;
 
-export const ALERT_METRICS: readonly AlertMetric[] = ['price', 'funding', 'change'];
+export const ALERT_METRICS: readonly AlertMetric[] = ['price', 'funding', 'change', 'upnl', 'equity'];
 export const ALERT_OPS: readonly AlertOp[] = ['above', 'below', 'cross'];
 
 // ---------------------------------------------------------------------------
@@ -119,9 +129,18 @@ export function newAlert(input: AlertInput, id: string, now: number): Alert {
 function readingFor(alert: Alert, readings: Readings): number | undefined {
   const r = readings[alert.symbol];
   if (!r) return undefined;
-  if (alert.metric === 'price') return r.price;
-  if (alert.metric === 'funding') return r.funding;
-  return r.change;
+  switch (alert.metric) {
+    case 'price':
+      return r.price;
+    case 'funding':
+      return r.funding;
+    case 'change':
+      return r.change;
+    case 'upnl':
+      return r.upnl;
+    case 'equity':
+      return r.equity;
+  }
 }
 
 export function conditionMet(actual: number, op: AlertOp, value: number): boolean {

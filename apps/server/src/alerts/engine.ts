@@ -1,4 +1,4 @@
-import { evaluateAlerts, type AlertTrigger, type Readings } from '@midas/shared';
+import { ACCOUNT_SYMBOL, evaluateAlerts, type AlertTrigger, type Readings } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import type { AlertRepo } from './repo';
 
@@ -41,6 +41,38 @@ export async function evaluateOnce(
       if (d.fundingRate != null) (readings[sym] ??= {}).funding = d.fundingRate * 100;
     } catch {
       /* skip */
+    }
+  }
+
+  // Account metrics — one read each, only when such alerts exist, and only
+  // honest live values (an unreadable account leaves the symbols unread, so
+  // rules stay armed instead of firing on stale/synthetic numbers).
+  if (active.some((a) => a.metric === 'upnl')) {
+    try {
+      const pos = await provider.getPositions();
+      if (pos.provenance === 'live') {
+        for (const p of pos.positions) {
+          if (p.unrealizedPnlUsd == null) continue;
+          const sym = p.symbol.toUpperCase();
+          (readings[sym] ??= {}).upnl = p.unrealizedPnlUsd;
+          // Perp symbols carry a settle suffix (BTC/USDT:USDT) — also serve
+          // the rule typed without it, when that doesn't collide.
+          const spot = sym.split(':')[0];
+          if (spot !== sym && readings[spot]?.upnl == null) (readings[spot] ??= {}).upnl = p.unrealizedPnlUsd;
+        }
+      }
+    } catch {
+      /* leave upnl unread this pass */
+    }
+  }
+  if (active.some((a) => a.metric === 'equity')) {
+    try {
+      const bal = await provider.getBalances();
+      if (bal.provenance === 'live' && bal.totalValueUsd != null) {
+        (readings[ACCOUNT_SYMBOL] ??= {}).equity = bal.totalValueUsd;
+      }
+    } catch {
+      /* leave equity unread this pass */
     }
   }
 
