@@ -34,6 +34,18 @@ services:
       MIDAS_AUTH_ENABLED: ${MIDAS_AUTH_ENABLED:-false}
       MIDAS_AUTH_ALLOW_SIGNUP: ${MIDAS_AUTH_ALLOW_SIGNUP:-true}
       MIDAS_AUTH_SECRET: ${MIDAS_AUTH_SECRET:-}
+      # Optional account access (read-only keys → BAL/ORD/POSN/FILLS go live).
+      MIDAS_CCXT_API_KEY: ${MIDAS_CCXT_API_KEY:-}
+      MIDAS_CCXT_SECRET: ${MIDAS_CCXT_SECRET:-}
+      MIDAS_CCXT_PASSWORD: ${MIDAS_CCXT_PASSWORD:-}
+      # Optional live on-chain/DEX source for the DEX panel.
+      MIDAS_DEX_SOURCE: ${MIDAS_DEX_SOURCE:-}
+      # LIVE trading — OFF by default; see SECURITY.md before enabling.
+      MIDAS_TRADING_ENABLED: ${MIDAS_TRADING_ENABLED:-false}
+      MIDAS_TRADING_ALLOW_NO_AUTH: ${MIDAS_TRADING_ALLOW_NO_AUTH:-false}
+      MIDAS_MAX_ORDER_USD: ${MIDAS_MAX_ORDER_USD:-1000}
+      MIDAS_MAX_DAILY_USD: ${MIDAS_MAX_DAILY_USD:-5000}
+      MIDAS_CORS_ORIGIN: ${MIDAS_CORS_ORIGIN:-*}
     expose:
       - "4000"
     volumes:

@@ -103,6 +103,34 @@ Midas never presents synthetic, delayed, or unavailable data as if it were live:
 
 When you add a surface that shows data, label its provenance.
 
+## The trading write path (opt-in)
+
+Everything above is reads. Exactly two writes exist — **place** and **cancel**
+(`ccxt.placeOrder` / `ccxt.cancelOrder`; never withdraw/transfer) — and both sit
+behind the same defense-in-depth stack, off by default:
+
+```
+POST /api/orders            DELETE /api/orders/:id
+      │                            │
+      ▼                            ▼
+computeTradingStatus  ←  src/trading.ts (pure, unit-tested)
+  master switch (MIDAS_TRADING_ENABLED)
+  + live ccxt provider + trade keys
+  + auth on (or explicit no-auth override, which requires pinned CORS)
+      │
+      ▼
+validateOrderRequest → idempotency cache (clientOrderId) →
+per-order cap (MIDAS_MAX_ORDER_USD) → daily ledger (MIDAS_MAX_DAILY_USD)
+      │
+      ▼
+audit log + webhook notify → provider.placeOrder / cancelOrder
+```
+
+The gates live in `apps/server/src/trading.ts` as pure functions with injected
+clocks so every rule is unit-tested without an exchange. The UI mirrors the
+state honestly: a red **● LIVE TRADING** status-bar badge, a LIVE banner and
+two-step confirm in `TICKET`, and per-row cancel in `ORD` only when enabled.
+
 ## Adding an indicator/analytics board
 
 The most common contribution. The steps (with the architectural "why") are in

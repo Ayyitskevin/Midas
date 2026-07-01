@@ -23,6 +23,36 @@ HELP              this panel`}
       </section>
 
       <section>
+        <h3 className="term-label mb-1">Account &amp; trading</h3>
+        <p className="text-term-muted">
+          Midas is <span className="text-term-text">non-custodial and read-only by default</span>. It scales up only
+          as you opt in:
+        </p>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4 text-term-muted">
+          <li>
+            <span className="text-term-text">Demo</span> — no keys: <span className="text-term-amber">BAL</span>,{' '}
+            <span className="text-term-amber">ORD</span>, <span className="text-term-amber">POSN</span> and{' '}
+            <span className="text-term-amber">FILLS</span> show a clearly-labeled synthetic account.
+          </li>
+          <li>
+            <span className="text-term-text">Read-only</span> — set read-only exchange API keys on the server and the
+            same panels show your real balances, orders, positions and fills. Nothing can be placed.
+          </li>
+          <li>
+            <span className="text-term-text">Live</span> — explicitly enable trading on the server (master switch +
+            caps + auth; see SECURITY.md) and <span className="text-term-amber">TICKET</span> places real orders
+            behind a two-step confirm, with per-order and daily notional caps enforced server-side.{' '}
+            <span className="text-term-amber">ORD</span> gains per-order cancel. A red{' '}
+            <span className="text-term-down">● LIVE TRADING</span> badge shows in the status bar whenever this is on.
+          </li>
+        </ul>
+        <p className="mt-1 text-term-muted">
+          Try the <span className="text-term-text">Trade Desk</span> workspace template (+ tab → Trade Desk): chart,
+          book and ticket linked — clicking a book level sends that price to the ticket.
+        </p>
+      </section>
+
+      <section>
         <h3 className="term-label mb-1">Commands</h3>
         <table className="w-full">
           <tbody>

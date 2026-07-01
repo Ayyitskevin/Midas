@@ -76,5 +76,5 @@ export const config: Config = {
   tradingAllowNoAuth: env('MIDAS_TRADING_ALLOW_NO_AUTH', 'false').toLowerCase() === 'true',
   maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
   maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
-  version: '0.1.0',
+  version: '0.2.0',
 };
