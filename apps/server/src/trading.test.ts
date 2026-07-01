@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeTradingStatus,
+  createIdempotencyCache,
   validateOrderRequest,
   estimateNotionalUsd,
   mapPlacedOrder,
   type TradingConfig,
 } from './trading';
+import type { PlacedOrder } from '@midas/shared';
 import type { OrderRequest } from '@midas/shared';
 
 const liveCtx = { providerName: 'ccxt:binance', providerLive: true, hasKeys: true };
@@ -95,6 +97,46 @@ describe('estimateNotionalUsd', () => {
   it('returns null (fail safe) when a market order cannot be priced', () => {
     expect(estimateNotionalUsd(mkt, null)).toBeNull();
     expect(estimateNotionalUsd(mkt, 0)).toBeNull();
+  });
+});
+
+describe('createIdempotencyCache', () => {
+  const order = (id: string): PlacedOrder => ({
+    id,
+    clientOrderId: id,
+    symbol: 'BTC/USDT',
+    side: 'buy',
+    type: 'limit',
+    amount: 1,
+    price: 100,
+    filled: 0,
+    status: 'open',
+    timestamp: 0,
+  });
+
+  it('returns the original result for a duplicate clientOrderId within the TTL', () => {
+    const cache = createIdempotencyCache(1000);
+    cache.remember('abc', order('1'), 0);
+    expect(cache.recall('abc', 500)?.id).toBe('1'); // retry → same ack, no re-place
+    expect(cache.recall('other', 500)).toBeNull();
+  });
+
+  it('expires entries past the TTL and ignores empty ids', () => {
+    const cache = createIdempotencyCache(1000);
+    cache.remember('abc', order('1'), 0);
+    expect(cache.recall('abc', 1500)).toBeNull(); // expired
+    cache.remember('', order('2'), 0);
+    expect(cache.size()).toBe(0); // '' never stored ('abc' was deleted on expiry)
+  });
+
+  it('evicts the oldest entry beyond the size bound', () => {
+    const cache = createIdempotencyCache(60_000, 2);
+    cache.remember('a', order('1'), 0);
+    cache.remember('b', order('2'), 0);
+    cache.remember('c', order('3'), 0);
+    expect(cache.size()).toBe(2);
+    expect(cache.recall('a', 1)).toBeNull(); // oldest evicted
+    expect(cache.recall('c', 1)?.id).toBe('3');
   });
 });
 

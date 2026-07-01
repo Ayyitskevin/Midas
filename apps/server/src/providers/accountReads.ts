@@ -1,4 +1,4 @@
-import type { AccountPosition, OpenOrder } from '@midas/shared';
+import type { AccountFill, AccountPosition, OpenOrder } from '@midas/shared';
 
 /**
  * Read-only account-read mappers (open orders & positions) for the ccxt path.
@@ -70,6 +70,37 @@ export function mapPositions(raw: unknown): AccountPosition[] {
     });
   }
   out.sort((a, b) => Math.abs(b.notionalUsd ?? 0) - Math.abs(a.notionalUsd ?? 0));
+  return out;
+}
+
+/**
+ * Map a ccxt `fetchMyTrades()` array to AccountFill[]: newest first, cost
+ * derived from price × amount when the exchange omits it. Pure and defensive.
+ */
+export function mapMyTrades(raw: unknown): AccountFill[] {
+  if (!Array.isArray(raw)) return [];
+  const out: AccountFill[] = [];
+  for (const t of raw) {
+    const fill = t as Record<string, unknown>;
+    const price = toNum(fill.price);
+    const amount = toNum(fill.amount);
+    if (price == null || amount == null || amount <= 0) continue;
+    const fee = fill.fee as { cost?: unknown; currency?: unknown } | undefined;
+    out.push({
+      id: str(fill.id) || '—',
+      orderId: str(fill.order) || null,
+      symbol: str(fill.symbol),
+      side: fill.side === 'sell' ? 'sell' : 'buy',
+      price,
+      amount,
+      cost: toNum(fill.cost) ?? price * amount,
+      fee: toNum(fee?.cost),
+      feeCurrency: str(fee?.currency) || null,
+      takerOrMaker: str(fill.takerOrMaker) || null,
+      timestamp: toNum(fill.timestamp),
+    });
+  }
+  out.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
   return out;
 }
 

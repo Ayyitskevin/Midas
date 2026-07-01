@@ -381,6 +381,45 @@ export interface AccountPositions {
   asOf: number;
 }
 
+/** A single executed fill (my-trade) on the account. Read-only. */
+export interface AccountFill {
+  id: string;
+  /** The order this fill executed against; null if the exchange omits it. */
+  orderId: string | null;
+  symbol: string;
+  side: 'buy' | 'sell';
+  price: number;
+  /** Filled base amount. */
+  amount: number;
+  /** Quote notional of the fill (price × amount when the exchange omits it). */
+  cost: number;
+  /** Fee paid on the fill; null if unknown. */
+  fee: number | null;
+  feeCurrency: string | null;
+  /** 'maker' | 'taker' when the exchange reports it. */
+  takerOrMaker: string | null;
+  /** Epoch millis of execution; null if unknown. */
+  timestamp: number | null;
+}
+
+/** Read-only snapshot of recent account fills, with honest provenance labeling. */
+export interface AccountFills {
+  source: string;
+  provenance: AccountProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  fills: AccountFill[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/** The exchange's acknowledgement of a canceled order. */
+export interface CancelResult {
+  id: string;
+  symbol: string;
+  status: string;
+}
+
 /**
  * A request to place a live order. Live trading is strictly opt-in and off by
  * default — see {@link TradingStatus}. Midas only places an order when the

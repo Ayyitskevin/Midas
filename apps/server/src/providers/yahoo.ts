@@ -1,4 +1,5 @@
 import type {
+  AccountFills,
   AccountPositions,
   Balances,
   Candle,
@@ -200,6 +201,16 @@ export class YahooProvider implements DataProvider {
       note: 'Open positions are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       totalUnrealizedPnlUsd: null,
       positions: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getFills(): Promise<AccountFills> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Account fills are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
+      fills: [],
       asOf: Date.now(),
     };
   }

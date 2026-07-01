@@ -1,8 +1,10 @@
 import * as ccxt from 'ccxt';
 import type { Exchange, Ticker } from 'ccxt';
 import type {
+  AccountFills,
   AccountPositions,
   Balances,
+  CancelResult,
   Candle,
   DerivativesInfo,
   DexPools,
@@ -25,7 +27,7 @@ import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
-import { mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
+import { mapMyTrades, mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
@@ -478,10 +480,68 @@ export class CcxtProvider implements DataProvider {
     }
   }
 
+  async getFills(symbol?: string): Promise<AccountFills> {
+    const asOf = Date.now();
+    if (!ccxtKeysConfigured()) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note:
+          'Read-only fills need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
+          '(read-only keys are sufficient — Midas never moves funds).',
+        fills: [],
+        asOf,
+      };
+    }
+    if (!this.exchange.has['fetchMyTrades']) {
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: `${this.name} does not expose a fetchMyTrades endpoint.`,
+        fills: [],
+        asOf,
+      };
+    }
+    try {
+      // READ-ONLY: fetchMyTrades only. Many venues (e.g. Binance) require a
+      // symbol for this endpoint — surface that honestly instead of guessing.
+      const raw = await this.exchange.fetchMyTrades(symbol ? this.normalize(symbol) : undefined, undefined, 100);
+      return { source: this.name, provenance: 'live', note: null, fills: mapMyTrades(raw), asOf };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'error';
+      const needsSymbol = /symbol|argument/i.test(msg) && !symbol;
+      return {
+        source: this.name,
+        provenance: 'unavailable',
+        note: needsSymbol
+          ? `${this.name} requires a symbol for fills — open FILLS with a symbol (e.g. BTC/USDT FILLS).`
+          : `Fills read failed — ${msg}. Check the API key (read access is sufficient).`,
+        fills: [],
+        asOf,
+      };
+    }
+  }
+
   /**
-   * Place a LIVE order. This is the ONLY write call in Midas. It is reached only
-   * after the route confirms live trading is enabled and the request has been
-   * validated and notional-capped — this method does not re-gate, it executes.
+   * Cancel a resting order. A risk-REDUCING write, gated by the route behind
+   * the same trading switches as placement — a trader who can place a limit
+   * order must be able to pull it.
+   */
+  async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
+    if (!this.exchange.has['cancelOrder']) {
+      throw new ProviderError(`${this.name} does not support order cancellation.`, 501);
+    }
+    const sym = this.normalize(symbol);
+    const raw = (await this.exchange.cancelOrder(id, sym)) as unknown as Record<string, unknown> | undefined;
+    const status = typeof raw?.status === 'string' && raw.status ? raw.status : 'canceled';
+    return { id: typeof raw?.id === 'string' && raw.id ? raw.id : id, symbol: sym, status };
+  }
+
+  /**
+   * Place a LIVE order — with cancelOrder above, one of the only two writes in
+   * Midas (place / cancel; never withdraw or transfer). Reached only after the
+   * route confirms live trading is enabled and the request has been validated
+   * and notional-capped — this method does not re-gate, it executes.
    */
   async placeOrder(req: OrderRequest): Promise<PlacedOrder> {
     if (!this.exchange.has['createOrder']) {

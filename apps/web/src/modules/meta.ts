@@ -69,6 +69,7 @@ export type ModuleCode =
   | 'BAL'
   | 'ORD'
   | 'POSN'
+  | 'FILLS'
   | 'TICKET'
   | 'RHEAT'
   | 'EXP'
@@ -294,6 +295,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   BAL: { code: 'BAL', title: 'Balances', w: 5, h: 11, minW: 4, minH: 6 },
   ORD: { code: 'ORD', title: 'Open Orders', w: 6, h: 10, minW: 4, minH: 5 },
   POSN: { code: 'POSN', title: 'Positions', w: 7, h: 10, minW: 5, minH: 5 },
+  FILLS: { code: 'FILLS', title: 'Fills', w: 6, h: 10, minW: 4, minH: 5 },
   TICKET: { code: 'TICKET', title: 'Order Ticket', w: 4, h: 13, minW: 3, minH: 9 },
   RHEAT: { code: 'RHEAT', title: 'Position Risk', w: 6, h: 11, minW: 4, minH: 6 },
   EXP: { code: 'EXP', title: 'Exposure', w: 6, h: 11, minW: 4, minH: 6 },

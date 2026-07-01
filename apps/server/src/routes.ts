@@ -13,7 +13,13 @@ import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { ccxtKeysConfigured } from './providers/balances';
 import { config } from './config';
-import { computeTradingStatus, validateOrderRequest, estimateNotionalUsd, type TradingConfig } from './trading';
+import {
+  computeTradingStatus,
+  createIdempotencyCache,
+  estimateNotionalUsd,
+  validateOrderRequest,
+  type TradingConfig,
+} from './trading';
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
 
@@ -134,6 +140,10 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
   app.get('/api/balances', async () => provider.getBalances());
   app.get('/api/orders', async () => provider.getOpenOrders());
   app.get('/api/positions', async () => provider.getPositions());
+  app.get<{ Querystring: { symbol?: string } }>('/api/fills', async (req) => {
+    const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
+    return provider.getFills(symbol);
+  });
 
   // --- Live trading (opt-in, OFF by default) -------------------------------
   // Every gate lives in trading.ts (pure + tested). The status endpoint tells
@@ -156,6 +166,10 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
 
   app.get('/api/trading/status', async () => tradingStatus());
 
+  // Recent placements by clientOrderId, so a retry/double-submit returns the
+  // original acknowledgement instead of placing twice.
+  const placedOrders = createIdempotencyCache();
+
   app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
     const status = tradingStatus();
     if (!status.enabled) {
@@ -167,6 +181,16 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     if (!provider.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
 
     const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
+
+    // Idempotency: a duplicate clientOrderId within the TTL is answered from
+    // the cache — the exchange is never asked to place a second time.
+    if (body.clientOrderId) {
+      const duplicate = placedOrders.recall(body.clientOrderId, Date.now());
+      if (duplicate) {
+        app.log.warn({ clientOrderId: body.clientOrderId }, 'duplicate order suppressed (idempotency)');
+        return duplicate;
+      }
+    }
 
     // Hard notional cap: price the order and reject anything over the ceiling.
     if (status.maxOrderUsd != null) {
@@ -196,12 +220,36 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       'LIVE order placement',
     );
     const placed = await provider.placeOrder(body);
+    if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
         `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,
     );
     return placed;
   });
+
+  // Cancel a resting order. Risk-reducing, but still a write: gated by the
+  // exact same trading switches as placement, audited and notified.
+  app.delete<{ Params: { id: string }; Querystring: { symbol?: string } }>(
+    '/api/orders/:id',
+    async (req, reply) => {
+      const status = tradingStatus();
+      if (!status.enabled) {
+        reply.status(403);
+        return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
+      }
+      const id = req.params.id.trim();
+      const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
+      if (!id) throw new ProviderError('Missing order id', 400);
+      if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to cancel)', 400);
+      if (!provider.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
+
+      app.log.warn({ orderId: id, symbol, userId: req.userId }, 'LIVE order cancel');
+      const result = await provider.cancelOrder(id, symbol);
+      notifyWebhook(`🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status})`);
+      return result;
+    },
+  );
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',

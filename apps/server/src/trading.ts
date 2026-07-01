@@ -101,6 +101,45 @@ export function estimateNotionalUsd(req: OrderRequest, refPrice: number | null):
   return req.amount * px;
 }
 
+/**
+ * Server-side idempotency for order placement. The clientOrderId is forwarded
+ * to the exchange, but not every venue honors it — so a network retry or a
+ * double-submit could place twice. Remembering recent (id → result) pairs lets
+ * the route return the original acknowledgement instead of re-placing. Bounded
+ * (LRU-ish, insertion-order eviction) and TTL'd; the clock is injected so the
+ * behavior is unit-testable.
+ */
+export interface IdempotencyCache {
+  recall(id: string, nowMs: number): PlacedOrder | null;
+  remember(id: string, order: PlacedOrder, nowMs: number): void;
+  size(): number;
+}
+
+export function createIdempotencyCache(ttlMs = 10 * 60_000, maxEntries = 500): IdempotencyCache {
+  const entries = new Map<string, { at: number; order: PlacedOrder }>();
+  return {
+    recall(id, nowMs) {
+      if (!id) return null;
+      const hit = entries.get(id);
+      if (!hit) return null;
+      if (nowMs - hit.at > ttlMs) {
+        entries.delete(id);
+        return null;
+      }
+      return hit.order;
+    },
+    remember(id, order, nowMs) {
+      if (!id) return;
+      entries.set(id, { at: nowMs, order });
+      if (entries.size > maxEntries) {
+        const oldest = entries.keys().next().value;
+        if (oldest !== undefined) entries.delete(oldest);
+      }
+    },
+    size: () => entries.size,
+  };
+}
+
 const toNum = (v: unknown): number | null => {
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
   return Number.isFinite(n) ? n : null;

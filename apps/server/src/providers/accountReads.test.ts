@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
+import { mapMyTrades, mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
 
 describe('mapOpenOrders', () => {
   // A representative slice of a ccxt fetchOpenOrders() result.
@@ -111,6 +111,62 @@ describe('mapPositions', () => {
   it('returns [] for malformed payloads (defensive)', () => {
     expect(mapPositions(null)).toEqual([]);
     expect(mapPositions({})).toEqual([]);
+  });
+});
+
+describe('mapMyTrades', () => {
+  // A representative slice of a ccxt fetchMyTrades() result.
+  const FIXTURE = [
+    {
+      id: 't1',
+      order: 'o1',
+      symbol: 'BTC/USDT',
+      side: 'buy',
+      price: 60000,
+      amount: 0.1,
+      cost: 6000,
+      fee: { cost: 6, currency: 'USDT' },
+      takerOrMaker: 'taker',
+      timestamp: 1700000001000,
+    },
+    {
+      id: 't2',
+      symbol: 'ETH/USDT',
+      side: 'sell',
+      price: 3000,
+      amount: 2,
+      // cost + fee omitted → derived / null
+      timestamp: 1700000002000,
+    },
+    // zero-amount / unpriced rows are dropped
+    { id: 'bad', symbol: 'X/Y', side: 'buy', price: 1, amount: 0 },
+    { id: 'bad2', symbol: 'X/Y', side: 'buy', amount: 1 },
+  ];
+
+  it('maps fills newest-first, deriving cost and tolerating missing fee', () => {
+    const fills = mapMyTrades(FIXTURE);
+    expect(fills.map((f) => f.id)).toEqual(['t2', 't1']);
+    expect(fills[0]).toEqual({
+      id: 't2',
+      orderId: null,
+      symbol: 'ETH/USDT',
+      side: 'sell',
+      price: 3000,
+      amount: 2,
+      cost: 6000, // derived price × amount
+      fee: null,
+      feeCurrency: null,
+      takerOrMaker: null,
+      timestamp: 1700000002000,
+    });
+    expect(fills[1].fee).toBe(6);
+    expect(fills[1].feeCurrency).toBe('USDT');
+    expect(fills[1].orderId).toBe('o1');
+  });
+
+  it('returns [] for malformed payloads (defensive)', () => {
+    expect(mapMyTrades(null)).toEqual([]);
+    expect(mapMyTrades({})).toEqual([]);
   });
 });
 

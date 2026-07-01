@@ -554,6 +554,15 @@ export const COMMANDS: CommandDef[] = [
       'Read-only open derivatives positions on your exchange account — side, size, entry, mark, unrealized P&L (and %), liquidation price and leverage, with a total uPnL and a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchPositions) — it never opens or closes positions. Shows a synthetic demo set until keys are configured.',
   },
   {
+    code: 'FILLS',
+    aliases: ['MYTRADES', 'FILLHIST', 'EXECUTIONS'],
+    title: 'Fills',
+    module: 'FILLS',
+    requiresSymbol: false,
+    description:
+      'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
+  },
+  {
     code: 'TICKET',
     aliases: ['ORDER', 'OE', 'PREVIEW'],
     title: 'Order Ticket',
