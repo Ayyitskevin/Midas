@@ -17,6 +17,7 @@ import {
   type AlertMetric,
   type AlertOp,
 } from '@/lib/alerts';
+import { ALERT_TEMPLATES, type AlertTemplate, type TemplateContext } from '@/lib/alertTemplates';
 import { fmtTimeAgo } from '@/lib/format';
 import { EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
@@ -81,17 +82,19 @@ export function AlertsModule({ panel }: ModuleProps) {
     canNotify() ? Notification.permission : 'unsupported',
   );
 
-  async function onAdd(input: AlertInput) {
+  async function onAdd(input: AlertInput): Promise<boolean> {
     if (mode === 'server') {
       try {
         await api.createAlert(input);
         refreshServer();
+        return true;
       } catch (e) {
         pushToast({ title: 'Alert not saved', body: (e as Error).message, tone: 'down' });
+        return false;
       }
-    } else {
-      addAlert(input);
     }
+    addAlert(input);
+    return true;
   }
 
   async function onToggle(a: Alert) {
@@ -127,6 +130,41 @@ export function AlertsModule({ panel }: ModuleProps) {
     void onAdd({ symbol: sym, metric, op, value: v, note, repeat });
     setValue('');
     setNote('');
+  }
+
+  const [busyTemplate, setBusyTemplate] = useState<string | null>(null);
+
+  // One-click template: build inputs from what the terminal knows (fetching a
+  // live equity read only when the template needs one), create them through
+  // the normal path, and be honest when the template can't apply.
+  async function onTemplate(t: AlertTemplate) {
+    setBusyTemplate(t.key);
+    try {
+      const ctx: TemplateContext = {
+        symbol: symbol.trim() ? symbol.trim().toUpperCase() : null,
+        equityUsd: null,
+      };
+      if (t.needsEquity) {
+        const b = await api.balances().catch(() => null);
+        ctx.equityUsd = b && b.provenance === 'live' ? b.totalValueUsd : null;
+      }
+      const built = t.build(ctx);
+      if ('unavailable' in built) {
+        pushToast({ title: `Template “${t.label}”`, body: built.unavailable, tone: 'down' });
+        return;
+      }
+      let created = 0;
+      for (const input of built.inputs) if (await onAdd(input)) created += 1;
+      if (created > 0) {
+        pushToast({
+          title: 'Alert armed',
+          body: `${t.label}: ${created === 1 ? '1 alert' : `${created} alerts`} created${mode === 'server' ? ' on the server' : ''}.`,
+          tone: 'up',
+        });
+      }
+    } finally {
+      setBusyTemplate(null);
+    }
   }
 
   async function enableNotifications() {
@@ -188,6 +226,24 @@ export function AlertsModule({ panel }: ModuleProps) {
           >
             Add alert
           </button>
+        </div>
+        {/* One-click classic setups */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span className="text-2xs text-term-dim" title="One-click classic setups">
+            ⚡
+          </span>
+          {ALERT_TEMPLATES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => void onTemplate(t)}
+              disabled={busyTemplate != null}
+              title={t.hint}
+              className="no-drag rounded-sm border border-term-border px-1.5 py-0.5 text-2xs text-term-muted hover:border-term-amber hover:text-term-amber disabled:opacity-50"
+            >
+              {busyTemplate === t.key ? '…' : t.label}
+            </button>
+          ))}
         </div>
       </form>
 

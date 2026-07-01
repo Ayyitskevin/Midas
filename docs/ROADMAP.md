@@ -35,12 +35,14 @@ many users).
 
 ## Week 3 — retention (the weekly habit)
 
-- **Daily P&L recap** — extend the digest with equity change, realized
-  fills P&L and top movers; the email/webhook people *want* every morning.
-- **Alert templates** — one-click classic setups (funding flip, equity
-  drawdown, %-move) from the ALERT panel.
-- **Workspace share links** — export a workspace as a URL; the viral loop
-  for trader Discords/X ("here's my funding desk" → click → your Midas).
+- ✅ **Daily P&L recap.** *(Shipped)* The digest leads with equity change and
+  adds fills + FIFO round-trip realized P&L and top movers among position
+  symbols; `MIDAS_DIGEST_HOURS=24` makes it the morning email.
+- ✅ **Alert templates.** *(Shipped)* One-click classics from the ALERT
+  panel: funding flip, ±5% day move, 5% equity drawdown.
+- ✅ **Workspace share links.** *(Shipped)* ⧉ copies a URL carrying the
+  workspace in its fragment; opening imports it as a new workspace. Nothing
+  uploaded.
 - **Per-user keys, PR 3** — per-user trading gates + ledgers, security
   review before merge.
 

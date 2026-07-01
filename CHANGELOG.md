@@ -7,6 +7,19 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Daily P&L recap in the digest** — the operator digest now leads with
+  equity change since the last one (from the snapshot series), and adds the
+  period's fills with FIFO round-trip realized P&L (ex-fees, honestly marked
+  ≈) plus the biggest 24h movers among your position symbols. Sections that
+  can't be read honestly are omitted, never invented. `MIDAS_DIGEST_HOURS=24`
+  makes it the morning email.
+- **One-click alert templates** — a ⚡ row in `ALERT` arms the classics:
+  funding flip (crosses 0, repeating), ±5% daily move (both directions), and
+  a 5% equity-drawdown one-shot priced off a live equity read at click time.
+- **Workspace share links** — the ⧉ button copies a URL that carries the
+  whole workspace in its fragment; opening it imports the layout as a new
+  workspace (your own are untouched). The payload never leaves the browser —
+  nothing is uploaded, and huge workspaces honestly fall back to file export.
 - **Per-user exchange keys** (hosted-tier groundwork, PR 1–2 of the design):
   signed-in users store their own read-only keys via `PUT /api/account/keys`
   — AES-256-GCM encrypted at rest (`MIDAS_KEYS_KMS_SECRET`), metadata-only

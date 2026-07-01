@@ -5,6 +5,7 @@
  *   #scan?t=up&r=oversold&s=1      → open SCAN pre-filtered to that criteria
  *   #board?c=RSI                   → open the RSI board
  *   #board?c=GP&s=BTC%2FUSDT       → open a board/module focused on a symbol
+ *   #ws!<payload>                  → import a whole shared workspace
  *
  * Encoding is lossless for set fields only (an "any"/null field is simply
  * omitted), and decoding is defensive: unknown values degrade to 'any' / null
@@ -13,10 +14,12 @@
  */
 import type { ScanCriteria } from './signals';
 import { coerceCriteria } from './signals';
+import { WS_TOKEN_PREFIX, decodeWorkspaceShare } from './workspaceShare';
 
 export type DeepLink =
   | { kind: 'scan'; criteria: ScanCriteria }
-  | { kind: 'board'; code: string; symbol: string | null };
+  | { kind: 'board'; code: string; symbol: string | null }
+  | { kind: 'workspace'; name: string; data: unknown };
 
 const SCAN_PREFIX = 'scan?';
 const BOARD_PREFIX = 'board?';
@@ -61,6 +64,10 @@ export function decodeLink(token: string): DeepLink | null {
     if (!code) return null;
     const symbol = p.get('s');
     return { kind: 'board', code, symbol: symbol ? symbol.toUpperCase() : null };
+  }
+  if (raw.startsWith(WS_TOKEN_PREFIX)) {
+    const ws = decodeWorkspaceShare(raw);
+    return ws ? { kind: 'workspace', name: ws.name, data: ws.data } : null;
   }
   return null;
 }

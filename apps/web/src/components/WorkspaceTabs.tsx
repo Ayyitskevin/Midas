@@ -2,8 +2,11 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { usePanels } from '@/store/usePanels';
 import type { WorkspaceExport } from '@/store/usePanels';
+import { useToasts } from '@/store/useToasts';
 import { TEMPLATES, applyTemplate } from '@/commands/templates';
 import { downloadJson } from '@/lib/fileDownload';
+import { encodeWorkspaceShare } from '@/lib/workspaceShare';
+import { shareUrl } from '@/lib/deepLink';
 
 /** Trigger a browser download of a workspace snapshot as a .midas.json file. */
 function downloadWorkspace(ws: WorkspaceExport) {
@@ -116,6 +119,51 @@ function ExportButton() {
   );
 }
 
+function ShareButton() {
+  const exportWorkspace = usePanels((s) => s.exportWorkspace);
+  const panelCount = usePanels((s) => s.panels.length);
+  const pushToast = useToasts((s) => s.push);
+  const [copied, setCopied] = useState(false);
+
+  const share = async () => {
+    const token = encodeWorkspaceShare(exportWorkspace());
+    if (!token) {
+      pushToast({
+        title: 'Workspace too large for a link',
+        body: 'This one exceeds what a URL can carry — use file export (⤓) instead.',
+        tone: 'down',
+      });
+      return;
+    }
+    const url = shareUrl(token);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+      pushToast({
+        title: 'Share link copied',
+        body: 'Anyone opening it gets this workspace as a new tab in their Midas. The layout lives in the link itself — nothing was uploaded.',
+        tone: 'up',
+      });
+    } catch {
+      // Clipboard can be unavailable (permissions, non-secure context) — the
+      // prompt still lets the user copy by hand.
+      window.prompt('Copy this workspace share link:', url);
+    }
+  };
+
+  return (
+    <button
+      onClick={() => void share()}
+      disabled={panelCount === 0}
+      title="Copy a share link for this workspace — the layout travels in the URL, nothing is uploaded"
+      className="shrink-0 px-2 py-1 text-xs leading-none text-term-muted hover:text-term-amber disabled:opacity-30 disabled:hover:text-term-muted"
+    >
+      {copied ? '✓' : '⧉'}
+    </button>
+  );
+}
+
 export function WorkspaceTabs() {
   const workspaces = usePanels((s) => s.workspaces);
   const activeWorkspaceId = usePanels((s) => s.activeWorkspaceId);
@@ -183,6 +231,7 @@ export function WorkspaceTabs() {
         );
       })}
       <NewWorkspaceMenu />
+      <ShareButton />
       <ExportButton />
     </div>
   );
