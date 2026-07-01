@@ -1,14 +1,17 @@
-import type { AccountOrderEvent } from '@midas/shared';
+import type { AccountOrderEvent, EquityPoint } from '@midas/shared';
 import type { AccountWatchHandle } from './accountWatch';
+import type { DataProvider } from './providers';
+import { composeRecap, recapLines, type DigestRecap } from './recap';
 
 /**
- * Weekly operator digest — a periodic webhook summary of what the terminal
- * saw while you weren't looking: alerts fired, order flow observed by the
- * account watcher, and the server's identity/version. Off by default
- * (MIDAS_DIGEST_HOURS=0); needs the alert webhook to have anywhere to go.
+ * Operator digest — a periodic webhook summary of what the terminal saw
+ * while you weren't looking: the daily P&L recap (equity change, fills,
+ * movers), alerts fired, order flow observed by the account watcher, and
+ * the server's identity/version. Off by default (MIDAS_DIGEST_HOURS=0);
+ * needs the alert webhook to have anywhere to go.
  *
- * Read-only by construction: it only counts things other loops already
- * observed — it never calls an exchange itself.
+ * Read-only by construction: it reuses the same account reads the panels
+ * make and counts events other loops already observed.
  */
 
 export interface DigestInputs {
@@ -26,6 +29,8 @@ export interface DigestInputs {
   missedEvents: number;
   /** Whether the account watcher is running at all. */
   watching: boolean;
+  /** Account P&L recap sections; null omits them (no keyed live account). */
+  recap?: DigestRecap | null;
 }
 
 const plural = (n: number, unit: string): string => `${n} ${unit}${n === 1 ? '' : 's'}`;
@@ -40,8 +45,10 @@ export function buildDigestText(d: DigestInputs): string {
     symbols.add(e.symbol);
   }
   const approx = d.missedEvents > 0 ? '≥' : '';
+  const recap = d.recap ?? null;
   const lines = [
     `📊 Midas digest — ${d.providerName} (${d.providerLive ? 'live' : 'synthetic'}), v${d.version}`,
+    ...(recap?.equity ? recapLines({ ...recap, fills: null, movers: null }) : []),
     `• Alerts fired: ${d.alertsFired}`,
   ];
   if (!d.watching) {
@@ -58,6 +65,7 @@ export function buildDigestText(d: DigestInputs): string {
       lines.push(`• Note: ${plural(d.missedEvents, 'older event')} aged out of the buffer before this digest — counts are minimums.`);
     }
   }
+  if (recap) lines.push(...recapLines({ ...recap, equity: null }));
   lines.push(`Covers the last ${days.toFixed(1)} day${days === 1 ? '' : 's'}.`);
   return lines.join('\n');
 }
@@ -68,6 +76,10 @@ export interface DigestSourceDeps {
   version: string;
   /** The account watcher when it is running; null keeps the digest honest about it. */
   watcher: AccountWatchHandle | null;
+  /** Live keyed provider for the P&L recap reads; null omits those sections. */
+  accountProvider?: DataProvider | null;
+  /** Equity snapshot series for the recap's headline; null omits the line. */
+  equityPoints?: (() => EquityPoint[]) | null;
   /** Injected clock (tests). */
   now?: () => number;
 }
@@ -76,7 +88,7 @@ export interface DigestSource {
   /** Called by the alert loop's onFire hook. */
   addAlertFires(count: number): void;
   /** Snapshot the period since the last compose (or creation) and reset cursors. */
-  compose(): string;
+  compose(): Promise<string>;
 }
 
 /**
@@ -95,7 +107,7 @@ export function createDigestSource(deps: DigestSourceDeps): DigestSource {
     addAlertFires(count) {
       alertsFired += Math.max(0, count);
     },
-    compose() {
+    async compose() {
       const nowMs = now();
       const events = deps.watcher?.eventsSince(lastEventId) ?? [];
       const latest = deps.watcher?.latestId() ?? lastEventId;
@@ -103,6 +115,12 @@ export function createDigestSource(deps: DigestSourceDeps): DigestSource {
       // contiguous, so anything between the cursor and the oldest retained
       // event was observed-but-forgotten.
       const missedEvents = Math.max(0, latest - lastEventId - events.length);
+      const recap = await composeRecap(
+        deps.accountProvider ?? null,
+        deps.equityPoints ?? null,
+        sinceMs,
+        nowMs,
+      );
       const text = buildDigestText({
         sinceMs,
         nowMs,
@@ -113,6 +131,7 @@ export function createDigestSource(deps: DigestSourceDeps): DigestSource {
         events,
         missedEvents,
         watching: deps.watcher != null,
+        recap,
       });
       sinceMs = nowMs;
       alertsFired = 0;
@@ -126,20 +145,26 @@ export interface DigestLoop {
   stop(): void;
 }
 
-/** Compose + deliver on a period timer (same shape as the alert loop). */
+/** Compose + deliver on a period timer (alert-loop shape: in-flight guard, unref'd). */
 export function startDigestLoop(
   source: DigestSource,
   intervalMs: number,
   notify: (text: string) => void,
   onError?: (err: unknown) => void,
 ): DigestLoop {
-  const timer = setInterval(() => {
+  let running = false;
+  const tick = async (): Promise<void> => {
+    if (running) return;
+    running = true;
     try {
-      notify(source.compose());
+      notify(await source.compose());
     } catch (err) {
       onError?.(err);
+    } finally {
+      running = false;
     }
-  }, intervalMs);
+  };
+  const timer = setInterval(() => void tick(), intervalMs);
   timer.unref?.();
   return { stop: () => clearInterval(timer) };
 }
