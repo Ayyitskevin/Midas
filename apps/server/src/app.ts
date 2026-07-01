@@ -20,6 +20,11 @@ import { registerAuthRoutes, type AuthDeps } from './auth/routes';
 import { installAuthGuard } from './auth/guard';
 import { registerAccountEventsRoute, type AccountWatchHandle } from './accountWatch';
 import { registerEquityRoute, type EquityRepo } from './equity';
+import { KeyRepo } from './keys/repo';
+import { registerKeyRoutes } from './keys/routes';
+import { createProviderPool } from './keys/pool';
+import { CcxtProvider } from './providers/ccxt';
+import { createRateLimiter } from './rateLimit';
 
 export interface BuildAppOptions {
   /** Alert store; defaults to an in-memory repo (tests). index.ts injects a file-backed one. */
@@ -42,6 +47,8 @@ export interface BuildAppOptions {
   accountEquity?: { repo: EquityRepo; watching: boolean } | null;
   /** Live operational self-description (index.ts injects the real loop states). */
   systemInfo?: () => SystemStatus;
+  /** Per-user exchange key store; null = feature off, omitted = derive from config. */
+  keyRepo?: KeyRepo | null;
 }
 
 /**
@@ -69,6 +76,26 @@ export async function buildApp(
     void reply.header('referrer-policy', 'no-referrer');
   });
 
+  // Per-IP request ceiling for public surfaces (demo mode defaults this on).
+  // /api/health stays exempt so uptime monitors never trip it.
+  if (config.rateLimitRpm > 0) {
+    const limiter = createRateLimiter(60_000, config.rateLimitRpm);
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url.startsWith('/api/health')) return;
+      const waitMs = limiter.check(req.ip, Date.now());
+      if (waitMs != null) {
+        return reply
+          .code(429)
+          .header('retry-after', String(Math.ceil(waitMs / 1000)))
+          .send({
+            error: 'TooManyRequests',
+            message: `Rate limit reached — try again in ${Math.ceil(waitMs / 1000)}s.`,
+            statusCode: 429,
+          });
+      }
+    });
+  }
+
   const authDeps: AuthDeps = {
     enabled: opts.auth?.enabled ?? config.authEnabled,
     allowSignup: opts.auth?.allowSignup ?? config.authAllowSignup,
@@ -78,7 +105,25 @@ export async function buildApp(
   installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
   registerAuthRoutes(app, authDeps);
 
-  registerRoutes(app, provider);
+  // Per-user exchange keys (hosted-tier groundwork): encrypted store + a
+  // provider pool that resolves account READS to the requesting user's own
+  // exchange client. Trading stays pinned to the base provider + operator
+  // gates until per-user trading ships behind its own review.
+  const keyRepo =
+    opts.keyRepo !== undefined
+      ? opts.keyRepo
+      : config.keysKmsSecret
+        ? new KeyRepo(config.keysKmsSecret)
+        : null;
+  const pool = createProviderPool({
+    base: provider,
+    repo: keyRepo,
+    factory: (k) =>
+      new CcxtProvider({ exchange: k.exchange, apiKey: k.apiKey, secret: k.secret, password: k.password }),
+  });
+
+  registerRoutes(app, provider, pool);
+  registerKeyRoutes(app, { repo: keyRepo, onChanged: (userId) => pool.invalidate(userId) });
   registerAccountEventsRoute(app, opts.accountWatch ?? null);
   registerEquityRoute(app, opts.accountEquity ?? null);
 

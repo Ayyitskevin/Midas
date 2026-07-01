@@ -61,29 +61,40 @@ function num(value: number | undefined | null, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
+export interface CcxtUserCreds {
+  exchange: string;
+  apiKey: string;
+  secret: string;
+  password?: string;
+}
+
 export class CcxtProvider implements DataProvider {
   readonly name: string;
   readonly live = true;
   private readonly exchange: Exchange;
   private readonly exchangeId: string;
+  /** True when constructed from explicit per-user creds (vs operator env). */
+  private readonly userKeyed: boolean;
   private marketsPromise: Promise<unknown> | null = null;
   private compareExchanges: Exchange[] | null = null;
 
-  constructor() {
-    const id = (process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
+  constructor(creds?: CcxtUserCreds) {
+    const id = (creds?.exchange ?? process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
     const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
     const ExchangeCtor = registry[id];
     if (typeof ExchangeCtor !== 'function') {
       throw new Error(`Unknown ccxt exchange "${id}". See ccxt.exchanges for valid ids.`);
     }
     // Optional READ-ONLY API keys for account reads (balances). Supplied via the
-    // operator's own environment; Midas is non-custodial and only ever calls read
-    // methods — it never places orders or moves funds. Without keys the exchange
-    // is constructed key-less and only public market data is available.
+    // operator's own environment — or, for a per-user instance, via explicit
+    // creds that must NEVER mix with the env (a user-keyed provider gets no
+    // operator secondary venue and no operator stream, below). Midas is
+    // non-custodial and the keyed path only ever calls read methods.
     const exchangeConfig: Record<string, unknown> = { enableRateLimit: true };
-    const apiKey = process.env.MIDAS_CCXT_API_KEY;
-    const secret = process.env.MIDAS_CCXT_SECRET;
-    const password = process.env.MIDAS_CCXT_PASSWORD; // some venues (OKX, KuCoin) require a passphrase
+    const apiKey = creds?.apiKey ?? process.env.MIDAS_CCXT_API_KEY;
+    const secret = creds?.secret ?? process.env.MIDAS_CCXT_SECRET;
+    const password = creds ? creds.password : process.env.MIDAS_CCXT_PASSWORD;
     if (apiKey && secret) {
       exchangeConfig.apiKey = apiKey;
       exchangeConfig.secret = secret;
@@ -91,6 +102,7 @@ export class CcxtProvider implements DataProvider {
     }
     this.exchange = new ExchangeCtor(exchangeConfig);
     this.exchangeId = id;
+    this.userKeyed = Boolean(creds);
     this.name = `ccxt:${id}`;
 
     // Optional SECOND keyed venue for the multi-venue account view. Same
@@ -99,7 +111,7 @@ export class CcxtProvider implements DataProvider {
     const id2 = (process.env.MIDAS_CCXT_EXCHANGE_2 ?? '').toLowerCase();
     const key2 = process.env.MIDAS_CCXT_API_KEY_2;
     const secret2 = process.env.MIDAS_CCXT_SECRET_2;
-    if (id2 && id2 !== id && key2 && secret2) {
+    if (!this.userKeyed && id2 && id2 !== id && key2 && secret2) {
       const Ctor2 = registry[id2];
       if (typeof Ctor2 === 'function') {
         const cfg2: Record<string, unknown> = { enableRateLimit: true, apiKey: key2, secret: secret2 };
@@ -110,6 +122,11 @@ export class CcxtProvider implements DataProvider {
   }
 
   private readonly secondary: { ex: Exchange; id: string } | null = null;
+
+  /** Whether THIS instance can make keyed account reads (creds or operator env). */
+  private hasKeys(): boolean {
+    return this.userKeyed || ccxtKeysConfigured();
+  }
 
   /**
    * Run the same account read against the second venue. A secondary failure
@@ -135,7 +152,7 @@ export class CcxtProvider implements DataProvider {
    * stays the source of truth, so a broken stream degrades to plain polling.
    */
   streamAccountNudge(onChange: () => void): (() => void) | null {
-    if (!ccxtKeysConfigured()) return null;
+    if (this.userKeyed || !ccxtKeysConfigured()) return null;
     const pro = (ccxt as unknown as { pro?: Record<string, new (config: object) => Exchange> }).pro;
     const Ctor = pro?.[this.exchangeId];
     if (typeof Ctor !== 'function') return null;
@@ -409,7 +426,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getBalances(): Promise<Balances> {
-    if (!ccxtKeysConfigured()) {
+    if (!this.hasKeys()) {
       return {
         source: this.name,
         provenance: 'unavailable',
@@ -485,7 +502,7 @@ export class CcxtProvider implements DataProvider {
 
   async getOpenOrders(): Promise<OpenOrders> {
     const asOf = Date.now();
-    if (!ccxtKeysConfigured()) {
+    if (!this.hasKeys()) {
       return {
         source: this.name,
         provenance: 'unavailable',
@@ -529,7 +546,7 @@ export class CcxtProvider implements DataProvider {
 
   async getPositions(): Promise<AccountPositions> {
     const asOf = Date.now();
-    if (!ccxtKeysConfigured()) {
+    if (!this.hasKeys()) {
       return {
         source: this.name,
         provenance: 'unavailable',
@@ -583,7 +600,7 @@ export class CcxtProvider implements DataProvider {
 
   async getFills(symbol?: string): Promise<AccountFills> {
     const asOf = Date.now();
-    if (!ccxtKeysConfigured()) {
+    if (!this.hasKeys()) {
       return {
         source: this.name,
         provenance: 'unavailable',

@@ -48,6 +48,12 @@ export interface Config {
   equityFile: string;
   /** MIDAS_DEMO_MODE — public-demo posture: mock data, no trading, no signup. */
   demoMode: boolean;
+  /** Secret that encrypts per-user exchange keys at rest ('' = feature off). */
+  keysKmsSecret: string;
+  /** JSON file backing the per-user key store. */
+  keysFile: string;
+  /** Per-IP request ceiling in requests/minute (0 = off; demo mode defaults to 120). */
+  rateLimitRpm: number;
   version: string;
 }
 
@@ -70,6 +76,8 @@ export function applyDemoMode(cfg: Config): Config {
     tradingEnabled: false,
     tradingAllowNoAuth: false,
     authAllowSignup: false,
+    // A public box gets a request ceiling even when the operator forgot one.
+    rateLimitRpm: cfg.rateLimitRpm > 0 ? cfg.rateLimitRpm : 120,
   };
 }
 
@@ -108,6 +116,9 @@ const baseConfig: Config = {
   equitySnapMs: Number(env('MIDAS_EQUITY_SNAP_MS', '3600000')),
   equityFile: env('MIDAS_EQUITY_FILE', `${env('MIDAS_DATA_DIR', './data')}/equity.json`),
   demoMode: env('MIDAS_DEMO_MODE', 'false').toLowerCase() === 'true',
+  keysKmsSecret: env('MIDAS_KEYS_KMS_SECRET', ''),
+  keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
+  rateLimitRpm: Number(env('MIDAS_RATE_LIMIT_RPM', '0')),
   version: '0.4.0',
 };
 

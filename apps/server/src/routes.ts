@@ -45,8 +45,17 @@ function notifyWebhook(text: string): void {
   postWebhookText(config.alertWebhook, text);
 }
 
+/** Resolves the provider for a request (per-user keys); defaults to the base provider. */
+export interface ProviderResolver {
+  for(userId: string | undefined): DataProvider;
+}
+
 /** Register all Midas API routes against the given provider. */
-export function registerRoutes(app: FastifyInstance, provider: DataProvider): void {
+export function registerRoutes(
+  app: FastifyInstance,
+  provider: DataProvider,
+  pool: ProviderResolver = { for: () => provider },
+): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
       status: 'ok',
@@ -135,12 +144,16 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
   // Read-only account reads (non-custodial; keys live only in the operator's
   // server env). Account-wide, so no symbol. Auth-guarded when auth is enabled —
   // these are not public prefixes, so the onRequest guard covers them.
-  app.get('/api/balances', async () => provider.getBalances());
-  app.get('/api/orders', async () => provider.getOpenOrders());
-  app.get('/api/positions', async () => provider.getPositions());
+  // Per-user keys (when stored) resolve these READS to that user's own
+  // exchange client; everyone else gets the operator's env-keyed provider.
+  // Trading routes below deliberately do NOT consult the pool — per-user
+  // trading ships separately behind its own review (HOSTED_KEYS_DESIGN.md).
+  app.get('/api/balances', async (req) => pool.for(req.userId).getBalances());
+  app.get('/api/orders', async (req) => pool.for(req.userId).getOpenOrders());
+  app.get('/api/positions', async (req) => pool.for(req.userId).getPositions());
   app.get<{ Querystring: { symbol?: string } }>('/api/fills', async (req) => {
     const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
-    return provider.getFills(symbol);
+    return pool.for(req.userId).getFills(symbol);
   });
   // Read-only single-order lookup — powers TICKET's post-placement tracking
   // (placed → partial → filled/canceled) and the account watcher's
@@ -153,8 +166,9 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
       if (!id) throw new ProviderError('Missing order id', 400);
       if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to look up an order)', 400);
-      if (!provider.getOrder) throw new ProviderError('This provider cannot look up orders.', 501);
-      return provider.getOrder(id, symbol);
+      const reader = pool.for(req.userId);
+      if (!reader.getOrder) throw new ProviderError('This provider cannot look up orders.', 501);
+      return reader.getOrder(id, symbol);
     },
   );
 
