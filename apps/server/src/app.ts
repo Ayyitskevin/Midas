@@ -55,6 +55,15 @@ export async function buildApp(
   await app.register(cors, { origin: config.corsOrigin });
   await app.register(websocket);
 
+  // Baseline security headers on every HTTP response. The API serves JSON
+  // (the web bundle is a separate origin/container), so refusing MIME
+  // sniffing and framing costs nothing and closes whole bug classes.
+  app.addHook('onSend', async (_req, reply) => {
+    void reply.header('x-content-type-options', 'nosniff');
+    void reply.header('x-frame-options', 'DENY');
+    void reply.header('referrer-policy', 'no-referrer');
+  });
+
   const authDeps: AuthDeps = {
     enabled: opts.auth?.enabled ?? config.authEnabled,
     allowSignup: opts.auth?.allowSignup ?? config.authAllowSignup,

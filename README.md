@@ -11,6 +11,9 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 ![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
+**Free to self-host, forever.** A hosted tier (**$20/month flat** — we run it,
+you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
+
 <!-- The single biggest adoption win is a screenshot or GIF. Drop one in and
      uncomment:
 <p align="center"><img src="docs/screenshot.png" alt="The Midas terminal" width="900"></p>
@@ -78,6 +81,12 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 ### Option A — Docker (one command, recommended)
 
 Self-host the whole stack with [Docker](https://docs.docker.com/get-docker/):
+
+```bash
+./scripts/deploy.sh      # bootstraps .env (random auth secret), builds, starts, health-checks
+```
+
+…or by hand, which is the same two steps:
 
 ```bash
 cp .env.example .env     # optional — defaults run the offline mock feed
@@ -212,6 +221,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
 | `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. After placement the ticket **tracks the order live** (open → partially filled → filled/canceled, with a fill progress bar). When trading is live, `ORD` also gains a two-step per-order **cancel**. |
+| `WN`    | `WHATSNEW`, `CHANGELOG`, `RELEASES` | no | What's New — release highlights in-terminal, newest first. Pairs with a one-time "Midas updated to vX" toast when your server moves to a new version. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
 | `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `PBETA` | `PORTBETA`, `BWEIGHT`, `NETBETA` | no | Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions. |
@@ -414,6 +424,12 @@ a panel type means writing a module component and registering it.
 | `GET/PUT /api/portfolio`           | the user's synced paper portfolio |
 | `GET/PUT /api/watchlists`          | the user's synced named watchlists|
 | `GET/PUT /api/notes`               | the user's synced notes          |
+| `GET /api/balances`                | read-only account balances (keyed) |
+| `GET /api/orders` · `GET /api/positions` · `GET /api/fills?symbol=` | read-only open orders / positions / executions |
+| `GET /api/orders/:id?symbol=`      | read-only single-order lookup (TICKET tracking) |
+| `GET /api/account/events?since=`   | account watcher feed (fills/cancels observed) |
+| `GET /api/trading/status`          | whether live trading is enabled, caps, usage |
+| `POST /api/orders` · `DELETE /api/orders/:id` | the ONLY two writes — gated, capped, audited |
 | `GET /api/auth/status`             | whether auth is on / signup open |
 | `POST /api/auth/signup\|login`     | create a session (returns a token)|
 | `GET /api/auth/me`                 | the signed-in user (bearer token)|
@@ -429,7 +445,9 @@ keep evaluating even with no browser open. Rules + triggers persist to
 `MIDAS_ALERTS_FILE` (the `midas-data` volume under Docker). Set
 `MIDAS_ALERT_WEBHOOK` to **POST fires to a webhook** (a Discord or Slack
 incoming-webhook URL works as-is) for delivery with no terminal open at all.
-The `ALERT` panel's **Server** mode manages these rules.
+The `ALERT` panel's **Server** mode manages these rules. The same webhook can
+carry a periodic **operator digest** (`MIDAS_DIGEST_HOURS=168` for weekly): a
+summary of alerts fired and account order flow observed since the last one.
 
 With **auth enabled**, the terminal also **syncs each user's workspaces, paper
 portfolio, watchlists and notes** to the server (`GET/PUT /api/workspaces`,
@@ -463,6 +481,7 @@ Server (environment variables):
 | `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios, watchlists, notes) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
+| `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a summary of alerts fired + order flow observed to the webhook (`168` = weekly, `0` = off, floored at 1). |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
@@ -533,6 +552,25 @@ lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md):
   self-host, funding the open core (the terminal stays free and open).
 
 Have an idea or want a board? Open an issue — see [CONTRIBUTING](./CONTRIBUTING.md).
+
+---
+
+## Hosted Midas — $20/month flat
+
+Self-hosting is free forever — that never changes. For traders who'd rather not
+run a server, a **hosted tier is coming**: your own Midas instance, managed and
+updated for you, **$20/month flat** — no seat math, no per-panel pricing, no
+"pro" gating. The same open-source terminal, someone else on pager duty.
+
+Compare: a Bloomberg seat runs ~$2,400/month; mainstream charting platforms
+charge $30–60/month and still meter your indicators, alerts and layouts. Midas
+gives you every panel, every board, unlimited alerts and live execution
+tooling — self-hosted for $0, or hosted for less than most people's exchange
+fees in a week.
+
+**[→ Join the waitlist](https://github.com/ayyitskevin/midas/issues/new?title=Hosted+Midas+waitlist&body=Add+me+to+the+hosted-tier+waitlist.+%28Optional%3A+which+exchange%28s%29+do+you+trade%3F%29&labels=hosted-waitlist)**
+— it's a GitHub issue; a 👍 on an existing waitlist issue counts too. Nothing
+is billed today; the waitlist is how we size the first cohort.
 
 ---
 

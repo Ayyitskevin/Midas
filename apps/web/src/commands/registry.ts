@@ -563,6 +563,15 @@ export const COMMANDS: CommandDef[] = [
       'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
   {
+    code: 'WN',
+    aliases: ['WHATSNEW', 'CHANGELOG', 'RELEASES'],
+    title: "What's New",
+    module: 'WN',
+    requiresSymbol: false,
+    description:
+      "Release highlights, in-terminal — what changed in each Midas version, newest first, with a link to the full CHANGELOG. Pairs with the one-time update toast: when your server moves to a new version, the terminal tells you once and points here.",
+  },
+  {
     code: 'TICKET',
     aliases: ['ORDER', 'OE', 'PREVIEW'],
     title: 'Order Ticket',

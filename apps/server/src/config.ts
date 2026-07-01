@@ -40,6 +40,8 @@ export interface Config {
   maxDailyUsd: number;
   /** How often the account watcher polls open orders for fill events, in ms (0 = off). */
   accountWatchMs: number;
+  /** Operator digest cadence in hours (0 = off). Needs MIDAS_ALERT_WEBHOOK. */
+  digestHours: number;
   version: string;
 }
 
@@ -79,5 +81,6 @@ export const config: Config = {
   maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
   maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
   accountWatchMs: Number(env('MIDAS_ACCOUNT_WATCH_MS', '10000')),
-  version: '0.2.0',
+  digestHours: Number(env('MIDAS_DIGEST_HOURS', '0')),
+  version: '0.3.0',
 };

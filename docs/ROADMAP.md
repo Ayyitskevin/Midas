@@ -39,11 +39,14 @@ the repo has used throughout.
 
 - **Real README screenshot/GIF** of the Trade Desk workspace.
 - **Demo instance** (mock provider, trading off) behind a tiny VPS + caddy —
-  the "try it in 5 seconds" funnel.
+  the "try it in 5 seconds" funnel. ✅ *Half-shipped:* `scripts/deploy.sh`
+  one-command production deploy; the public instance itself remains.
 - **Per-user API keys (hosted-tier groundwork).** Move exchange keys from
   process env to encrypted per-user server storage — the one architectural
-  change a multi-tenant hosted tier needs. Design doc first.
-- **Release v0.2.x tags + changelog** so self-hosters can pin.
+  change a multi-tenant hosted tier needs. Design doc first. The hosted-tier
+  **waitlist** (README) is live to size demand first.
+- ✅ **Release tags + changelog.** *(Shipped in v0.3.0)* `CHANGELOG.md`, the
+  in-terminal `WN` panel, and a one-time update toast per version.
 
 ## Standing invariants (never traded away)
 
