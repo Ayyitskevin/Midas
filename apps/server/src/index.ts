@@ -8,6 +8,7 @@ import { startAccountWatch } from './accountWatch';
 import { ccxtKeysConfigured } from './providers/balances';
 import { postWebhookText } from './webhook';
 import { createDigestSource, startDigestLoop } from './digest';
+import { EquityRepo, startEquityLoop } from './equity';
 import { WorkspaceRepo } from './workspaces/repo';
 import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
@@ -37,6 +38,14 @@ async function main(): Promise<void> {
       })
     : null;
 
+  // Equity snapshots share the watcher's gating: only a keyed live account
+  // yields honest points. The repo is file-backed so the curve accrues
+  // across restarts.
+  const equityEnabled = config.equitySnapMs > 0 && provider.live && ccxtKeysConfigured();
+  const accountEquity = equityEnabled
+    ? { repo: new EquityRepo(config.equityFile), watching: true }
+    : null;
+
   const app = await buildApp(provider, {
     alertRepo,
     userRepo,
@@ -45,6 +54,7 @@ async function main(): Promise<void> {
     watchlistRepo,
     notesRepo,
     accountWatch,
+    accountEquity,
   });
   if (config.authEnabled) app.log.info('auth enabled — login required');
   if (accountWatch) {
@@ -52,6 +62,13 @@ async function main(): Promise<void> {
       { intervalMs: Math.max(2000, config.accountWatchMs) },
       'account watcher running — fill notifications on',
     );
+  }
+  if (accountEquity) {
+    const snapMs = Math.max(60_000, config.equitySnapMs); // floor: once a minute
+    startEquityLoop(accountEquity.repo, provider, snapMs, (err) =>
+      app.log.error(err, 'equity snapshot error'),
+    );
+    app.log.info({ intervalMs: snapMs }, 'equity snapshots running');
   }
   app.log.info(
     { provider: provider.name, live: provider.live },

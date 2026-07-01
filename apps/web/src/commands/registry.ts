@@ -563,6 +563,15 @@ export const COMMANDS: CommandDef[] = [
       'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
   {
+    code: 'AEQ',
+    aliases: ['ACCTEQ', 'ACCTCURVE'],
+    title: 'Account Equity',
+    module: 'AEQ',
+    requiresSymbol: false,
+    description:
+      "Your real account's equity curve — periodic server-side snapshots of total account value (and unrealized P&L) from read-only balance/position reads, charted over time. Snapshots accrue with no browser open (MIDAS_EQUITY_SNAP_MS, default hourly) and persist across restarts; outages appear as honest gaps in time, never interpolated points. Non-custodial: reads only.",
+  },
+  {
     code: 'WN',
     aliases: ['WHATSNEW', 'CHANGELOG', 'RELEASES'],
     title: "What's New",
