@@ -89,6 +89,15 @@ describe('daily notional ledger + cap', () => {
     expect(ledger.used(DAY + 1)).toBe(0); // next UTC day → fresh budget
   });
 
+  it('releases a failed reservation and floors at zero', () => {
+    const ledger = createDailyLedger();
+    ledger.add(900, 0); // reserve before placing
+    ledger.add(-900, 1000); // placement failed → release
+    expect(ledger.used(2000)).toBe(0);
+    ledger.add(-5000, 3000); // over-release can never go negative
+    expect(ledger.used(4000)).toBe(0);
+  });
+
   it('checkDailyCap rejects only when the order would breach the cap', () => {
     expect(checkDailyCap(5000, 4000, 900)).toBeNull(); // 4900 ≤ 5000
     expect(checkDailyCap(5000, 4500, 900)).toMatch(/daily cap/i); // 5400 > 5000

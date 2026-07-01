@@ -8,7 +8,7 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
-import type { OrderRequest } from '@midas/shared';
+import type { OrderRequest, PlacedOrder } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { ccxtKeysConfigured } from './providers/balances';
@@ -234,9 +234,18 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
       { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId },
       'LIVE order placement',
     );
-    const placed = await provider.placeOrder(body);
-    if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
+    // Reserve against the daily cap BEFORE placing, so two in-flight orders
+    // can't both squeeze under it while the exchange call is awaited; release
+    // the reservation if the placement fails.
     if (placedNotional != null) dailyLedger.add(placedNotional, Date.now());
+    let placed: PlacedOrder;
+    try {
+      placed = await provider.placeOrder(body);
+    } catch (err) {
+      if (placedNotional != null) dailyLedger.add(-placedNotional, Date.now());
+      throw err;
+    }
+    if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
         `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,

@@ -85,6 +85,7 @@ export function computeTradingStatus(
  */
 export interface DailyLedger {
   used(nowMs: number): number;
+  /** Positive = reserve/spend; negative = release a failed reservation. Floors at 0. */
   add(notionalUsd: number, nowMs: number): void;
 }
 
@@ -105,7 +106,7 @@ export function createDailyLedger(): DailyLedger {
     },
     add(notionalUsd, nowMs) {
       roll(nowMs);
-      used += Math.max(0, notionalUsd);
+      used = Math.max(0, used + notionalUsd);
     },
   };
 }
