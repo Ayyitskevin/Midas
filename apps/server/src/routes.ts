@@ -24,6 +24,7 @@ import {
 } from './trading';
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
+import { postWebhookText } from './webhook';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
@@ -34,20 +35,14 @@ function normalizeSymbol(raw: string): string {
 }
 
 /**
- * Fire-and-forget operator notification to the configured alert webhook
- * (Discord `content` / Slack `text` compatible). Live account mutations —
- * order placed, order canceled — are exactly the events an operator wants
- * pushed out-of-band; failures never affect the request.
+ * Fire-and-forget operator notification to the configured alert webhook.
+ * Live account mutations — order placed, order canceled — are exactly the
+ * events an operator wants pushed out-of-band; failures never affect the
+ * request. (Fill notifications come from the account watcher, which shares
+ * the same webhook via postWebhookText.)
  */
 function notifyWebhook(text: string): void {
-  if (!config.alertWebhook) return;
-  fetch(config.alertWebhook, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: text, text }),
-  }).catch(() => {
-    /* best-effort */
-  });
+  postWebhookText(config.alertWebhook, text);
 }
 
 /** Register all Midas API routes against the given provider. */

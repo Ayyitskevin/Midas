@@ -449,6 +449,7 @@ Server (environment variables):
 | `MIDAS_CCXT_API_KEY`  | _(unset)_   | **Read-only** exchange API key for live account balances (`BAL`). Non-custodial: Midas only ever reads (`fetchBalance`) — it never places orders or moves funds. Leave unset to keep balances in synthetic demo mode. |
 | `MIDAS_CCXT_SECRET`   | _(unset)_   | Secret paired with `MIDAS_CCXT_API_KEY`. Both must be set to enable live balances. |
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
+| `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
 | `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` to read live on-chain/DEX pools (`DEX`) from Dexscreener's public API; otherwise DEX data is honestly labeled unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
