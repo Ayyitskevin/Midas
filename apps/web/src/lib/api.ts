@@ -1,4 +1,5 @@
 import type {
+  AccountEquityResponse,
   AccountEventsResponse,
   AccountFills,
   AccountPositions,
@@ -142,6 +143,9 @@ export const api = {
   // Pass the last seen id to receive only newer events.
   accountEvents: (since?: number, signal?: AbortSignal) =>
     apiGet<AccountEventsResponse>(`/api/account/events${since ? `?since=${since}` : ''}`, signal),
+  // The server's persisted account equity series (read-only snapshots).
+  accountEquity: (signal?: AbortSignal) =>
+    apiGet<AccountEquityResponse>('/api/account/equity', signal),
   // Read-only single-order lookup — TICKET tracks a placement with this.
   getOrder: (id: string, symbol: string, signal?: AbortSignal) =>
     apiGet<PlacedOrder>(

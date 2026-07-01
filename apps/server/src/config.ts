@@ -42,6 +42,10 @@ export interface Config {
   accountWatchMs: number;
   /** Operator digest cadence in hours (0 = off). Needs MIDAS_ALERT_WEBHOOK. */
   digestHours: number;
+  /** Account equity snapshot cadence in ms (0 = off; default hourly). */
+  equitySnapMs: number;
+  /** JSON file backing the equity snapshot series. */
+  equityFile: string;
   version: string;
 }
 
@@ -82,5 +86,7 @@ export const config: Config = {
   maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
   accountWatchMs: Number(env('MIDAS_ACCOUNT_WATCH_MS', '10000')),
   digestHours: Number(env('MIDAS_DIGEST_HOURS', '0')),
+  equitySnapMs: Number(env('MIDAS_EQUITY_SNAP_MS', '3600000')),
+  equityFile: env('MIDAS_EQUITY_FILE', `${env('MIDAS_DATA_DIR', './data')}/equity.json`),
   version: '0.3.0',
 };

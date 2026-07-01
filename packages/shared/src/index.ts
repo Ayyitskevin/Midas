@@ -505,6 +505,26 @@ export interface AccountOrderEvent {
   status: string | null;
 }
 
+/** One periodic snapshot of real account value (read-only observation). */
+export interface EquityPoint {
+  /** Epoch millis the snapshot was taken. */
+  at: number;
+  /** Total account value in USD across priced assets. */
+  totalUsd: number;
+  /** Unrealized P&L across open positions at that moment; null if unknown. */
+  unrealizedPnlUsd: number | null;
+}
+
+/** The account equity series the server has accumulated. */
+export interface AccountEquityResponse {
+  /** Whether the snapshot loop is running (keys + live provider + interval > 0). */
+  watching: boolean;
+  /** Why it is off, or null when running. */
+  note: string | null;
+  /** Oldest → newest. */
+  points: EquityPoint[];
+}
+
 /** The account event feed: what the server-side order watcher has observed. */
 export interface AccountEventsResponse {
   /** Whether the watcher loop is running (keys + live provider + interval > 0). */

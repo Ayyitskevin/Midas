@@ -3,6 +3,8 @@ import { useFetch } from '@/lib/hooks';
 import { useAccountRefresh } from '@/lib/accountBus';
 import { fmtCompact, fmtPrice } from '@/lib/format';
 import { fillsBadge, type AccountTone } from '@/lib/accountReadsView';
+import { fillSlippageBps, fmtBps } from '@/lib/postTradeSlippage';
+import { useFillBaselines } from '@/store/useFillBaselines';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -43,6 +45,9 @@ export function FillsModule({ panel }: ModuleProps) {
   useAccountRefresh(refresh);
 
   const badge = data ? fillsBadge(data) : null;
+  // Placement-time estimates recorded by TICKET in this browser — the join
+  // key is the fill's orderId. Fills placed elsewhere have no baseline.
+  const baselines = useFillBaselines((s) => s.baselines);
 
   return (
     <div className="flex h-full flex-col">
@@ -75,30 +80,46 @@ export function FillsModule({ panel }: ModuleProps) {
                 <th className="px-2 py-1 text-right font-normal">AMOUNT</th>
                 <th className="px-2 py-1 text-right font-normal">COST</th>
                 <th className="px-2 py-1 text-right font-normal">FEE</th>
+                <th
+                  className="px-2 py-1 text-right font-normal"
+                  title="Realized vs the TICKET preview's estimated fill (recorded in this browser at placement). + = worse than estimated."
+                >
+                  SLIP
+                </th>
                 <th className="px-2 py-1 text-right font-normal" title="maker / taker">
                   M/T
                 </th>
               </tr>
             </thead>
             <tbody>
-              {data.fills.map((f) => (
-                <tr key={f.id} className="border-b border-term-border/20 hover:bg-term-header/40">
-                  <td className="px-2 py-0.5 text-term-dim">{fmtTime(f.timestamp)}</td>
-                  <td className="px-2 py-0.5 text-term-text">{f.symbol}</td>
-                  <td className={`px-2 py-0.5 ${f.side === 'buy' ? 'text-term-up' : 'text-term-down'}`}>
-                    {f.side.toUpperCase()}
-                  </td>
-                  <td className="px-2 py-0.5 text-right">{fmtPrice(f.price)}</td>
-                  <td className="px-2 py-0.5 text-right text-term-muted">{fmtAmount(f.amount)}</td>
-                  <td className="px-2 py-0.5 text-right text-term-muted">{fmtCompact(f.cost)}</td>
-                  <td className="px-2 py-0.5 text-right text-term-dim">
-                    {f.fee == null ? '—' : `${f.fee.toLocaleString(undefined, { maximumFractionDigits: 6 })}${f.feeCurrency ? ` ${f.feeCurrency}` : ''}`}
-                  </td>
-                  <td className="px-2 py-0.5 text-right text-term-dim">
-                    {f.takerOrMaker ? f.takerOrMaker[0].toUpperCase() : '—'}
-                  </td>
-                </tr>
-              ))}
+              {data.fills.map((f) => {
+                const slip = fillSlippageBps(f, baselines);
+                return (
+                  <tr key={f.id} className="border-b border-term-border/20 hover:bg-term-header/40">
+                    <td className="px-2 py-0.5 text-term-dim">{fmtTime(f.timestamp)}</td>
+                    <td className="px-2 py-0.5 text-term-text">{f.symbol}</td>
+                    <td className={`px-2 py-0.5 ${f.side === 'buy' ? 'text-term-up' : 'text-term-down'}`}>
+                      {f.side.toUpperCase()}
+                    </td>
+                    <td className="px-2 py-0.5 text-right">{fmtPrice(f.price)}</td>
+                    <td className="px-2 py-0.5 text-right text-term-muted">{fmtAmount(f.amount)}</td>
+                    <td className="px-2 py-0.5 text-right text-term-muted">{fmtCompact(f.cost)}</td>
+                    <td className="px-2 py-0.5 text-right text-term-dim">
+                      {f.fee == null ? '—' : `${f.fee.toLocaleString(undefined, { maximumFractionDigits: 6 })}${f.feeCurrency ? ` ${f.feeCurrency}` : ''}`}
+                    </td>
+                    <td
+                      className={`px-2 py-0.5 text-right ${
+                        slip == null ? 'text-term-dim' : slip > 0 ? 'text-term-down' : 'text-term-up'
+                      }`}
+                    >
+                      {slip == null ? '—' : fmtBps(slip)}
+                    </td>
+                    <td className="px-2 py-0.5 text-right text-term-dim">
+                      {f.takerOrMaker ? f.takerOrMaker[0].toUpperCase() : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

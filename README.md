@@ -222,6 +222,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
 | `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. After placement the ticket **tracks the order live** (open → partially filled → filled/canceled, with a fill progress bar). When trading is live, `ORD` also gains a two-step per-order **cancel**. |
 | `WN`    | `WHATSNEW`, `CHANGELOG`, `RELEASES` | no | What's New — release highlights in-terminal, newest first. Pairs with a one-time "Midas updated to vX" toast when your server moves to a new version. |
+| `AEQ`   | `ACCTEQ`, `ACCTCURVE` | no | Your real account's **equity curve** — periodic server-side snapshots of total value + unrealized P&L (read-only), persisted across restarts and accruing with no browser open (`MIDAS_EQUITY_SNAP_MS`, default hourly). Outages render as honest gaps, never interpolated points. |
+| `XQL`   | `EXECQ`, `TCA` | no | **Execution quality** from your own fills — maker/taker mix, fee totals by currency, notional, and realized slippage vs the estimates `TICKET` recorded at placement (notional-weighted, with an honest coverage %). Per-symbol breakdown; symbol-aware like `FILLS`. |
 | `RHEAT` | `EXPOSURE`, `PRISK` | no      | Portfolio risk heat — per-position P&L, exposure and liquidation distance across your book. |
 | `EXP`   | `EXPO`, `WEIGHTS`, `GROSS` | no | Portfolio exposure breakdown — net/gross, long vs short, per-asset weights, leverage & concentration. |
 | `PBETA` | `PORTBETA`, `BWEIGHT`, `NETBETA` | no | Beta-weighted portfolio exposure to BTC — collapse the book into one BTC-equivalent delta with per-position contributions. |
@@ -482,6 +484,7 @@ Server (environment variables):
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
 | `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a summary of alerts fired + order flow observed to the webhook (`168` = weekly, `0` = off, floored at 1). |
+| `MIDAS_EQUITY_SNAP_MS` | `3600000`  | Account equity snapshot cadence for the `AEQ` curve (read-only; persisted in the data dir). `0` = off; floored at `60000`. |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
