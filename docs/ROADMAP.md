@@ -20,12 +20,15 @@ the repo has used throughout.
 
 ## Week 2 — market data depth
 
-- **WebSocket account streams.** Where ccxt.pro supports it, stream balance /
-  order / fill updates instead of polling (the trades/book stream plumbing
-  already exists).
-- **Multi-venue account view.** Optional second keyed exchange; BAL/ORD/POSN
-  gain a venue column (the seam already isolates the exchange client).
-- **More DEX sources** behind the honest on-chain seam (GeckoTerminal fallback).
+- ✅ **WebSocket account streams.** *(Shipped)* Where ccxt.pro supports
+  watchOrders, the stream NUDGES the account watcher to poll immediately —
+  fills surface in ~1s. REST stays the source of truth, so unsupported venues
+  degrade to plain polling.
+- ✅ **Multi-venue account view.** *(Shipped)* Optional second keyed exchange
+  (`MIDAS_CCXT_EXCHANGE_2` + keys); BAL/ORD/POSN/FILLS merge both accounts
+  with per-row venue tags and honest secondary-failure notes.
+- ✅ **More DEX sources.** *(Shipped)* GeckoTerminal joins Dexscreener behind
+  the honest on-chain seam (`MIDAS_DEX_SOURCE=geckoterminal`).
 
 ## Week 3 — analytics that close the loop
 
@@ -35,8 +38,11 @@ the repo has used throughout.
 - ✅ **Account equity curve (AEQ).** *(Shipped)* Periodic server-side equity
   snapshots (file-backed, hourly by default) charted in-terminal — the paper
   EQ board pattern applied to the real account, with truthful gaps.
-- **Alert on account events.** Alert rules on position P&L and balance drift,
-  not just prices.
+- ✅ **Alert on account events.** *(Shipped)* Alert rules on position
+  unrealized P&L (`upnl`, USD, per symbol) and total account equity
+  (`equity`, USD) — evaluated by the same engine, webhook-delivered, and
+  honest: an unreadable account leaves rules armed rather than firing on
+  demo/stale numbers.
 
 ## Week 4 — distribution & (optional) SaaS groundwork
 

@@ -16,6 +16,14 @@ highlights; this file is the complete record. Versions follow semver;
 - **Execution quality board (`XQL`)** — maker/taker mix, fee totals by
   currency, notional and notional-weighted realized slippage with an honest
   coverage %, account-wide or per symbol.
+- **Account-event alerts** — rules on position unrealized P&L (`upnl`) and
+  total account equity (`equity`), in USD, via the existing alert engine.
+- **Account stream nudge** — ccxt.pro `watchOrders` (where supported) makes
+  fill notifications near-realtime; REST polling remains the source of truth.
+- **Multi-venue account view** — optional second keyed exchange; BAL / ORD /
+  POSN / FILLS merge both accounts with per-row venue tags.
+- **GeckoTerminal DEX source** — `MIDAS_DEX_SOURCE=geckoterminal` as an
+  alternative to Dexscreener behind the same honest seam.
 
 ## [0.3.0] — 2026-07-01
 

@@ -26,6 +26,7 @@ import type {
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
+import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
@@ -398,6 +399,7 @@ export class CcxtProvider implements DataProvider {
     const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
     // Opt-in live on-chain read (Dexscreener); otherwise honestly unavailable.
     if (dexscreenerEnabled()) return fetchDexPools(base);
+    if (geckoterminalEnabled()) return fetchGeckoPools(base);
     return {
       symbol: base,
       provenance: 'unavailable',
