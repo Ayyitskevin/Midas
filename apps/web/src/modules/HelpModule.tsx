@@ -36,7 +36,8 @@ HELP              this panel`}
           </li>
           <li>
             <span className="text-term-text">Read-only</span> — set read-only exchange API keys on the server and the
-            same panels show your real balances, orders, positions and fills. Nothing can be placed.
+            same panels show your real balances, orders, positions and fills. Nothing can be placed. A read-only
+            watcher also turns fills and cancels into toasts here + webhook pushes (MIDAS_ACCOUNT_WATCH_MS).
           </li>
           <li>
             <span className="text-term-text">Live</span> — explicitly enable trading on the server (master switch +
