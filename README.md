@@ -46,7 +46,9 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
   that jumps to any command or symbol.
 - **Tiling panel workspace.** Drag, resize and arrange panels on a 12-column
   grid; named workspaces and layout/watchlists persist locally and (optionally)
-  sync per-user to the server.
+  sync per-user to the server. Any workspace exports to a file — or to a
+  **share link** (⧉) that recreates it in someone else's Midas straight from
+  the URL, nothing uploaded.
 - **Charts & microstructure.** Candles with overlays (SMA/EMA/Bollinger/MACD/
   VWAP/Volume Profile) and drawings, L2 order book (`BOOK`), depth heatmap
   (`DEPTH`), time & sales, CVD.
@@ -449,9 +451,12 @@ keep evaluating even with no browser open. Rules + triggers persist to
 `MIDAS_ALERTS_FILE` (the `midas-data` volume under Docker). Set
 `MIDAS_ALERT_WEBHOOK` to **POST fires to a webhook** (a Discord or Slack
 incoming-webhook URL works as-is) for delivery with no terminal open at all.
-The `ALERT` panel's **Server** mode manages these rules. The same webhook can
-carry a periodic **operator digest** (`MIDAS_DIGEST_HOURS=168` for weekly): a
-summary of alerts fired and account order flow observed since the last one.
+The `ALERT` panel's **Server** mode manages these rules, and its ⚡ row arms
+the classic setups in one click (funding flip, ±5% day move, 5% equity
+drawdown). The same webhook can carry a periodic **operator digest**
+(`MIDAS_DIGEST_HOURS=24` for a daily P&L recap): equity change since the last
+digest, fills with round-trip realized P&L and fees, the biggest movers among
+your position symbols, plus alerts fired and order flow observed.
 
 With **auth enabled**, the terminal also **syncs each user's workspaces, paper
 portfolio, watchlists and notes** to the server (`GET/PUT /api/workspaces`,
@@ -489,7 +494,7 @@ Server (environment variables):
 | `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios, watchlists, notes) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
-| `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a summary of alerts fired + order flow observed to the webhook (`168` = weekly, `0` = off, floored at 1). |
+| `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a P&L recap (equity change, fills + round-trip P&L, top movers) plus alerts fired + order flow to the webhook (`24` = daily, `168` = weekly, `0` = off, floored at 1). |
 | `MIDAS_EQUITY_SNAP_MS` | `3600000`  | Account equity snapshot cadence for the `AEQ` curve (read-only; persisted in the data dir). `0` = off; floored at `60000`. |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|

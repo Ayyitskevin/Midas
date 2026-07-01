@@ -73,7 +73,7 @@ describe('createDigestSource', () => {
     };
   };
 
-  it('covers exactly the period since the previous digest and resets its cursors', () => {
+  it('covers exactly the period since the previous digest and resets its cursors', async () => {
     let nowMs = 0;
     const watcher = stubWatcher();
     const source = createDigestSource({
@@ -87,20 +87,20 @@ describe('createDigestSource', () => {
     source.addAlertFires(2);
     watcher.feed([ev(1, 'fill'), ev(2, 'filled')]); // activity during the period
     nowMs = DAY;
-    const first = source.compose();
+    const first = await source.compose();
     expect(first).toContain('Alerts fired: 5');
     expect(first).toContain('1 partial fill');
     expect(first).toContain('Covers the last 1.0 day.');
 
     // Second period: nothing new happened → counts reset, coverage restarts.
     nowMs = 2 * DAY;
-    const second = source.compose();
+    const second = await source.compose();
     expect(second).toContain('Alerts fired: 0');
     expect(second).toContain('no order activity observed');
     expect(second).toContain('Covers the last 1.0 day.');
   });
 
-  it('counts ring-buffer overflow as missed events, not silence', () => {
+  it('counts ring-buffer overflow as missed events, not silence', async () => {
     const watcher = stubWatcher();
     const source = createDigestSource({
       providerName: 'ccxt:binance',
@@ -111,12 +111,12 @@ describe('createDigestSource', () => {
     });
     // 10 events happened this period, but the ring buffer only retained 8-10.
     watcher.feed([ev(8, 'fill'), ev(9, 'fill'), ev(10, 'canceled')]);
-    const text = source.compose();
+    const text = await source.compose();
     expect(text).toContain('≥2 partial fills');
     expect(text).toContain('7 older events aged out');
   });
 
-  it('is honest without a watcher and never double-counts fires', () => {
+  it('is honest without a watcher and never double-counts fires', async () => {
     const source = createDigestSource({
       providerName: 'mock',
       providerLive: false,
@@ -126,7 +126,7 @@ describe('createDigestSource', () => {
     });
     source.addAlertFires(1);
     source.addAlertFires(-5); // defensive: negative adds are ignored
-    expect(source.compose()).toContain('account watcher off');
-    expect(source.compose()).toContain('Alerts fired: 0'); // reset after first compose
+    expect(await source.compose()).toContain('account watcher off');
+    expect(await source.compose()).toContain('Alerts fired: 0'); // reset after first compose
   });
 });

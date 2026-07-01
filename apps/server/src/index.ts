@@ -127,8 +127,11 @@ async function main(): Promise<void> {
   });
   if (config.alertWebhook) app.log.info('alert webhook delivery enabled');
 
-  // Operator digest: a periodic webhook summary of alerts fired + order flow
-  // observed since the last one. Opt-in and pointless without a webhook.
+  // Operator digest: a periodic webhook summary — daily P&L recap (equity,
+  // fills, movers) + alerts fired + order flow observed since the last one.
+  // Opt-in and pointless without a webhook. The recap reads only run against
+  // a keyed live provider; otherwise those sections are honestly omitted.
+  const accountReadable = provider.live && ccxtKeysConfigured();
   const digest =
     config.digestHours > 0 && config.alertWebhook
       ? createDigestSource({
@@ -136,6 +139,8 @@ async function main(): Promise<void> {
           providerLive: provider.live,
           version: config.version,
           watcher: accountWatch,
+          accountProvider: accountReadable ? provider : null,
+          equityPoints: accountEquity ? () => accountEquity.repo.points() : null,
         })
       : null;
   if (digest) {
