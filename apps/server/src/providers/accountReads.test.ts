@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapMyTrades, mapOpenOrders, mapPositions, sumUnrealizedPnl } from './accountReads';
+import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 
 describe('mapOpenOrders', () => {
   // A representative slice of a ccxt fetchOpenOrders() result.
@@ -178,5 +178,33 @@ describe('sumUnrealizedPnl', () => {
       { symbol: 'ETH/USDT:USDT', side: 'short', contracts: 1, unrealizedPnl: -200 },
     ]);
     expect(sumUnrealizedPnl(rows)).toBe(300);
+  });
+});
+
+describe('mergeVenueRows', () => {
+  interface Row {
+    id: string;
+    ts: number | null;
+    venue?: string;
+  }
+
+  it('tags every row with its venue and re-sorts by the key, nulls last', () => {
+    const merged = mergeVenueRows<Row>(
+      [
+        { id: 'a', ts: 5 },
+        { id: 'b', ts: null },
+      ],
+      'binance',
+      [{ id: 'c', ts: 9 }],
+      'kraken',
+      (r) => r.ts,
+    );
+    expect(merged.map((r) => `${r.id}@${r.venue}`)).toEqual(['c@kraken', 'a@binance', 'b@binance']);
+  });
+
+  it('handles an empty secondary (failed or unsupported venue)', () => {
+    const merged = mergeVenueRows<Row>([{ id: 'a', ts: 1 }], 'binance', [], 'kraken', (r) => r.ts);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].venue).toBe('binance');
   });
 });

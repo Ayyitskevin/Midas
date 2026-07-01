@@ -6,6 +6,7 @@ import { useToasts } from '@/store/useToasts';
 import { useSettings } from '@/store/useSettings';
 import { openModule } from '@/commands/execute';
 import {
+  ACCOUNT_SYMBOL,
   newTriggersSince,
   notifyTrigger,
   playBeep,
@@ -91,9 +92,45 @@ export function AlertsEngine() {
           ...new Set(active.filter((a) => a.metric === 'price' || a.metric === 'change').map((a) => a.symbol)),
         ];
         const fundSyms = [...new Set(active.filter((a) => a.metric === 'funding').map((a) => a.symbol))];
+        const wantsUpnl = active.some((a) => a.metric === 'upnl');
+        const wantsEquity = active.some((a) => a.metric === 'equity');
 
         const readings: Readings = {};
         const tasks: Promise<void>[] = [];
+        // Account metrics: one read each, honest live values only — an
+        // unreadable account leaves the rule armed rather than firing on
+        // demo/synthetic numbers.
+        if (wantsUpnl) {
+          tasks.push(
+            api
+              .positions(controller.signal)
+              .then((pos) => {
+                if (pos.provenance !== 'live') return;
+                for (const p of pos.positions) {
+                  if (p.unrealizedPnlUsd == null) continue;
+                  const sym = p.symbol.toUpperCase();
+                  (readings[sym] ??= {}).upnl = p.unrealizedPnlUsd;
+                  const spot = sym.split(':')[0];
+                  if (spot !== sym && readings[spot]?.upnl == null) {
+                    (readings[spot] ??= {}).upnl = p.unrealizedPnlUsd;
+                  }
+                }
+              })
+              .catch(() => {}),
+          );
+        }
+        if (wantsEquity) {
+          tasks.push(
+            api
+              .balances(controller.signal)
+              .then((bal) => {
+                if (bal.provenance === 'live' && bal.totalValueUsd != null) {
+                  (readings[ACCOUNT_SYMBOL] ??= {}).equity = bal.totalValueUsd;
+                }
+              })
+              .catch(() => {}),
+          );
+        }
         if (quoteSyms.length > 0) {
           tasks.push(
             api

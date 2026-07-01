@@ -6,6 +6,7 @@ import { useFetch } from '@/lib/hooks';
 import { useAlertActions } from '@/store/useAlertActions';
 import { ALERT_ACTIONS } from '@/lib/alertAction';
 import {
+  ACCOUNT_SYMBOL,
   canNotify,
   describeThreshold,
   formatActual,
@@ -24,6 +25,8 @@ const METRICS: { code: AlertMetric; label: string }[] = [
   { code: 'price', label: 'Price' },
   { code: 'funding', label: 'Funding %' },
   { code: 'change', label: '24h %' },
+  { code: 'upnl', label: 'Position uP&L $' },
+  { code: 'equity', label: 'Account equity $' },
 ];
 
 const OPS: { code: AlertOp; label: string }[] = [
@@ -118,8 +121,10 @@ export function AlertsModule({ panel }: ModuleProps) {
   function submit(e: FormEvent) {
     e.preventDefault();
     const v = Number(value);
-    if (!symbol.trim() || !Number.isFinite(v)) return;
-    void onAdd({ symbol: symbol.trim().toUpperCase(), metric, op, value: v, note, repeat });
+    // Account equity has no pair — it keys on the ACCOUNT pseudo-symbol.
+    const sym = metric === 'equity' ? ACCOUNT_SYMBOL : symbol.trim().toUpperCase();
+    if (!sym || !Number.isFinite(v)) return;
+    void onAdd({ symbol: sym, metric, op, value: v, note, repeat });
     setValue('');
     setNote('');
   }
@@ -134,10 +139,12 @@ export function AlertsModule({ panel }: ModuleProps) {
       <form onSubmit={submit} className="space-y-1.5 border-b border-term-border p-2">
         <div className="flex gap-1.5">
           <input
-            value={symbol}
+            value={metric === 'equity' ? ACCOUNT_SYMBOL : symbol}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
             placeholder="BTC/USDT"
-            className={`${inputCls} w-28 uppercase`}
+            disabled={metric === 'equity'}
+            title={metric === 'equity' ? 'Account equity is account-wide — no symbol needed.' : undefined}
+            className={`${inputCls} w-28 uppercase disabled:opacity-60`}
           />
           <select value={metric} onChange={(e) => setMetric(e.target.value as AlertMetric)} className={`${inputCls} flex-1`}>
             {METRICS.map((m) => (
@@ -160,7 +167,7 @@ export function AlertsModule({ panel }: ModuleProps) {
             onChange={(e) => setValue(e.target.value)}
             type="number"
             step="any"
-            placeholder={metric === 'price' ? 'price' : '%'}
+            placeholder={metric === 'price' ? 'price' : metric === 'upnl' || metric === 'equity' ? 'USD' : '%'}
             className={`${inputCls} flex-1`}
           />
         </div>

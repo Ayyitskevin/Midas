@@ -98,7 +98,7 @@ export function BalancesModule(_props: ModuleProps) {
                 const pct = allocByAsset.get(b.asset);
                 return (
                   <tr key={b.asset} className="border-b border-term-border/20 hover:bg-term-header/40">
-                    <td className="px-2 py-0.5 font-semibold text-term-text">{b.asset}</td>
+                    <td className="px-2 py-0.5 font-semibold text-term-text">{b.asset}{b.venue && <span className="ml-1 font-normal text-term-dim" title={`venue: ${b.venue}`}>·{b.venue}</span>}</td>
                     <td className="px-2 py-0.5 text-right text-term-muted">{fmtAmount(b.free)}</td>
                     <td className="px-2 py-0.5 text-right text-term-dim">
                       {b.used > 0 ? fmtAmount(b.used) : '—'}

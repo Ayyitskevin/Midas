@@ -38,6 +38,11 @@ services:
       MIDAS_CCXT_API_KEY: ${MIDAS_CCXT_API_KEY:-}
       MIDAS_CCXT_SECRET: ${MIDAS_CCXT_SECRET:-}
       MIDAS_CCXT_PASSWORD: ${MIDAS_CCXT_PASSWORD:-}
+      # Optional second keyed venue (multi-venue account view).
+      MIDAS_CCXT_EXCHANGE_2: ${MIDAS_CCXT_EXCHANGE_2:-}
+      MIDAS_CCXT_API_KEY_2: ${MIDAS_CCXT_API_KEY_2:-}
+      MIDAS_CCXT_SECRET_2: ${MIDAS_CCXT_SECRET_2:-}
+      MIDAS_CCXT_PASSWORD_2: ${MIDAS_CCXT_PASSWORD_2:-}
       # Fill notifications: open-order watch cadence in ms (0 = off).
       MIDAS_ACCOUNT_WATCH_MS: ${MIDAS_ACCOUNT_WATCH_MS:-10000}
       # Operator digest cadence in hours (0 = off; 168 = weekly).

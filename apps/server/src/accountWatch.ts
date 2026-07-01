@@ -210,6 +210,22 @@ export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle
   };
 }
 
+/**
+ * Coalesce a burst of stream events into one delayed call — a venue can emit
+ * several order updates in the same instant, and one poll covers them all.
+ */
+export function createNudgeDebouncer(fn: () => void, delayMs = 500): () => void {
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  return () => {
+    if (pending) return;
+    pending = setTimeout(() => {
+      pending = null;
+      fn();
+    }, delayMs);
+    (pending as { unref?: () => void }).unref?.();
+  };
+}
+
 /** Production entry: the watcher on a periodic timer (same shape as the alert loop). */
 export function startAccountWatch(deps: AccountWatchDeps & { intervalMs: number }): AccountWatchHandle {
   const watcher = createAccountWatcher(deps);

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { AccountProvenance, OpenOrder, OpenOrders, PlacedOrder } from '@midas/shared';
 import {
   createAccountWatcher,
+  createNudgeDebouncer,
   diffOpenOrders,
   formatAccountEvent,
   registerAccountEventsRoute,
@@ -207,6 +208,23 @@ describe('account watcher engine', () => {
     expect(w.eventsSince(0)).toHaveLength(2); // ring buffer dropped the oldest
     expect(w.eventsSince(2).map((e) => e.orderId)).toEqual(['c']);
     expect(w.eventsSince(3)).toHaveLength(0);
+  });
+});
+
+describe('createNudgeDebouncer', () => {
+  it('coalesces a burst into one call, then accepts the next burst', async () => {
+    let calls = 0;
+    const nudge = createNudgeDebouncer(() => {
+      calls += 1;
+    }, 10);
+    nudge();
+    nudge();
+    nudge();
+    await new Promise((r) => setTimeout(r, 25));
+    expect(calls).toBe(1);
+    nudge();
+    await new Promise((r) => setTimeout(r, 25));
+    expect(calls).toBe(2);
   });
 });
 

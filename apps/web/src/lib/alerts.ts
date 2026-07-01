@@ -12,6 +12,7 @@ import { opSymbol } from '@midas/shared';
 import type { Alert, AlertMetric, AlertTrigger } from '@midas/shared';
 
 export {
+  ACCOUNT_SYMBOL,
   alertOpForLevel,
   conditionMet,
   evaluateAlerts,
@@ -35,13 +36,18 @@ export type {
 // Formatting
 // ---------------------------------------------------------------------------
 
+const USD_METRICS: readonly AlertMetric[] = ['upnl', 'equity'];
+
 export function formatThreshold(metric: AlertMetric, value: number): string {
-  return metric === 'price' ? fmtPrice(value) : `${value}%`;
+  if (metric === 'price') return fmtPrice(value);
+  if (USD_METRICS.includes(metric)) return `$${fmtPrice(value)}`;
+  return `${value}%`;
 }
 
 export function formatActual(metric: AlertMetric, value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—';
   if (metric === 'price') return fmtPrice(value);
+  if (USD_METRICS.includes(metric)) return `$${fmtPrice(value)}`;
   return `${value.toFixed(metric === 'funding' ? 4 : 2)}%`;
 }
 

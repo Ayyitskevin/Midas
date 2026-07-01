@@ -97,7 +97,7 @@ export function FillsModule({ panel }: ModuleProps) {
                 return (
                   <tr key={f.id} className="border-b border-term-border/20 hover:bg-term-header/40">
                     <td className="px-2 py-0.5 text-term-dim">{fmtTime(f.timestamp)}</td>
-                    <td className="px-2 py-0.5 text-term-text">{f.symbol}</td>
+                    <td className="px-2 py-0.5 text-term-text">{f.symbol}{f.venue && <span className="ml-1 text-term-dim" title={`venue: ${f.venue}`}>·{f.venue}</span>}</td>
                     <td className={`px-2 py-0.5 ${f.side === 'buy' ? 'text-term-up' : 'text-term-down'}`}>
                       {f.side.toUpperCase()}
                     </td>

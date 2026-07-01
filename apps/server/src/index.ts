@@ -4,7 +4,7 @@ import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
 import { startAlertLoop } from './alerts/engine';
 import { createNotifier } from './alerts/notify';
-import { startAccountWatch } from './accountWatch';
+import { createNudgeDebouncer, startAccountWatch } from './accountWatch';
 import { ccxtKeysConfigured } from './providers/balances';
 import { postWebhookText } from './webhook';
 import { createDigestSource, startDigestLoop } from './digest';
@@ -62,6 +62,13 @@ async function main(): Promise<void> {
       { intervalMs: Math.max(2000, config.accountWatchMs) },
       'account watcher running — fill notifications on',
     );
+    // Where the venue streams order updates (ccxt.pro), use them as a NUDGE:
+    // poll immediately instead of waiting out the interval. REST stays the
+    // source of truth, so a dead stream just degrades to plain polling.
+    const stopNudge = provider.streamAccountNudge?.(
+      createNudgeDebouncer(() => void accountWatch.tick()),
+    );
+    if (stopNudge) app.log.info('account stream nudge active (ccxt.pro watchOrders)');
   }
   if (accountEquity) {
     const snapMs = Math.max(60_000, config.equitySnapMs); // floor: once a minute
