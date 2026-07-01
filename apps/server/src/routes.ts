@@ -141,6 +141,21 @@ export function registerRoutes(app: FastifyInstance, provider: DataProvider): vo
     const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
     return provider.getFills(symbol);
   });
+  // Read-only single-order lookup — powers TICKET's post-placement tracking
+  // (placed → partial → filled/canceled) and the account watcher's
+  // closed-order resolution. A read, so it is NOT gated by the trading
+  // switches — only by the provider actually supporting the lookup.
+  app.get<{ Params: { id: string }; Querystring: { symbol?: string } }>(
+    '/api/orders/:id',
+    async (req) => {
+      const id = req.params.id.trim();
+      const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
+      if (!id) throw new ProviderError('Missing order id', 400);
+      if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to look up an order)', 400);
+      if (!provider.getOrder) throw new ProviderError('This provider cannot look up orders.', 501);
+      return provider.getOrder(id, symbol);
+    },
+  );
 
   // --- Live trading (opt-in, OFF by default) -------------------------------
   // Every gate lives in trading.ts (pure + tested). The status endpoint tells
