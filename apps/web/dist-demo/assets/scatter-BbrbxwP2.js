@@ -1,0 +1,1 @@
+function m(s,o){const e=Math.min(s.length,o.length);if(e<2)return null;let n=0,r=0;for(let t=0;t<e;t++)n+=s[t],r+=o[t];n/=e,r/=e;let i=0,l=0,c=0;for(let t=0;t<e;t++){const h=s[t]-n,u=o[t]-r;i+=h*u,l+=h*h,c+=u*u}if(l===0)return null;const f=i/l,a=c>0?Math.max(-1,Math.min(1,i/Math.sqrt(l*c))):0;return{slope:f,intercept:r-f*n,correlation:a,r2:a*a,n:e}}export{m as r};
