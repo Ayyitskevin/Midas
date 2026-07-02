@@ -1,0 +1,1 @@
+function u(o,n,c){const s=new Map(n.map(e=>[e.time,e.close])),i=[];for(const e of o){const t=s.get(e.time);if(t!=null)if(c==="ratio"){if(!(t>0))continue;i.push({time:e.time,value:e.close/t})}else i.push({time:e.time,value:e.close-t})}return i}export{u as c};
