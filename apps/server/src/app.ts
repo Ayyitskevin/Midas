@@ -68,6 +68,10 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
+    // Fastify's default, made explicit: no request body may exceed 1 MiB.
+    // The biggest legitimate payloads (workspace/portfolio snapshots) sit
+    // well under this; everything larger is an honest 413, not an allocation.
+    bodyLimit: 1024 * 1024,
   });
 
   await app.register(cors, { origin: config.corsOrigin });
