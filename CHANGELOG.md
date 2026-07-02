@@ -4,7 +4,12 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
-## [Unreleased]
+## [0.5.0] — 2026-07-02
+
+The hosted-ready release: everything a multi-user Midas needs — per-user
+keys end to end (store → read → trade → loops), the retention features that
+make it a daily habit, and the scale guardrails (budgets, limits, load
+checks) to run it for other people.
 
 ### Added
 - **`KEYS` panel** — manage your per-user exchange keys from the terminal:

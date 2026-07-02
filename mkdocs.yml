@@ -1,0 +1,34 @@
+site_name: Midas
+site_description: Self-hosted, open-source crypto terminal — Bloomberg power, zero rent.
+site_url: https://ayyitskevin.github.io/Midas/
+repo_url: https://github.com/Ayyitskevin/Midas
+repo_name: Ayyitskevin/Midas
+docs_dir: docs
+exclude_docs: |
+  research/
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: amber
+    accent: amber
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Hosted beta runbook: HOSTED_BETA.md
+  - Architecture: ARCHITECTURE.md
+  - Per-user keys design: HOSTED_KEYS_DESIGN.md
+  - Roadmap: ROADMAP.md

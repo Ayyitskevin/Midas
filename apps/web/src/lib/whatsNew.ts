@@ -16,6 +16,18 @@ export interface Release {
 /** Newest first. Keep entries short — headlines, not commit logs. */
 export const RELEASES: Release[] = [
   {
+    version: '0.5.0',
+    date: '2026-07-02',
+    title: 'The hosted-ready release',
+    highlights: [
+      'KEYS panel: store your own exchange keys — encrypted at rest, write-only, one-action delete',
+      'Your keys, your account: reads AND (opt-in, gated) trading go to your own exchange account with your own daily budget',
+      'Daily P&L recap in the digest — equity change, round-trip realized P&L, fees, top movers (MIDAS_DIGEST_HOURS=24)',
+      'One-click alert templates (⚡ in ALERT): funding flip, ±5% move, equity drawdown',
+      'Workspace share links (⧉): the whole layout in a URL — nothing uploaded',
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-07-01',
     title: 'The whole-roadmap release',

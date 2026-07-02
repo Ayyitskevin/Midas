@@ -55,11 +55,38 @@ many users).
   multi-user, trading gates) — billing via Stripe Payment Links first,
   engineering later. ✅ *Engineering side shipped:* the `KEYS` panel makes
   per-user keys usable without curl.
-- **Docs site** (mkdocs or plain GitHub Pages from /docs) — searchable
-  configuration + panel reference.
-- **Performance pass** — bundle budget, server memory profile with 50
-  keyed users (from the pool design), load test the demo box.
-- **v0.5.0** — release + retro; roadmap v3 from beta feedback.
+- ✅ **Docs site.** *(Shipped)* mkdocs-material over /docs with a Pages
+  workflow — enable Settings → Pages → Source: GitHub Actions once.
+- ✅ **Performance pass.** *(Shipped)* Bundle budgets enforced in CI
+  (main ≤155 KB gzip, total JS ≤700 KB; at 136/598 today) and a
+  dependency-free load-test script (`scripts/loadtest.mjs`) for pre-invite
+  box checks. Memory stays bounded by construction: pool LRU 25, keyed-user
+  loop cap, ring buffers, capped rate-limit map — each with tests.
+- ✅ **v0.5.0** — released; retro below. Roadmap v3 fills in from beta
+  feedback.
+
+## Retro — the second 30 days
+
+**Shipped:** all four weeks, 100%. Conversion (demo mode, START, SYS),
+monetization groundwork (per-user keys PR 1–3 end to end, rate limiting,
+waitlist), retention (P&L recap, alert templates, share links), scale
+(KEYS panel, docs site, budgets, load checks). Server tests 121→186; web
+1706→1774; four releases (0.2.0 → 0.5.0) in two days of calendar time.
+
+**What worked:** design-doc-first for the security-sensitive slice (PR 3
+reviewed against an agreed shape); the four-gate discipline (zero broken
+merges); honesty-as-a-feature keeps writing itself into every panel.
+
+**What to watch:** the key store and per-user loops are young — treat the
+first hosted incidents as roadmap input, not surprises; the digest is
+operator-only until per-user webhooks exist; no billing code on purpose.
+
+## Roadmap v3 (skeleton — filled from beta feedback)
+
+1. **Beta feedback loop** — first 5 hosted users, weekly friction lists.
+2. **Per-user webhooks + digests** — the recap, per user, to their Discord.
+3. **Billing** — Stripe Payment Links for $20/$49 once beta users say yes.
+4. **What the beta demands** — deliberately unplanned until they tell us.
 
 ## Standing invariants (unchanged, non-negotiable)
 
