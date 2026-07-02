@@ -1,0 +1,1 @@
+function a(u,t=8){return u==null?null:u*(24/t)*365*100}function c(u,t,i){const o=i==="asc"?1:-1,s=n=>t==="funding"?n.fundingRate:n.openInterestValue;return[...u].sort((n,e)=>{if(t==="symbol")return o*n.symbol.localeCompare(e.symbol);const l=s(n),r=s(e);return l==null&&r==null?0:l==null?1:r==null?-1:o*(l-r)})}export{a,c as s};

@@ -43,7 +43,7 @@ jobs:
       - run: pnpm --filter @midas/web build:demo
       - run: mkdir -p site/demo && cp -r apps/web/dist-demo/* site/demo/
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
 

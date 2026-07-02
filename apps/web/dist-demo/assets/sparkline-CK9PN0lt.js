@@ -1,0 +1,1 @@
+function f(n){return Math.round(n*100)/100}function x(n,e,i){if(n.length<2)return"";let o=1/0,r=-1/0;for(const t of n)t<o&&(o=t),t>r&&(r=t);const s=r-o,c=1,a=i-c*2,p=n.length;return`M${n.map((t,u)=>{const d=u/(p-1)*e,l=s===0?i/2:c+(1-(t-o)/s)*a;return`${f(d)} ${f(l)}`}).join(" L")}`}export{x as s};
