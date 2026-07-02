@@ -1,4 +1,5 @@
 /** Runtime configuration, read once from the environment at startup. */
+import { MIDAS_VERSION } from '@midas/shared';
 
 export interface Config {
   host: string;
@@ -122,7 +123,7 @@ const baseConfig: Config = {
   keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
   rateLimitRpm: Number(env('MIDAS_RATE_LIMIT_RPM', '0')),
   maxKeyedUsers: Number(env('MIDAS_MAX_KEYED_USERS', '25')),
-  version: '0.5.0',
+  version: MIDAS_VERSION,
 };
 
 export const config: Config = applyDemoMode(baseConfig);

@@ -41,6 +41,7 @@ export function DemoBanner() {
         <span className="rounded-sm bg-term-amber/20 px-1.5 py-0.5 font-semibold text-term-amber">PUBLIC DEMO</span>
         <span className="text-term-text">
           Synthetic market — nothing here is real, and nothing can be traded.
+          <span className="sm:hidden"> Keyboard-first terminal — best on a desktop.</span>
         </span>
         <a
           href="https://github.com/ayyitskevin/midas#quickstart"
@@ -58,7 +59,7 @@ export function DemoBanner() {
         >
           Hosted waitlist →
         </a>
-        <button onClick={dismiss} title="Dismiss" className="no-drag ml-auto text-term-amber hover:text-term-text">
+        <button onClick={dismiss} title="Dismiss" aria-label="Dismiss demo banner" className="no-drag ml-auto text-term-amber hover:text-term-text">
           ✕
         </button>
       </div>

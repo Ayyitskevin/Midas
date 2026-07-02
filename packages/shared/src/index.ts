@@ -64,6 +64,13 @@ export const RANGES: readonly Range[] = [
 // Market data shapes
 // ---------------------------------------------------------------------------
 
+/**
+ * The Midas release version — the single place it is defined. The server
+ * reports it at /api/health, the static demo mirrors it, and the web app's
+ * update toast compares against it.
+ */
+export const MIDAS_VERSION = '0.5.0';
+
 /** Trading status of a symbol's primary exchange. */
 export type MarketState =
   | 'PRE'
