@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:demo": "VITE_MIDAS_STATIC_DEMO=true vite build --base=/Midas/demo/ --outDir=dist-demo"
   },
   "dependencies": {
     "@midas/shared": "workspace:*",

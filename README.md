@@ -14,14 +14,12 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 **Free to self-host, forever.** A hosted tier (**$20/month flat** — we run it,
 you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
 
-<!-- The single biggest adoption win is a screenshot or GIF. Drop one in and
-     uncomment:
-<p align="center"><img src="docs/screenshot.png" alt="The Midas terminal" width="900"></p>
--->
+<p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
-> **Try it in 60 seconds — no API keys, fully offline:** `pnpm install && pnpm dev`.
-> The default provider serves a deterministic *synthetic* market, so the whole
-> terminal runs with zero config; point it at a live source when you're ready.
+> **▶ [Try the live demo](https://ayyitskevin.github.io/Midas/demo/) — right now, in your browser.**
+> The demo is the real terminal running against a synthetic in-browser market:
+> no server, no signup, nothing real, everything honest. Or run it locally in
+> 60 seconds: `pnpm install && pnpm dev`.
 
 ## Why Midas
 
