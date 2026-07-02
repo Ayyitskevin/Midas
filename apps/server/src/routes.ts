@@ -49,7 +49,7 @@ function notifyWebhook(text: string): void {
 export interface ProviderResolver {
   for(userId: string | undefined): DataProvider;
   /** The user's OWN provider or null — never a base fallback (trading path). */
-  userFor?(userId: string | undefined): DataProvider | null;
+  userFor(userId: string | undefined): DataProvider | null;
 }
 
 /** Stored-key facts the trading gate needs; secrets never pass through here. */
@@ -59,7 +59,7 @@ export type KeyMetaLookup = (userId: string) => { canTrade: boolean } | null;
 export function registerRoutes(
   app: FastifyInstance,
   provider: DataProvider,
-  pool: ProviderResolver = { for: () => provider },
+  pool: ProviderResolver = { for: () => provider, userFor: () => null },
   keyMeta: KeyMetaLookup = () => null,
 ): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
@@ -216,7 +216,7 @@ export function registerRoutes(
   const resolveTrading = (userId: string | undefined): TradingResolution => {
     const meta = userId ? keyMeta(userId) : null;
     if (userId && meta) {
-      const userProvider = pool.userFor?.(userId) ?? null;
+      const userProvider = pool.userFor(userId);
       const status = computeTradingStatus(
         tradingCfg,
         {

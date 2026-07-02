@@ -48,8 +48,9 @@ Green gates are the definition of "done". A red gate is never merged around.
 ## Release procedure
 
 1. Move `CHANGELOG.md` `[Unreleased]` under a new version heading.
-2. Bump `version` in `apps/server/src/config.ts` (drives `/api/health` and
-   the in-app update toast).
+2. Bump `MIDAS_VERSION` in `packages/shared/src/index.ts` — the single
+   definition; it drives `/api/health`, the static demo, and the in-app
+   update toast.
 3. Add a `RELEASES` entry in `apps/web/src/lib/whatsNew.ts` (headlines, not
    commit logs).
 4. Gates green → merge → `git tag -a vX.Y.Z <merge-commit> && git push origin vX.Y.Z`

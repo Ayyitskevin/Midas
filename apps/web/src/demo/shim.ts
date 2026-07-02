@@ -1,3 +1,4 @@
+import { MIDAS_VERSION } from '@midas/shared';
 import type { HealthResponse, SystemStatus, TradingStatus } from '@midas/shared';
 import {
   DEMO_SOURCE,
@@ -27,7 +28,7 @@ import {
  * answers 501 with an explanation, and every response is labeled synthetic.
  */
 
-const DEMO_VERSION = '0.5.0';
+const DEMO_VERSION = MIDAS_VERSION;
 const startedAt = Date.now();
 
 const json = (body: unknown, status = 200): Response =>
