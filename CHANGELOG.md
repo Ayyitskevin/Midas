@@ -20,6 +20,15 @@ highlights; this file is the complete record. Versions follow semver;
   whole workspace in its fragment; opening it imports the layout as a new
   workspace (your own are untouched). The payload never leaves the browser —
   nothing is uploaded, and huge workspaces honestly fall back to file export.
+- **Per-user trading + loops** (per-user keys PR 3, completing the hosted
+  design): a signed-in user whose stored key is marked trade-permissioned
+  places/cancels through **their own** exchange client — never the
+  operator's, even if their keys break — behind every existing operator
+  gate, with their own UTC-daily notional budget and idempotency scope and
+  audited identity. Keyed users also get their own fill watcher + equity
+  snapshots (bounded by `MIDAS_MAX_KEYED_USERS`), and their events/equity
+  feeds are isolated: their account or an honest "not running", never the
+  operator's.
 - **Per-user exchange keys** (hosted-tier groundwork, PR 1–2 of the design):
   signed-in users store their own read-only keys via `PUT /api/account/keys`
   — AES-256-GCM encrypted at rest (`MIDAS_KEYS_KMS_SECRET`), metadata-only

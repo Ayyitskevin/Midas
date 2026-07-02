@@ -32,10 +32,21 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`).
 
 - **Per-user keys are encrypted at rest.** With `MIDAS_KEYS_KMS_SECRET` set,
-  signed-in users may store their own read-only exchange keys: AES-256-GCM at
-  rest, write-only API (metadata comes back, secrets never), one-action
-  delete, and strict isolation — a user-keyed client never touches the
-  operator's env keys, and the trading write path never uses user keys.
+  signed-in users may store their own exchange keys: AES-256-GCM at rest,
+  write-only API (metadata comes back, secrets never), one-action delete,
+  and strict isolation — a user-keyed client never inherits the operator's
+  env keys, secondary venue or stream.
+- **Per-user trading follows one rule: your reads' account is your writes'
+  account.** A user with stored keys trades only through their own client,
+  only if they explicitly marked the key trade-permissioned (`canTrade`),
+  and only while every operator gate (master switch, ccxt provider, auth,
+  caps) still passes — with their **own** UTC-daily notional budget and
+  idempotency scope. If their stored keys can't be used, trading is OFF for
+  them; it never silently falls back to the operator's account. Users
+  without stored keys keep the single-account self-host behavior unchanged.
+  Every write is audited with the acting identity, and per-user background
+  loops (fill watcher, equity snapshots) only ever poll the user's own
+  client, bounded by `MIDAS_MAX_KEYED_USERS`.
 
 If you operate a shared or internet-exposed instance, enable authentication, put
 it behind TLS, and treat any configured provider credentials as secrets. The

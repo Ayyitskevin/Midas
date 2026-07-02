@@ -235,17 +235,50 @@ export function startAccountWatch(deps: AccountWatchDeps & { intervalMs: number 
 }
 
 /**
+ * Resolves whose event feed a request sees. `keyed` is true when the user has
+ * stored their own exchange keys — a keyed user only ever sees THEIR feed (or
+ * an honest "not running"), never the operator's.
+ */
+export type UserFeedResolver = (userId: string) => {
+  keyed: boolean;
+  watch: AccountWatchHandle | null;
+};
+
+/**
  * GET /api/account/events?since= — the feed the web client polls for toasts.
  * Registered even when the watcher is off so the response can say so honestly.
- * Auth-guarded like every other /api route when auth is enabled.
+ * Auth-guarded like every other /api route when auth is enabled. Users with
+ * stored keys resolve to their own per-user watcher; everyone else sees the
+ * operator's (self-host behavior unchanged).
  */
 export function registerAccountEventsRoute(
   app: FastifyInstance,
   watch: AccountWatchHandle | null,
+  userFeed?: UserFeedResolver,
 ): void {
   app.get<{ Querystring: { since?: string } }>(
     '/api/account/events',
     async (req): Promise<AccountEventsResponse> => {
+      const sinceRaw = Number(req.query.since);
+      const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.floor(sinceRaw) : 0;
+
+      const uf = req.userId && userFeed ? userFeed(req.userId) : null;
+      if (uf?.keyed) {
+        // Isolation: a keyed user's feed is their watcher or honestly off —
+        // the operator's feed is never shown to them.
+        if (!uf.watch) {
+          return {
+            watching: false,
+            latestId: 0,
+            events: [],
+            note:
+              'Per-user account watcher is not running for your keys — it needs MIDAS_ACCOUNT_WATCH_MS > 0 ' +
+              'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).',
+          };
+        }
+        return { watching: true, latestId: uf.watch.latestId(), events: uf.watch.eventsSince(since), note: null };
+      }
+
       if (!watch) {
         return {
           watching: false,
@@ -256,8 +289,6 @@ export function registerAccountEventsRoute(
             'the ccxt provider is active, and exchange API keys are configured.',
         };
       }
-      const sinceRaw = Number(req.query.since);
-      const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.floor(sinceRaw) : 0;
       return { watching: true, latestId: watch.latestId(), events: watch.eventsSince(since), note: null };
     },
   );

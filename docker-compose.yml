@@ -27,6 +27,8 @@ services:
       MIDAS_DEMO_MODE: ${MIDAS_DEMO_MODE:-false}
       # Per-user exchange keys (encrypted at rest; needs auth). Blank = off.
       MIDAS_KEYS_KMS_SECRET: ${MIDAS_KEYS_KMS_SECRET:-}
+      # Keyed users allowed to run per-user background loops.
+      MIDAS_MAX_KEYED_USERS: ${MIDAS_MAX_KEYED_USERS:-25}
       # Per-IP request ceiling in rpm (0 = off; demo defaults to 120).
       MIDAS_RATE_LIMIT_RPM: ${MIDAS_RATE_LIMIT_RPM:-0}
       HOST: 0.0.0.0

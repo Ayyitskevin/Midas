@@ -36,6 +36,19 @@ export interface ProviderContext {
 }
 
 /**
+ * Per-user trading context: present when the requesting user has stored their
+ * own exchange keys, in which case orders go to THEIR account through THEIR
+ * client — and their key must be explicitly marked trade-permissioned. The
+ * operator's master switch, provider requirement and caps still apply.
+ */
+export interface UserKeyContext {
+  /** The stored key's canTrade flag (set by the user at save time). */
+  canTrade: boolean;
+  /** False when the stored keys could not be decrypted/used — hard stop. */
+  usable: boolean;
+}
+
+/**
  * Effective trading status — every gate must pass. Returns the reasons it is off
  * so the operator (via the UI) sees exactly what to fix. Pure.
  */
@@ -43,11 +56,26 @@ export function computeTradingStatus(
   cfg: TradingConfig,
   ctx: ProviderContext,
   dailyUsedUsd = 0,
+  userKeys: UserKeyContext | null = null,
 ): TradingStatus {
   const reasons: string[] = [];
   if (!cfg.enabled) reasons.push('Set MIDAS_TRADING_ENABLED=true to enable live order placement.');
   if (!ctx.providerLive) reasons.push('Live trading requires the ccxt provider (MIDAS_DATA_PROVIDER=ccxt).');
-  if (!ctx.hasKeys) reasons.push('Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET (keys must have trade permission).');
+  if (userKeys) {
+    // A user with stored keys trades on their OWN account only — never the
+    // operator's. Their keys must decrypt and be explicitly trade-marked.
+    if (!userKeys.usable) {
+      reasons.push(
+        'Your stored exchange keys could not be used (decryption failed or the exchange rejected them) — delete and re-save them in the key settings.',
+      );
+    } else if (!userKeys.canTrade) {
+      reasons.push(
+        'Your stored exchange keys are not marked trade-permissioned — re-save them with "can trade" enabled (use trade-scoped keys, never withdrawal-enabled ones).',
+      );
+    }
+  } else if (!ctx.hasKeys) {
+    reasons.push('Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET (keys must have trade permission).');
+  }
   if (!cfg.authEnabled) {
     if (!cfg.allowNoAuth) {
       reasons.push(
@@ -108,6 +136,34 @@ export function createDailyLedger(): DailyLedger {
       roll(nowMs);
       used = Math.max(0, used + notionalUsd);
     },
+  };
+}
+
+/**
+ * Per-scope daily ledgers: one {@link DailyLedger} per trading identity, so a
+ * keyed user's MIDAS_MAX_DAILY_USD budget is their own — one user maxing out
+ * can't spend another's day, and nobody shares the operator's ('@local')
+ * budget. Entries are one small counter each; keyed users are already bounded
+ * upstream, so no eviction is needed.
+ */
+export interface ScopedDailyLedgers {
+  used(scope: string, nowMs: number): number;
+  add(scope: string, notionalUsd: number, nowMs: number): void;
+}
+
+export function createScopedDailyLedgers(): ScopedDailyLedgers {
+  const ledgers = new Map<string, DailyLedger>();
+  const forScope = (scope: string): DailyLedger => {
+    let l = ledgers.get(scope);
+    if (!l) {
+      l = createDailyLedger();
+      ledgers.set(scope, l);
+    }
+    return l;
+  };
+  return {
+    used: (scope, nowMs) => forScope(scope).used(nowMs),
+    add: (scope, notionalUsd, nowMs) => forScope(scope).add(notionalUsd, nowMs),
   };
 }
 

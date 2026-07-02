@@ -18,11 +18,13 @@ import { registerSnapshotRoutes } from './snapshots/routes';
 import { UserRepo } from './auth/users';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
 import { installAuthGuard } from './auth/guard';
+import { dirname, join } from 'node:path';
 import { registerAccountEventsRoute, type AccountWatchHandle } from './accountWatch';
 import { registerEquityRoute, type EquityRepo } from './equity';
-import { KeyRepo } from './keys/repo';
+import { KeyRepo, type UserExchangeKeys } from './keys/repo';
 import { registerKeyRoutes } from './keys/routes';
 import { createProviderPool } from './keys/pool';
+import { createUserLoops, userEquityFileName, type UserLoops } from './keys/loops';
 import { CcxtProvider } from './providers/ccxt';
 import { createRateLimiter } from './rateLimit';
 
@@ -49,6 +51,10 @@ export interface BuildAppOptions {
   systemInfo?: () => SystemStatus;
   /** Per-user exchange key store; null = feature off, omitted = derive from config. */
   keyRepo?: KeyRepo | null;
+  /** Builds a per-user provider from decrypted creds (tests inject a stub). */
+  keyProviderFactory?: (keys: UserExchangeKeys) => DataProvider;
+  /** Per-user loop manager override (tests); omitted = derive when keys are on. */
+  userLoops?: UserLoops | null;
 }
 
 /**
@@ -105,10 +111,9 @@ export async function buildApp(
   installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
   registerAuthRoutes(app, authDeps);
 
-  // Per-user exchange keys (hosted-tier groundwork): encrypted store + a
-  // provider pool that resolves account READS to the requesting user's own
-  // exchange client. Trading stays pinned to the base provider + operator
-  // gates until per-user trading ships behind its own review.
+  // Per-user exchange keys (hosted-tier): encrypted store + a provider pool
+  // that resolves account reads — and, with stored trade-marked keys, the
+  // trading write path — to the requesting user's own exchange client.
   const keyRepo =
     opts.keyRepo !== undefined
       ? opts.keyRepo
@@ -118,14 +123,63 @@ export async function buildApp(
   const pool = createProviderPool({
     base: provider,
     repo: keyRepo,
-    factory: (k) =>
-      new CcxtProvider({ exchange: k.exchange, apiKey: k.apiKey, secret: k.secret, password: k.password }),
+    factory:
+      opts.keyProviderFactory ??
+      ((k) =>
+        new CcxtProvider({ exchange: k.exchange, apiKey: k.apiKey, secret: k.secret, password: k.password })),
   });
 
-  registerRoutes(app, provider, pool);
-  registerKeyRoutes(app, { repo: keyRepo, onChanged: (userId) => pool.invalidate(userId) });
-  registerAccountEventsRoute(app, opts.accountWatch ?? null);
-  registerEquityRoute(app, opts.accountEquity ?? null);
+  // Per-user background loops: each keyed user gets their own account watcher
+  // + equity snapshots against THEIR client (never the base provider), capped
+  // by MIDAS_MAX_KEYED_USERS. Existing keyed users start at boot; key writes
+  // start/rebuild a user's set, key deletes stop it.
+  const userLoops =
+    opts.userLoops !== undefined
+      ? opts.userLoops
+      : keyRepo && (config.accountWatchMs > 0 || config.equitySnapMs > 0)
+        ? createUserLoops({
+            repo: keyRepo,
+            pool,
+            watchMs: config.accountWatchMs > 0 ? Math.max(2000, config.accountWatchMs) : 0,
+            equityMs: config.equitySnapMs > 0 ? Math.max(60_000, config.equitySnapMs) : 0,
+            equityFileFor: (userId) => join(dirname(config.equityFile), userEquityFileName(userId)),
+            maxUsers: config.maxKeyedUsers,
+            onError: (userId, err) => app.log.error({ err, userId }, 'per-user loop error'),
+            onRefused: (userId) =>
+              app.log.warn({ userId, cap: config.maxKeyedUsers }, 'keyed-user cap reached — no loops for this user'),
+          })
+        : null;
+  if (userLoops && keyRepo) {
+    for (const userId of keyRepo.userIds()) userLoops.ensure(userId);
+    if (userLoops.size() > 0) app.log.info({ users: userLoops.size() }, 'per-user account loops running');
+  }
+
+  registerRoutes(app, provider, pool, (userId) => keyRepo?.metaFor(userId) ?? null);
+  registerKeyRoutes(app, {
+    repo: keyRepo,
+    onChanged: (userId) => {
+      pool.invalidate(userId);
+      userLoops?.ensure(userId);
+    },
+  });
+  // The keyed-user resolvers exist whenever the key store does — even with
+  // loops off — so a keyed user gets an honest "not running" answer rather
+  // than falling through to the operator's feed/curve.
+  const keyedFor = (userId: string): boolean => keyRepo?.metaFor(userId) != null;
+  registerAccountEventsRoute(
+    app,
+    opts.accountWatch ?? null,
+    keyRepo
+      ? (userId) => ({ keyed: keyedFor(userId), watch: userLoops?.watcherFor(userId) ?? null })
+      : undefined,
+  );
+  registerEquityRoute(
+    app,
+    opts.accountEquity ?? null,
+    keyRepo
+      ? (userId) => ({ keyed: keyedFor(userId), repo: userLoops?.equityRepoFor(userId) ?? null })
+      : undefined,
+  );
 
   // Operational self-description (SYS panel). Defaults are the honest "no
   // background loops" answer; index.ts injects the real states.

@@ -8,7 +8,7 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
-import type { OrderRequest, PlacedOrder } from '@midas/shared';
+import type { OrderRequest, PlacedOrder, TradingStatus } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { ccxtKeysConfigured } from './providers/balances';
@@ -16,8 +16,8 @@ import { config } from './config';
 import {
   checkDailyCap,
   computeTradingStatus,
-  createDailyLedger,
   createIdempotencyCache,
+  createScopedDailyLedgers,
   estimateNotionalUsd,
   validateOrderRequest,
   type TradingConfig,
@@ -48,13 +48,19 @@ function notifyWebhook(text: string): void {
 /** Resolves the provider for a request (per-user keys); defaults to the base provider. */
 export interface ProviderResolver {
   for(userId: string | undefined): DataProvider;
+  /** The user's OWN provider or null — never a base fallback (trading path). */
+  userFor?(userId: string | undefined): DataProvider | null;
 }
+
+/** Stored-key facts the trading gate needs; secrets never pass through here. */
+export type KeyMetaLookup = (userId: string) => { canTrade: boolean } | null;
 
 /** Register all Midas API routes against the given provider. */
 export function registerRoutes(
   app: FastifyInstance,
   provider: DataProvider,
   pool: ProviderResolver = { for: () => provider },
+  keyMeta: KeyMetaLookup = () => null,
 ): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
@@ -141,13 +147,12 @@ export function registerRoutes(
     return provider.getDexPools(symbol);
   });
 
-  // Read-only account reads (non-custodial; keys live only in the operator's
-  // server env). Account-wide, so no symbol. Auth-guarded when auth is enabled —
-  // these are not public prefixes, so the onRequest guard covers them.
-  // Per-user keys (when stored) resolve these READS to that user's own
-  // exchange client; everyone else gets the operator's env-keyed provider.
-  // Trading routes below deliberately do NOT consult the pool — per-user
-  // trading ships separately behind its own review (HOSTED_KEYS_DESIGN.md).
+  // Read-only account reads (non-custodial). Account-wide, so no symbol.
+  // Auth-guarded when auth is enabled — these are not public prefixes, so the
+  // onRequest guard covers them. Per-user keys (when stored) resolve these
+  // READS to that user's own exchange client; everyone else gets the
+  // operator's env-keyed provider. The trading section below follows the same
+  // resolution with stricter rules (no base fallback) — see resolveTrading.
   app.get('/api/balances', async (req) => pool.for(req.userId).getBalances());
   app.get('/api/orders', async (req) => pool.for(req.userId).getOpenOrders());
   app.get('/api/positions', async (req) => pool.for(req.userId).getPositions());
@@ -185,56 +190,101 @@ export function registerRoutes(
     authEnabled: config.authEnabled,
     corsOrigin: config.corsOrigin,
   };
-  // Cumulative UTC-day notional across all placed orders (in-memory; a restart
-  // resets the budget — the restart is also the kill switch).
-  const dailyLedger = createDailyLedger();
-  const tradingStatus = () =>
-    computeTradingStatus(
+  // Cumulative UTC-day notional per trading identity (in-memory; a restart
+  // resets the budgets — the restart is also the kill switch). The operator's
+  // env-keyed account is the '@local' scope; each keyed user has their own.
+  const dailyLedgers = createScopedDailyLedgers();
+  const OPERATOR_SCOPE = '@local';
+
+  interface TradingResolution {
+    status: TradingStatus;
+    /** The ONLY provider this request may write through. */
+    trader: DataProvider;
+    /** Ledger + idempotency scope ('@local' or the userId). */
+    scope: string;
+    /** True when the write goes to the user's own account (stored keys). */
+    userKeyed: boolean;
+  }
+
+  // The core per-user trading rule: whichever account a user's reads resolve
+  // to is the only account their writes may touch. A user WITH stored keys
+  // trades on their own account through their own client (canTrade gate,
+  // per-user ledger) — and if those keys are unusable, trading is OFF for
+  // them, never silently redirected to the operator's account. Users without
+  // stored keys keep the self-host behavior: operator provider, operator
+  // gates, shared '@local' budget.
+  const resolveTrading = (userId: string | undefined): TradingResolution => {
+    const meta = userId ? keyMeta(userId) : null;
+    if (userId && meta) {
+      const userProvider = pool.userFor?.(userId) ?? null;
+      const status = computeTradingStatus(
+        tradingCfg,
+        {
+          providerName: userProvider?.name ?? provider.name,
+          providerLive: userProvider?.live ?? true,
+          hasKeys: true,
+        },
+        dailyLedgers.used(userId, Date.now()),
+        { canTrade: meta.canTrade, usable: userProvider != null },
+      );
+      return { status, trader: userProvider ?? provider, scope: userId, userKeyed: true };
+    }
+    const status = computeTradingStatus(
       tradingCfg,
       {
         providerName: provider.name,
         providerLive: provider.live,
         hasKeys: ccxtKeysConfigured(),
       },
-      dailyLedger.used(Date.now()),
+      dailyLedgers.used(OPERATOR_SCOPE, Date.now()),
     );
+    return { status, trader: provider, scope: OPERATOR_SCOPE, userKeyed: false };
+  };
 
-  app.get('/api/trading/status', async () => tradingStatus());
+  app.get('/api/trading/status', async (req) => resolveTrading(req.userId).status);
 
   // Recent placements by clientOrderId, so a retry/double-submit returns the
-  // original acknowledgement instead of placing twice.
+  // original acknowledgement instead of placing twice. Keys are scoped per
+  // trading identity: two users using the same clientOrderId must never see
+  // (or suppress) each other's orders.
   const placedOrders = createIdempotencyCache();
+  const idemKey = (scope: string, clientOrderId: string): string => `${scope} ${clientOrderId}`;
 
   app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
-    const status = tradingStatus();
+    const { status, trader, scope, userKeyed } = resolveTrading(req.userId);
     if (!status.enabled) {
       reply.status(403);
       return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
     }
     const v = validateOrderRequest(req.body);
     if (!v.ok) throw new ProviderError(v.errors.join(' '), 400);
-    if (!provider.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
+    if (!trader.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
 
     const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
 
     // Idempotency: a duplicate clientOrderId within the TTL is answered from
     // the cache — the exchange is never asked to place a second time.
     if (body.clientOrderId) {
-      const duplicate = placedOrders.recall(body.clientOrderId, Date.now());
+      const duplicate = placedOrders.recall(idemKey(scope, body.clientOrderId), Date.now());
       if (duplicate) {
-        app.log.warn({ clientOrderId: body.clientOrderId }, 'duplicate order suppressed (idempotency)');
+        app.log.warn(
+          { clientOrderId: body.clientOrderId, scope },
+          'duplicate order suppressed (idempotency)',
+        );
         return duplicate;
       }
     }
 
     // Hard notional caps: price the order and reject anything over the
-    // per-order ceiling OR anything that would breach the cumulative daily cap.
+    // per-order ceiling OR anything that would breach the cumulative daily
+    // cap. The reference quote comes from the SAME client that will trade,
+    // so the cap is priced on the venue the order lands on.
     let placedNotional: number | null = null;
     if (status.maxOrderUsd != null || status.dailyCapUsd != null) {
       let refPrice: number | null = null;
       if (body.type === 'market') {
         try {
-          refPrice = (await provider.getQuote(body.symbol)).price;
+          refPrice = (await trader.getQuote(body.symbol)).price;
         } catch {
           refPrice = null;
         }
@@ -249,41 +299,44 @@ export function registerRoutes(
           400,
         );
       }
-      const dailyReject = checkDailyCap(status.dailyCapUsd, dailyLedger.used(Date.now()), notional);
+      const dailyReject = checkDailyCap(status.dailyCapUsd, dailyLedgers.used(scope, Date.now()), notional);
       if (dailyReject) throw new ProviderError(dailyReject, 400);
       placedNotional = notional;
     }
 
     // Audit: every live placement attempt is logged with who/what.
     app.log.warn(
-      { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId },
+      { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId, userKeyed },
       'LIVE order placement',
     );
-    // Reserve against the daily cap BEFORE placing, so two in-flight orders
-    // can't both squeeze under it while the exchange call is awaited; release
-    // the reservation if the placement fails.
-    if (placedNotional != null) dailyLedger.add(placedNotional, Date.now());
+    // Reserve against the identity's daily cap BEFORE placing, so two
+    // in-flight orders can't both squeeze under it while the exchange call is
+    // awaited; release the reservation if the placement fails.
+    if (placedNotional != null) dailyLedgers.add(scope, placedNotional, Date.now());
     let placed: PlacedOrder;
     try {
-      placed = await provider.placeOrder(body);
+      placed = await trader.placeOrder(body);
     } catch (err) {
-      if (placedNotional != null) dailyLedger.add(-placedNotional, Date.now());
+      if (placedNotional != null) dailyLedgers.add(scope, -placedNotional, Date.now());
       throw err;
     }
-    if (body.clientOrderId) placedOrders.remember(body.clientOrderId, placed, Date.now());
+    if (body.clientOrderId) placedOrders.remember(idemKey(scope, body.clientOrderId), placed, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
-        `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status})`,
+        `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status}` +
+        `${userKeyed ? `, by ${scope}` : ''})`,
     );
     return placed;
   });
 
   // Cancel a resting order. Risk-reducing, but still a write: gated by the
-  // exact same trading switches as placement, audited and notified.
+  // exact same trading switches as placement, audited and notified — and
+  // routed through the same per-user client resolution, so a user can only
+  // ever cancel on their OWN account.
   app.delete<{ Params: { id: string }; Querystring: { symbol?: string } }>(
     '/api/orders/:id',
     async (req, reply) => {
-      const status = tradingStatus();
+      const { status, trader, scope, userKeyed } = resolveTrading(req.userId);
       if (!status.enabled) {
         reply.status(403);
         return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
@@ -292,11 +345,14 @@ export function registerRoutes(
       const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
       if (!id) throw new ProviderError('Missing order id', 400);
       if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to cancel)', 400);
-      if (!provider.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
+      if (!trader.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
 
-      app.log.warn({ orderId: id, symbol, userId: req.userId }, 'LIVE order cancel');
-      const result = await provider.cancelOrder(id, symbol);
-      notifyWebhook(`🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status})`);
+      app.log.warn({ orderId: id, symbol, userId: req.userId, userKeyed }, 'LIVE order cancel');
+      const result = await trader.cancelOrder(id, symbol);
+      notifyWebhook(
+        `🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status}` +
+          `${userKeyed ? `, by ${scope}` : ''})`,
+      );
       return result;
     },
   );

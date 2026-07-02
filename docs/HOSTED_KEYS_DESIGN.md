@@ -1,9 +1,8 @@
 # Design: per-user exchange keys (hosted-tier groundwork)
 
-Status: **design only** — nothing here is implemented. This is the one
-architectural change a multi-tenant hosted Midas needs, and the last
-engineering item from the v1 roadmap. Written first so the implementation
-PR can be judged against an agreed shape.
+Status: **implemented** — PRs 1–3 shipped (deviations noted inline). This
+is the one architectural change a multi-tenant hosted Midas needs. Written
+first so the implementation PRs could be judged against an agreed shape.
 
 ## Problem
 
@@ -51,16 +50,32 @@ exchange account, on shared infrastructure).
   remains the `@local` default so self-host behavior is unchanged.
 - Account routes (`/api/balances`, orders, positions, fills, equity,
   events) resolve their provider through the pool using `req.userId`.
-- Background loops (watcher, equity, digest) become per-user loop sets,
-  started lazily on first key write and stopped on key delete — bounded by
-  a `MIDAS_MAX_KEYED_USERS` cap so a hosted box degrades predictably.
+- Background loops (watcher, equity) become per-user loop sets, started on
+  key write (and at boot for existing keyed users), stopped on key delete —
+  bounded by a `MIDAS_MAX_KEYED_USERS` cap so a hosted box degrades
+  predictably. *(As built: the **digest stays operator-only** — a per-user
+  digest is meaningless without per-user webhooks, which are a future user
+  setting. User fill events surface in the user's in-terminal feed only.
+  A keyed user whose loops aren't running gets an honest "not running"
+  answer from the events/equity routes — never the operator's feed.)*
 
 ### Trading
 
-- `computeTradingStatus` gains `ctx.userCanTrade` (from the stored key's
-  `canTrade` flag, set only when the user explicitly marked the key as
-  trade-permissioned). All existing gates and caps remain; per-order and
-  daily ledgers become per-user.
+- `computeTradingStatus` gains a per-user context `{ canTrade, usable }`
+  (from the stored key's `canTrade` flag and whether the key decrypts).
+  All existing gates and caps remain; the daily ledger and clientOrderId
+  idempotency cache are scoped per trading identity ('@local' for the
+  operator, the userId for keyed users).
+- **The account rule** (the security core, enforced in `resolveTrading` +
+  `ProviderPool.userFor`): whichever account a user's reads resolve to is
+  the only account their writes may touch. A user WITH stored keys trades
+  through their own client or not at all — undecryptable keys hard-disable
+  trading for them rather than silently falling back to the operator's
+  account. Users WITHOUT stored keys keep the self-host behavior verbatim.
+- Cap-check reference quotes come from the same client that will trade, so
+  notional caps are priced on the venue the order lands on. Audit logs and
+  the operator webhook tag user-keyed writes with the userId (never key
+  material) — the operator hosts the box and sees what it does.
 
 ### Rollout
 
@@ -69,11 +84,16 @@ exchange account, on shared infrastructure).
    per-user background loops — the watcher/equity/digest stay on the
    operator's env keys for now; per-user loops move to PR 3 with trading,
    where their lifecycle and caps get one review together.)*
-3. PR 3: per-user trading gates + ledgers + per-user loops; security review
-   before merge (roadmap-v2 Week 3).
+3. ✅ PR 3: per-user trading gates + scoped ledgers/idempotency + per-user
+   loops (watcher + equity); security review before merge (roadmap-v2
+   Week 3). *(Follow-up, not in this PR: a KEYS panel in the web terminal —
+   today the key API is curl/HTTP-first, documented in the README.)*
 
 ### Open questions
 
-- Idle-loop eviction policy for very large user counts (hosted-only).
+- Idle-loop eviction policy for very large user counts (hosted-only; today
+  the cap refuses loops past `MIDAS_MAX_KEYED_USERS`, reads stay per-request).
 - Whether the hosted tier should force `canTrade=false` at $20 and reserve
   trading for the $49 desk tier (product decision, not architecture).
+- A web KEYS panel (store/inspect/delete keys + the canTrade toggle from
+  the terminal) — UI follow-up now that the API is stable.

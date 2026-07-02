@@ -43,8 +43,10 @@ many users).
 - ✅ **Workspace share links.** *(Shipped)* ⧉ copies a URL carrying the
   workspace in its fragment; opening imports it as a new workspace. Nothing
   uploaded.
-- **Per-user keys, PR 3** — per-user trading gates + ledgers, security
-  review before merge.
+- ✅ **Per-user keys, PR 3.** *(Shipped)* Per-user trading gates (canTrade,
+  own client only, never operator fallback), per-user daily budgets +
+  idempotency, per-user watcher/equity loops under `MIDAS_MAX_KEYED_USERS`.
+  Web KEYS panel is a follow-up (API-first for now).
 
 ## Week 4 — scale & polish (worth $49)
 
