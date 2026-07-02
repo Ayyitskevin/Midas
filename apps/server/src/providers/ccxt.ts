@@ -57,6 +57,33 @@ const TIMEFRAME_MAP: Record<Interval, string> = {
   '1mo': '1M',
 };
 
+/**
+ * ccxt's own registry of real exchange ids, as a Set for O(1) allowlist
+ * checks. Exported so the key-save route can reject an unknown exchange at
+ * the API edge — before any credential is encrypted and stored — rather than
+ * letting it fail later inside provider construction.
+ */
+// `ccxt.exchanges` is a string[] of ids at runtime, but where it lands under
+// `import * as ccxt` depends on the CJS/ESM interop: the namespace itself
+// under tsx/node, or `namespace.default` under vite/vitest. Resolve from
+// whichever actually holds the array so the allowlist works under every
+// loader (an empty set would wrongly reject every exchange).
+function resolveKnownExchanges(): Set<string> {
+  const ns = ccxt as unknown as { exchanges?: unknown; default?: { exchanges?: unknown } };
+  const list = Array.isArray(ns.exchanges)
+    ? ns.exchanges
+    : Array.isArray(ns.default?.exchanges)
+      ? ns.default!.exchanges
+      : [];
+  return new Set<string>(list as string[]);
+}
+
+const KNOWN_EXCHANGES = resolveKnownExchanges();
+
+export function isKnownExchange(id: string): boolean {
+  return KNOWN_EXCHANGES.has(id);
+}
+
 function num(value: number | undefined | null, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
@@ -81,11 +108,16 @@ export class CcxtProvider implements DataProvider {
 
   constructor(creds?: CcxtUserCreds) {
     const id = (creds?.exchange ?? process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
-    const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
-    const ExchangeCtor = registry[id];
-    if (typeof ExchangeCtor !== 'function') {
+    // Allowlist against ccxt's own registry — NOT a `typeof === 'function'`
+    // check. `registry['constructor']` (and 'toString', 'valueOf', …) are
+    // inherited Object members that ARE functions, so a crafted exchange id
+    // would slip past a typeof guard and `new Object(config)` silently. The
+    // exchanges array is the authoritative set of real ids.
+    if (!isKnownExchange(id)) {
       throw new Error(`Unknown ccxt exchange "${id}". See ccxt.exchanges for valid ids.`);
     }
+    const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
+    const ExchangeCtor = registry[id];
     // Optional READ-ONLY API keys for account reads (balances). Supplied via the
     // operator's own environment — or, for a per-user instance, via explicit
     // creds that must NEVER mix with the env (a user-keyed provider gets no
