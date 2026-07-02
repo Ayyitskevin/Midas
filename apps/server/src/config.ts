@@ -54,6 +54,8 @@ export interface Config {
   keysFile: string;
   /** Per-IP request ceiling in requests/minute (0 = off; demo mode defaults to 120). */
   rateLimitRpm: number;
+  /** Keyed users allowed to run per-user background loops (watcher/equity). */
+  maxKeyedUsers: number;
   version: string;
 }
 
@@ -119,6 +121,7 @@ const baseConfig: Config = {
   keysKmsSecret: env('MIDAS_KEYS_KMS_SECRET', ''),
   keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
   rateLimitRpm: Number(env('MIDAS_RATE_LIMIT_RPM', '0')),
+  maxKeyedUsers: Number(env('MIDAS_MAX_KEYED_USERS', '25')),
   version: '0.4.0',
 };
 

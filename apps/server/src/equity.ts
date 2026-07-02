@@ -100,12 +100,39 @@ export function startEquityLoop(
   return { stop: () => clearInterval(timer) };
 }
 
+/**
+ * Resolves whose equity series a request sees. `keyed` is true when the user
+ * has stored their own exchange keys — a keyed user only ever sees THEIR
+ * series (or an honest "not running"), never the operator's.
+ */
+export type UserEquityResolver = (userId: string) => {
+  keyed: boolean;
+  repo: EquityRepo | null;
+};
+
 /** GET /api/account/equity — registered even when off, so the answer is honest. */
 export function registerEquityRoute(
   app: FastifyInstance,
   deps: { repo: EquityRepo; watching: boolean } | null,
+  userEquity?: UserEquityResolver,
 ): void {
-  app.get('/api/account/equity', async (): Promise<AccountEquityResponse> => {
+  app.get('/api/account/equity', async (req): Promise<AccountEquityResponse> => {
+    const ue = req.userId && userEquity ? userEquity(req.userId) : null;
+    if (ue?.keyed) {
+      // Isolation: a keyed user's curve is their own snapshots or honestly
+      // off — the operator's account curve is never shown to them.
+      if (!ue.repo) {
+        return {
+          watching: false,
+          note:
+            'Per-user equity snapshots are not running for your keys — they need MIDAS_EQUITY_SNAP_MS > 0 ' +
+            'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).',
+          points: [],
+        };
+      }
+      return { watching: true, note: null, points: ue.repo.points() };
+    }
+
     if (!deps || !deps.watching) {
       return {
         watching: false,

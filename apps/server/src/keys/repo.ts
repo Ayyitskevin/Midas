@@ -17,7 +17,7 @@ export interface UserExchangeKeys {
   apiKey: string;
   secret: string;
   password?: string;
-  /** User explicitly marked the key as trade-permissioned (unused until per-user trading ships). */
+  /** User explicitly marked the key as trade-permissioned — required by the per-user trading gate. */
   canTrade: boolean;
 }
 
@@ -106,6 +106,11 @@ export class KeyRepo {
     const r = this.records[userId];
     if (!r) return null;
     return { exchange: r.exchange, keyLast4: r.keyLast4, canTrade: r.canTrade, createdAt: r.createdAt };
+  }
+
+  /** Every user with stored keys — for boot-time per-user loop startup. */
+  userIds(): string[] {
+    return Object.keys(this.records);
   }
 
   remove(userId: string): boolean {

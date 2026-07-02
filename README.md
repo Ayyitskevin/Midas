@@ -485,7 +485,8 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
-| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys** (hosted groundwork): signed-in users store their own read-only keys — encrypted at rest with this secret, never returned after write — and the account panels read *their* account. Needs `MIDAS_AUTH_ENABLED=true`. Reads only for now; per-user trading ships separately. |
+| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys** (hosted tier): signed-in users store their own keys (`PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Account panels then read *their* account; keys saved with `canTrade: true` may trade on *their* account behind every gate above, with a per-user daily budget. A user's writes can only ever touch the account their reads come from. Needs `MIDAS_AUTH_ENABLED=true`. |
+| `MIDAS_MAX_KEYED_USERS` | `25`      | Keyed users allowed to run per-user background loops (fill watcher + equity snapshots). Beyond the cap, reads still work per-request; the events/equity panels say loops are off. |
 | `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
 | `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data, disables live trading (both switches) and closes signups — regardless of everything else. Makes an instance safe to expose as a try-before-you-buy demo. |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
