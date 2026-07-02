@@ -26,3 +26,12 @@ export async function verifyPassword(password: string, stored: string): Promise<
   const key = await scryptAsync(password, Buffer.from(saltHex, 'hex'));
   return key.length === expected.length && timingSafeEqual(key, expected);
 }
+
+/**
+ * A syntactically valid `saltHex:keyHex` hash that no password produces (its
+ * salt and key are freshly random at module load). The login path verifies
+ * against this when the username is unknown, so the "does this account exist?"
+ * question costs the SAME scrypt work as a wrong password for a real account —
+ * closing the timing side-channel that would otherwise enumerate usernames.
+ */
+export const DUMMY_PASSWORD_HASH = `${randomBytes(16).toString('hex')}:${randomBytes(64).toString('hex')}`;

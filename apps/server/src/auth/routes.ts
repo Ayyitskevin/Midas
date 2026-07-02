@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ApiError, AuthSession, AuthStatus, User } from '@midas/shared';
 import { UserRepo, toPublic, type StoredUser } from './users';
-import { hashPassword, verifyPassword } from './password';
+import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './password';
 import { signToken, verifyToken } from './token';
 import { createLoginThrottle, type LoginThrottle } from './throttle';
 
@@ -109,7 +109,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(waitMs / 1000)}s.`);
       }
       const user = deps.users.findByUsername(username);
-      const ok = user ? await verifyPassword(req.body?.password ?? '', user.passwordHash) : false;
+      // Always run a scrypt verification — against the real hash, or a dummy
+      // one when the username is unknown — so response time cannot reveal
+      // whether an account exists (username-enumeration timing oracle).
+      const ok = await verifyPassword(req.body?.password ?? '', user?.passwordHash ?? DUMMY_PASSWORD_HASH);
       if (!user || !ok) {
         throttle.fail(throttleKey, Date.now());
         reply.code(401);
