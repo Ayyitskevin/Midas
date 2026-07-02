@@ -55,6 +55,7 @@ function NewWorkspaceMenu() {
           setError(null);
         }}
         title="New workspace"
+        aria-label="New workspace"
         className="px-2 py-1 text-sm leading-none text-term-muted hover:text-term-amber"
       >
         +
@@ -112,6 +113,7 @@ function ExportButton() {
       onClick={() => downloadWorkspace(exportWorkspace())}
       disabled={panelCount === 0}
       title="Export current workspace to a file"
+      aria-label="Export workspace to a file"
       className="shrink-0 px-2 py-1 text-xs leading-none text-term-muted hover:text-term-amber disabled:opacity-30 disabled:hover:text-term-muted"
     >
       ⤓
@@ -157,6 +159,7 @@ function ShareButton() {
       onClick={() => void share()}
       disabled={panelCount === 0}
       title="Copy a share link for this workspace — the layout travels in the URL, nothing is uploaded"
+      aria-label="Copy workspace share link"
       className="shrink-0 px-2 py-1 text-xs leading-none text-term-muted hover:text-term-amber disabled:opacity-30 disabled:hover:text-term-muted"
     >
       {copied ? '✓' : '⧉'}
@@ -222,6 +225,7 @@ export function WorkspaceTabs() {
                   closeWorkspace(w.id);
                 }}
                 title="Close workspace"
+                aria-label={`Close workspace ${w.name}`}
                 className="leading-none text-term-dim opacity-0 transition-opacity hover:text-term-down group-hover:opacity-100"
               >
                 ×

@@ -40,7 +40,9 @@ export function TradesModule({ panel }: ModuleProps) {
           {trades.length === 0 && (
             <tr>
               <td colSpan={3} className="p-3 text-term-muted">
-                Waiting for prints…
+                {(window as unknown as { __MIDAS_STATIC_DEMO__?: boolean }).__MIDAS_STATIC_DEMO__
+                  ? 'Live prints stream from a real server — not part of the static demo. Everything else here is fully interactive.'
+                  : 'Waiting for prints…'}
               </td>
             </tr>
           )}

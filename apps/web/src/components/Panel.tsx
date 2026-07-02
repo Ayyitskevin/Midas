@@ -106,6 +106,7 @@ export function Panel({ panel, index }: { panel: PanelState; index?: number }) {
           <button
             className="no-drag leading-none text-term-dim transition-colors hover:text-term-down"
             title="Close panel"
+            aria-label={`Close ${panel.module} panel`}
             onClick={() => closePanel(panel.id)}
           >
             ×
