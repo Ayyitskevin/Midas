@@ -55,6 +55,19 @@ function notifyWebhook(text: string): void {
   postWebhookText(config.alertWebhook, text);
 }
 
+/**
+ * A ccxt error on the write path can carry raw upstream detail (request URLs,
+ * response bodies). We log the full error server-side for the operator's audit
+ * trail, but return the caller a bounded, generic message — never the raw
+ * upstream text — so an exchange error can't reflect request internals to the
+ * client. Preserves an explicit ProviderError (those are ours and safe).
+ */
+function toSafeWriteError(err: unknown): ProviderError {
+  if (err instanceof ProviderError) return err;
+  const name = err instanceof Error && err.name ? err.name : 'ExchangeError';
+  return new ProviderError(`The exchange rejected the request (${name}).`, 502);
+}
+
 /** Resolves the provider for a request (per-user keys); defaults to the base provider. */
 export interface ProviderResolver {
   for(userId: string | undefined): DataProvider;
@@ -329,8 +342,15 @@ export function registerRoutes(
       placed = await trader.placeOrder(body);
     } catch (err) {
       if (placedNotional != null) dailyLedgers.add(scope, -placedNotional, Date.now());
-      throw err;
+      // Audit the OUTCOME, not just the attempt: a failed placement leaves a
+      // durable record with the full upstream error (server-side only). The
+      // caller gets a bounded, generic message — never the raw ccxt text.
+      app.log.warn({ symbol: body.symbol, scope, err }, 'LIVE order placement failed');
+      throw toSafeWriteError(err);
     }
+    // Audit the successful outcome with the resulting order id + status, so the
+    // trail is complete whether or not an operator webhook is configured.
+    app.log.warn({ orderId: placed.id, status: placed.status, symbol: body.symbol, scope }, 'LIVE order placed');
     if (body.clientOrderId) placedOrders.remember(idemKey(scope, body.clientOrderId), placed, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
@@ -359,7 +379,14 @@ export function registerRoutes(
       if (!trader.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
 
       app.log.warn({ orderId: id, symbol, userId: req.userId, userKeyed }, 'LIVE order cancel');
-      const result = await trader.cancelOrder(id, symbol);
+      let result;
+      try {
+        result = await trader.cancelOrder(id, symbol);
+      } catch (err) {
+        app.log.warn({ orderId: id, symbol, scope, err }, 'LIVE order cancel failed');
+        throw toSafeWriteError(err);
+      }
+      app.log.warn({ orderId: result.id, status: result.status, symbol, scope }, 'LIVE order canceled');
       notifyWebhook(
         `🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status}` +
           `${userKeyed ? `, by ${scope}` : ''})`,

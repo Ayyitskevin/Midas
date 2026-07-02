@@ -121,6 +121,13 @@ describe('validateOrderRequest', () => {
     expect(validateOrderRequest({ symbol: 'BTC/USDT', side: 'buy', type: 'stop', amount: 1 }).ok).toBe(false);
     expect(validateOrderRequest(null).ok).toBe(false);
   });
+
+  it('bounds a user-supplied clientOrderId', () => {
+    const base = { symbol: 'BTC/USDT', side: 'buy', type: 'market', amount: 1 } as const;
+    expect(validateOrderRequest({ ...base, clientOrderId: 'my-order-1' }).ok).toBe(true);
+    expect(validateOrderRequest({ ...base, clientOrderId: 'x'.repeat(129) }).errors.join(' ')).toMatch(/clientOrderId/);
+    expect(validateOrderRequest({ ...base, clientOrderId: 12345 as unknown as string }).ok).toBe(false);
+  });
 });
 
 describe('estimateNotionalUsd', () => {
