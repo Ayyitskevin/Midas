@@ -4,9 +4,19 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
-## [Unreleased]
+## [0.5.0] — 2026-07-02
+
+The hosted-ready release: everything a multi-user Midas needs — per-user
+keys end to end (store → read → trade → loops), the retention features that
+make it a daily habit, and the scale guardrails (budgets, limits, load
+checks) to run it for other people.
 
 ### Added
+- **`KEYS` panel** — manage your per-user exchange keys from the terminal:
+  save (write-only, encrypted at rest, never displayed again), inspect the
+  metadata (exchange + last 4 + read-only/trade badge), replace or delete in
+  one action, with honest states when the store is off or you're signed out.
+  The "can trade" toggle carries the warning it deserves.
 - **Daily P&L recap in the digest** — the operator digest now leads with
   equity change since the last one (from the snapshot series), and adds the
   period's fills with FIFO round-trip realized P&L (ex-fees, honestly marked

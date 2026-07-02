@@ -122,7 +122,7 @@ const baseConfig: Config = {
   keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
   rateLimitRpm: Number(env('MIDAS_RATE_LIMIT_RPM', '0')),
   maxKeyedUsers: Number(env('MIDAS_MAX_KEYED_USERS', '25')),
-  version: '0.4.0',
+  version: '0.5.0',
 };
 
 export const config: Config = applyDemoMode(baseConfig);

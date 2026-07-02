@@ -1,6 +1,9 @@
 import type {
   AccountEquityResponse,
   AccountEventsResponse,
+  AccountKeysInput,
+  AccountKeysMeta,
+  AccountKeysResponse,
   AccountFills,
   AccountPositions,
   Alert,
@@ -149,6 +152,13 @@ export const api = {
     apiGet<AccountEquityResponse>('/api/account/equity', signal),
   // Operational self-description (SYS panel): which loops are running.
   system: (signal?: AbortSignal) => apiGet<SystemStatus>('/api/system', signal),
+  // Per-user exchange keys (KEYS panel). Write-only: the PUT body carries the
+  // secrets exactly once; every response is metadata only.
+  accountKeys: (signal?: AbortSignal) => apiGet<AccountKeysResponse>('/api/account/keys', signal),
+  saveAccountKeys: (input: AccountKeysInput, signal?: AbortSignal) =>
+    apiSend<AccountKeysMeta>('PUT', '/api/account/keys', input, signal),
+  deleteAccountKeys: (signal?: AbortSignal) =>
+    apiSend<{ ok: boolean }>('DELETE', '/api/account/keys', undefined, signal),
   // Read-only single-order lookup — TICKET tracks a placement with this.
   getOrder: (id: string, symbol: string, signal?: AbortSignal) =>
     apiGet<PlacedOrder>(

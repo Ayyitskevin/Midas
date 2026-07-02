@@ -572,6 +572,15 @@ export const COMMANDS: CommandDef[] = [
       "The server's operational self-description — provider and live flag, version, uptime, and which background loops are actually running (account watcher, ccxt.pro stream nudge, operator digest, equity snapshots, live-trading gate, auth). The honest answer to \"is it on?\" without reading server logs.",
   },
   {
+    code: 'KEYS',
+    aliases: ['APIKEYS', 'EXKEYS'],
+    title: 'Exchange Keys',
+    module: 'KEYS',
+    requiresSymbol: false,
+    description:
+      'Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, BAL/ORD/POSN/FILLS read YOUR account; a key saved with \'can trade\' may place orders on YOUR account behind every operator trading gate. Needs login; the operator enables the store with MIDAS_KEYS_KMS_SECRET. Never use withdrawal-permissioned keys.',
+  },
+  {
     code: 'START',
     aliases: ['TOUR', 'GETSTART', 'INTRO'],
     title: 'Get Started',
