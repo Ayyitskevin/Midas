@@ -95,5 +95,3 @@ exchange account, on shared infrastructure).
   the cap refuses loops past `MIDAS_MAX_KEYED_USERS`, reads stay per-request).
 - Whether the hosted tier should force `canTrade=false` at $20 and reserve
   trading for the $49 desk tier (product decision, not architecture).
-- A web KEYS panel (store/inspect/delete keys + the canTrade toggle from
-  the terminal) — UI follow-up now that the API is stable.

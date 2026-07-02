@@ -53,7 +53,8 @@ many users).
 - **Hosted tier private beta** — first 5 waitlist users on managed
   instances; $20 solo (1 venue, read+alerts) / $49 desk (2 venues,
   multi-user, trading gates) — billing via Stripe Payment Links first,
-  engineering later.
+  engineering later. ✅ *Engineering side shipped:* the `KEYS` panel makes
+  per-user keys usable without curl.
 - **Docs site** (mkdocs or plain GitHub Pages from /docs) — searchable
   configuration + panel reference.
 - **Performance pass** — bundle budget, server memory profile with 50

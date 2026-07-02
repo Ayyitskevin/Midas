@@ -7,6 +7,11 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **`KEYS` panel** — manage your per-user exchange keys from the terminal:
+  save (write-only, encrypted at rest, never displayed again), inspect the
+  metadata (exchange + last 4 + read-only/trade badge), replace or delete in
+  one action, with honest states when the store is off or you're signed out.
+  The "can trade" toggle carries the warning it deserves.
 - **Daily P&L recap in the digest** — the operator digest now leads with
   equity change since the last one (from the snapshot series), and adds the
   period's fills with FIFO round-trip realized P&L (ex-fees, honestly marked
