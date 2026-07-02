@@ -555,6 +555,36 @@ export interface AccountEquityResponse {
   points: EquityPoint[];
 }
 
+/**
+ * Metadata about a user's stored exchange keys — the ONLY key shape the API
+ * ever returns. Secrets are write-only: encrypted at rest server-side and
+ * never included in any response after the PUT.
+ */
+export interface AccountKeysMeta {
+  /** ccxt exchange id, e.g. 'binance'. */
+  exchange: string;
+  /** Last 4 characters of the API key, for recognition only. */
+  keyLast4: string;
+  /** User explicitly marked the key as trade-permissioned. */
+  canTrade: boolean;
+  createdAt: number;
+}
+
+/** GET /api/account/keys — the stored key's metadata, or null when none. */
+export interface AccountKeysResponse {
+  keys: AccountKeysMeta | null;
+}
+
+/** PUT /api/account/keys request body (write-only; never echoed back). */
+export interface AccountKeysInput {
+  exchange: string;
+  apiKey: string;
+  secret: string;
+  /** Exchange passphrase, where the venue requires one (e.g. OKX, KuCoin). */
+  password?: string;
+  canTrade?: boolean;
+}
+
 /** The account event feed: what the server-side order watcher has observed. */
 export interface AccountEventsResponse {
   /** Whether the watcher loop is running (keys + live provider + interval > 0). */
