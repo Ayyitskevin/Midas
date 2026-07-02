@@ -48,6 +48,18 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   loops (fill watcher, equity snapshots) only ever poll the user's own
   client, bounded by `MIDAS_MAX_KEYED_USERS`.
 
+**For a step-by-step pre-exposure checklist, the full environment-variable
+security matrix, and the trading-gate stack, see
+[docs/SECURITY_HARDENING.md](docs/SECURITY_HARDENING.md).**
+
+The codebase enforces these as invariants (each has a CI test): money caps and
+every numeric env var **fail safe** on a bad value (never silently "uncapped");
+stored exchange keys are allowlisted to real ccxt ids; auth is timing-safe and
+cannot be used to enumerate usernames; secrets are AES-256-GCM at rest and never
+returned or logged; a raw exchange error is logged server-side but returned to
+the caller only as a bounded, class-only message; and every order place/cancel
+is audited with its outcome.
+
 If you operate a shared or internet-exposed instance, enable authentication, put
 it behind TLS, and treat any configured provider credentials as secrets. The
 recommended checklist:

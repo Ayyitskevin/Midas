@@ -75,3 +75,16 @@ panel, `scripts/loadtest.mjs` before inviting anyone.
 Dependabot (`.github/dependabot.yml`) opens weekly PRs; the four gates are
 the merge bar. ccxt moves fast — expect its bumps to be routine, but read
 its changelog when account reads or order placement change behavior.
+
+## Security
+
+- The operator-facing hardening guide is `docs/SECURITY_HARDENING.md`
+  (pre-exposure checklist, env security matrix, trading-gate stack, the
+  invariants CI enforces). Keep it current when you add an env var or a gate.
+- Repo settings: **secret scanning + push protection ON** (Settings → Code
+  security) so a committed key is blocked before it lands; run `pnpm audit`
+  alongside Dependabot for CVEs.
+- Reviewing anything under `apps/server/src/keys/`, `trading.ts`, `auth/`, or
+  the trading section of `routes.ts` is security-sensitive — see the reviewer
+  checklist pointer above, and confirm no secret reaches a log line or a
+  response body.
