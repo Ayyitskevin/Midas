@@ -12,7 +12,18 @@ declare module 'fastify' {
 
 // Open even when auth is on: health check, the auth endpoints themselves, and
 // the read-only market-data stream (browsers can't set WS auth headers).
-const PUBLIC_PREFIXES = ['/api/health', '/api/auth/', '/api/stream'];
+const PUBLIC_PREFIXES = ['/api/health', '/api/auth', '/api/stream'];
+
+/**
+ * Whether a path is public, matched on SEGMENT boundaries. A plain
+ * `path.startsWith('/api/health')` would also whitelist a future
+ * `/api/health-internal` or `/api/streamers` route — silently unauthenticated.
+ * Public iff the path equals a prefix exactly or continues with a `/`.
+ * Exported for tests.
+ */
+export function isPublicPath(path: string): boolean {
+  return PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
 
 /**
  * When auth is enabled, require a valid bearer token for every `/api/*` route
@@ -24,7 +35,7 @@ export function installAuthGuard(app: FastifyInstance, deps: AuthDeps): void {
   app.addHook('onRequest', async (req, reply) => {
     const path = req.url.split('?')[0];
     if (!path.startsWith('/api/')) return;
-    if (PUBLIC_PREFIXES.some((p) => path === p || path.startsWith(p))) return;
+    if (isPublicPath(path)) return;
 
     const user = userFromRequest(req, deps);
     if (!user) {

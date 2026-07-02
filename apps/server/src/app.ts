@@ -68,6 +68,10 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: process.env.LOG_LEVEL ?? 'info' },
+    // Fastify's default, made explicit: no request body may exceed 1 MiB.
+    // The biggest legitimate payloads (workspace/portfolio snapshots) sit
+    // well under this; everything larger is an honest 413, not an allocation.
+    bodyLimit: 1024 * 1024,
   });
 
   await app.register(cors, { origin: config.corsOrigin });
@@ -108,6 +112,16 @@ export async function buildApp(
     secret: opts.auth?.secret || config.authSecret || randomBytes(32).toString('hex'),
     users: opts.userRepo ?? new UserRepo(),
   };
+  // A weak fixed secret is worse than none: an unset secret gets a strong
+  // random one per boot (tokens just don't survive a restart), but a short
+  // operator-supplied MIDAS_AUTH_SECRET produces a brute-forceable HMAC key
+  // that DOES persist. Warn loudly rather than accept it silently.
+  const MIN_AUTH_SECRET = 16;
+  if (authDeps.enabled && !opts.auth?.secret && config.authSecret && config.authSecret.length < MIN_AUTH_SECRET) {
+    app.log.warn(
+      `MIDAS_AUTH_SECRET is only ${config.authSecret.length} characters — use at least ${MIN_AUTH_SECRET} (e.g. \`openssl rand -hex 32\`). A short secret weakens every session token.`,
+    );
+  }
   installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
   registerAuthRoutes(app, authDeps);
 

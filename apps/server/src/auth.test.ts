@@ -4,8 +4,34 @@ import { createProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
 import { UserRepo } from './auth/users';
-import { hashPassword, verifyPassword } from './auth/password';
+import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './auth/password';
 import { signToken, verifyToken } from './auth/token';
+import { isPublicPath } from './auth/guard';
+
+describe('auth guard public-path matching', () => {
+  it('is public only on segment boundaries', () => {
+    // The intended public surfaces.
+    expect(isPublicPath('/api/health')).toBe(true);
+    expect(isPublicPath('/api/stream')).toBe(true);
+    expect(isPublicPath('/api/auth')).toBe(true);
+    expect(isPublicPath('/api/auth/login')).toBe(true);
+    // Lookalikes that a plain startsWith() would have leaked unauthenticated.
+    expect(isPublicPath('/api/health-internal')).toBe(false);
+    expect(isPublicPath('/api/streamers')).toBe(false);
+    expect(isPublicPath('/api/authz')).toBe(false);
+    // Genuinely protected routes stay guarded.
+    expect(isPublicPath('/api/orders')).toBe(false);
+    expect(isPublicPath('/api/account/keys')).toBe(false);
+  });
+});
+
+describe('login username-enumeration resistance', () => {
+  it('DUMMY_PASSWORD_HASH is a well-formed hash that no password matches', async () => {
+    expect(DUMMY_PASSWORD_HASH).toMatch(/^[0-9a-f]+:[0-9a-f]+$/);
+    expect(await verifyPassword('', DUMMY_PASSWORD_HASH)).toBe(false);
+    expect(await verifyPassword('password', DUMMY_PASSWORD_HASH)).toBe(false);
+  });
+});
 
 describe('password hashing', () => {
   it('round-trips a password and rejects the wrong one', async () => {
@@ -96,6 +122,25 @@ describe('auth API + guard', () => {
       payload: { username: 'alice', password: 'nope' },
     });
     expect(wrong.statusCode).toBe(401);
+  });
+
+  it('gives an unknown user the SAME 401 body as a wrong password (no enumeration oracle)', async () => {
+    const unknownUser = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'does-not-exist', password: 'whatever1' },
+    });
+    const wrongPass = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'alice', password: 'wrong-password' },
+    });
+    expect(unknownUser.statusCode).toBe(401);
+    expect(wrongPass.statusCode).toBe(401);
+    // Identical message: the response cannot reveal which usernames exist.
+    // (Timing parity is handled by always running a scrypt verify — see the
+    // DUMMY_PASSWORD_HASH path in the login route.)
+    expect(unknownUser.json().message).toBe(wrongPass.json().message);
   });
 
   it('rejects a duplicate username', async () => {

@@ -90,6 +90,21 @@ describe('workspaces API (auth off)', () => {
     });
     expect(res.statusCode).toBe(400);
   });
+
+  it('rejects an oversized snapshot with an honest 413 (disk-fill guard)', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/workspaces',
+      payload: { pad: 'x'.repeat(600 * 1024) }, // > 512 KiB serialized, < the 1 MiB body limit
+    });
+    expect(res.statusCode).toBe(413);
+    expect(res.json().error).toBe('SnapshotTooLarge');
+    expect(res.json().message).toMatch(/file export/i);
+
+    // The stored snapshot was not replaced by the rejected write.
+    const after = await app.inject({ method: 'GET', url: '/api/workspaces' });
+    expect(JSON.stringify(after.json().snapshot?.blob ?? null)).not.toContain('xxxx');
+  });
 });
 
 describe('per-user workspace isolation', () => {

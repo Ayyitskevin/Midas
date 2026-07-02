@@ -66,6 +66,27 @@ function env(key: string, fallback: string): string {
 }
 
 /**
+ * Numeric env parsing that fails SAFE. `Number('1o00')` is NaN, and NaN
+ * poisons every downstream comparison in the quiet direction: `notional >
+ * NaN` is false, so a typo in MIDAS_MAX_ORDER_USD would silently disable a
+ * money-moving cap rather than tighten it. Any unparseable, negative, or
+ * non-finite value falls back to the shipped default — and says so on
+ * stderr — instead of becoming "uncapped".
+ */
+export function numEnv(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (raw === undefined || raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    console.warn(
+      `[midas] ${key}="${raw}" is not a non-negative number — using the default (${fallback}).`,
+    );
+    return fallback;
+  }
+  return value;
+}
+
+/**
  * Demo-mode posture: one flag that makes an instance safe to expose as a
  * public demo, no matter what else the environment says — synthetic data
  * only, live trading impossible, no account signups. Pure and applied last,
@@ -86,12 +107,12 @@ export function applyDemoMode(cfg: Config): Config {
 
 const baseConfig: Config = {
   host: env('HOST', '0.0.0.0'),
-  port: Number(env('PORT', '4000')),
+  port: numEnv('PORT', 4000),
   provider: env('MIDAS_DATA_PROVIDER', 'mock').toLowerCase(),
   corsOrigin: env('MIDAS_CORS_ORIGIN', '*'),
   aiModel: env('MIDAS_AI_MODEL', 'claude-sonnet-4-6'),
   alertsFile: env('MIDAS_ALERTS_FILE', `${env('MIDAS_DATA_DIR', './data')}/alerts.json`),
-  alertIntervalMs: Number(env('MIDAS_ALERT_INTERVAL_MS', '15000')),
+  alertIntervalMs: numEnv('MIDAS_ALERT_INTERVAL_MS', 15000),
   alertWebhook: env('MIDAS_ALERT_WEBHOOK', ''),
   authEnabled: env('MIDAS_AUTH_ENABLED', 'false').toLowerCase() === 'true',
   authAllowSignup: env('MIDAS_AUTH_ALLOW_SIGNUP', 'true').toLowerCase() === 'true',
@@ -112,17 +133,17 @@ const baseConfig: Config = {
   notesFile: env('MIDAS_NOTES_FILE', `${env('MIDAS_DATA_DIR', './data')}/notes.json`),
   tradingEnabled: env('MIDAS_TRADING_ENABLED', 'false').toLowerCase() === 'true',
   tradingAllowNoAuth: env('MIDAS_TRADING_ALLOW_NO_AUTH', 'false').toLowerCase() === 'true',
-  maxOrderUsd: Number(env('MIDAS_MAX_ORDER_USD', '1000')),
-  maxDailyUsd: Number(env('MIDAS_MAX_DAILY_USD', '5000')),
-  accountWatchMs: Number(env('MIDAS_ACCOUNT_WATCH_MS', '10000')),
-  digestHours: Number(env('MIDAS_DIGEST_HOURS', '0')),
-  equitySnapMs: Number(env('MIDAS_EQUITY_SNAP_MS', '3600000')),
+  maxOrderUsd: numEnv('MIDAS_MAX_ORDER_USD', 1000),
+  maxDailyUsd: numEnv('MIDAS_MAX_DAILY_USD', 5000),
+  accountWatchMs: numEnv('MIDAS_ACCOUNT_WATCH_MS', 10000),
+  digestHours: numEnv('MIDAS_DIGEST_HOURS', 0),
+  equitySnapMs: numEnv('MIDAS_EQUITY_SNAP_MS', 3600000),
   equityFile: env('MIDAS_EQUITY_FILE', `${env('MIDAS_DATA_DIR', './data')}/equity.json`),
   demoMode: env('MIDAS_DEMO_MODE', 'false').toLowerCase() === 'true',
   keysKmsSecret: env('MIDAS_KEYS_KMS_SECRET', ''),
   keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
-  rateLimitRpm: Number(env('MIDAS_RATE_LIMIT_RPM', '0')),
-  maxKeyedUsers: Number(env('MIDAS_MAX_KEYED_USERS', '25')),
+  rateLimitRpm: numEnv('MIDAS_RATE_LIMIT_RPM', 0),
+  maxKeyedUsers: numEnv('MIDAS_MAX_KEYED_USERS', 25),
   version: MIDAS_VERSION,
 };
 

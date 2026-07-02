@@ -1,5 +1,34 @@
-import { describe, it, expect } from 'vitest';
-import { applyDemoMode, config, type Config } from './config';
+import { describe, it, expect, afterEach } from 'vitest';
+import { applyDemoMode, config, numEnv, type Config } from './config';
+
+describe('numEnv', () => {
+  const KEY = 'MIDAS_TEST_NUM_ENV';
+  afterEach(() => {
+    delete process.env[KEY];
+  });
+
+  it('parses valid values, including an explicit 0', () => {
+    process.env[KEY] = '250';
+    expect(numEnv(KEY, 7)).toBe(250);
+    process.env[KEY] = '0';
+    expect(numEnv(KEY, 7)).toBe(0);
+  });
+
+  it('falls back when unset or empty', () => {
+    expect(numEnv(KEY, 7)).toBe(7);
+    process.env[KEY] = '';
+    expect(numEnv(KEY, 7)).toBe(7);
+  });
+
+  it('fails SAFE on garbage — a cap typo must never mean "uncapped"', () => {
+    // `Number('1o00')` is NaN, and `notional > NaN` is always false: without
+    // the guard this would silently disable MIDAS_MAX_ORDER_USD.
+    for (const bad of ['1o00', 'abc', '-5', 'Infinity', 'NaN']) {
+      process.env[KEY] = bad;
+      expect(numEnv(KEY, 1000)).toBe(1000);
+    }
+  });
+});
 
 describe('applyDemoMode', () => {
   const risky: Config = {

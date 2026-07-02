@@ -91,3 +91,64 @@ describe('GET /api/system', () => {
     expect([200, 401]).toContain(res.statusCode);
   });
 });
+
+describe('input validation at the API edge (auth off)', () => {
+  let open: FastifyInstance;
+
+  beforeAll(async () => {
+    open = await buildApp(createProvider('mock'));
+    await open.ready();
+  });
+
+  afterAll(async () => {
+    await open.close();
+  });
+
+  it('bounds symbols to a real-instrument charset and length', async () => {
+    // Real shapes pass (crypto pair with settle suffix).
+    const ok = await open.inject({ method: 'GET', url: '/api/quote/BTC%2FUSDT' });
+    expect(ok.statusCode).toBe(200);
+
+    // Charset junk and unbounded length are 400s at the edge — they never
+    // reach a provider lookup, a stream key, or an error message.
+    for (const bad of ['BTC%20USDT', '%24%28reboot%29', 'A'.repeat(80)]) {
+      const res = await open.inject({ method: 'GET', url: `/api/quote/${bad}` });
+      expect(res.statusCode).toBe(400);
+    }
+  });
+
+  it('drops invalid entries from batch quotes instead of forwarding them', async () => {
+    const res = await open.inject({
+      method: 'GET',
+      url: `/api/quotes?symbols=BTC/USDT,${'Z'.repeat(90)},$(reboot)`,
+    });
+    expect(res.statusCode).toBe(200);
+    const symbols = (res.json() as Array<{ symbol: string }>).map((q) => q.symbol);
+    expect(symbols).toContain('BTC/USDT');
+    expect(symbols).toHaveLength(1);
+  });
+
+  it('caps the AI conversation volume before anything leaves the box', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-never-used';
+    try {
+      const res = await open.inject({
+        method: 'POST',
+        url: '/api/ai/chat',
+        payload: { messages: [{ role: 'user', content: 'x'.repeat(40_000) }] },
+      });
+      // 400 (not 502): the volume gate fires before any upstream call.
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toMatch(/32k characters/i);
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+
+  it('survives an abusive search needle (bounded before the scan)', async () => {
+    const res = await open.inject({
+      method: 'GET',
+      url: `/api/search?q=${'b'.repeat(3000)}`,
+    });
+    expect(res.statusCode).toBe(200); // truncated to 64 chars, honestly empty result
+  });
+});

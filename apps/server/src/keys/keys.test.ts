@@ -161,6 +161,35 @@ describe('key routes', () => {
     expect(anon.statusCode).toBe(401); // the auth guard answers first
   });
 
+  it('rejects an unknown/crafted exchange id at the edge — nothing is stored', async () => {
+    // 'constructor' is an inherited Object member that IS a function; a
+    // typeof-only guard would have let it through. The allowlist does not.
+    for (const exchange of ['constructor', 'toString', 'not-a-real-exchange']) {
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/api/account/keys',
+        headers: auth(),
+        payload: { exchange, apiKey: 'AKIAKEY12345678', secret: 'supersecret' },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).toMatch(/unknown exchange/i);
+    }
+    // The store is still empty — no rejected id leaked into a record.
+    const after = await app.inject({ method: 'GET', url: '/api/account/keys', headers: auth() });
+    expect(after.json().keys).toBeNull();
+  });
+
+  it('rejects oversized credential fields before encrypting anything', async () => {
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/account/keys',
+      headers: auth(),
+      payload: { exchange: 'binance', apiKey: 'k'.repeat(600), secret: 'supersecret' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toMatch(/512 characters/);
+  });
+
   it('is honestly off without a KMS secret', async () => {
     const off = await buildApp(createProvider('mock'), {
       auth: { enabled: true, allowSignup: true, secret: 'test-secret' },

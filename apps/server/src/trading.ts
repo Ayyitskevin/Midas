@@ -197,6 +197,13 @@ export function validateOrderRequest(body: unknown): OrderValidation {
   if (b.type === 'limit' && !(typeof b.price === 'number' && Number.isFinite(b.price) && b.price > 0)) {
     errors.push('limit orders require a positive price.');
   }
+  // clientOrderId is user-supplied, forwarded to the exchange, and used as an
+  // idempotency-cache key — bound it. Exchanges cap it well under this anyway.
+  if (b.clientOrderId !== undefined && b.clientOrderId !== null) {
+    if (typeof b.clientOrderId !== 'string' || b.clientOrderId.length > 128) {
+      errors.push('clientOrderId must be a string of at most 128 characters.');
+    }
+  }
   return { ok: errors.length === 0, errors };
 }
 

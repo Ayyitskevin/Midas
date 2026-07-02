@@ -30,8 +30,18 @@ const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
 const MAX_BATCH_SYMBOLS = 50;
 
+// Real instruments across providers: BTC/USDT:USDT, BRK-B, ^GSPC, EURUSD=X.
+const SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
+
+/**
+ * Uppercase + bound every symbol at the API edge. Anything outside the
+ * charset/length is junk that would otherwise flow unbounded into provider
+ * lookups, stream keys and error messages; it normalizes to '' and the
+ * routes answer 400.
+ */
 function normalizeSymbol(raw: string): string {
-  return raw.trim().toUpperCase();
+  const s = raw.trim().toUpperCase();
+  return SYMBOL_RE.test(s) ? s : '';
 }
 
 /**
@@ -43,6 +53,19 @@ function normalizeSymbol(raw: string): string {
  */
 function notifyWebhook(text: string): void {
   postWebhookText(config.alertWebhook, text);
+}
+
+/**
+ * A ccxt error on the write path can carry raw upstream detail (request URLs,
+ * response bodies). We log the full error server-side for the operator's audit
+ * trail, but return the caller a bounded, generic message — never the raw
+ * upstream text — so an exchange error can't reflect request internals to the
+ * client. Preserves an explicit ProviderError (those are ours and safe).
+ */
+function toSafeWriteError(err: unknown): ProviderError {
+  if (err instanceof ProviderError) return err;
+  const name = err instanceof Error && err.name ? err.name : 'ExchangeError';
+  return new ProviderError(`The exchange rejected the request (${name}).`, 502);
 }
 
 /** Resolves the provider for a request (per-user keys); defaults to the base provider. */
@@ -75,7 +98,7 @@ export function registerRoutes(
 
   app.get<{ Params: { symbol: string } }>('/api/quote/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getQuote(symbol);
   });
 
@@ -98,7 +121,7 @@ export function registerRoutes(
     Querystring: { interval?: string; range?: string };
   }>('/api/history/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
 
     const interval = req.query.interval && isInterval(req.query.interval)
       ? req.query.interval
@@ -115,7 +138,7 @@ export function registerRoutes(
     Querystring: { depth?: string };
   }>('/api/orderbook/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     const depthRaw = Number(req.query.depth);
     const depth =
       Number.isFinite(depthRaw) && depthRaw > 0 ? Math.min(Math.floor(depthRaw), 100) : 25;
@@ -124,26 +147,26 @@ export function registerRoutes(
 
   app.get<{ Params: { symbol: string } }>('/api/exchange-quotes/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getExchangeQuotes(symbol);
   });
 
   // Per-venue funding & open interest for a perp across the compare set.
   app.get<{ Params: { symbol: string } }>('/api/venue-derivatives/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getVenueDerivatives(symbol);
   });
 
   app.get<{ Params: { symbol: string } }>('/api/derivatives/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getDerivatives(symbol);
   });
 
   app.get<{ Params: { symbol: string } }>('/api/onchain/:symbol', async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
-    if (!symbol) throw new ProviderError('Missing symbol', 400);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getDexPools(symbol);
   });
 
@@ -248,7 +271,7 @@ export function registerRoutes(
   // trading identity: two users using the same clientOrderId must never see
   // (or suppress) each other's orders.
   const placedOrders = createIdempotencyCache();
-  const idemKey = (scope: string, clientOrderId: string): string => `${scope} ${clientOrderId}`;
+  const idemKey = (scope: string, clientOrderId: string): string => `${scope}\u0000${clientOrderId}`;
 
   app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
     const { status, trader, scope, userKeyed } = resolveTrading(req.userId);
@@ -261,6 +284,7 @@ export function registerRoutes(
     if (!trader.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
 
     const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
+    if (!body.symbol) throw new ProviderError('Invalid symbol.', 400);
 
     // Idempotency: a duplicate clientOrderId within the TTL is answered from
     // the cache — the exchange is never asked to place a second time.
@@ -318,8 +342,15 @@ export function registerRoutes(
       placed = await trader.placeOrder(body);
     } catch (err) {
       if (placedNotional != null) dailyLedgers.add(scope, -placedNotional, Date.now());
-      throw err;
+      // Audit the OUTCOME, not just the attempt: a failed placement leaves a
+      // durable record with the full upstream error (server-side only). The
+      // caller gets a bounded, generic message — never the raw ccxt text.
+      app.log.warn({ symbol: body.symbol, scope, err }, 'LIVE order placement failed');
+      throw toSafeWriteError(err);
     }
+    // Audit the successful outcome with the resulting order id + status, so the
+    // trail is complete whether or not an operator webhook is configured.
+    app.log.warn({ orderId: placed.id, status: placed.status, symbol: body.symbol, scope }, 'LIVE order placed');
     if (body.clientOrderId) placedOrders.remember(idemKey(scope, body.clientOrderId), placed, Date.now());
     notifyWebhook(
       `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
@@ -348,7 +379,14 @@ export function registerRoutes(
       if (!trader.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
 
       app.log.warn({ orderId: id, symbol, userId: req.userId, userKeyed }, 'LIVE order cancel');
-      const result = await trader.cancelOrder(id, symbol);
+      let result;
+      try {
+        result = await trader.cancelOrder(id, symbol);
+      } catch (err) {
+        app.log.warn({ orderId: id, symbol, scope, err }, 'LIVE order cancel failed');
+        throw toSafeWriteError(err);
+      }
+      app.log.warn({ orderId: result.id, status: result.status, symbol, scope }, 'LIVE order canceled');
       notifyWebhook(
         `🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status}` +
           `${userKeyed ? `, by ${scope}` : ''})`,
@@ -361,7 +399,7 @@ export function registerRoutes(
     '/api/funding-history/:symbol',
     async (req) => {
       const symbol = normalizeSymbol(req.params.symbol);
-      if (!symbol) throw new ProviderError('Missing symbol', 400);
+      if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
       if (!provider.getFundingHistory) {
         throw new ProviderError('Funding history not supported by this provider', 501, symbol);
       }
@@ -441,7 +479,7 @@ export function registerRoutes(
   });
 
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
-    const q = (req.query.q ?? '').trim();
+    const q = (req.query.q ?? '').trim().slice(0, 64);
     if (q.length === 0) return [];
     return provider.search(q);
   });
@@ -471,6 +509,10 @@ export function registerRoutes(
         )
         .slice(-12);
       if (messages.length === 0) throw new ProviderError('No messages provided', 400);
+      const totalChars = messages.reduce((n, m) => n + m.content.length, 0);
+      if (totalChars > 32_000) {
+        throw new ProviderError('Conversation too large — 32k characters max per request.', 400);
+      }
 
       const symbol = req.body?.symbol ? normalizeSymbol(req.body.symbol) : undefined;
       const context = await buildContext(provider, symbol);

@@ -348,6 +348,47 @@ describe('per-user trading routes', () => {
     expect(stubs.get('alice-api-key')!.cancelOrder).toHaveBeenCalledWith('some-order', 'BTC/USDT');
   });
 
+  it('a raw exchange error is never reflected to the caller — bounded 502, full detail server-side only', async () => {
+    // Fresh signup so this user has an untouched daily budget and their OWN
+    // stub (the factory rebuilds one per stored key, keyed by apiKey).
+    const tokenD = (
+      await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'dave', password: 'correct-horse' } })
+    ).json().token as string;
+    await app.inject({
+      method: 'PUT',
+      url: '/api/account/keys',
+      headers: { authorization: `Bearer ${tokenD}` },
+      payload: { exchange: 'kraken', apiKey: 'dave-api-key', secret: 'sss', canTrade: true },
+    });
+    // Resolve the provider once (status read) so the factory has built dave's
+    // stub — loops are off in this suite, so construction is otherwise lazy.
+    await app.inject({ method: 'GET', url: '/api/trading/status', headers: { authorization: `Bearer ${tokenD}` } });
+    // Make THIS user's exchange client throw an error whose message carries
+    // request internals (as some ccxt auth errors do).
+    stubs
+      .get('dave-api-key')!
+      .placeOrder.mockRejectedValueOnce(
+        Object.assign(
+          new Error('invalid signature for apiKey=dave-api-key secret=sss https://api.kraken.com/0/private/AddOrder'),
+          { name: 'AuthenticationError' },
+        ),
+      );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/orders',
+      headers: { authorization: `Bearer ${tokenD}` },
+      payload: order({ amount: 0.1 }),
+    });
+    expect(res.statusCode).toBe(502);
+    const body = res.body;
+    // The bounded message names only the error CLASS, never the raw text.
+    expect(res.json().message).toBe('The exchange rejected the request (AuthenticationError).');
+    expect(body).not.toContain('secret=sss');
+    expect(body).not.toContain('api.kraken.com');
+    expect(body).not.toContain('apiKey=');
+  });
+
   it('anonymous/operator path still requires operator env keys (self-host unchanged)', async () => {
     // No auth header → the guard rejects; with auth but no stored keys the
     // operator gates answer. Simplest honest check: an authed user who
