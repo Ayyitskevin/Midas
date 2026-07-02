@@ -1,7 +1,7 @@
 # Architecture
 
 A map of how Midas fits together, for contributors. For setup and the gates see
-[CONTRIBUTING](../CONTRIBUTING.md).
+[CONTRIBUTING](https://github.com/Ayyitskevin/Midas/blob/main/CONTRIBUTING.md).
 
 ## The big picture
 
@@ -134,7 +134,7 @@ two-step confirm in `TICKET`, and per-row cancel in `ORD` only when enabled.
 ## Adding an indicator/analytics board
 
 The most common contribution. The steps (with the architectural "why") are in
-[CONTRIBUTING](../CONTRIBUTING.md#adding-an-indicatoranalytics-board-the-common-case):
+[CONTRIBUTING](https://github.com/Ayyitskevin/Midas/blob/main/CONTRIBUTING.md#adding-an-indicatoranalytics-board-the-common-case):
 add a pure `lib/<name>.ts` (+ test), a `<Name>Module.tsx`, then register it in
 `meta.ts`, `registry.tsx`, and `commands/registry.ts`, and add a README row.
 Copy the nearest existing board and adapt it.

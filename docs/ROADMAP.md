@@ -3,7 +3,7 @@
 The second 30 days: from "feature-complete terminal" to "MicroSaaS people
 pay for". The v1 roadmap (order lifecycle, data depth, closing-the-loop
 analytics, distribution) shipped in full across v0.2.0–v0.4.0 — see
-[CHANGELOG.md](../CHANGELOG.md). This plan optimizes for four things at the
+[CHANGELOG.md](https://github.com/Ayyitskevin/Midas/blob/main/CHANGELOG.md). This plan optimizes for four things at the
 $20–$49 price point: **conversion** (try → deploy → waitlist), **retention**
 (the terminal earns its keep weekly), **monetization groundwork** (hosted
 tier without breaking self-host), and **scalability** (one operator can run
