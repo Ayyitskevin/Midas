@@ -9,6 +9,9 @@ own box for free, forever.
 
 ## Start here
 
+- **[Open the live demo](https://ayyitskevin.github.io/Midas/demo/)** — the
+  real terminal against a synthetic in-browser market. No server, no signup;
+  everything labeled honestly.
 - **Run it in 2 minutes** — [README quickstart](https://github.com/Ayyitskevin/Midas#quickstart):
   `docker compose up -d`, open `http://localhost:8080`. The default `mock`
   provider works offline; flip `MIDAS_DATA_PROVIDER=ccxt` for live markets.

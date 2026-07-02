@@ -39,6 +39,11 @@ class StreamClient {
   }
 
   subscribe(channel: string, symbolRaw: string, handler: Handler): () => void {
+    // Static demo: there is no server to stream from — stay 'closed' so every
+    // panel uses its REST-polling baseline instead of a reconnect loop.
+    if ((window as unknown as { __MIDAS_STATIC_DEMO__?: boolean }).__MIDAS_STATIC_DEMO__) {
+      return () => {};
+    }
     const symbol = symbolRaw.toUpperCase();
     const key = `${channel}${SEP}${symbol}`;
     let set = this.subs.get(key);
