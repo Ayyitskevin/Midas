@@ -8,7 +8,9 @@ import {
   screenerRows,
   solanaDexPoolsFor,
   solanaNetworkFor,
+  solanaStakingFor,
   solanaTrendingFor,
+  solanaValidatorsFor,
   solanaWalletFor,
 } from './engine';
 import { installDemoShim } from './shim';
@@ -100,6 +102,25 @@ describe('demo engine', () => {
     expect(pools.provenance).toBe('synthetic');
     expect(pools.pools.map((p) => p.dex)).toContain('Raydium');
     expect(solanaDexPoolsFor('NOPE/USDT', NOW).provenance).toBe('unavailable');
+  });
+
+  it('Solana validators are synthetic, ranked by stake, shares ~100%', () => {
+    const v = solanaValidatorsFor(NOW);
+    expect(v.provenance).toBe('synthetic');
+    expect(v.validators.length).toBeGreaterThan(5);
+    for (let i = 1; i < v.validators.length; i++) {
+      expect(v.validators[i].activatedStakeSol!).toBeLessThanOrEqual(v.validators[i - 1].activatedStakeSol!);
+    }
+    const shareSum = v.validators.reduce((s, x) => s + (x.stakeSharePct ?? 0), 0);
+    expect(shareSum).toBeGreaterThan(95);
+    expect(shareSum).toBeLessThan(105);
+  });
+
+  it('Solana staking is synthetic with sane APY bounds', () => {
+    const s = solanaStakingFor(NOW);
+    expect(s.provenance).toBe('synthetic');
+    expect(s.nominalApyPct!).toBeGreaterThan(4);
+    expect(s.realApyPct!).toBeGreaterThanOrEqual(s.nominalApyPct!);
   });
 });
 

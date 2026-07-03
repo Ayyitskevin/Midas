@@ -19,7 +19,9 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTrending,
+  SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -84,6 +86,10 @@ export interface DataProvider {
    * shape as getDexPools, but constrained to Solana venues (Raydium/Orca/…).
    */
   getSolanaDexPools?(symbol: string): Promise<DexPools>;
+  /** Read-only Solana validator leaderboard (optional). Non-custodial RPC read. */
+  getSolanaValidators?(): Promise<SolanaValidators>;
+  /** Read-only Solana native staking economics (optional). Non-custodial RPC read. */
+  getSolanaStaking?(): Promise<SolanaStaking>;
   /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
   getBalances(): Promise<Balances>;
   /** Read-only open orders (non-custodial; reads only — never places/cancels), honestly labeled. */

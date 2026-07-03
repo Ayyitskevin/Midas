@@ -63,7 +63,9 @@ export function SolanaTrendingModule(_props: ModuleProps) {
                   <td className="px-2 py-0.5 text-term-text" title={t.pair}>
                     {t.symbol}
                   </td>
-                  <td className="px-2 py-0.5 text-right">{t.priceUsd == null ? '—' : fmtPrice(t.priceUsd, t.priceUsd < 0.01 ? 6 : 2)}</td>
+                  <td className="px-2 py-0.5 text-right">
+                    {t.priceUsd == null ? '—' : fmtPrice(t.priceUsd, t.priceUsd < 0.0001 ? 8 : t.priceUsd < 1 ? 6 : 2)}
+                  </td>
                   <td
                     className={`px-2 py-0.5 text-right ${
                       t.change24hPct == null ? 'text-term-dim' : t.change24hPct >= 0 ? 'text-term-up' : 'text-term-down'

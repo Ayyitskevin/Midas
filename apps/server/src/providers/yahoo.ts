@@ -15,7 +15,9 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTrending,
+  SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -223,6 +225,33 @@ export class YahooProvider implements DataProvider {
       provenance: 'unavailable',
       note: 'Solana DEX data is a crypto feature — switch to the ccxt provider (and set MIDAS_DEX_SOURCE=geckoterminal).',
       pools: [],
+    };
+  }
+
+  async getSolanaValidators(): Promise<SolanaValidators> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_RPC for a live read).',
+      totalStakeSol: null,
+      validatorCount: null,
+      delinquentCount: null,
+      validators: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaStaking(): Promise<SolanaStaking> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_RPC for a live read).',
+      inflationPct: null,
+      stakedRatioPct: null,
+      nominalApyPct: null,
+      realApyPct: null,
+      epochsPerYear: null,
+      asOf: Date.now(),
     };
   }
 

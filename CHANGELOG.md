@@ -7,6 +7,21 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Solana staking & validators** (Solana Suite, slice 3): **`SVAL`** is a
+  validator leaderboard — the top validators ranked by activated stake, each with
+  its stake share, commission and delinquency status, plus network totals
+  (total stake, validator count, delinquent count) — and **`SSTAKE`** shows
+  native-staking economics: the real (compounded) staking APY and its nominal
+  rate, derived from network inflation ÷ the staked-supply ratio, alongside the
+  inflation rate and staked ratio. Both are read-only and non-custodial, live via
+  `MIDAS_SOLANA_RPC` (`SVAL` from `getVoteAccounts`; `SSTAKE` from
+  `getInflationRate`, `getSupply` and `getVoteAccounts`), synthetic-but-labeled in
+  the mock provider and static demo, honest `unavailable` otherwise.
+- Sub-cent prices now render with the precision the caller asks for: `fmtPrice`
+  honors an explicit `decimals` argument above 4 for sub-$1 values (so a
+  0.000023 memecoin shows `0.000023`, not `0.0000`), and the trending panel scales
+  its price precision to the token's magnitude. Default two-decimal callers are
+  unchanged.
 - **Solana DeFi markets** (Solana Suite, slice 2): **`STREND`** ranks trending
   Solana tokens by 24h DEX volume (price, 24h change, volume, liquidity, top
   venue), and **`SOLDEX`** shows a base asset's liquidity across Solana DEXes

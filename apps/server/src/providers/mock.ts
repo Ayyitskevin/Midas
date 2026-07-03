@@ -22,9 +22,12 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTokenHolding,
   SolanaTrending,
   SolanaTrendingToken,
+  SolanaValidator,
+  SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -484,6 +487,65 @@ export class MockProvider implements DataProvider {
       provenance: 'synthetic',
       note: 'Synthetic Solana DEX pools for offline/demo use — not real on-chain data.',
       pools,
+    };
+  }
+
+  async getSolanaValidators(): Promise<SolanaValidators> {
+    // Deterministic-per-hour synthetic leaderboard. Clearly labeled synthetic.
+    const hour = Math.floor(Date.now() / 3_600_000);
+    const count = 30;
+    const raw = Array.from({ length: count }, (_, i) => {
+      const rng = seeded('solval', i, hour, 'val');
+      // Stake decays down the ranking, so the leaderboard looks realistic.
+      return {
+        stake: Math.floor(uniform(rng, 0.4, 1) * 4_000_000 * Math.pow(0.9, i)),
+        commissionPct: Math.round(uniform(rng, 0, 10)),
+        delinquent: i > 26 && uniform(rng, 0, 1) > 0.5, // a couple at the tail
+        seed: rng,
+      };
+    });
+    const totalStakeSol = raw.reduce((s, v) => s + v.stake, 0);
+    const validators: SolanaValidator[] = raw.map((v, i) => ({
+      votePubkey: `Vote${i}1111111111111111111111111111111111111`,
+      identity: `Node${i}…${(1000 + i).toString(36)}`,
+      activatedStakeSol: v.stake,
+      commissionPct: v.commissionPct,
+      stakeSharePct: Math.round((v.stake / totalStakeSol) * 10000) / 100,
+      delinquent: v.delinquent,
+      lastVoteSlot: 296_000_000 + Math.floor(uniform(v.seed, 0, 5000)),
+    }));
+    validators.sort((a, b) => (b.activatedStakeSol ?? 0) - (a.activatedStakeSol ?? 0));
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana validators for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for the live leaderboard.',
+      totalStakeSol,
+      validatorCount: validators.filter((v) => !v.delinquent).length,
+      delinquentCount: validators.filter((v) => v.delinquent).length,
+      validators,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaStaking(): Promise<SolanaStaking> {
+    const hour = Math.floor(Date.now() / 3_600_000);
+    const rng = seeded('solstake', hour, 'stake');
+    const inflation = uniform(rng, 0.044, 0.048); // ~4.5% total, disinflating
+    const stakedRatio = uniform(rng, 0.63, 0.67); // ~65% of supply staked
+    const epochsPerYear = 182;
+    const nominal = inflation / stakedRatio;
+    const real = (1 + nominal / epochsPerYear) ** epochsPerYear - 1;
+    const pct = (x: number): number => Math.round(x * 1000) / 10;
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana staking economics for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for live data.',
+      inflationPct: pct(inflation),
+      stakedRatioPct: pct(stakedRatio),
+      nominalApyPct: pct(nominal),
+      realApyPct: pct(real),
+      epochsPerYear,
+      asOf: Date.now(),
     };
   }
 

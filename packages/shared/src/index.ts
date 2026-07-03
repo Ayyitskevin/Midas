@@ -396,6 +396,72 @@ export interface SolanaTrending {
   asOf: number;
 }
 
+/** A single Solana validator's vote-account snapshot (read-only). */
+export interface SolanaValidator {
+  /** Vote account address (base-58). */
+  votePubkey: string;
+  /** Node identity pubkey, shortened for display (base-58). */
+  identity: string;
+  /** Active delegated stake, in whole SOL; null if unknown. */
+  activatedStakeSol: number | null;
+  /** Commission the validator takes, percent 0–100; null if unknown. */
+  commissionPct: number | null;
+  /** This validator's share of total active stake, percent; null if unknown. */
+  stakeSharePct: number | null;
+  /** True when the validator is delinquent (not voting). */
+  delinquent: boolean;
+  /** The last slot this validator voted on; null if unknown. */
+  lastVoteSlot: number | null;
+}
+
+/**
+ * The Solana validator leaderboard, ranked by active stake, with honest
+ * provenance labeling. Read-only (getVoteAccounts RPC) — non-custodial.
+ */
+export interface SolanaValidators {
+  /** Where the read came from, e.g. 'rpc:mainnet-beta' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Total active stake across all validators, in whole SOL; null if unknown. */
+  totalStakeSol: number | null;
+  /** Count of current (voting) validators; null if unknown. */
+  validatorCount: number | null;
+  /** Count of delinquent validators; null if unknown. */
+  delinquentCount: number | null;
+  /** The top validators by active stake (capped). */
+  validators: SolanaValidator[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/**
+ * Solana native staking economics, derived from RPC inflation + supply + stake.
+ * Read-only and non-custodial. The nominal yield is inflation ÷ the staked
+ * ratio; the real yield compounds it across the year's epochs. All fields
+ * nullable so a partial read degrades a field, not the whole panel.
+ */
+export interface SolanaStaking {
+  /** Where the read came from, e.g. 'rpc:mainnet-beta' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Current total network inflation, percent; null if unknown. */
+  inflationPct: number | null;
+  /** Share of SOL supply that is actively staked, percent; null if unknown. */
+  stakedRatioPct: number | null;
+  /** Nominal staking APY (inflation ÷ staked ratio), percent; null if unknown. */
+  nominalApyPct: number | null;
+  /** Real (epoch-compounded) staking APY, percent; null if unknown. */
+  realApyPct: number | null;
+  /** Approximate epochs per year used for compounding; null if unknown. */
+  epochsPerYear: number | null;
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
 export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
 

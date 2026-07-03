@@ -21,7 +21,9 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTrending,
+  SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -33,6 +35,7 @@ import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
 import { fetchSolanaNetwork } from '../solana/network';
 import { fetchSolanaWallet } from '../solana/wallet';
 import { fetchSolanaPools, fetchSolanaTrending } from '../solana/dex';
+import { fetchSolanaStaking, fetchSolanaValidators } from '../solana/staking';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
@@ -486,6 +489,16 @@ export class CcxtProvider implements DataProvider {
   async getSolanaDexPools(symbol: string): Promise<DexPools> {
     const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
     return fetchSolanaPools(base);
+  }
+
+  /** Solana validator leaderboard (env-gated live RPC; honest 'unavailable' otherwise). */
+  async getSolanaValidators(): Promise<SolanaValidators> {
+    return fetchSolanaValidators();
+  }
+
+  /** Solana native staking economics (env-gated live RPC; honest 'unavailable' otherwise). */
+  async getSolanaStaking(): Promise<SolanaStaking> {
+    return fetchSolanaStaking();
   }
 
   /** Best-effort SOL/USDT spot from this exchange for USD valuation; null on failure. */

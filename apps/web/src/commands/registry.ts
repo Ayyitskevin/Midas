@@ -134,6 +134,22 @@ export const COMMANDS: CommandDef[] = [
     description: "A base asset's liquidity across Solana DEXes (Raydium, Orca, Meteora, Phoenix, Lifinity) — price, TVL, 24h volume and fee tier per pool, with a VWAP/TVL roll-up. Read-only, non-custodial, with a live/synthetic data-honesty badge (synthetic until MIDAS_DEX_SOURCE=geckoterminal).",
   },
   {
+    code: 'SVAL',
+    aliases: ['SOLVAL', 'VALIDATORS'],
+    title: 'Solana Validators',
+    module: 'SVAL',
+    requiresSymbol: false,
+    description: 'The Solana validator leaderboard ranked by active stake — identity, stake, share of network, commission and voting status (voting/delinquent), with network totals. Read-only public-RPC read (getVoteAccounts), non-custodial, with a live/synthetic data-honesty badge (synthetic until MIDAS_SOLANA_RPC is set).',
+  },
+  {
+    code: 'SSTAKE',
+    aliases: ['SOLSTAKE', 'STAKEYIELD'],
+    title: 'Solana Staking',
+    module: 'SSTAKE',
+    requiresSymbol: false,
+    description: 'Solana native staking economics — nominal and real (epoch-compounded) staking APY, current network inflation and the staked ratio (share of supply staked), derived from RPC. Read-only, non-custodial, with a live/synthetic data-honesty badge (synthetic until MIDAS_SOLANA_RPC is set).',
+  },
+  {
     code: 'TAS',
     aliases: ['PRINTS', 'TS', 'TRADES'],
     title: 'Time & Sales',

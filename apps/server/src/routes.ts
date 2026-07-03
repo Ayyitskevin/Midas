@@ -248,6 +248,36 @@ export function registerRoutes(
     };
   });
 
+  // Read-only Solana staking: validator leaderboard + native staking economics.
+  app.get('/api/solana/validators', async () => {
+    if (provider.getSolanaValidators) return provider.getSolanaValidators();
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      totalStakeSol: null,
+      validatorCount: null,
+      delinquentCount: null,
+      validators: [],
+      asOf: Date.now(),
+    };
+  });
+
+  app.get('/api/solana/staking', async () => {
+    if (provider.getSolanaStaking) return provider.getSolanaStaking();
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      inflationPct: null,
+      stakedRatioPct: null,
+      nominalApyPct: null,
+      realApyPct: null,
+      epochsPerYear: null,
+      asOf: Date.now(),
+    };
+  });
+
   // Read-only account reads (non-custodial). Account-wide, so no symbol.
   // Auth-guarded when auth is enabled — these are not public prefixes, so the
   // onRequest guard covers them. Per-user keys (when stored) resolve these
