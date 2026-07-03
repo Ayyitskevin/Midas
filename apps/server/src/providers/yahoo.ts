@@ -14,8 +14,11 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
@@ -251,6 +254,58 @@ export class YahooProvider implements DataProvider {
       nominalApyPct: null,
       realApyPct: null,
       epochsPerYear: null,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_RPC for a live read).',
+      mint,
+      symbol: mint,
+      program: null,
+      decimals: null,
+      supply: null,
+      mintAuthority: null,
+      mintAuthorityActive: null,
+      freezeAuthority: null,
+      freezeAuthorityActive: null,
+      priceUsd: null,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaQuote(input: string, output: string): Promise<SolanaSwapQuote> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana swap quotes are a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_JUPITER for a live read).',
+      inputSymbol: input.toUpperCase(),
+      outputSymbol: output.toUpperCase(),
+      inputMint: '',
+      outputMint: '',
+      inAmount: null,
+      outAmount: null,
+      price: null,
+      priceImpactPct: null,
+      slippageBps: null,
+      route: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaMarket(): Promise<SolanaMarket> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_DEX_SOURCE=geckoterminal for a live read).',
+      solPriceUsd: null,
+      totalVolume24hUsd: null,
+      totalLiquidityUsd: null,
+      tokenCount: null,
+      tokens: [],
       asOf: Date.now(),
     };
   }

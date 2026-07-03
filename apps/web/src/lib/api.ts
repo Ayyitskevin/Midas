@@ -31,8 +31,11 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
@@ -151,6 +154,14 @@ export const api = {
     apiGet<DexPools>(`/api/solana/pools/${encodeURIComponent(symbol)}`, signal),
   solanaValidators: (signal?: AbortSignal) => apiGet<SolanaValidators>('/api/solana/validators', signal),
   solanaStaking: (signal?: AbortSignal) => apiGet<SolanaStaking>('/api/solana/staking', signal),
+  solanaToken: (mint: string, signal?: AbortSignal) =>
+    apiGet<SolanaTokenInfo>(`/api/solana/token/${encodeURIComponent(mint)}`, signal),
+  solanaQuote: (input: string, output: string, amount: number, signal?: AbortSignal) =>
+    apiGet<SolanaSwapQuote>(
+      `/api/solana/quote/${encodeURIComponent(input)}/${encodeURIComponent(output)}/${encodeURIComponent(String(amount))}`,
+      signal,
+    ),
+  solanaMarket: (signal?: AbortSignal) => apiGet<SolanaMarket>('/api/solana/market', signal),
 
   // Read-only account reads (non-custodial; keyed via the server env).
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),

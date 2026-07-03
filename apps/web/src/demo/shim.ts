@@ -18,8 +18,11 @@ import {
   screenerRows,
   searchFor,
   solanaDexPoolsFor,
+  solanaMarketFor,
   solanaNetworkFor,
+  solanaQuoteFor,
   solanaStakingFor,
+  solanaTokenFor,
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
@@ -146,10 +149,16 @@ function handle(method: string, url: URL): Response | null {
       return json(solanaValidatorsFor(now));
     case path === '/api/solana/staking':
       return json(solanaStakingFor(now));
+    case path === '/api/solana/market':
+      return json(solanaMarketFor(now));
     case path.startsWith('/api/solana/wallet/'):
       return json(solanaWalletFor(seg(4), now));
     case path.startsWith('/api/solana/pools/'):
       return json(solanaDexPoolsFor(seg(4), now));
+    case path.startsWith('/api/solana/token/'):
+      return json(solanaTokenFor(seg(4), now));
+    case path.startsWith('/api/solana/quote/'):
+      return json(solanaQuoteFor(seg(4), seg(5), Number(seg(6)), now));
     case path === '/api/news' || path.startsWith('/api/news/'):
       return json(newsFor(path === '/api/news' ? undefined : seg(3), now));
     case path === '/api/balances':

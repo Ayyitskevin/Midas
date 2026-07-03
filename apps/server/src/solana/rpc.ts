@@ -79,6 +79,31 @@ export const KNOWN_MINTS: Record<string, string> = {
 /** USD-pinned mints for pricing (only stablecoins are safe to pin at $1). */
 export const STABLE_SYMBOLS = new Set(['USDC', 'USDT']);
 
+/** The two SPL token programs (classic and Token-2022). */
+export const SPL_TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+export const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+
+/**
+ * Decimals for well-known mints. The Jupiter quote endpoint returns amounts in
+ * raw base units and does NOT include decimals, so a swap quote must know each
+ * mint's decimals independently to render a human price. Kept alongside
+ * KNOWN_MINTS so the two stay in step.
+ */
+export const MINT_DECIMALS: Record<string, number> = {
+  So11111111111111111111111111111111111111112: 9, // SOL / wSOL
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: 6, // USDC
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: 6, // USDT
+  DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: 5, // BONK
+  JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN: 6, // JUP
+  jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL: 9, // JTO
+  mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So: 9, // mSOL
+};
+
+/** Reverse of KNOWN_MINTS: ticker → mint, for symbol-driven lookups (e.g. swap quotes). */
+export const MINT_BY_SYMBOL: Record<string, string> = Object.fromEntries(
+  Object.entries(KNOWN_MINTS).map(([mint, sym]) => [sym, mint]),
+);
+
 /** Shorten a base-58 address for display, e.g. 'EPjFWd…Dt1v'. */
 export function shortMint(mint: string): string {
   return mint.length > 12 ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : mint;

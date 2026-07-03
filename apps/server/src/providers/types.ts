@@ -18,8 +18,11 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
@@ -90,6 +93,15 @@ export interface DataProvider {
   getSolanaValidators?(): Promise<SolanaValidators>;
   /** Read-only Solana native staking economics (optional). Non-custodial RPC read. */
   getSolanaStaking?(): Promise<SolanaStaking>;
+  /** Read-only SPL token (mint) explorer for a base-58 mint (optional). Non-custodial RPC read. */
+  getSolanaToken?(mint: string): Promise<SolanaTokenInfo>;
+  /**
+   * Read-only Jupiter swap quote (optional) — QUOTE ONLY, never a swap tx, so
+   * the non-custodial invariant holds. amount is in whole input tokens.
+   */
+  getSolanaQuote?(input: string, output: string, amount: number): Promise<SolanaSwapQuote>;
+  /** Read-only Solana ecosystem market overview (optional). Read-only market data. */
+  getSolanaMarket?(): Promise<SolanaMarket>;
   /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
   getBalances(): Promise<Balances>;
   /** Read-only open orders (non-custodial; reads only — never places/cancels), honestly labeled. */

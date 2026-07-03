@@ -7,8 +7,11 @@ import {
   quoteFor,
   screenerRows,
   solanaDexPoolsFor,
+  solanaMarketFor,
   solanaNetworkFor,
+  solanaQuoteFor,
   solanaStakingFor,
+  solanaTokenFor,
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
@@ -122,6 +125,39 @@ describe('demo engine', () => {
     expect(s.nominalApyPct!).toBeGreaterThan(4);
     expect(s.realApyPct!).toBeGreaterThanOrEqual(s.nominalApyPct!);
   });
+
+  it('SPL token is synthetic; a known mint is labeled and stable-priced', () => {
+    const t = solanaTokenFor('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', NOW);
+    expect(t.provenance).toBe('synthetic');
+    expect(t.symbol).toBe('USDC');
+    expect(t.decimals).toBe(6);
+    expect(t.supply!).toBeGreaterThan(0);
+    expect(t.priceUsd).toBe(1);
+    // Seeded on the mint → the authorities are stable across time.
+    expect(solanaTokenFor('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', NOW + 60_000).mintAuthorityActive).toBe(
+      t.mintAuthorityActive,
+    );
+  });
+
+  it('Solana swap quote is synthetic; identical tokens are honestly null', () => {
+    const q = solanaQuoteFor('SOL', 'USDC', 1, NOW);
+    expect(q.provenance).toBe('synthetic');
+    expect(q.inAmount).toBe(1);
+    expect(q.outAmount!).toBeGreaterThan(0);
+    expect(q.priceImpactPct!).toBeGreaterThanOrEqual(0);
+    expect(q.route.length).toBeGreaterThan(0);
+    expect(solanaQuoteFor('SOL', 'SOL', 1, NOW).outAmount).toBeNull();
+  });
+
+  it('Solana market overview is synthetic, sorted by volume, with a SOL price', () => {
+    const m = solanaMarketFor(NOW);
+    expect(m.provenance).toBe('synthetic');
+    expect(m.solPriceUsd!).toBeGreaterThan(0);
+    expect(m.tokens.length).toBeGreaterThan(0);
+    for (let i = 1; i < m.tokens.length; i++) {
+      expect(m.tokens[i].volume24hUsd!).toBeLessThanOrEqual(m.tokens[i - 1].volume24hUsd!);
+    }
+  });
 });
 
 describe('demo shim', () => {
@@ -183,5 +219,14 @@ describe('demo shim', () => {
     const pools = await (await fetch('/api/solana/pools/SOL%2FUSDT')).json();
     expect(pools.provenance).toBe('synthetic');
     expect(pools.symbol).toBe('SOL');
+    const token = await (await fetch('/api/solana/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v')).json();
+    expect(token.provenance).toBe('synthetic');
+    expect(token.symbol).toBe('USDC'); // case preserved via seg(4)
+    const quote = await (await fetch('/api/solana/quote/SOL/USDC/1')).json();
+    expect(quote.provenance).toBe('synthetic');
+    expect(quote.outAmount).toBeGreaterThan(0);
+    const market = await (await fetch('/api/solana/market')).json();
+    expect(market.provenance).toBe('synthetic');
+    expect(market.tokens.length).toBeGreaterThan(0);
   });
 });

@@ -18,6 +18,9 @@ export type ModuleCode =
   | 'SOLDEX'
   | 'SVAL'
   | 'SSTAKE'
+  | 'SPL'
+  | 'SJUP'
+  | 'SOLMKT'
   | 'TAS'
   | 'CVD'
   | 'IMB'
@@ -256,6 +259,9 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   SOLDEX: { code: 'SOLDEX', title: 'Solana DEX Pools', w: 6, h: 10, minW: 4, minH: 6 },
   SVAL: { code: 'SVAL', title: 'Solana Validators', w: 7, h: 12, minW: 5, minH: 6 },
   SSTAKE: { code: 'SSTAKE', title: 'Solana Staking', w: 5, h: 8, minW: 4, minH: 5 },
+  SPL: { code: 'SPL', title: 'SPL Token', w: 5, h: 9, minW: 4, minH: 6 },
+  SJUP: { code: 'SJUP', title: 'Solana Swap Quote', w: 5, h: 9, minW: 4, minH: 6 },
+  SOLMKT: { code: 'SOLMKT', title: 'Solana Market', w: 7, h: 12, minW: 5, minH: 6 },
   TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },
   CVD: { code: 'CVD', title: 'Order Flow', w: 5, h: 11, minW: 4, minH: 7 },
   IMB: { code: 'IMB', title: 'Book Imbalance', w: 5, h: 11, minW: 4, minH: 6 },

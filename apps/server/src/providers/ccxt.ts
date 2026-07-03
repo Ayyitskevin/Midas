@@ -20,8 +20,11 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
@@ -36,6 +39,9 @@ import { fetchSolanaNetwork } from '../solana/network';
 import { fetchSolanaWallet } from '../solana/wallet';
 import { fetchSolanaPools, fetchSolanaTrending } from '../solana/dex';
 import { fetchSolanaStaking, fetchSolanaValidators } from '../solana/staking';
+import { fetchSolanaToken } from '../solana/token';
+import { fetchSolanaQuote } from '../solana/jupiter';
+import { fetchSolanaMarket } from '../solana/market';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
@@ -499,6 +505,24 @@ export class CcxtProvider implements DataProvider {
   /** Solana native staking economics (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaStaking(): Promise<SolanaStaking> {
     return fetchSolanaStaking();
+  }
+
+  /** SPL token (mint) explorer (env-gated live RPC; honest 'unavailable' otherwise). */
+  async getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
+    // Price only SOL (from this exchange) + stablecoins (pinned in the mapper);
+    // exotic mints are honestly left unpriced rather than guessed.
+    const solPriceUsd = await this.solPrice();
+    return fetchSolanaToken(mint, (sym) => (sym === 'SOL' ? solPriceUsd : null));
+  }
+
+  /** Read-only Jupiter swap quote — QUOTE ONLY, never a swap tx (env-gated; honest otherwise). */
+  async getSolanaQuote(input: string, output: string, amount: number): Promise<SolanaSwapQuote> {
+    return fetchSolanaQuote(input, output, amount);
+  }
+
+  /** Solana ecosystem market overview (env-gated live GeckoTerminal; honest otherwise). */
+  async getSolanaMarket(): Promise<SolanaMarket> {
+    return fetchSolanaMarket(await this.solPrice());
   }
 
   /** Best-effort SOL/USDT spot from this exchange for USD valuation; null on failure. */

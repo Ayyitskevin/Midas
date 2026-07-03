@@ -17,9 +17,13 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
+  SolanaMarketToken,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
   SolanaTokenHolding,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaTrendingToken,
   SolanaValidator,
@@ -574,6 +578,119 @@ export function solanaStakingFor(now: number): SolanaStaking {
     nominalApyPct: pct(nominal),
     realApyPct: pct(real),
     epochsPerYear,
+    asOf: now,
+  };
+}
+
+/** Well-known mints the demo token explorer + swap quotes recognize. */
+const DEMO_MINTS: Record<string, { symbol: string; decimals: number }> = {
+  So11111111111111111111111111111111111111112: { symbol: 'SOL', decimals: 9 },
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: { symbol: 'USDC', decimals: 6 },
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: { symbol: 'USDT', decimals: 6 },
+  DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263: { symbol: 'BONK', decimals: 5 },
+  JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN: { symbol: 'JUP', decimals: 6 },
+  jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL: { symbol: 'JTO', decimals: 9 },
+};
+const SYMBOL_TO_MINT: Record<string, string> = Object.fromEntries(
+  Object.entries(DEMO_MINTS).map(([mint, v]) => [v.symbol, mint]),
+);
+/** A small USD basis for synthetic swap quotes (the six swappable demo tokens). */
+const SWAP_BASIS_USD: Record<string, number> = { SOL: 152, USDC: 1, USDT: 1, BONK: 0.000025, JUP: 0.9, JTO: 3.1 };
+
+/** Synthetic SPL token (mint) snapshot — supply + authorities, seeded on the mint. */
+export function solanaTokenFor(mint: string, now: number): SolanaTokenInfo {
+  const known = DEMO_MINTS[mint];
+  const symbol = known?.symbol ?? (mint.length > 12 ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : mint);
+  const decimals = known?.decimals ?? 6;
+  const mintActive = u(`spl:m${mint}`) > 0.5;
+  const freezeActive = u(`spl:f${mint}`) > 0.6;
+  const price = symbol === 'USDC' || symbol === 'USDT' ? 1 : symbol === 'SOL' ? Math.round(priceAt(ASSETS[2], now) * 100) / 100 : null;
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    mint,
+    symbol,
+    program: 'spl-token',
+    decimals,
+    supply: Math.floor((1 + u(`spl:s${mint}`) * 899) * 1_000_000),
+    mintAuthority: mintActive ? 'Mint1111111111111111111111111111111111111' : null,
+    mintAuthorityActive: mintActive,
+    freezeAuthority: freezeActive ? 'Freeze11111111111111111111111111111111111' : null,
+    freezeAuthorityActive: freezeActive,
+    priceUsd: price,
+    asOf: now,
+  };
+}
+
+/** Synthetic Jupiter swap quote — read-only price estimate; impact grows with notional. */
+export function solanaQuoteFor(input: string, output: string, amount: number, now: number): SolanaSwapQuote {
+  const inSym = input.toUpperCase();
+  const outSym = output.toUpperCase();
+  const bad = (note: string): SolanaSwapQuote => ({
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note,
+    inputSymbol: inSym,
+    outputSymbol: outSym,
+    inputMint: SYMBOL_TO_MINT[inSym] ?? '',
+    outputMint: SYMBOL_TO_MINT[outSym] ?? '',
+    inAmount: null,
+    outAmount: null,
+    price: null,
+    priceImpactPct: null,
+    slippageBps: null,
+    route: [],
+    asOf: now,
+  });
+  if (SWAP_BASIS_USD[inSym] == null || SWAP_BASIS_USD[outSym] == null)
+    return bad('Synthetic quotes cover a known set (SOL, USDC, USDT, BONK, JUP, JTO).');
+  if (inSym === outSym) return bad('Pick two different tokens to quote a swap.');
+  if (!(amount > 0)) return bad('Enter a positive input amount to quote.');
+  const minute = Math.floor(now / 60_000);
+  const notionalUsd = amount * SWAP_BASIS_USD[inSym];
+  const impactPct = Math.min(8, Math.sqrt(notionalUsd / 50_000) * 0.5) * (1 + u(`sjup:${inSym}${outSym}${minute}`) * 0.1);
+  const feePct = 0.25;
+  const out = ((amount * SWAP_BASIS_USD[inSym]) / SWAP_BASIS_USD[outSym]) * (1 - impactPct / 100 - feePct / 100);
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    inputSymbol: inSym,
+    outputSymbol: outSym,
+    inputMint: SYMBOL_TO_MINT[inSym] ?? '',
+    outputMint: SYMBOL_TO_MINT[outSym] ?? '',
+    inAmount: amount,
+    outAmount: Math.round(out * 1e6) / 1e6,
+    price: Math.round((out / amount) * 1e8) / 1e8,
+    priceImpactPct: Math.round(impactPct * 1000) / 1000,
+    slippageBps: 50,
+    route: [
+      { dex: 'Orca', percent: 60 },
+      { dex: 'Raydium', percent: 40 },
+    ],
+    asOf: now,
+  };
+}
+
+/** Synthetic Solana ecosystem overview — SOL price header + a top-tokens roll-up. */
+export function solanaMarketFor(now: number): SolanaMarket {
+  const tokens: SolanaMarketToken[] = solanaTrendingFor(now).tokens.map((t) => ({
+    symbol: t.symbol,
+    priceUsd: t.priceUsd,
+    change24hPct: t.change24hPct,
+    volume24hUsd: t.volume24hUsd,
+    liquidityUsd: t.liquidityUsd,
+  }));
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    solPriceUsd: Math.round(priceAt(ASSETS[2], now) * 100) / 100,
+    totalVolume24hUsd: Math.round(tokens.reduce((s, t) => s + (t.volume24hUsd ?? 0), 0)),
+    totalLiquidityUsd: Math.round(tokens.reduce((s, t) => s + (t.liquidityUsd ?? 0), 0)),
+    tokenCount: tokens.length,
+    tokens,
     asOf: now,
   };
 }

@@ -462,6 +462,133 @@ export interface SolanaStaking {
   asOf: number;
 }
 
+/**
+ * A read-only SPL token (mint) snapshot — supply, decimals and the two
+ * authorities that decide token safety. Non-custodial: assembled from
+ * getTokenSupply + getAccountInfo (jsonParsed) reads only. The authorities are
+ * the headline: an active mint authority means supply can still be inflated; an
+ * active freeze authority means holder accounts can be frozen — each null once
+ * revoked. Holder count is intentionally absent: a trustworthy count needs an
+ * indexer, not a public RPC, so Midas doesn't guess one.
+ */
+export interface SolanaTokenInfo {
+  /** Where the read came from, e.g. 'rpc:mainnet-beta' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** The mint address queried (base-58, case preserved). */
+  mint: string;
+  /** Ticker when the mint is known (e.g. 'USDC'), else a shortened mint. */
+  symbol: string;
+  /** Token program: 'spl-token', 'spl-token-2022', or null if unknown. */
+  program: string | null;
+  /** Decimal places; null if unknown. */
+  decimals: number | null;
+  /** Total supply in whole tokens (decimals-scaled); null if unknown. */
+  supply: number | null;
+  /** Mint authority (base-58), or null when revoked / unread. */
+  mintAuthority: string | null;
+  /** True when a mint authority is set (supply can still grow), false when revoked, null when unread. */
+  mintAuthorityActive: boolean | null;
+  /** Freeze authority (base-58), or null when revoked / unread. */
+  freezeAuthority: string | null;
+  /** True when a freeze authority is set (accounts can be frozen), false when revoked, null when unread. */
+  freezeAuthorityActive: boolean | null;
+  /** Spot price in USD when known (a known/stable mint); null otherwise. */
+  priceUsd: number | null;
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/** One hop in a Jupiter swap route. */
+export interface SolanaSwapHop {
+  /** AMM/DEX label, e.g. 'Orca', or a shortened pool key when unlabeled. */
+  dex: string;
+  /** Percent of the trade routed through this hop; null if unknown. */
+  percent: number | null;
+}
+
+/**
+ * A read-only Jupiter swap quote — the best-route price and impact for a trade,
+ * QUOTE ONLY. Non-custodial by construction: Midas fetches a price estimate and
+ * never builds, signs, or sends the swap transaction, so the "exactly two
+ * exchange writes" invariant is untouched. Amounts are decimals-scaled (whole
+ * tokens); price is output per 1 input. Env-gated live (MIDAS_SOLANA_JUPITER);
+ * synthetic-but-labeled in the demo, honest unavailable otherwise.
+ */
+export interface SolanaSwapQuote {
+  /** Where the quote came from, e.g. 'jupiter' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Input token ticker. */
+  inputSymbol: string;
+  /** Output token ticker. */
+  outputSymbol: string;
+  /** Input mint (base-58). */
+  inputMint: string;
+  /** Output mint (base-58). */
+  outputMint: string;
+  /** Input amount, in whole tokens; null if unknown. */
+  inAmount: number | null;
+  /** Quoted output amount, in whole tokens; null if unknown. */
+  outAmount: number | null;
+  /** Price: output tokens per 1 input token; null if unknown. */
+  price: number | null;
+  /** Price impact of the trade, percent; null if unknown. */
+  priceImpactPct: number | null;
+  /** Slippage tolerance used, basis points; null if unknown. */
+  slippageBps: number | null;
+  /** The route hops (may be empty). */
+  route: SolanaSwapHop[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/** One token row in the Solana ecosystem overview. */
+export interface SolanaMarketToken {
+  /** Base-token ticker, e.g. 'WIF'. */
+  symbol: string;
+  /** Spot price in USD; null if unknown. */
+  priceUsd: number | null;
+  /** 24h price change, percent; null if unknown. */
+  change24hPct: number | null;
+  /** Trailing 24h swap volume, USD; null if unknown. */
+  volume24hUsd: number | null;
+  /** Pool liquidity (TVL), USD; null if unknown. */
+  liquidityUsd: number | null;
+}
+
+/**
+ * A read-only Solana ecosystem market overview — SOL's spot price up top, an
+ * aggregate 24h-volume / liquidity roll-up across the busiest tokens, and a
+ * compact top-tokens list. The macro companion to STREND's ranked list.
+ * Read-only market data (a DEX aggregator + the market provider's SOL price);
+ * no key, no signing. Synthetic in the demo, live when configured, unavailable
+ * otherwise.
+ */
+export interface SolanaMarket {
+  /** Where the read came from, e.g. 'geckoterminal:solana' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** SOL spot price in USD; null if unknown. */
+  solPriceUsd: number | null;
+  /** Aggregate trailing-24h volume across the listed tokens, USD; null if unknown. */
+  totalVolume24hUsd: number | null;
+  /** Aggregate pool liquidity across the listed tokens, USD; null if unknown. */
+  totalLiquidityUsd: number | null;
+  /** Number of tokens in the roll-up; null if unknown. */
+  tokenCount: number | null;
+  /** Top tokens by 24h volume (capped). */
+  tokens: SolanaMarketToken[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
 export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
 
