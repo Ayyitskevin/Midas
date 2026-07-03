@@ -2,15 +2,9 @@ import { useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice } from '@/lib/format';
-import { solanaBadge, type SolanaTone } from '@/lib/solanaView';
+import { solanaBadge, SOLANA_TONE_CLASS } from '@/lib/solanaView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
-
-const TONE: Record<SolanaTone, string> = {
-  live: 'border-term-up/50 text-term-up',
-  synthetic: 'border-term-amber/50 text-term-amber',
-  unavailable: 'border-term-border text-term-dim',
-};
 
 // The swappable set — tickers whose mints + decimals Midas knows, so a quote
 // can render a human price. All uppercase, so nothing is case-mangled.
@@ -66,7 +60,7 @@ export function SolanaSwapModule(_props: ModuleProps) {
         <span className="font-semibold text-term-text">Swap quote</span>
         <span className="text-term-dim">Jupiter · read-only</span>
         {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${SOLANA_TONE_CLASS[badge.tone]}`} title={badge.detail}>
             {badge.label}
           </span>
         )}

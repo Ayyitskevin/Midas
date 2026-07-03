@@ -14,6 +14,17 @@ export interface SolanaBadge {
   detail: string;
 }
 
+/**
+ * Tailwind border+text classes per badge tone, shared by every Solana panel so
+ * the live/synthetic/unavailable colors stay identical across the whole suite
+ * (one place to retheme). Used as `SOLANA_TONE_CLASS[badge.tone]`.
+ */
+export const SOLANA_TONE_CLASS: Record<SolanaTone, string> = {
+  live: 'border-term-up/50 text-term-up',
+  synthetic: 'border-term-amber/50 text-term-amber',
+  unavailable: 'border-term-border text-term-dim',
+};
+
 export function solanaBadge(p: { provenance: SolanaProvenance; note: string | null }): SolanaBadge {
   // Label stays source-agnostic: the live source is an RPC node for SOLNET/SWAL
   // but a DEX aggregator for STREND, so a generic "live" is the honest label for

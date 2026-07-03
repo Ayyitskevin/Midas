@@ -1,14 +1,8 @@
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { solanaBadge, type SolanaTone } from '@/lib/solanaView';
+import { solanaBadge, SOLANA_TONE_CLASS } from '@/lib/solanaView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
-
-const TONE: Record<SolanaTone, string> = {
-  live: 'border-term-up/50 text-term-up',
-  synthetic: 'border-term-amber/50 text-term-amber',
-  unavailable: 'border-term-border text-term-dim',
-};
 
 function Stat({ label, value, hint, emphasis }: { label: string; value: string; hint?: string; emphasis?: boolean }) {
   return (
@@ -41,7 +35,7 @@ export function SolanaStakingModule(_props: ModuleProps) {
         <span className="font-semibold text-term-text">SOL</span>
         <span className="text-term-dim">native staking</span>
         {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${SOLANA_TONE_CLASS[badge.tone]}`} title={badge.detail}>
             {badge.label}
           </span>
         )}

@@ -24,6 +24,19 @@ export function solanaEnabled(): boolean {
   return solanaRpcUrl() !== '';
 }
 
+/**
+ * The `source` label for an RPC-backed snapshot, derived from the node host
+ * (best-effort), e.g. 'rpc:api.mainnet-beta.solana.com'. Shared by every
+ * RPC-backed reader so the label stays consistent.
+ */
+export function solanaSourceLabel(): string {
+  try {
+    return `rpc:${new URL(solanaRpcUrl()).host}`;
+  } catch {
+    return 'rpc';
+  }
+}
+
 /** Defensive numeric coerce — unknown/NaN → null (copied per-file per house convention). */
 export function num(v: unknown): number | null {
   const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
