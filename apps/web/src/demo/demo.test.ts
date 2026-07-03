@@ -6,7 +6,9 @@ import {
   orderBookFor,
   quoteFor,
   screenerRows,
+  solanaDexPoolsFor,
   solanaNetworkFor,
+  solanaTrendingFor,
   solanaWalletFor,
 } from './engine';
 import { installDemoShim } from './shim';
@@ -82,6 +84,23 @@ describe('demo engine', () => {
     expect(a.solBalance).toBe(b.solBalance);
     expect(solanaWalletFor('DifferentAddr1111111111111111111111111111111', NOW).solBalance).not.toBe(a.solBalance);
   });
+
+  it('Solana trending is synthetic and sorted by 24h volume', () => {
+    const t = solanaTrendingFor(NOW);
+    expect(t.provenance).toBe('synthetic');
+    expect(t.note).toMatch(/Static demo/);
+    expect(t.tokens.length).toBeGreaterThan(5);
+    for (let i = 1; i < t.tokens.length; i++) {
+      expect(t.tokens[i].volume24hUsd!).toBeLessThanOrEqual(t.tokens[i - 1].volume24hUsd!);
+    }
+  });
+
+  it('Solana DEX pools are synthetic; unknown asset is honestly unavailable', () => {
+    const pools = solanaDexPoolsFor('SOL/USDT', NOW);
+    expect(pools.provenance).toBe('synthetic');
+    expect(pools.pools.map((p) => p.dex)).toContain('Raydium');
+    expect(solanaDexPoolsFor('NOPE/USDT', NOW).provenance).toBe('unavailable');
+  });
 });
 
 describe('demo shim', () => {
@@ -137,5 +156,11 @@ describe('demo shim', () => {
     const wal = await (await fetch('/api/solana/wallet/So11111111111111111111111111111111111111112')).json();
     expect(wal.provenance).toBe('synthetic');
     expect(wal.address).toBe('So11111111111111111111111111111111111111112'); // case preserved via seg(4)
+    const trend = await (await fetch('/api/solana/trending')).json();
+    expect(trend.provenance).toBe('synthetic');
+    expect(trend.tokens.length).toBeGreaterThan(0);
+    const pools = await (await fetch('/api/solana/pools/SOL%2FUSDT')).json();
+    expect(pools.provenance).toBe('synthetic');
+    expect(pools.symbol).toBe('SOL');
   });
 });

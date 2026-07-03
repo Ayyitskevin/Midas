@@ -202,6 +202,41 @@ describe('GET /api/solana/wallet/:address', () => {
   });
 });
 
+describe('GET /api/solana/trending', () => {
+  it('returns synthetic trending Solana tokens, sorted by volume', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/trending' });
+    expect(res.statusCode).toBe(200);
+    const t = res.json();
+    expect(t.provenance).toBe('synthetic');
+    expect(Array.isArray(t.tokens)).toBe(true);
+    expect(t.tokens.length).toBeGreaterThan(3);
+    // sorted by 24h volume, descending
+    for (let i = 1; i < t.tokens.length; i++) {
+      expect(t.tokens[i].volume24hUsd).toBeLessThanOrEqual(t.tokens[i - 1].volume24hUsd);
+    }
+    expect(t.tokens[0]).toHaveProperty('symbol');
+    expect(t.tokens[0]).toHaveProperty('dex');
+  });
+});
+
+describe('GET /api/solana/pools/:symbol', () => {
+  it('returns synthetic Solana DEX pools with honest provenance', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/pools/SOL%2FUSDT' });
+    expect(res.statusCode).toBe(200);
+    const feed = res.json();
+    expect(feed.symbol).toBe('SOL');
+    expect(feed.provenance).toBe('synthetic');
+    expect(feed.pools.length).toBeGreaterThan(1);
+    // Solana-native venues
+    expect(feed.pools.map((p: { dex: string }) => p.dex)).toContain('Raydium');
+  });
+
+  it('rejects a junk symbol with 400', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/pools/BTC%20USDT' });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

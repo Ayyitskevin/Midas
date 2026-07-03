@@ -14,6 +14,8 @@ export type ModuleCode =
   | 'DEX'
   | 'SOLNET'
   | 'SWAL'
+  | 'STREND'
+  | 'SOLDEX'
   | 'TAS'
   | 'CVD'
   | 'IMB'
@@ -248,6 +250,8 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DEX: { code: 'DEX', title: 'DEX Pools', w: 6, h: 10, minW: 4, minH: 6 },
   SOLNET: { code: 'SOLNET', title: 'Solana Network', w: 6, h: 10, minW: 4, minH: 6 },
   SWAL: { code: 'SWAL', title: 'Solana Wallet', w: 6, h: 12, minW: 4, minH: 7 },
+  STREND: { code: 'STREND', title: 'Solana Trending', w: 7, h: 12, minW: 5, minH: 6 },
+  SOLDEX: { code: 'SOLDEX', title: 'Solana DEX Pools', w: 6, h: 10, minW: 4, minH: 6 },
   TAS: { code: 'TAS', title: 'Time & Sales', w: 4, h: 12, minW: 3, minH: 8 },
   CVD: { code: 'CVD', title: 'Order Flow', w: 5, h: 11, minW: 4, minH: 7 },
   IMB: { code: 'IMB', title: 'Book Imbalance', w: 5, h: 11, minW: 4, minH: 6 },

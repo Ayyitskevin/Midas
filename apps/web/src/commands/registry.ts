@@ -118,6 +118,22 @@ export const COMMANDS: CommandDef[] = [
     description: 'Read-only Solana wallet inspector — paste a public base-58 address to see its SOL balance and SPL token holdings priced to USD. Non-custodial by construction: no key, no signing, no transaction ever, with a live/synthetic data-honesty badge.',
   },
   {
+    code: 'STREND',
+    aliases: ['SOLTREND', 'SOLTRENDING'],
+    title: 'Solana Trending',
+    module: 'STREND',
+    requiresSymbol: false,
+    description: 'Trending Solana tokens ranked by 24h DEX volume — price, 24h change, volume, pool liquidity and the top venue (Raydium/Orca/Meteora) per token. Read-only market discovery from a DEX aggregator, with a live/synthetic data-honesty badge (synthetic until MIDAS_DEX_SOURCE=geckoterminal).',
+  },
+  {
+    code: 'SOLDEX',
+    aliases: ['SOLPOOLS', 'SPOOLS'],
+    title: 'Solana DEX Pools',
+    module: 'SOLDEX',
+    requiresSymbol: true,
+    description: "A base asset's liquidity across Solana DEXes (Raydium, Orca, Meteora, Phoenix, Lifinity) — price, TVL, 24h volume and fee tier per pool, with a VWAP/TVL roll-up. Read-only, non-custodial, with a live/synthetic data-honesty badge (synthetic until MIDAS_DEX_SOURCE=geckoterminal).",
+  },
+  {
     code: 'TAS',
     aliases: ['PRINTS', 'TS', 'TRADES'],
     title: 'Time & Sales',

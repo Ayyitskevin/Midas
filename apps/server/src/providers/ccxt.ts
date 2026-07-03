@@ -21,6 +21,7 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaTrending,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -31,6 +32,7 @@ import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
 import { fetchSolanaNetwork } from '../solana/network';
 import { fetchSolanaWallet } from '../solana/wallet';
+import { fetchSolanaPools, fetchSolanaTrending } from '../solana/dex';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
@@ -473,6 +475,17 @@ export class CcxtProvider implements DataProvider {
     // exotic SPL tokens are honestly left unpriced rather than guessed.
     const solPriceUsd = await this.solPrice();
     return fetchSolanaWallet(address, (sym) => (sym === 'SOL' ? solPriceUsd : null));
+  }
+
+  /** Trending Solana tokens (env-gated live GeckoTerminal; honest 'unavailable' otherwise). */
+  async getSolanaTrending(): Promise<SolanaTrending> {
+    return fetchSolanaTrending();
+  }
+
+  /** Solana-network DEX pools for an asset (env-gated live GeckoTerminal; honest otherwise). */
+  async getSolanaDexPools(symbol: string): Promise<DexPools> {
+    const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
+    return fetchSolanaPools(base);
   }
 
   /** Best-effort SOL/USDT spot from this exchange for USD valuation; null on failure. */

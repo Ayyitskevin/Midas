@@ -19,6 +19,8 @@ import type {
   SearchResult,
   SolanaNetwork,
   SolanaTokenHolding,
+  SolanaTrending,
+  SolanaTrendingToken,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -454,6 +456,68 @@ export function solanaWalletFor(address: string, now: number): SolanaWallet {
     totalValueUsd,
     asOf: now,
   };
+}
+
+const SOLANA_TRENDING_ROSTER: Array<{ symbol: string; price: number; dex: string }> = [
+  { symbol: 'WIF', price: 2.4, dex: 'Raydium' },
+  { symbol: 'BONK', price: 0.000023, dex: 'Orca' },
+  { symbol: 'JUP', price: 0.85, dex: 'Meteora' },
+  { symbol: 'JTO', price: 3.1, dex: 'Raydium' },
+  { symbol: 'PYTH', price: 0.42, dex: 'Orca' },
+  { symbol: 'RAY', price: 4.6, dex: 'Raydium' },
+  { symbol: 'POPCAT', price: 1.3, dex: 'Raydium' },
+  { symbol: 'MEW', price: 0.008, dex: 'Meteora' },
+  { symbol: 'PENGU', price: 0.03, dex: 'Orca' },
+  { symbol: 'W', price: 0.28, dex: 'Meteora' },
+  { symbol: 'RENDER', price: 7.2, dex: 'Orca' },
+  { symbol: 'PNUT', price: 0.9, dex: 'Raydium' },
+];
+
+const SOLANA_DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
+  { dex: 'Raydium', feeBps: 25, quote: 'SOL' },
+  { dex: 'Orca', feeBps: 30, quote: 'USDC' },
+  { dex: 'Meteora', feeBps: 20, quote: 'USDC' },
+  { dex: 'Phoenix', feeBps: 2, quote: 'USDC' },
+  { dex: 'Lifinity', feeBps: 10, quote: 'SOL' },
+];
+
+/** Synthetic trending Solana tokens — moves each minute, sorted by 24h volume. */
+export function solanaTrendingFor(now: number): SolanaTrending {
+  const minute = Math.floor(now / 60_000);
+  const tokens: SolanaTrendingToken[] = SOLANA_TRENDING_ROSTER.map(({ symbol, price, dex }) => {
+    const px = price * (1 + (u(`${symbol}:sp${minute}`) - 0.5) * 0.08);
+    const liquidityUsd = 25_000_000 * (0.1 + u(`${symbol}:sl${minute}`));
+    const quote = dex === 'Raydium' ? 'SOL' : 'USDC';
+    return {
+      symbol,
+      pair: `${symbol}/${quote}`,
+      dex,
+      priceUsd: px,
+      change24hPct: (u(`${symbol}:sc${minute}`) - 0.45) * 40,
+      volume24hUsd: liquidityUsd * (0.2 + u(`${symbol}:sv${minute}`) * 3),
+      liquidityUsd,
+    };
+  });
+  tokens.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+  return { source: DEMO_SOURCE, provenance: 'synthetic', note: NOTE, tokens, asOf: now };
+}
+
+/** Synthetic Solana DEX pools for an asset (Solana venues, SOL/USDC quotes). */
+export function solanaDexPoolsFor(symbol: string, now: number): DexPools {
+  const asset = assetFor(symbol);
+  if (!asset) {
+    return { symbol: symbol.toUpperCase(), provenance: 'unavailable', note: 'Unknown demo asset.', pools: [] };
+  }
+  const price = priceAt(asset, now);
+  const pools = SOLANA_DEX_VENUES.map(({ dex, feeBps, quote }, i) => ({
+    dex,
+    pair: `${asset.base}/${quote}`,
+    priceUsd: price * (1 + (u(`${asset.base}:sdx${i}`) - 0.5) * 0.003),
+    liquidityUsd: 30_000_000 * (0.1 + u(`${asset.base}:sdl${i}`)) * (asset.price > 1000 ? 3 : 1),
+    volume24hUsd: 12_000_000 * (0.1 + u(`${asset.base}:sdv${i}`)),
+    feeBps,
+  }));
+  return { symbol: asset.base, provenance: 'synthetic', note: NOTE, pools };
 }
 
 export function balancesFor(now: number): Balances {

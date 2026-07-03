@@ -7,6 +7,13 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Solana DeFi markets** (Solana Suite, slice 2): **`STREND`** ranks trending
+  Solana tokens by 24h DEX volume (price, 24h change, volume, liquidity, top
+  venue), and **`SOLDEX`** shows a base asset's liquidity across Solana DEXes
+  (Raydium/Orca/Meteora/Phoenix/Lifinity) with a VWAP/TVL roll-up. Read-only and
+  non-custodial; live via `MIDAS_DEX_SOURCE=geckoterminal` (GeckoTerminal's
+  Solana network), synthetic-but-labeled in the mock provider and static demo,
+  honest `unavailable` otherwise.
 - **Solana, read-only and non-custodial.** A native Solana dimension across the
   stack: **`SOLNET`** (network health — slot, epoch progress, TPS, active
   validators, total stake, circulating/total SOL supply and a live market cap)

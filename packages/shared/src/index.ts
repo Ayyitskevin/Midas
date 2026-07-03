@@ -362,6 +362,40 @@ export interface SolanaWallet {
   asOf: number;
 }
 
+/** A trending Solana token (its top pool), from a live on-chain source or synthetic demo. */
+export interface SolanaTrendingToken {
+  /** Base-token ticker, e.g. 'WIF'. */
+  symbol: string;
+  /** Top-pool pair label, e.g. 'WIF/SOL'. */
+  pair: string;
+  /** The DEX the top pool is on, e.g. 'raydium'. */
+  dex: string;
+  /** Spot price in USD; null if unknown. */
+  priceUsd: number | null;
+  /** 24h price change, percent; null if unknown. */
+  change24hPct: number | null;
+  /** Trailing 24h swap volume, USD; null if unknown. */
+  volume24hUsd: number | null;
+  /** Pool liquidity (TVL), USD; null if unknown. */
+  liquidityUsd: number | null;
+}
+
+/**
+ * Trending Solana tokens, ranked by 24h volume, with honest provenance labeling.
+ * Read-only market discovery — no key, no signing. Synthetic in the demo, live
+ * from a DEX aggregator when configured, unavailable otherwise.
+ */
+export interface SolanaTrending {
+  /** Where the read came from, e.g. 'geckoterminal:solana' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  tokens: SolanaTrendingToken[];
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
 export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
 
