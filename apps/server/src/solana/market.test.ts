@@ -23,6 +23,23 @@ describe('mapSolanaMarket', () => {
     expect(m.totalLiquidityUsd).toBe(2_000_000 + 3_000_000);
   });
 
+  it('keeps the FIRST pool seen per ticker (feed order), even if a later dup has more volume', () => {
+    // A lower-volume WIF pool appears BEFORE a higher-volume one. The dedupe runs
+    // in feed order (before the volume sort), so the first-seen row is the keeper —
+    // and the aggregate still sums exactly the shown rows (honesty holds either way).
+    const feed = {
+      data: [
+        { attributes: { name: 'WIF / SOL', base_token_price_usd: '2.4', reserve_in_usd: '1000000', volume_usd: { h24: '400000' } } },
+        { attributes: { name: 'WIF / USDC', base_token_price_usd: '2.5', reserve_in_usd: '5000000', volume_usd: { h24: '9000000' } } },
+      ],
+    };
+    const m = mapSolanaMarket({ payload: feed, solPriceUsd: null, now: 1 });
+    expect(m.tokens).toHaveLength(1);
+    expect(m.tokens[0].volume24hUsd).toBe(400_000); // first-seen kept, not the 9M dup
+    expect(m.tokens[0].liquidityUsd).toBe(1_000_000);
+    expect(m.totalVolume24hUsd).toBe(400_000); // aggregate matches the shown row
+  });
+
   it('is defensive against a garbage payload', () => {
     const m = mapSolanaMarket({ payload: null, solPriceUsd: null, now: 1 });
     expect(m.tokens).toEqual([]);

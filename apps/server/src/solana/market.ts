@@ -39,10 +39,12 @@ function baseTicker(name: string): string {
 
 /**
  * Map a GeckoTerminal trending_pools payload to a SolanaMarket roll-up. Pure.
- * One row per DISTINCT base token (the first/highest-volume pool wins, so the
- * list reads as tokens not pools), sorted by 24h volume, dust dropped, capped;
- * the aggregate volume/liquidity and token count sum the surviving rows. SOL's
- * price is injected by the caller (the mapper stays IO-free).
+ * One row per DISTINCT base token — the FIRST pool seen for a ticker wins (the
+ * feed's own trending order; dedupe happens before the sort), so the list reads
+ * as tokens not pools. Rows are then sorted by 24h volume, dust dropped, capped;
+ * the aggregate volume/liquidity and token count sum the exact surviving rows,
+ * so the totals always match the shown list. SOL's price is injected by the
+ * caller (the mapper stays IO-free).
  */
 export function mapSolanaMarket(inputs: { payload: unknown; solPriceUsd: number | null; now: number }): SolanaMarket {
   const data = (inputs.payload as { data?: unknown } | null)?.data;
