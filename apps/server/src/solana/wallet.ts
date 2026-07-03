@@ -2,7 +2,9 @@ import type { SolanaTokenHolding, SolanaWallet } from '@midas/shared';
 import {
   KNOWN_MINTS,
   LAMPORTS_PER_SOL,
+  SPL_TOKEN_PROGRAM,
   STABLE_SYMBOLS,
+  TOKEN_2022_PROGRAM,
   jsonRpc,
   num,
   shortMint,
@@ -54,7 +56,8 @@ export function mapWallet(inputs: {
 
   const tokens: SolanaTokenHolding[] = [];
   // getTokenAccountsByOwner (jsonParsed) → { value: [{ account: { data: { parsed:
-  // { info: { mint, tokenAmount: { uiAmount } } } } } }] }.
+  // { info: { mint, tokenAmount: { uiAmountString } } } } } }] }. The classic SPL
+  // and Token-2022 program accounts share this shape (both are merged upstream).
   const value = ((inputs.tokenAccounts ?? {}) as Record<string, unknown>).value;
   if (Array.isArray(value)) {
     for (const raw of value as Array<Record<string, unknown>>) {
@@ -66,7 +69,10 @@ export function mapWallet(inputs: {
       );
       const mint = str(info.mint);
       if (!mint) continue;
-      const uiAmount = num((info.tokenAmount as Record<string, unknown>)?.uiAmount);
+      // Prefer uiAmountString: uiAmount is a JSON number Solana returns as null for
+      // balances too large to represent as a float, which would silently drop the holding.
+      const ta = (info.tokenAmount ?? {}) as Record<string, unknown>;
+      const uiAmount = num(ta.uiAmountString) ?? num(ta.uiAmount);
       if (uiAmount == null || uiAmount === 0) continue; // skip dust / closed accounts
       const symbol = KNOWN_MINTS[mint] ?? shortMint(mint);
       const price = STABLE_SYMBOLS.has(symbol) ? 1 : inputs.priceUsd(symbol);
@@ -108,15 +114,18 @@ export async function fetchSolanaWallet(address: string, priceUsd: PriceUsd): Pr
   }
   try {
     const balance = await jsonRpc<{ value?: unknown }>('getBalance', [address]);
-    const tokenAccounts = await jsonRpc('getTokenAccountsByOwner', [
-      address,
-      { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
-      { encoding: 'jsonParsed' },
-    ]).catch(() => null);
+    // Query BOTH token programs — classic SPL and Token-2022 — and merge, so a
+    // wallet holding only Token-2022 mints isn't silently shown as empty. Each is
+    // best-effort: a failure drops that half without sinking the snapshot.
+    const [classic, token2022] = await Promise.all([
+      jsonRpc<{ value?: unknown }>('getTokenAccountsByOwner', [address, { programId: SPL_TOKEN_PROGRAM }, { encoding: 'jsonParsed' }]).catch(() => null),
+      jsonRpc<{ value?: unknown }>('getTokenAccountsByOwner', [address, { programId: TOKEN_2022_PROGRAM }, { encoding: 'jsonParsed' }]).catch(() => null),
+    ]);
+    const accts = (r: { value?: unknown } | null): unknown[] => (Array.isArray(r?.value) ? (r.value as unknown[]) : []);
     return mapWallet({
       address,
       balanceLamports: (balance as { value?: unknown })?.value,
-      tokenAccounts,
+      tokenAccounts: { value: [...accts(classic), ...accts(token2022)] },
       priceUsd,
       now: Date.now(),
     });
