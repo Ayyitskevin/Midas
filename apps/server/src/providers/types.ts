@@ -18,6 +18,8 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -58,6 +60,18 @@ export interface DataProvider {
   liquidationsProvenance(): LiquidationsProvenance;
   /** On-chain/DEX pool snapshot for a base asset, honestly labeled live/synthetic/unavailable. */
   getDexPools(symbol: string): Promise<DexPools>;
+  /**
+   * Read-only Solana network health (optional). Non-custodial: assembled from
+   * public read-only RPC calls, never a transaction. Providers that omit it get
+   * an honest 'unavailable' snapshot from the route.
+   */
+  getSolanaNetwork?(): Promise<SolanaNetwork>;
+  /**
+   * Read-only Solana wallet holdings for a public base-58 address (optional).
+   * Non-custodial by construction — no key, no signing, no writes ever. Honestly
+   * labeled; providers that omit it get an 'unavailable' snapshot from the route.
+   */
+  getSolanaWallet?(address: string): Promise<SolanaWallet>;
   /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
   getBalances(): Promise<Balances>;
   /** Read-only open orders (non-custodial; reads only — never places/cancels), honestly labeled. */

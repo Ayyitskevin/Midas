@@ -14,6 +14,8 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -170,6 +172,37 @@ export class YahooProvider implements DataProvider {
       provenance: 'unavailable',
       note: 'On-chain/DEX data is a crypto feature — switch to the ccxt provider.',
       pools: [],
+    };
+  }
+
+  async getSolanaNetwork(): Promise<SolanaNetwork> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_RPC for a live read).',
+      slot: null,
+      epoch: null,
+      epochProgressPct: null,
+      tps: null,
+      validatorCount: null,
+      totalStakeSol: null,
+      circulatingSupplySol: null,
+      totalSupplySol: null,
+      solPriceUsd: null,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaWallet(address: string): Promise<SolanaWallet> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_SOLANA_RPC for a live read).',
+      address,
+      solBalance: null,
+      tokens: [],
+      totalValueUsd: null,
+      asOf: Date.now(),
     };
   }
 

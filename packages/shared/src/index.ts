@@ -279,6 +279,89 @@ export interface DexPools {
   pools: DexPool[];
 }
 
+// ---------------------------------------------------------------------------
+// Solana / on-chain (read-only)
+// ---------------------------------------------------------------------------
+
+/** Whether a Solana snapshot is a real RPC read, synthetic demo data, or unavailable. */
+export type SolanaProvenance = 'live' | 'synthetic' | 'unavailable';
+
+/**
+ * A read-only snapshot of Solana network health.
+ *
+ * Non-custodial and read-only by construction: assembled from public
+ * getEpochInfo / getSupply / getRecentPerformanceSamples / getVoteAccounts RPC
+ * calls — Midas never signs or sends a transaction. Honestly labeled:
+ * `synthetic` in the offline/demo build, `unavailable` when no RPC is configured
+ * or the node errors, `live` only for a real read. Every metric is nullable so a
+ * partial read degrades a field, not the whole panel.
+ */
+export interface SolanaNetwork {
+  /** Where the read came from, e.g. 'rpc:mainnet-beta' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Current confirmed absolute slot; null if unknown. */
+  slot: number | null;
+  /** Current epoch; null if unknown. */
+  epoch: number | null;
+  /** Progress through the current epoch, 0–100; null if unknown. */
+  epochProgressPct: number | null;
+  /** Recent transactions per second, from a performance sample; null if unknown. */
+  tps: number | null;
+  /** Current-epoch active validator count; null if unknown. */
+  validatorCount: number | null;
+  /** Total active stake, in whole SOL (lamports / 1e9); null if unknown. */
+  totalStakeSol: number | null;
+  /** Circulating SOL supply, in whole SOL; null if unknown. */
+  circulatingSupplySol: number | null;
+  /** Total SOL supply, in whole SOL; null if unknown. */
+  totalSupplySol: number | null;
+  /** SOL spot price in USD (from the market-data provider); null when it can't be priced. */
+  solPriceUsd: number | null;
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
+/** A single SPL-token (or native SOL) holding within a Solana wallet. */
+export interface SolanaTokenHolding {
+  /** SPL mint address (base-58), or 'native' for SOL itself. */
+  mint: string;
+  /** Ticker when the mint is known (e.g. 'USDC'), else a shortened mint. */
+  symbol: string;
+  /** Human amount, decimals-scaled (NOT raw base units); null if unknown. */
+  amount: number | null;
+  /** USD value of the holding; null when it can't be priced. */
+  valueUsd: number | null;
+}
+
+/**
+ * A read-only snapshot of a Solana wallet's holdings.
+ *
+ * Non-custodial by construction: keyed ONLY by a public base-58 address and
+ * assembled from read-only getBalance / getTokenAccountsByOwner RPC calls —
+ * Midas never holds a key, signs, or moves funds, and no write path exists.
+ * Honestly labeled like every other Midas snapshot.
+ */
+export interface SolanaWallet {
+  /** Where the read came from, e.g. 'rpc:mainnet-beta' or 'mock'. */
+  source: string;
+  provenance: SolanaProvenance;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** The public address queried (base-58, case preserved). */
+  address: string;
+  /** Native SOL balance, in whole SOL (lamports / 1e9); null if unknown. */
+  solBalance: number | null;
+  /** SPL token holdings (may be empty). */
+  tokens: SolanaTokenHolding[];
+  /** Total USD value of SOL + priced tokens; null when nothing could be priced. */
+  totalValueUsd: number | null;
+  /** Epoch millis the snapshot was assembled. */
+  asOf: number;
+}
+
 /** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
 export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
 

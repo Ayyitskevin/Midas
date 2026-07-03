@@ -17,6 +17,9 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaTokenHolding,
+  SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -401,6 +404,57 @@ export function newsFor(symbol: string | undefined, now: number): NewsItem[] {
 }
 
 // --- Synthetic account (matches the server mock's spirit: labeled, useful) --
+
+/** Synthetic Solana network health — moves each minute, SOL priced from the walk. */
+export function solanaNetworkFor(now: number): SolanaNetwork {
+  const minute = Math.floor(now / 60_000);
+  const slotsInEpoch = 432_000;
+  const slotIndex = Math.floor((0.1 + u(`solnet:idx${minute}`) * 0.85) * slotsInEpoch);
+  const solPriceUsd = priceAt(ASSETS[2], now); // ASSETS[2] === SOL
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    slot: 296_000_000 + Math.floor(u(`solnet:slot${minute}`) * 5_000_000),
+    epoch: 685,
+    epochProgressPct: Math.round((slotIndex / slotsInEpoch) * 1000) / 10,
+    tps: Math.round(1800 + u(`solnet:tps${minute}`) * 2400),
+    validatorCount: Math.round(1400 + u(`solnet:val${minute}`) * 100),
+    totalStakeSol: Math.round(385_000_000 + u(`solnet:stake${minute}`) * 10_000_000),
+    circulatingSupplySol: 468_000_000,
+    totalSupplySol: 586_000_000,
+    solPriceUsd: Math.round(solPriceUsd * 100) / 100,
+    asOf: now,
+  };
+}
+
+/** Synthetic Solana wallet — holdings seeded on the address (stable), USD moves with SOL. */
+export function solanaWalletFor(address: string, now: number): SolanaWallet {
+  const solPrice = priceAt(ASSETS[2], now);
+  const solBalance = Math.round((0.5 + u(`${address}:sol`) * 250) * 10_000) / 10_000;
+  const roster: Array<{ mint: string; symbol: string; price: number | null }> = [
+    { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', price: 1 },
+    { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', price: 1 },
+    { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', price: Math.round((0.4 + u(`${address}:jup`) * 0.8) * 10_000) / 10_000 },
+    { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', price: null },
+  ];
+  const tokens: SolanaTokenHolding[] = roster.map(({ mint, symbol, price }) => {
+    const amount = Math.round((5 + u(`${address}:${mint}`) * (symbol === 'BONK' ? 5_000_000 : 5_000)) * 100) / 100;
+    return { mint, symbol, amount, valueUsd: price == null ? null : Math.round(price * amount * 100) / 100 };
+  });
+  const totalValueUsd =
+    Math.round((solBalance * solPrice + tokens.reduce((s, t) => s + (t.valueUsd ?? 0), 0)) * 100) / 100;
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    address,
+    solBalance,
+    tokens,
+    totalValueUsd,
+    asOf: now,
+  };
+}
 
 export function balancesFor(now: number): Balances {
   const btc = priceAt(ASSETS[0], now);

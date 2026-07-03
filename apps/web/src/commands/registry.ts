@@ -102,6 +102,22 @@ export const COMMANDS: CommandDef[] = [
     description: 'On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume, fee tier and an estimated swap price-impact per pool, plus the CEX↔DEX basis (premium/discount), with a live/synthetic data-honesty badge (synthetic until an on-chain source is configured).',
   },
   {
+    code: 'SOLNET',
+    aliases: ['SOLANA', 'SNET'],
+    title: 'Solana Network',
+    module: 'SOLNET',
+    requiresSymbol: false,
+    description: 'Solana network health — current slot, epoch progress, TPS, active validators, total stake, and circulating/total SOL supply with a live market cap. Read-only public-RPC reads (non-custodial), with a live/synthetic data-honesty badge (synthetic until MIDAS_SOLANA_RPC is set).',
+  },
+  {
+    code: 'SWAL',
+    aliases: ['SOLWALLET', 'SWALLET'],
+    title: 'Solana Wallet',
+    module: 'SWAL',
+    requiresSymbol: false,
+    description: 'Read-only Solana wallet inspector — paste a public base-58 address to see its SOL balance and SPL token holdings priced to USD. Non-custodial by construction: no key, no signing, no transaction ever, with a live/synthetic data-honesty badge.',
+  },
+  {
     code: 'TAS',
     aliases: ['PRINTS', 'TS', 'TRADES'],
     title: 'Time & Sales',

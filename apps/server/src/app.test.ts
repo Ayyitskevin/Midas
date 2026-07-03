@@ -157,6 +157,51 @@ describe('GET /api/onchain/:symbol', () => {
   });
 });
 
+describe('GET /api/solana/network', () => {
+  it('returns synthetic Solana network health with honest provenance from mock', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/network' });
+    expect(res.statusCode).toBe(200);
+    const n = res.json();
+    expect(n.provenance).toBe('synthetic'); // never passed off as a live RPC read
+    expect(typeof n.note).toBe('string');
+    expect(typeof n.slot).toBe('number');
+    expect(typeof n.tps).toBe('number');
+    expect(n.epochProgressPct).toBeGreaterThanOrEqual(0);
+    expect(n.epochProgressPct).toBeLessThanOrEqual(100);
+    expect(typeof n.solPriceUsd).toBe('number');
+  });
+});
+
+describe('GET /api/solana/wallet/:address', () => {
+  const ADDR = 'So11111111111111111111111111111111111111112';
+
+  it('returns synthetic wallet holdings for a well-formed base-58 address', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/solana/wallet/${ADDR}` });
+    expect(res.statusCode).toBe(200);
+    const w = res.json();
+    expect(w.provenance).toBe('synthetic');
+    expect(w.address).toBe(ADDR); // case preserved — never uppercased
+    expect(typeof w.solBalance).toBe('number');
+    expect(Array.isArray(w.tokens)).toBe(true);
+    expect(w.tokens.length).toBeGreaterThan(0);
+  });
+
+  it('rejects a junk address with 400 (base-58 edge validation)', async () => {
+    // Too short and contains characters outside the base-58 alphabet.
+    const res = await app.inject({ method: 'GET', url: '/api/solana/wallet/not-base58' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toMatch(/invalid Solana address/i);
+  });
+
+  it('is deterministic per address (holdings seeded on the address)', async () => {
+    const a = await app.inject({ method: 'GET', url: `/api/solana/wallet/${ADDR}` });
+    const b = await app.inject({ method: 'GET', url: `/api/solana/wallet/${ADDR}` });
+    // Holdings/amounts are address-seeded and stable; only the timestamp moves.
+    expect(a.json().tokens).toEqual(b.json().tokens);
+    expect(a.json().solBalance).toBe(b.json().solBalance);
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

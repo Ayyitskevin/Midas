@@ -20,6 +20,8 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -27,6 +29,8 @@ import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
+import { fetchSolanaNetwork } from '../solana/network';
+import { fetchSolanaWallet } from '../solana/wallet';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
 import { mapPlacedOrder } from '../trading';
@@ -455,6 +459,29 @@ export class CcxtProvider implements DataProvider {
       note: `On-chain/DEX pools need an on-chain source; ${this.name} reads centralized exchanges only. Set MIDAS_DEX_SOURCE=dexscreener for a live read.`,
       pools: [],
     };
+  }
+
+  /** Read-only Solana network health (env-gated live RPC; honest 'unavailable' otherwise). */
+  async getSolanaNetwork(): Promise<SolanaNetwork> {
+    const solPriceUsd = await this.solPrice();
+    return fetchSolanaNetwork(solPriceUsd);
+  }
+
+  /** Read-only Solana wallet inspector (env-gated live RPC; honest 'unavailable' otherwise). */
+  async getSolanaWallet(address: string): Promise<SolanaWallet> {
+    // Price only SOL (from this exchange) + stablecoins (pinned in the mapper);
+    // exotic SPL tokens are honestly left unpriced rather than guessed.
+    const solPriceUsd = await this.solPrice();
+    return fetchSolanaWallet(address, (sym) => (sym === 'SOL' ? solPriceUsd : null));
+  }
+
+  /** Best-effort SOL/USDT spot from this exchange for USD valuation; null on failure. */
+  private async solPrice(): Promise<number | null> {
+    try {
+      return (await this.getQuote('SOL/USDT')).price;
+    } catch {
+      return null;
+    }
   }
 
   async getBalances(): Promise<Balances> {
