@@ -1,5 +1,5 @@
 import type { SolanaStaking, SolanaValidator, SolanaValidators } from '@midas/shared';
-import { LAMPORTS_PER_SOL, jsonRpc, num, solanaEnabled, solanaRpcUrl } from './rpc';
+import { LAMPORTS_PER_SOL, jsonRpc, num, solanaEnabled, solanaSourceLabel as sourceLabel } from './rpc';
 
 /**
  * Solana staking economics — the validator leaderboard (SVAL) and native
@@ -13,14 +13,6 @@ const MAX_VALIDATORS = 30;
 // A Solana epoch is ~2 days (432k slots × ~0.4s), so ~182 epochs/year. Used to
 // compound the nominal yield into a real APY. An approximation, labeled as one.
 const EPOCHS_PER_YEAR = 182;
-
-function sourceLabel(): string {
-  try {
-    return `rpc:${new URL(solanaRpcUrl()).host}`;
-  } catch {
-    return 'rpc';
-  }
-}
 
 /** Shorten a base-58 identity for display, e.g. '7Np41…Ryk9'. */
 function shortId(id: string): string {

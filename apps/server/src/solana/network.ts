@@ -1,5 +1,5 @@
 import type { SolanaNetwork } from '@midas/shared';
-import { LAMPORTS_PER_SOL, jsonRpc, num, solanaEnabled, solanaRpcUrl } from './rpc';
+import { LAMPORTS_PER_SOL, jsonRpc, num, solanaEnabled, solanaSourceLabel as sourceLabel } from './rpc';
 
 /**
  * Read-only Solana network health from public RPC — the SOLNET dashboard's
@@ -7,15 +7,6 @@ import { LAMPORTS_PER_SOL, jsonRpc, num, solanaEnabled, solanaRpcUrl } from './r
  * degrades to an honest `unavailable` snapshot, never a fake `live` read. The
  * mapper is pure and defensive so it can be fixture-tested without a node.
  */
-
-/** The label for the RPC source, derived from the node host (best-effort). */
-function sourceLabel(): string {
-  try {
-    return `rpc:${new URL(solanaRpcUrl()).host}`;
-  } catch {
-    return 'rpc';
-  }
-}
 
 /** An honest all-null snapshot with a reason. */
 function unavailable(note: string): SolanaNetwork {

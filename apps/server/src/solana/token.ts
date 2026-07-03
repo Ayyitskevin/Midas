@@ -6,7 +6,7 @@ import {
   num,
   shortMint,
   solanaEnabled,
-  solanaRpcUrl,
+  solanaSourceLabel as sourceLabel,
   str,
 } from './rpc';
 
@@ -21,14 +21,6 @@ import {
 
 /** Prices a token symbol to USD, or null when it can't be sourced. */
 export type PriceUsd = (symbol: string) => number | null;
-
-function sourceLabel(): string {
-  try {
-    return `rpc:${new URL(solanaRpcUrl()).host}`;
-  } catch {
-    return 'rpc';
-  }
-}
 
 function unavailable(mint: string, note: string): SolanaTokenInfo {
   return {
