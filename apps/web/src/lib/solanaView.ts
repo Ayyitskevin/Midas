@@ -15,11 +15,14 @@ export interface SolanaBadge {
 }
 
 export function solanaBadge(p: { provenance: SolanaProvenance; note: string | null }): SolanaBadge {
+  // Label stays source-agnostic: the live source is an RPC node for SOLNET/SWAL
+  // but a DEX aggregator for STREND, so a generic "live" is the honest label for
+  // all of them. The tooltip detail carries the specifics.
   switch (p.provenance) {
     case 'live':
-      return { label: 'live RPC', tone: 'live', detail: p.note ?? 'Live Solana RPC read.' };
+      return { label: 'live', tone: 'live', detail: p.note ?? 'Live Solana data.' };
     case 'synthetic':
-      return { label: 'synthetic', tone: 'synthetic', detail: p.note ?? 'Synthetic — not a real RPC read.' };
+      return { label: 'synthetic', tone: 'synthetic', detail: p.note ?? 'Synthetic — not a real read.' };
     default:
       return { label: 'unavailable', tone: 'unavailable', detail: p.note ?? 'Solana data unavailable.' };
   }
