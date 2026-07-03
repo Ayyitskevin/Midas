@@ -59,8 +59,10 @@ services:
       MIDAS_EQUITY_SNAP_MS: ${MIDAS_EQUITY_SNAP_MS:-3600000}
       # Optional live on-chain/DEX source for the DEX panel.
       MIDAS_DEX_SOURCE: ${MIDAS_DEX_SOURCE:-}
-      # Optional Solana JSON-RPC URL for live SOLNET / SWAL reads (read-only).
+      # Optional Solana JSON-RPC URL for live SOLNET / SWAL / SVAL / SSTAKE / SPL reads (read-only).
       MIDAS_SOLANA_RPC: ${MIDAS_SOLANA_RPC:-}
+      # Optional gate for live, read-only Jupiter swap quotes (SJUP) — quote only, never a swap.
+      MIDAS_SOLANA_JUPITER: ${MIDAS_SOLANA_JUPITER:-}
       # LIVE trading — OFF by default; see SECURITY.md before enabling.
       MIDAS_TRADING_ENABLED: ${MIDAS_TRADING_ENABLED:-false}
       MIDAS_TRADING_ALLOW_NO_AUTH: ${MIDAS_TRADING_ALLOW_NO_AUTH:-false}

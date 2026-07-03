@@ -269,6 +269,68 @@ describe('GET /api/solana/staking', () => {
   });
 });
 
+describe('GET /api/solana/token/:mint', () => {
+  it('returns a synthetic SPL token snapshot for a known mint', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/solana/token/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    });
+    expect(res.statusCode).toBe(200);
+    const t = res.json();
+    expect(t.provenance).toBe('synthetic');
+    expect(t.symbol).toBe('USDC'); // known mint labeled
+    expect(t.decimals).toBe(6);
+    expect(t.supply).toBeGreaterThan(0);
+    expect(typeof t.mintAuthorityActive).toBe('boolean');
+    expect(t.priceUsd).toBe(1); // stablecoin pinned
+  });
+
+  it('rejects a non-base58 mint with a 400', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/token/not-a-mint!' });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+describe('GET /api/solana/quote/:input/:output/:amount', () => {
+  it('returns a synthetic quote — output, impact and a route', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/quote/SOL/USDC/1' });
+    expect(res.statusCode).toBe(200);
+    const q = res.json();
+    expect(q.provenance).toBe('synthetic');
+    expect(q.inputSymbol).toBe('SOL');
+    expect(q.outputSymbol).toBe('USDC');
+    expect(q.inAmount).toBe(1);
+    expect(q.outAmount).toBeGreaterThan(0);
+    expect(q.priceImpactPct).toBeGreaterThanOrEqual(0);
+    expect(q.route.length).toBeGreaterThan(0);
+  });
+
+  it('is honestly unavailable for two identical tokens (no fake swap)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/quote/SOL/SOL/1' });
+    expect(res.statusCode).toBe(200);
+    const q = res.json();
+    expect(q.provenance).toBe('synthetic');
+    expect(q.outAmount).toBeNull();
+    expect(q.note).toMatch(/different tokens/i);
+  });
+});
+
+describe('GET /api/solana/market', () => {
+  it('returns a synthetic ecosystem overview with a SOL price and roll-up', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/market' });
+    expect(res.statusCode).toBe(200);
+    const m = res.json();
+    expect(m.provenance).toBe('synthetic');
+    expect(m.solPriceUsd).toBeGreaterThan(0);
+    expect(m.tokens.length).toBeGreaterThan(0);
+    expect(m.totalVolume24hUsd).toBeGreaterThan(0);
+    // tokens sorted by 24h volume (descending)
+    for (let i = 1; i < m.tokens.length; i++) {
+      expect(m.tokens[i].volume24hUsd).toBeLessThanOrEqual(m.tokens[i - 1].volume24hUsd);
+    }
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

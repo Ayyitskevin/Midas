@@ -60,13 +60,15 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
   alerts; price/funding/%-change alerts that can open a panel when they fire.
 - **On-chain / DEX.** DEX pools, CEX↔DEX basis and a swap price-impact estimate
   (`DEX`) — synthetic by default, live via Dexscreener when configured.
-- **Solana (read-only, non-custodial).** Network health (`SOLNET`) — slot, epoch
-  progress, TPS, validators, stake and SOL supply — a wallet inspector (`SWAL`)
-  that shows any public address's SOL + SPL holdings priced to USD, a validator
-  leaderboard (`SVAL`) ranked by stake with commission and delinquency, and
-  native-staking economics (`SSTAKE`) — the real, compounded APY derived from
-  inflation ÷ the staked ratio. Public-RPC reads only (no key, no signing, no
-  transaction); synthetic by default, live via `MIDAS_SOLANA_RPC`.
+- **Solana (read-only, non-custodial).** A full native dimension: network health
+  (`SOLNET`), a wallet inspector (`SWAL`), a validator leaderboard (`SVAL`),
+  native-staking economics (`SSTAKE` — the real, compounded APY from inflation ÷
+  the staked ratio), an SPL token explorer (`SPL` — supply + the mint/freeze
+  authorities that decide token safety), read-only Jupiter swap quotes (`SJUP` —
+  best-route price + impact, **quote only, never a swap**) and an ecosystem market
+  overview (`SOLMKT`). Public-RPC / DEX-aggregator reads only (no key, no signing,
+  no transaction); synthetic by default, live via `MIDAS_SOLANA_RPC`,
+  `MIDAS_SOLANA_JUPITER` and `MIDAS_DEX_SOURCE`.
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
 - **Account & execution (non-custodial, opt-in).** Read-only keys light up your
   real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
@@ -176,6 +178,9 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SOLDEX` | `SOLPOOLS`, `SPOOLS` | yes | A base asset's liquidity across Solana DEXes (Raydium, Orca, Meteora, Phoenix, Lifinity) — price, TVL, 24h volume and fee tier per pool, with a VWAP/TVL roll-up. Read-only, non-custodial, live via `MIDAS_DEX_SOURCE=geckoterminal`. |
 | `SVAL`  | `SOLVAL`, `VALIDATORS` | no | Solana validator leaderboard — the top validators ranked by activated stake, with each one's stake share, commission and delinquency status, plus network totals (total stake, validator count, delinquent count). Read-only public-RPC reads (non-custodial), live via `MIDAS_SOLANA_RPC`. |
 | `SSTAKE` | `SOLSTAKE`, `STAKEYIELD` | no | Solana native-staking economics — the current staking yield (real, compounded APY and its nominal rate), derived from network inflation ÷ the staked-supply ratio, with the inflation rate and staked ratio shown. Read-only public-RPC reads (non-custodial), live via `MIDAS_SOLANA_RPC`. |
+| `SPL`   | `SPLTOKEN`, `SOLTOKEN` | no | SPL token (mint) explorer — paste a mint to see supply, decimals, program and the mint/freeze authorities that decide token safety (an active mint authority can inflate supply; an active freeze authority can freeze accounts). Read-only public-RPC reads (non-custodial), live via `MIDAS_SOLANA_RPC`. Holder count needs an indexer, so it isn't shown. |
+| `SJUP`  | `SOLSWAP`, `JUPITER` | no | Read-only Jupiter swap quotes — pick input/output tokens and an amount to see the best-route output, price impact and AMM hops. **Quote only** — Midas fetches a price estimate and never builds, signs or sends a swap, so the non-custodial invariant holds. Live via `MIDAS_SOLANA_JUPITER`. |
+| `SOLMKT` | `SOLMARKET`, `SOLOVERVIEW` | no | Solana ecosystem market overview — SOL's spot price, an aggregate 24h-volume and liquidity roll-up across the busiest tokens, and a compact top-tokens list. The macro companion to `STREND`. Read-only market data, live via `MIDAS_DEX_SOURCE=geckoterminal`. |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `CVD`   | `FLOW`, `OFD`  | yes          | Order-flow / cumulative volume delta — buy vs sell pressure over time + per-window delta bars. |
 | `IMB`   | `IMBALANCE`, `OBI` | yes      | Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge. |
@@ -492,8 +497,9 @@ Server (environment variables):
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
 | `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only; the trading write path never touches it. |
 | `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
-| `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. `geckoterminal` also powers live Solana DeFi markets — trending tokens (`STREND`) and per-asset Solana DEX pools (`SOLDEX`). |
-| `MIDAS_SOLANA_RPC`    | _(unset)_   | A Solana JSON-RPC URL (e.g. `https://api.mainnet-beta.solana.com`) powers **live** `SOLNET` (network health), `SWAL` (wallet), `SVAL` (validators) and `SSTAKE` (staking yield) reads via the ccxt provider. **Read-only** RPC calls only — Midas never signs or sends a transaction. Unset keeps these panels honestly synthetic (mock) / unavailable. |
+| `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. `geckoterminal` also powers live Solana DeFi markets — trending tokens (`STREND`), per-asset Solana DEX pools (`SOLDEX`) and the ecosystem overview (`SOLMKT`). |
+| `MIDAS_SOLANA_RPC`    | _(unset)_   | A Solana JSON-RPC URL (e.g. `https://api.mainnet-beta.solana.com`) powers **live** `SOLNET` (network health), `SWAL` (wallet), `SVAL` (validators), `SSTAKE` (staking yield) and `SPL` (token explorer) reads via the ccxt provider. **Read-only** RPC calls only — Midas never signs or sends a transaction. Unset keeps these panels honestly synthetic (mock) / unavailable. |
+| `MIDAS_SOLANA_JUPITER` | _(unset)_  | Set to `1` (or a full `.../quote` URL to override the endpoint) to enable **live, read-only** Jupiter swap quotes (`SJUP`). **Quote only** — Midas fetches a best-route price estimate and never builds, signs or sends a swap, so the non-custodial invariant is untouched. Unset keeps `SJUP` honestly synthetic (mock) / unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |

@@ -278,6 +278,75 @@ export function registerRoutes(
     };
   });
 
+  // Read-only SPL token (mint) explorer. Non-custodial: read-only RPC only. The
+  // mint is base-58 (case-sensitive) so it uses the address gate, not the symbol one.
+  app.get<{ Params: { mint: string } }>('/api/solana/token/:mint', async (req) => {
+    const mint = normalizeSolanaAddress(req.params.mint);
+    if (!mint) throw new ProviderError('Missing or invalid Solana mint address', 400);
+    if (provider.getSolanaToken) return provider.getSolanaToken(mint);
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      mint,
+      symbol: mint,
+      program: null,
+      decimals: null,
+      supply: null,
+      mintAuthority: null,
+      mintAuthorityActive: null,
+      freezeAuthority: null,
+      freezeAuthorityActive: null,
+      priceUsd: null,
+      asOf: Date.now(),
+    };
+  });
+
+  // Read-only Jupiter swap quote — QUOTE ONLY, never a swap transaction, so the
+  // non-custodial invariant holds. Tokens are tickers; amount is whole input tokens.
+  app.get<{ Params: { input: string; output: string; amount: string } }>(
+    '/api/solana/quote/:input/:output/:amount',
+    async (req) => {
+      const input = normalizeSymbol(req.params.input);
+      const output = normalizeSymbol(req.params.output);
+      if (!input || !output) throw new ProviderError('Missing or invalid token', 400);
+      const amount = Number(req.params.amount);
+      if (provider.getSolanaQuote) return provider.getSolanaQuote(input, output, amount);
+      return {
+        source: provider.name,
+        provenance: 'unavailable' as const,
+        note: 'This provider has no Solana source.',
+        inputSymbol: input,
+        outputSymbol: output,
+        inputMint: '',
+        outputMint: '',
+        inAmount: null,
+        outAmount: null,
+        price: null,
+        priceImpactPct: null,
+        slippageBps: null,
+        route: [],
+        asOf: Date.now(),
+      };
+    },
+  );
+
+  // Read-only Solana ecosystem market overview. Read-only market data; no signing.
+  app.get('/api/solana/market', async () => {
+    if (provider.getSolanaMarket) return provider.getSolanaMarket();
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      solPriceUsd: null,
+      totalVolume24hUsd: null,
+      totalLiquidityUsd: null,
+      tokenCount: null,
+      tokens: [],
+      asOf: Date.now(),
+    };
+  });
+
   // Read-only account reads (non-custodial). Account-wide, so no symbol.
   // Auth-guarded when auth is enabled — these are not public prefixes, so the
   // onRequest guard covers them. Per-user keys (when stored) resolve these

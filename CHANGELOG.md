@@ -7,6 +7,21 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Solana tokens, swaps & market** (Solana Suite, slice 4): **`SPL`** is an SPL
+  token (mint) explorer — supply, decimals, program and the mint/freeze
+  authorities that decide token safety (an active mint authority can inflate
+  supply; an active freeze authority can freeze accounts), from `getTokenSupply` +
+  `getAccountInfo` (holder count intentionally omitted — a reliable count needs an
+  indexer, not a public RPC). **`SJUP`** shows read-only Jupiter swap quotes —
+  best-route output, price impact and AMM hops for a chosen pair and size; it is
+  **quote only** (Midas fetches a price estimate and never builds, signs or sends
+  a swap, so the "exactly two exchange writes" invariant is untouched). **`SOLMKT`**
+  is an ecosystem market overview — SOL's price, an aggregate 24h-volume/liquidity
+  roll-up and a top-tokens list. All read-only and non-custodial; live via
+  `MIDAS_SOLANA_RPC` (`SPL`), the new `MIDAS_SOLANA_JUPITER` gate (`SJUP`, defaults
+  to the current `lite-api.jup.ag` host) and `MIDAS_DEX_SOURCE=geckoterminal`
+  (`SOLMKT`); synthetic-but-labeled in the mock provider and static demo, honest
+  `unavailable` otherwise.
 - **Solana staking & validators** (Solana Suite, slice 3): **`SVAL`** is a
   validator leaderboard — the top validators ranked by activated stake, each with
   its stake share, commission and delinquency status, plus network totals

@@ -21,9 +21,13 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaMarket,
+  SolanaMarketToken,
   SolanaNetwork,
   SolanaStaking,
+  SolanaSwapQuote,
   SolanaTokenHolding,
+  SolanaTokenInfo,
   SolanaTrending,
   SolanaTrendingToken,
   SolanaValidator,
@@ -35,6 +39,7 @@ import type {
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { STABLES, sumValueUsd } from './balances';
 import { sumUnrealizedPnl } from './accountReads';
+import { KNOWN_MINTS, MINT_BY_SYMBOL, MINT_DECIMALS, STABLE_SYMBOLS, shortMint } from '../solana/rpc';
 import {
   INTERVAL_SECONDS,
   RANGE_SECONDS,
@@ -545,6 +550,112 @@ export class MockProvider implements DataProvider {
       nominalApyPct: pct(nominal),
       realApyPct: pct(real),
       epochsPerYear,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
+    // Deterministic-per-mint synthetic token snapshot. Clearly labeled synthetic.
+    const symbol = KNOWN_MINTS[mint] ?? shortMint(mint);
+    const decimals = MINT_DECIMALS[mint] ?? 6;
+    const rng = seeded('spl', mint, 'token');
+    const mintActive = uniform(rng, 0, 1) > 0.5;
+    const freezeActive = uniform(rng, 0, 1) > 0.6;
+    const price = STABLE_SYMBOLS.has(symbol)
+      ? 1
+      : symbol === 'SOL'
+        ? this.buildQuote(resolveEntry('SOL/USDT')).price
+        : null;
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic SPL token data for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for a live read.',
+      mint,
+      symbol,
+      program: 'spl-token',
+      decimals,
+      supply: Math.floor(uniform(rng, 1, 900) * 1_000_000),
+      mintAuthority: mintActive ? 'Mint1111111111111111111111111111111111111' : null,
+      mintAuthorityActive: mintActive,
+      freezeAuthority: freezeActive ? 'Freeze11111111111111111111111111111111111' : null,
+      freezeAuthorityActive: freezeActive,
+      priceUsd: price,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaQuote(input: string, output: string, amount: number): Promise<SolanaSwapQuote> {
+    // Synthetic swap quote from a small USD basis; impact grows with notional.
+    // Read-only and clearly labeled — the demo never routes or signs anything.
+    const inSym = input.toUpperCase();
+    const outSym = output.toUpperCase();
+    const basis: Record<string, number> = { SOL: 152, USDC: 1, USDT: 1, BONK: 0.000025, JUP: 0.9, JTO: 3.1 };
+    const bad = (note: string): SolanaSwapQuote => ({
+      source: this.name,
+      provenance: 'synthetic',
+      note,
+      inputSymbol: inSym,
+      outputSymbol: outSym,
+      inputMint: MINT_BY_SYMBOL[inSym] ?? '',
+      outputMint: MINT_BY_SYMBOL[outSym] ?? '',
+      inAmount: null,
+      outAmount: null,
+      price: null,
+      priceImpactPct: null,
+      slippageBps: null,
+      route: [],
+      asOf: Date.now(),
+    });
+    if (basis[inSym] == null || basis[outSym] == null)
+      return bad('Synthetic quotes cover a known set (SOL, USDC, USDT, BONK, JUP, JTO).');
+    if (inSym === outSym) return bad('Pick two different tokens to quote a swap.');
+    if (!(amount > 0)) return bad('Enter a positive input amount to quote.');
+    const rng = seeded('sjup', inSym, outSym, Math.round(amount * 100), Math.floor(Date.now() / 60_000));
+    const notionalUsd = amount * basis[inSym];
+    const impactPct = Math.min(8, Math.sqrt(notionalUsd / 50_000) * 0.5) * (1 + Math.abs(gaussian(rng)) * 0.1);
+    const feePct = 0.25;
+    const out = ((amount * basis[inSym]) / basis[outSym]) * (1 - impactPct / 100 - feePct / 100);
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic swap quote for offline/demo use — not a live Jupiter route. Set MIDAS_SOLANA_JUPITER (ccxt provider) for live quotes.',
+      inputSymbol: inSym,
+      outputSymbol: outSym,
+      inputMint: MINT_BY_SYMBOL[inSym] ?? '',
+      outputMint: MINT_BY_SYMBOL[outSym] ?? '',
+      inAmount: amount,
+      outAmount: round(out, out < 1 ? 6 : 4),
+      price: round(out / amount, out / amount < 1 ? 8 : 4),
+      priceImpactPct: round(impactPct, 3),
+      slippageBps: 50,
+      route: [
+        { dex: 'Orca', percent: 60 },
+        { dex: 'Raydium', percent: 40 },
+      ],
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaMarket(): Promise<SolanaMarket> {
+    // Reuse the synthetic trending list (unique per symbol) and roll it up with
+    // a SOL price header. Clearly labeled synthetic — never a live read.
+    const trending = await this.getSolanaTrending();
+    const tokens: SolanaMarketToken[] = trending.tokens.map((t) => ({
+      symbol: t.symbol,
+      priceUsd: t.priceUsd,
+      change24hPct: t.change24hPct,
+      volume24hUsd: t.volume24hUsd,
+      liquidityUsd: t.liquidityUsd,
+    }));
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana market overview for offline/demo use — not real on-chain data. Set MIDAS_DEX_SOURCE=geckoterminal (ccxt provider) for live data.',
+      solPriceUsd: this.buildQuote(resolveEntry('SOL/USDT')).price,
+      totalVolume24hUsd: Math.round(tokens.reduce((s, t) => s + (t.volume24hUsd ?? 0), 0)),
+      totalLiquidityUsd: Math.round(tokens.reduce((s, t) => s + (t.liquidityUsd ?? 0), 0)),
+      tokenCount: tokens.length,
+      tokens,
       asOf: Date.now(),
     };
   }
