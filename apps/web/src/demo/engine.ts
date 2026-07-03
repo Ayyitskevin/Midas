@@ -18,9 +18,12 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTokenHolding,
   SolanaTrending,
   SolanaTrendingToken,
+  SolanaValidator,
+  SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -518,6 +521,61 @@ export function solanaDexPoolsFor(symbol: string, now: number): DexPools {
     feeBps,
   }));
   return { symbol: asset.base, provenance: 'synthetic', note: NOTE, pools };
+}
+
+/** Synthetic Solana validator leaderboard — stable per hour, ranked by stake. */
+export function solanaValidatorsFor(now: number): SolanaValidators {
+  const hour = Math.floor(now / 3_600_000);
+  const count = 30;
+  const raw = Array.from({ length: count }, (_, i) => ({
+    stake: Math.floor((0.4 + u(`solval:${i}:${hour}`) * 0.6) * 4_000_000 * Math.pow(0.9, i)),
+    commissionPct: Math.round(u(`solval:c${i}:${hour}`) * 10),
+    delinquent: i > 26 && u(`solval:d${i}:${hour}`) > 0.5,
+  }));
+  const totalStakeSol = raw.reduce((s, v) => s + v.stake, 0);
+  const validators: SolanaValidator[] = raw
+    .map((v, i) => ({
+      votePubkey: `Vote${i}1111111111111111111111111111111111111`,
+      identity: `Node${i}…${(1000 + i).toString(36)}`,
+      activatedStakeSol: v.stake,
+      commissionPct: v.commissionPct,
+      stakeSharePct: Math.round((v.stake / totalStakeSol) * 10000) / 100,
+      delinquent: v.delinquent,
+      lastVoteSlot: 296_000_000 + i,
+    }))
+    .sort((a, b) => (b.activatedStakeSol ?? 0) - (a.activatedStakeSol ?? 0));
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    totalStakeSol,
+    validatorCount: validators.filter((v) => !v.delinquent).length,
+    delinquentCount: validators.filter((v) => v.delinquent).length,
+    validators,
+    asOf: now,
+  };
+}
+
+/** Synthetic Solana native staking economics. */
+export function solanaStakingFor(now: number): SolanaStaking {
+  const hour = Math.floor(now / 3_600_000);
+  const inflation = 0.044 + u(`solstake:i${hour}`) * 0.004;
+  const stakedRatio = 0.63 + u(`solstake:s${hour}`) * 0.04;
+  const epochsPerYear = 182;
+  const nominal = inflation / stakedRatio;
+  const real = (1 + nominal / epochsPerYear) ** epochsPerYear - 1;
+  const pct = (x: number): number => Math.round(x * 1000) / 10;
+  return {
+    source: DEMO_SOURCE,
+    provenance: 'synthetic',
+    note: NOTE,
+    inflationPct: pct(inflation),
+    stakedRatioPct: pct(stakedRatio),
+    nominalApyPct: pct(nominal),
+    realApyPct: pct(real),
+    epochsPerYear,
+    asOf: now,
+  };
 }
 
 export function balancesFor(now: number): Balances {

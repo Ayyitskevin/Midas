@@ -15,6 +15,15 @@ describe('fmtPrice', () => {
   it('uses four decimals for sub-dollar instruments', () => {
     expect(fmtPrice(0.25)).toBe('0.2500');
   });
+
+  it('honors a caller asking for MORE precision on sub-cent tokens', () => {
+    // Regression: sub-$1 values used to hard-clamp to 4 decimals, so a memecoin
+    // like BONK rendered as "0.0000" — indistinguishable from zero.
+    expect(fmtPrice(0.000023, 6)).toBe('0.000023');
+    expect(fmtPrice(0.00000012, 8)).toBe('0.00000012');
+    // …but a default (2-dp) request still floors at 4 for sub-dollar values.
+    expect(fmtPrice(0.25, 2)).toBe('0.2500');
+  });
 });
 
 describe('fmtCompact', () => {

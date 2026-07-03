@@ -237,6 +237,38 @@ describe('GET /api/solana/pools/:symbol', () => {
   });
 });
 
+describe('GET /api/solana/validators', () => {
+  it('returns a synthetic leaderboard ranked by stake', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/validators' });
+    expect(res.statusCode).toBe(200);
+    const v = res.json();
+    expect(v.provenance).toBe('synthetic');
+    expect(v.validators.length).toBeGreaterThan(5);
+    expect(typeof v.totalStakeSol).toBe('number');
+    for (let i = 1; i < v.validators.length; i++) {
+      expect(v.validators[i].activatedStakeSol).toBeLessThanOrEqual(v.validators[i - 1].activatedStakeSol);
+    }
+    // shares sum to ~100%
+    const shareSum = v.validators.reduce((s: number, x: { stakeSharePct: number }) => s + x.stakeSharePct, 0);
+    expect(shareSum).toBeGreaterThan(95);
+    expect(shareSum).toBeLessThan(105);
+  });
+});
+
+describe('GET /api/solana/staking', () => {
+  it('returns synthetic staking economics with sane APY bounds', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/solana/staking' });
+    expect(res.statusCode).toBe(200);
+    const s = res.json();
+    expect(s.provenance).toBe('synthetic');
+    expect(s.nominalApyPct).toBeGreaterThan(4);
+    expect(s.nominalApyPct).toBeLessThan(12);
+    expect(s.realApyPct).toBeGreaterThanOrEqual(s.nominalApyPct); // compounding
+    expect(s.stakedRatioPct).toBeGreaterThan(50);
+    expect(s.stakedRatioPct).toBeLessThan(80);
+  });
+});
+
 describe('unknown route', () => {
   it('returns the 404 ApiError shape', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/nope' });

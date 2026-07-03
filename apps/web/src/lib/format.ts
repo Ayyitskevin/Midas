@@ -3,8 +3,9 @@
 export function fmtPrice(value: number | null | undefined, decimals = 2): string {
   if (value == null || Number.isNaN(value)) return '—';
   const abs = Math.abs(value);
-  // Use more precision for sub-dollar instruments.
-  const d = abs > 0 && abs < 1 ? 4 : decimals;
+  // Sub-dollar instruments get at least 4 decimals — but honor a caller that
+  // explicitly asks for more (sub-cent memecoins need 6–8 to not read as 0.0000).
+  const d = abs > 0 && abs < 1 ? Math.max(4, decimals) : decimals;
   return value.toLocaleString('en-US', {
     minimumFractionDigits: d,
     maximumFractionDigits: d,

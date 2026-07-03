@@ -32,7 +32,9 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaStaking,
   SolanaTrending,
+  SolanaValidators,
   SolanaWallet,
   SystemStatus,
   TradingStatus,
@@ -147,6 +149,8 @@ export const api = {
   solanaTrending: (signal?: AbortSignal) => apiGet<SolanaTrending>('/api/solana/trending', signal),
   solanaDexPools: (symbol: string, signal?: AbortSignal) =>
     apiGet<DexPools>(`/api/solana/pools/${encodeURIComponent(symbol)}`, signal),
+  solanaValidators: (signal?: AbortSignal) => apiGet<SolanaValidators>('/api/solana/validators', signal),
+  solanaStaking: (signal?: AbortSignal) => apiGet<SolanaStaking>('/api/solana/staking', signal),
 
   // Read-only account reads (non-custodial; keyed via the server env).
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),
