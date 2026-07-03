@@ -44,6 +44,20 @@ function normalizeSymbol(raw: string): string {
   return SYMBOL_RE.test(s) ? s : '';
 }
 
+// Base-58 alphabet (no 0/O/I/l) — a Solana address is 32–44 of these chars.
+const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+/**
+ * Bound a Solana address at the API edge. Unlike symbols, base-58 is
+ * CASE-SENSITIVE — uppercasing corrupts a valid address — so this only trims
+ * and charset/length-checks. It's a sanity gate, not full validity (the RPC is
+ * the source of truth); junk normalizes to '' and the route answers 400.
+ */
+function normalizeSolanaAddress(raw: string): string {
+  const s = raw.trim();
+  return SOLANA_ADDRESS_RE.test(s) ? s : '';
+}
+
 /**
  * Fire-and-forget operator notification to the configured alert webhook.
  * Live account mutations — order placed, order canceled — are exactly the
@@ -168,6 +182,46 @@ export function registerRoutes(
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getDexPools(symbol);
+  });
+
+  // Read-only Solana network health. Non-custodial: public RPC reads only, never
+  // a transaction. Providers without a Solana source answer honest 'unavailable'.
+  app.get('/api/solana/network', async () => {
+    if (provider.getSolanaNetwork) return provider.getSolanaNetwork();
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      slot: null,
+      epoch: null,
+      epochProgressPct: null,
+      tps: null,
+      validatorCount: null,
+      totalStakeSol: null,
+      circulatingSupplySol: null,
+      totalSupplySol: null,
+      solPriceUsd: null,
+      asOf: Date.now(),
+    };
+  });
+
+  // Read-only Solana wallet inspector, keyed by a public base-58 address. The
+  // address is CASE-SENSITIVE — validated by its own base-58 gate, never through
+  // normalizeSymbol (which would uppercase and corrupt it).
+  app.get<{ Params: { address: string } }>('/api/solana/wallet/:address', async (req) => {
+    const address = normalizeSolanaAddress(req.params.address);
+    if (!address) throw new ProviderError('Missing or invalid Solana address', 400);
+    if (provider.getSolanaWallet) return provider.getSolanaWallet(address);
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      address,
+      solBalance: null,
+      tokens: [],
+      totalValueUsd: null,
+      asOf: Date.now(),
+    };
   });
 
   // Read-only account reads (non-custodial). Account-wide, so no symbol.

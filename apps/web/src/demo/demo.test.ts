@@ -6,6 +6,8 @@ import {
   orderBookFor,
   quoteFor,
   screenerRows,
+  solanaNetworkFor,
+  solanaWalletFor,
 } from './engine';
 import { installDemoShim } from './shim';
 
@@ -58,6 +60,28 @@ describe('demo engine', () => {
     }
     expect(DEMO_SYMBOLS.length).toBeGreaterThanOrEqual(30);
   });
+
+  it('Solana network is labeled synthetic with sane bounds', () => {
+    const n = solanaNetworkFor(NOW);
+    expect(n.provenance).toBe('synthetic');
+    expect(n.note).toMatch(/Static demo/);
+    expect(n.epochProgressPct!).toBeGreaterThanOrEqual(0);
+    expect(n.epochProgressPct!).toBeLessThanOrEqual(100);
+    expect(n.solPriceUsd!).toBeGreaterThan(0);
+  });
+
+  it('Solana wallet is synthetic and seeded on the address (stable holdings)', () => {
+    const addr = 'So11111111111111111111111111111111111111112';
+    const a = solanaWalletFor(addr, NOW);
+    const b = solanaWalletFor(addr, NOW + 60_000);
+    expect(a.provenance).toBe('synthetic');
+    expect(a.note).toMatch(/Static demo/);
+    expect(a.tokens.length).toBeGreaterThan(0);
+    // Holdings seeded on the address: amounts stable across time, addresses differ.
+    expect(a.tokens.map((t) => t.amount)).toEqual(b.tokens.map((t) => t.amount));
+    expect(a.solBalance).toBe(b.solBalance);
+    expect(solanaWalletFor('DifferentAddr1111111111111111111111111111111', NOW).solBalance).not.toBe(a.solBalance);
+  });
 });
 
 describe('demo shim', () => {
@@ -102,5 +126,16 @@ describe('demo shim', () => {
     window.fetch = vi.fn() as unknown as typeof fetch;
     installDemoShim();
     expect((window as unknown as { __MIDAS_STATIC_DEMO__?: boolean }).__MIDAS_STATIC_DEMO__).toBe(true);
+  });
+
+  it('answers the Solana endpoints in-browser', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    const net = await (await fetch('/api/solana/network')).json();
+    expect(net.provenance).toBe('synthetic');
+    expect(typeof net.slot).toBe('number');
+    const wal = await (await fetch('/api/solana/wallet/So11111111111111111111111111111111111111112')).json();
+    expect(wal.provenance).toBe('synthetic');
+    expect(wal.address).toBe('So11111111111111111111111111111111111111112'); // case preserved via seg(4)
   });
 });

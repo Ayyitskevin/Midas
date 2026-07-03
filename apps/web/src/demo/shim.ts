@@ -17,6 +17,8 @@ import {
   quoteFor,
   screenerRows,
   searchFor,
+  solanaNetworkFor,
+  solanaWalletFor,
   venueDerivatives,
   venueQuotes,
 } from './engine';
@@ -131,6 +133,11 @@ function handle(method: string, url: URL): Response | null {
       return json(liquidationsFeed(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 30), now));
     case path.startsWith('/api/onchain/'):
       return json(dexPoolsFor(seg(3), now));
+    // Solana endpoints carry an extra 'solana' segment, so the address is seg(4).
+    case path === '/api/solana/network':
+      return json(solanaNetworkFor(now));
+    case path.startsWith('/api/solana/wallet/'):
+      return json(solanaWalletFor(seg(4), now));
     case path === '/api/news' || path.startsWith('/api/news/'):
       return json(newsFor(path === '/api/news' ? undefined : seg(3), now));
     case path === '/api/balances':

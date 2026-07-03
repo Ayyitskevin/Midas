@@ -31,6 +31,8 @@ import type {
   Range,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaWallet,
   SystemStatus,
   TradingStatus,
   User,
@@ -136,6 +138,11 @@ export const api = {
 
   dexPools: (symbol: string, signal?: AbortSignal) =>
     apiGet<DexPools>(`/api/onchain/${encodeURIComponent(symbol)}`, signal),
+
+  // Read-only Solana reads (non-custodial; public RPC only, no signing).
+  solanaNetwork: (signal?: AbortSignal) => apiGet<SolanaNetwork>('/api/solana/network', signal),
+  solanaWallet: (address: string, signal?: AbortSignal) =>
+    apiGet<SolanaWallet>(`/api/solana/wallet/${encodeURIComponent(address)}`, signal),
 
   // Read-only account reads (non-custodial; keyed via the server env).
   balances: (signal?: AbortSignal) => apiGet<Balances>('/api/balances', signal),

@@ -21,6 +21,9 @@ import type {
   Quote,
   ScreenerRow,
   SearchResult,
+  SolanaNetwork,
+  SolanaTokenHolding,
+  SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -343,6 +346,63 @@ export class MockProvider implements DataProvider {
       provenance: 'synthetic',
       note: 'Synthetic DEX pools for offline/demo use — not real on-chain data.',
       pools,
+    };
+  }
+
+  async getSolanaNetwork(): Promise<SolanaNetwork> {
+    // Deterministic-per-minute synthetic network health so SOLNET is useful
+    // offline. Clearly labeled synthetic — never presented as a real RPC read.
+    const minute = Math.floor(Date.now() / 60_000);
+    const rng = seeded('solana', minute, 'solnet');
+    const slotsInEpoch = 432_000;
+    const slotIndex = Math.floor(uniform(rng, 0.1, 0.95) * slotsInEpoch);
+    const solPriceUsd = round(this.buildQuote(resolveEntry('SOL/USDT')).price, 4);
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana network health for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for live data.',
+      slot: 296_000_000 + Math.floor(uniform(rng, 0, 5_000_000)),
+      epoch: 685,
+      epochProgressPct: round((slotIndex / slotsInEpoch) * 100, 1),
+      tps: Math.round(uniform(rng, 1800, 4200)),
+      validatorCount: Math.round(uniform(rng, 1400, 1500)),
+      totalStakeSol: Math.round(uniform(rng, 385_000_000, 395_000_000)),
+      circulatingSupplySol: 468_000_000,
+      totalSupplySol: 586_000_000,
+      solPriceUsd,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaWallet(address: string): Promise<SolanaWallet> {
+    // Holdings are seeded on the ADDRESS ONLY (stable across polls); only the USD
+    // value moves with the live SOL price. Clearly labeled synthetic.
+    const rng = seeded(address, 'solwallet');
+    const solPrice = this.buildQuote(resolveEntry('SOL/USDT')).price;
+    const solBalance = round(uniform(rng, 0.5, 250), 4);
+    const roster: Array<{ mint: string; symbol: string; price: number | null }> = [
+      { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', price: 1 },
+      { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', price: 1 },
+      { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', price: round(uniform(rng, 0.4, 1.2), 4) },
+      { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', price: null },
+    ];
+    const tokens: SolanaTokenHolding[] = roster.map(({ mint, symbol, price }) => {
+      const amount = round(uniform(seeded(address, mint, 'amt'), 5, symbol === 'BONK' ? 5_000_000 : 5_000), 2);
+      return { mint, symbol, amount, valueUsd: price == null ? null : round(price * amount, 2) };
+    });
+    const totalValueUsd = round(
+      solBalance * solPrice + tokens.reduce((s, t) => s + (t.valueUsd ?? 0), 0),
+      2,
+    );
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana wallet for offline/demo use — not a real on-chain read. Set MIDAS_SOLANA_RPC (ccxt provider) to inspect a real address.',
+      address,
+      solBalance,
+      tokens,
+      totalValueUsd,
+      asOf: Date.now(),
     };
   }
 

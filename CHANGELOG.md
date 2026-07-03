@@ -4,6 +4,22 @@ All notable changes to Midas. The in-terminal `WN` panel shows the same
 highlights; this file is the complete record. Versions follow semver;
 `apps/server` reports the running version at `/api/health`.
 
+## [Unreleased]
+
+### Added
+- **Solana, read-only and non-custodial.** A native Solana dimension across the
+  stack: **`SOLNET`** (network health — slot, epoch progress, TPS, active
+  validators, total stake, circulating/total SOL supply and a live market cap)
+  and **`SWAL`** (a wallet inspector that shows any public base-58 address's SOL
+  balance and SPL token holdings priced to USD). Both are assembled from
+  read-only public-RPC calls only — no key, no signing, no transaction path
+  exists, preserving the "exactly two exchange writes" invariant. Live via
+  `MIDAS_SOLANA_RPC` (env-gated, default off, honest `unavailable` degradation);
+  synthetic-but-labeled in the mock provider and the static in-browser demo, so
+  both panels work offline. Wallet addresses are validated with a dedicated,
+  case-preserving base-58 edge check (never uppercased). Stablecoins price at
+  $1 and SOL from the exchange; unknown SPL tokens are honestly left unpriced.
+
 ## [0.5.0] — 2026-07-02
 
 The hosted-ready release: everything a multi-user Midas needs — per-user

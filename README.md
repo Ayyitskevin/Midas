@@ -60,6 +60,11 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
   alerts; price/funding/%-change alerts that can open a panel when they fire.
 - **On-chain / DEX.** DEX pools, CEX↔DEX basis and a swap price-impact estimate
   (`DEX`) — synthetic by default, live via Dexscreener when configured.
+- **Solana (read-only, non-custodial).** Network health (`SOLNET`) — slot, epoch
+  progress, TPS, validators, stake and SOL supply — and a wallet inspector
+  (`SWAL`) that shows any public address's SOL + SPL holdings priced to USD.
+  Public-RPC reads only (no key, no signing, no transaction); synthetic by
+  default, live via `MIDAS_SOLANA_RPC`.
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
 - **Account & execution (non-custodial, opt-in).** Read-only keys light up your
   real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
@@ -163,6 +168,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `DEPTH` | `DHEAT`, `OBHEAT` | yes       | Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track. |
 | `DEX`   | `ONCHAIN`, `POOLS` | yes      | On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume, fee tier & an estimated swap price-impact per pool, plus the CEX↔DEX basis (premium/discount), with a live/synthetic data-honesty badge (synthetic until an on-chain source is configured). |
+| `SOLNET` | `SOLANA`, `SNET` | no       | Solana network health — current slot, epoch progress, TPS, active validators, total stake, and circulating/total SOL supply with a live market cap. Read-only public-RPC reads (non-custodial), with a live/synthetic badge (synthetic until `MIDAS_SOLANA_RPC` is set). |
+| `SWAL`  | `SOLWALLET`, `SWALLET` | no  | Read-only Solana wallet inspector — paste a public base-58 address to see its SOL balance and SPL token holdings priced to USD. Non-custodial by construction: no key, no signing, no transaction ever. |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `CVD`   | `FLOW`, `OFD`  | yes          | Order-flow / cumulative volume delta — buy vs sell pressure over time + per-window delta bars. |
 | `IMB`   | `IMBALANCE`, `OBI` | yes      | Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge. |
@@ -480,6 +487,7 @@ Server (environment variables):
 | `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only; the trading write path never touches it. |
 | `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
 | `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. |
+| `MIDAS_SOLANA_RPC`    | _(unset)_   | A Solana JSON-RPC URL (e.g. `https://api.mainnet-beta.solana.com`) powers **live** `SOLNET` (network health) and `SWAL` (wallet) reads via the ccxt provider. **Read-only** RPC calls only — Midas never signs or sends a transaction. Unset keeps both panels honestly synthetic (mock) / unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
