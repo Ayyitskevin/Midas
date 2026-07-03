@@ -170,6 +170,8 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `DEX`   | `ONCHAIN`, `POOLS` | yes      | On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume, fee tier & an estimated swap price-impact per pool, plus the CEX↔DEX basis (premium/discount), with a live/synthetic data-honesty badge (synthetic until an on-chain source is configured). |
 | `SOLNET` | `SOLANA`, `SNET` | no       | Solana network health — current slot, epoch progress, TPS, active validators, total stake, and circulating/total SOL supply with a live market cap. Read-only public-RPC reads (non-custodial), with a live/synthetic badge (synthetic until `MIDAS_SOLANA_RPC` is set). |
 | `SWAL`  | `SOLWALLET`, `SWALLET` | no  | Read-only Solana wallet inspector — paste a public base-58 address to see its SOL balance and SPL token holdings priced to USD. Non-custodial by construction: no key, no signing, no transaction ever. |
+| `STREND` | `SOLTREND`, `SOLTRENDING` | no | Trending Solana tokens ranked by 24h DEX volume — price, 24h change, volume, pool liquidity and the top venue (Raydium/Orca/Meteora) per token. Read-only market discovery, with a live/synthetic badge (synthetic until `MIDAS_DEX_SOURCE=geckoterminal`). |
+| `SOLDEX` | `SOLPOOLS`, `SPOOLS` | yes | A base asset's liquidity across Solana DEXes (Raydium, Orca, Meteora, Phoenix, Lifinity) — price, TVL, 24h volume and fee tier per pool, with a VWAP/TVL roll-up. Read-only, non-custodial, live via `MIDAS_DEX_SOURCE=geckoterminal`. |
 | `TAS`   | `PRINTS`, `TS` | yes          | Live streaming trade prints (time & sales).    |
 | `CVD`   | `FLOW`, `OFD`  | yes          | Order-flow / cumulative volume delta — buy vs sell pressure over time + per-window delta bars. |
 | `IMB`   | `IMBALANCE`, `OBI` | yes      | Order-book imbalance — top-N bid vs ask depth pressure over time with a live gauge. |
@@ -486,7 +488,7 @@ Server (environment variables):
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
 | `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only; the trading write path never touches it. |
 | `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
-| `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. |
+| `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. `geckoterminal` also powers live Solana DeFi markets — trending tokens (`STREND`) and per-asset Solana DEX pools (`SOLDEX`). |
 | `MIDAS_SOLANA_RPC`    | _(unset)_   | A Solana JSON-RPC URL (e.g. `https://api.mainnet-beta.solana.com`) powers **live** `SOLNET` (network health) and `SWAL` (wallet) reads via the ccxt provider. **Read-only** RPC calls only — Midas never signs or sends a transaction. Unset keeps both panels honestly synthetic (mock) / unavailable. |
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |

@@ -224,6 +224,30 @@ export function registerRoutes(
     };
   });
 
+  // Read-only Solana DeFi markets: trending tokens + per-asset Solana DEX pools.
+  app.get('/api/solana/trending', async () => {
+    if (provider.getSolanaTrending) return provider.getSolanaTrending();
+    return {
+      source: provider.name,
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      tokens: [],
+      asOf: Date.now(),
+    };
+  });
+
+  app.get<{ Params: { symbol: string } }>('/api/solana/pools/:symbol', async (req) => {
+    const symbol = normalizeSymbol(req.params.symbol);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
+    if (provider.getSolanaDexPools) return provider.getSolanaDexPools(symbol);
+    return {
+      symbol: symbol.split('/')[0],
+      provenance: 'unavailable' as const,
+      note: 'This provider has no Solana source.',
+      pools: [],
+    };
+  });
+
   // Read-only account reads (non-custodial). Account-wide, so no symbol.
   // Auth-guarded when auth is enabled — these are not public prefixes, so the
   // onRequest guard covers them. Per-user keys (when stored) resolve these

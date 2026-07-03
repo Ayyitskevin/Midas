@@ -27,6 +27,8 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   DEX: mod(() => import('./OnChainModule'), 'OnChainModule'),
   SOLNET: mod(() => import('./SolanaNetworkModule'), 'SolanaNetworkModule'),
   SWAL: mod(() => import('./SolanaWalletModule'), 'SolanaWalletModule'),
+  STREND: mod(() => import('./SolanaTrendingModule'), 'SolanaTrendingModule'),
+  SOLDEX: mod(() => import('./SolanaDexModule'), 'SolanaDexModule'),
   TAS: mod(() => import('./TradesModule'), 'TradesModule'),
   CVD: mod(() => import('./OrderFlowModule'), 'OrderFlowModule'),
   IMB: mod(() => import('./ImbalanceModule'), 'ImbalanceModule'),

@@ -19,6 +19,7 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaTrending,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -72,6 +73,17 @@ export interface DataProvider {
    * labeled; providers that omit it get an 'unavailable' snapshot from the route.
    */
   getSolanaWallet?(address: string): Promise<SolanaWallet>;
+  /**
+   * Trending Solana tokens by 24h volume (optional). Read-only market discovery
+   * from a DEX aggregator; honestly labeled. Providers that omit it get an
+   * 'unavailable' snapshot from the route.
+   */
+  getSolanaTrending?(): Promise<SolanaTrending>;
+  /**
+   * Solana-network DEX pools for a base asset (optional) — the same DexPools
+   * shape as getDexPools, but constrained to Solana venues (Raydium/Orca/…).
+   */
+  getSolanaDexPools?(symbol: string): Promise<DexPools>;
   /** Read-only account balances (non-custodial; keyed via the operator's env), honestly labeled. */
   getBalances(): Promise<Balances>;
   /** Read-only open orders (non-custodial; reads only — never places/cancels), honestly labeled. */

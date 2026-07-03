@@ -17,7 +17,9 @@ import {
   quoteFor,
   screenerRows,
   searchFor,
+  solanaDexPoolsFor,
   solanaNetworkFor,
+  solanaTrendingFor,
   solanaWalletFor,
   venueDerivatives,
   venueQuotes,
@@ -136,8 +138,12 @@ function handle(method: string, url: URL): Response | null {
     // Solana endpoints carry an extra 'solana' segment, so the address is seg(4).
     case path === '/api/solana/network':
       return json(solanaNetworkFor(now));
+    case path === '/api/solana/trending':
+      return json(solanaTrendingFor(now));
     case path.startsWith('/api/solana/wallet/'):
       return json(solanaWalletFor(seg(4), now));
+    case path.startsWith('/api/solana/pools/'):
+      return json(solanaDexPoolsFor(seg(4), now));
     case path === '/api/news' || path.startsWith('/api/news/'):
       return json(newsFor(path === '/api/news' ? undefined : seg(3), now));
     case path === '/api/balances':

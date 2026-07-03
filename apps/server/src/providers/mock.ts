@@ -23,6 +23,8 @@ import type {
   SearchResult,
   SolanaNetwork,
   SolanaTokenHolding,
+  SolanaTrending,
+  SolanaTrendingToken,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -197,6 +199,32 @@ const DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
   { dex: 'Curve', feeBps: 4, quote: 'USDT' },
   { dex: 'PancakeSwap', feeBps: 25, quote: 'USDT' },
   { dex: 'Balancer', feeBps: 10, quote: 'DAI' },
+];
+
+// Solana-native DEX venues (SOLDEX) and a trending-token roster (STREND) for the
+// synthetic offline experience. Live data comes from GeckoTerminal's Solana
+// network; these keep the panels useful without a source configured.
+const SOLANA_DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
+  { dex: 'Raydium', feeBps: 25, quote: 'SOL' },
+  { dex: 'Orca', feeBps: 30, quote: 'USDC' },
+  { dex: 'Meteora', feeBps: 20, quote: 'USDC' },
+  { dex: 'Phoenix', feeBps: 2, quote: 'USDC' },
+  { dex: 'Lifinity', feeBps: 10, quote: 'SOL' },
+];
+
+const SOLANA_TRENDING_ROSTER: Array<{ symbol: string; price: number; dex: string }> = [
+  { symbol: 'WIF', price: 2.4, dex: 'Raydium' },
+  { symbol: 'BONK', price: 0.000023, dex: 'Orca' },
+  { symbol: 'JUP', price: 0.85, dex: 'Meteora' },
+  { symbol: 'JTO', price: 3.1, dex: 'Raydium' },
+  { symbol: 'PYTH', price: 0.42, dex: 'Orca' },
+  { symbol: 'RAY', price: 4.6, dex: 'Raydium' },
+  { symbol: 'POPCAT', price: 1.3, dex: 'Raydium' },
+  { symbol: 'MEW', price: 0.008, dex: 'Meteora' },
+  { symbol: 'PENGU', price: 0.03, dex: 'Orca' },
+  { symbol: 'W', price: 0.28, dex: 'Meteora' },
+  { symbol: 'RENDER', price: 7.2, dex: 'Orca' },
+  { symbol: 'PNUT', price: 0.9, dex: 'Raydium' },
 ];
 
 /**
@@ -403,6 +431,59 @@ export class MockProvider implements DataProvider {
       tokens,
       totalValueUsd,
       asOf: Date.now(),
+    };
+  }
+
+  async getSolanaTrending(): Promise<SolanaTrending> {
+    // Deterministic-per-minute synthetic trending list so STREND is useful
+    // offline. Clearly labeled synthetic — never presented as a live read.
+    const minute = Math.floor(Date.now() / 60_000);
+    const tokens: SolanaTrendingToken[] = SOLANA_TRENDING_ROSTER.map(({ symbol, price, dex }) => {
+      const rng = seeded(symbol, minute, 'strend');
+      const px = price * (1 + gaussian(rng) * 0.04);
+      const liquidityUsd = Math.floor(uniform(rng, 0.3, 25) * 1_000_000);
+      const quote = dex === 'Raydium' ? 'SOL' : 'USDC';
+      return {
+        symbol,
+        pair: `${symbol}/${quote}`,
+        dex,
+        priceUsd: round(px, px < 0.01 ? 8 : 4),
+        change24hPct: round(uniform(rng, -18, 22), 2),
+        volume24hUsd: Math.floor(uniform(rng, 0.2, 4) * liquidityUsd),
+        liquidityUsd,
+      };
+    });
+    tokens.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
+    return {
+      source: this.name,
+      provenance: 'synthetic',
+      note: 'Synthetic trending Solana tokens for offline/demo use — not real on-chain data. Set MIDAS_DEX_SOURCE=geckoterminal (ccxt provider) for live data.',
+      tokens,
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaDexPools(symbol: string): Promise<DexPools> {
+    const base = resolveEntry(symbol).symbol.split('/')[0].replace(/:.*$/, '');
+    const mid = this.buildQuote(resolveEntry(`${base}/USDT`)).price;
+    const day = Math.floor(Date.now() / 86_400_000);
+    const pools: DexPool[] = SOLANA_DEX_VENUES.map(({ dex, feeBps, quote }) => {
+      const rng = seeded(base, dex, feeBps, day, 'soldex');
+      const liquidityUsd = Math.floor(uniform(rng, 0.3, 30) * 1_000_000);
+      return {
+        dex,
+        pair: `${base}/${quote}`,
+        priceUsd: round(mid * (1 + gaussian(rng) * 0.003), 6),
+        liquidityUsd,
+        volume24hUsd: Math.floor(uniform(rng, 0.2, 4) * liquidityUsd),
+        feeBps,
+      };
+    });
+    return {
+      symbol: base,
+      provenance: 'synthetic',
+      note: 'Synthetic Solana DEX pools for offline/demo use — not real on-chain data.',
+      pools,
     };
   }
 

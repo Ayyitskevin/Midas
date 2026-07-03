@@ -15,6 +15,7 @@ import type {
   ScreenerRow,
   SearchResult,
   SolanaNetwork,
+  SolanaTrending,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
@@ -203,6 +204,25 @@ export class YahooProvider implements DataProvider {
       tokens: [],
       totalValueUsd: null,
       asOf: Date.now(),
+    };
+  }
+
+  async getSolanaTrending(): Promise<SolanaTrending> {
+    return {
+      source: this.name,
+      provenance: 'unavailable',
+      note: 'Solana data is a crypto feature — switch to the ccxt provider (and set MIDAS_DEX_SOURCE=geckoterminal for a live read).',
+      tokens: [],
+      asOf: Date.now(),
+    };
+  }
+
+  async getSolanaDexPools(symbol: string): Promise<DexPools> {
+    return {
+      symbol: symbol.split('/')[0].toUpperCase(),
+      provenance: 'unavailable',
+      note: 'Solana DEX data is a crypto feature — switch to the ccxt provider (and set MIDAS_DEX_SOURCE=geckoterminal).',
+      pools: [],
     };
   }
 
