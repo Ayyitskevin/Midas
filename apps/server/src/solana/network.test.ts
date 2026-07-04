@@ -53,6 +53,20 @@ describe('mapNetwork', () => {
     expect(n.solPriceUsd).toBeNull();
   });
 
+  it('counts total stake across current + delinquent validators (matches SVAL)', () => {
+    const n = mapNetwork({
+      epochInfo: EPOCH_INFO,
+      supply: null,
+      perfSamples: null,
+      // A delinquent validator is still staked, just not voting — its stake counts.
+      voteAccounts: { current: [{ activatedStake: 100_000_000_000 }], delinquent: [{ activatedStake: 20_000_000_000 }] },
+      solPriceUsd: null,
+      now: 1,
+    });
+    expect(n.validatorCount).toBe(1); // only voting validators are counted
+    expect(n.totalStakeSol).toBe(120); // (100e9 + 20e9) / 1e9 — delinquent stake included
+  });
+
   it('is defensive against garbage input (no throw, all-null metrics)', () => {
     const n = mapNetwork({ epochInfo: 'nope', supply: 42, perfSamples: {}, voteAccounts: [], solPriceUsd: null, now: 1 });
     expect(n.slot).toBeNull();

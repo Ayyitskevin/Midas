@@ -143,14 +143,15 @@ export async function fetchSolanaQuote(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    // Amount in raw base units. BigInt avoids float precision loss on large sizes.
+    // Amount → raw base units. `amount` is already a JS number (float), which is
+    // fine for the display-scale sizes this panel quotes; BigInt just renders it
+    // as an integer string for the query.
     const rawAmount = BigInt(Math.round(amount * 10 ** inputDecimals)).toString();
     const url = `${jupiterQuoteUrl()}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${rawAmount}&slippageBps=${DEFAULT_SLIPPAGE_BPS}`;
     const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const payload = await res.json();
-    return mapSwapQuote({
-      payload,
+    const quote = mapSwapQuote({
+      payload: await res.json(),
       inputSymbol: inSym,
       outputSymbol: outSym,
       inputMint,
@@ -159,6 +160,13 @@ export async function fetchSolanaQuote(
       outputDecimals,
       now: Date.now(),
     });
+    // A 200 with an unusable body (no amounts) is not a live quote — degrade
+    // honestly rather than render a "live" quote of all-nulls (mirrors the
+    // empty-result guard in fetchSolanaMarket / fetchSolanaTrending).
+    if (quote.outAmount == null) {
+      return unavailable(inSym, outSym, `No route returned for ${inSym}→${outSym} at this size.`);
+    }
+    return quote;
   } catch (err) {
     return unavailable(inSym, outSym, `Live Jupiter quote unavailable — ${err instanceof Error ? err.message : 'error'}.`);
   } finally {

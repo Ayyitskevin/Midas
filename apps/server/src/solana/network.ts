@@ -66,9 +66,12 @@ export function mapNetwork(inputs: {
   // getVoteAccounts → { current: [{ activatedStake }], delinquent: [...] }.
   const va = (inputs.voteAccounts ?? {}) as Record<string, unknown>;
   const current = Array.isArray(va.current) ? (va.current as Array<Record<string, unknown>>) : null;
+  const delinquent = Array.isArray(va.delinquent) ? (va.delinquent as Array<Record<string, unknown>>) : [];
   const validatorCount = current ? current.length : null;
+  // Total ACTIVATED stake includes delinquent validators (still staked, just not
+  // voting), so this matches SVAL's totalStakeSol — the two panels agree.
   const totalStakeLamports = current
-    ? current.reduce((sum, v) => sum + (num(v.activatedStake) ?? 0), 0)
+    ? [...current, ...delinquent].reduce((sum, v) => sum + (num(v.activatedStake) ?? 0), 0)
     : null;
 
   return {
