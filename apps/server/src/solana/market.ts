@@ -1,5 +1,6 @@
 import type { SolanaMarket, SolanaMarketToken } from '@midas/shared';
 import { geckoterminalEnabled } from '../providers/geckoterminal';
+import { GT_SOURCE, GT_TRENDING_ENDPOINT, MIN_LIQUIDITY_USD, gtData, gtFetch, num, parsePairName, str } from './gecko';
 
 /**
  * Solana ecosystem market overview (SOLMKT) — SOL's spot price up top, an
@@ -8,34 +9,11 @@ import { geckoterminalEnabled } from '../providers/geckoterminal';
  * from the same GeckoTerminal Solana trending feed (env-gated by
  * MIDAS_DEX_SOURCE=geckoterminal) plus the market provider's SOL price. Same
  * honesty rules: a pure fixture-tested mapper and honest `unavailable`
- * degradation — never a fabricated `live`. Read-only; no key, no signing.
+ * degradation — never a fabricated `live`. The GeckoTerminal access layer is
+ * shared via ./gecko. Read-only; no key, no signing.
  */
 
-const TRENDING_ENDPOINT = 'https://api.geckoterminal.com/api/v2/networks/solana/trending_pools';
-const TIMEOUT_MS = 6000;
 const MAX_TOKENS = 12;
-const MIN_LIQUIDITY_USD = 5_000; // drop dust / scam pools
-
-const num = (v: unknown): number | null => {
-  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
-  return Number.isFinite(n) ? n : null;
-};
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
-interface GtPool {
-  attributes?: {
-    name?: unknown;
-    base_token_price_usd?: unknown;
-    reserve_in_usd?: unknown;
-    volume_usd?: { h24?: unknown };
-    price_change_percentage?: { h24?: unknown };
-  };
-}
-
-/** "WIF / SOL 0.25%" → base ticker 'WIF' (or '' when unparseable). */
-function baseTicker(name: string): string {
-  return (name.split('/')[0] ?? '').trim().toUpperCase();
-}
 
 /**
  * Map a GeckoTerminal trending_pools payload to a SolanaMarket roll-up. Pure.
@@ -47,24 +25,21 @@ function baseTicker(name: string): string {
  * caller (the mapper stays IO-free).
  */
 export function mapSolanaMarket(inputs: { payload: unknown; solPriceUsd: number | null; now: number }): SolanaMarket {
-  const data = (inputs.payload as { data?: unknown } | null)?.data;
   const rows: SolanaMarketToken[] = [];
   const seen = new Set<string>();
-  if (Array.isArray(data)) {
-    for (const raw of data as GtPool[]) {
-      const symbol = baseTicker(str(raw.attributes?.name));
-      if (!symbol || seen.has(symbol)) continue;
-      const liquidityUsd = num(raw.attributes?.reserve_in_usd);
-      if (liquidityUsd != null && liquidityUsd < MIN_LIQUIDITY_USD) continue;
-      seen.add(symbol);
-      rows.push({
-        symbol,
-        priceUsd: num(raw.attributes?.base_token_price_usd),
-        change24hPct: num(raw.attributes?.price_change_percentage?.h24),
-        volume24hUsd: num(raw.attributes?.volume_usd?.h24),
-        liquidityUsd,
-      });
-    }
+  for (const raw of gtData(inputs.payload)) {
+    const symbol = parsePairName(str(raw.attributes?.name)).base;
+    if (!symbol || seen.has(symbol)) continue;
+    const liquidityUsd = num(raw.attributes?.reserve_in_usd);
+    if (liquidityUsd != null && liquidityUsd < MIN_LIQUIDITY_USD) continue;
+    seen.add(symbol);
+    rows.push({
+      symbol,
+      priceUsd: num(raw.attributes?.base_token_price_usd),
+      change24hPct: num(raw.attributes?.price_change_percentage?.h24),
+      volume24hUsd: num(raw.attributes?.volume_usd?.h24),
+      liquidityUsd,
+    });
   }
   rows.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
   const tokens = rows.slice(0, MAX_TOKENS);
@@ -73,7 +48,7 @@ export function mapSolanaMarket(inputs: { payload: unknown; solPriceUsd: number 
   const totalLiquidityUsd = tokens.reduce((s, t) => s + (t.liquidityUsd ?? 0), 0);
 
   return {
-    source: 'geckoterminal:solana',
+    source: GT_SOURCE,
     provenance: 'live',
     note: null,
     solPriceUsd: inputs.solPriceUsd,
@@ -87,7 +62,7 @@ export function mapSolanaMarket(inputs: { payload: unknown; solPriceUsd: number 
 
 function unavailable(note: string, solPriceUsd: number | null): SolanaMarket {
   return {
-    source: geckoterminalEnabled() ? 'geckoterminal:solana' : 'none',
+    source: geckoterminalEnabled() ? GT_SOURCE : 'none',
     provenance: 'unavailable',
     note,
     solPriceUsd,
@@ -108,19 +83,13 @@ export async function fetchSolanaMarket(solPriceUsd: number | null = null): Prom
   if (!geckoterminalEnabled()) {
     return unavailable('Live Solana market data needs a DEX source — set MIDAS_DEX_SOURCE=geckoterminal.', solPriceUsd);
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(TRENDING_ENDPOINT, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const market = mapSolanaMarket({ payload: await res.json(), solPriceUsd, now: Date.now() });
+    const market = mapSolanaMarket({ payload: await gtFetch(GT_TRENDING_ENDPOINT), solPriceUsd, now: Date.now() });
     if (market.tokens.length === 0) {
       return unavailable('No Solana market data returned.', solPriceUsd);
     }
     return market;
   } catch (err) {
     return unavailable(`Live Solana market source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`, solPriceUsd);
-  } finally {
-    clearTimeout(timer);
   }
 }

@@ -1,61 +1,37 @@
 import type { DexPool, DexPools, SolanaTrending, SolanaTrendingToken } from '@midas/shared';
 import { geckoterminalEnabled } from '../providers/geckoterminal';
+import {
+  GT_SEARCH_ENDPOINT,
+  GT_SOURCE,
+  GT_TRENDING_ENDPOINT,
+  MIN_LIQUIDITY_USD,
+  gtData,
+  gtFetch,
+  num,
+  parsePairName,
+  str,
+} from './gecko';
 
 /**
  * Solana DeFi markets — trending tokens (STREND) and per-token Solana DEX pools
  * (SOLDEX) — from GeckoTerminal's Solana network endpoints. Same honesty rules
  * as the other on-chain sources: pure fixture-tested mappers, env-gated live
  * fetch (reuses MIDAS_DEX_SOURCE=geckoterminal), and any failure degrades to a
- * labeled 'unavailable' snapshot — never a fabricated 'live'. Read-only market
- * data; no key, no signing.
+ * labeled 'unavailable' snapshot — never a fabricated 'live'. The GeckoTerminal
+ * access layer (endpoint, fetch, shape, pair-parsing) is shared via ./gecko.
+ * Read-only market data; no key, no signing.
  */
 
-const TRENDING_ENDPOINT = 'https://api.geckoterminal.com/api/v2/networks/solana/trending_pools';
-const SEARCH_ENDPOINT = 'https://api.geckoterminal.com/api/v2/search/pools';
-const TIMEOUT_MS = 6000;
 const MAX_TRENDING = 15;
 const MAX_POOLS = 10;
-const MIN_LIQUIDITY_USD = 5_000; // drop dust / scam pools
-
-const num = (v: unknown): number | null => {
-  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
-  return Number.isFinite(n) ? n : null;
-};
-const str = (v: unknown): string => (typeof v === 'string' ? v : '');
-
-interface GtPool {
-  attributes?: {
-    name?: unknown;
-    base_token_price_usd?: unknown;
-    reserve_in_usd?: unknown;
-    volume_usd?: { h24?: unknown };
-    price_change_percentage?: { h24?: unknown };
-  };
-  relationships?: {
-    dex?: { data?: { id?: unknown } };
-    network?: { data?: { id?: unknown } };
-  };
-}
-
-/** "WIF / SOL 0.25%" → { base: 'WIF', quote: 'SOL', feeBps: 25 }. Defensive. */
-function parsePairName(name: string): { base: string; quote: string; feeBps: number | null } {
-  const [basePart, rest] = name.split('/').map((s) => s.trim());
-  const base = (basePart ?? '').toUpperCase();
-  const quote = (rest ?? '').split(/\s+/)[0]?.toUpperCase() || '?';
-  const feeMatch = /([\d.]+)\s*%/.exec(rest ?? '');
-  const feeBps = feeMatch ? Math.round(Number(feeMatch[1]) * 100) : null;
-  return { base, quote, feeBps: feeBps != null && Number.isFinite(feeBps) ? feeBps : null };
-}
 
 /**
  * Map a GeckoTerminal trending_pools payload to trending tokens. Pure. One row
  * per pool (its base token), sorted by 24h volume, dust dropped, capped.
  */
 export function mapSolanaTrending(payload: unknown): SolanaTrendingToken[] {
-  const data = (payload as { data?: unknown } | null)?.data;
-  if (!Array.isArray(data)) return [];
   const out: SolanaTrendingToken[] = [];
-  for (const raw of data as GtPool[]) {
+  for (const raw of gtData(payload)) {
     const { base, quote } = parsePairName(str(raw.attributes?.name));
     if (!base || base === '?') continue;
     const liquidityUsd = num(raw.attributes?.reserve_in_usd);
@@ -82,10 +58,8 @@ export function mapSolanaTrending(payload: unknown): SolanaTrendingToken[] {
 export function mapSolanaPools(payload: unknown, base: string): DexPool[] {
   const b = base.toUpperCase();
   const wanted = new Set([b, `W${b}`]);
-  const data = (payload as { data?: unknown } | null)?.data;
-  if (!Array.isArray(data)) return [];
   const pools: DexPool[] = [];
-  for (const raw of data as GtPool[]) {
+  for (const raw of gtData(payload)) {
     if (str(raw.relationships?.network?.data?.id).toLowerCase() !== 'solana') continue;
     const { base: baseSym, quote, feeBps } = parsePairName(str(raw.attributes?.name));
     if (!wanted.has(baseSym)) continue;
@@ -104,18 +78,6 @@ export function mapSolanaPools(payload: unknown, base: string): DexPool[] {
   return pools.slice(0, MAX_POOLS);
 }
 
-async function gtFetch(url: string): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /** Fetch trending Solana tokens; honest 'unavailable' when off or on any failure. */
 export async function fetchSolanaTrending(): Promise<SolanaTrending> {
   if (!geckoterminalEnabled()) {
@@ -128,14 +90,14 @@ export async function fetchSolanaTrending(): Promise<SolanaTrending> {
     };
   }
   try {
-    const tokens = mapSolanaTrending(await gtFetch(TRENDING_ENDPOINT));
+    const tokens = mapSolanaTrending(await gtFetch(GT_TRENDING_ENDPOINT));
     if (tokens.length === 0) {
-      return { source: 'geckoterminal:solana', provenance: 'unavailable', note: 'No trending Solana pools returned.', tokens: [], asOf: Date.now() };
+      return { source: GT_SOURCE, provenance: 'unavailable', note: 'No trending Solana pools returned.', tokens: [], asOf: Date.now() };
     }
-    return { source: 'geckoterminal:solana', provenance: 'live', note: null, tokens, asOf: Date.now() };
+    return { source: GT_SOURCE, provenance: 'live', note: null, tokens, asOf: Date.now() };
   } catch (err) {
     return {
-      source: 'geckoterminal:solana',
+      source: GT_SOURCE,
       provenance: 'unavailable',
       note: `Live Solana DEX source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
       tokens: [],
@@ -151,7 +113,7 @@ export async function fetchSolanaPools(base: string): Promise<DexPools> {
     return { symbol: sym, provenance: 'unavailable', note: 'Live Solana DEX pools need MIDAS_DEX_SOURCE=geckoterminal.', pools: [] };
   }
   try {
-    const pools = mapSolanaPools(await gtFetch(`${SEARCH_ENDPOINT}?query=${encodeURIComponent(sym)}`), sym);
+    const pools = mapSolanaPools(await gtFetch(`${GT_SEARCH_ENDPOINT}?query=${encodeURIComponent(sym)}`), sym);
     if (pools.length === 0) {
       return { symbol: sym, provenance: 'unavailable', note: `No Solana DEX pools found for ${sym}.`, pools: [] };
     }
