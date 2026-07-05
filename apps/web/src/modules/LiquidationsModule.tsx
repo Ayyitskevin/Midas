@@ -27,12 +27,18 @@ export function LiquidationsModule({ panel }: ModuleProps) {
           <span className="flex items-center gap-1 text-term-dim">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
-                meta.available ? 'bg-term-up' : 'bg-term-amber'
+                meta.available && !meta.synthetic ? 'bg-term-up' : 'bg-term-amber'
               }`}
-              title={meta.available ? 'Source publishes liquidations' : 'Source has no public liquidation feed'}
+              title={
+                meta.synthetic
+                  ? 'Synthetic demo data — not a live feed'
+                  : meta.available
+                    ? 'Source publishes liquidations'
+                    : 'Source has no public liquidation feed'
+              }
             />
             <span className="text-term-muted">{meta.source}</span>
-            <span>· {meta.available ? 'live' : 'no feed'}</span>
+            <span>· {meta.synthetic ? 'demo' : meta.available ? 'live' : 'no feed'}</span>
             <span>· {fmtTimeAgo(meta.asOf)}</span>
           </span>
         )}
@@ -42,7 +48,7 @@ export function LiquidationsModule({ panel }: ModuleProps) {
       {meta?.note && (
         <div
           className={`border-b px-2 py-1 text-2xs leading-snug ${
-            meta.available
+            meta.available && !meta.synthetic
               ? 'border-term-border text-term-dim'
               : 'border-term-amber/40 bg-term-amber/10 text-term-amber'
           }`}

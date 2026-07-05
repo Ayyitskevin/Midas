@@ -24,6 +24,10 @@ export function registerAlertRoutes(app: FastifyInstance, repo: AlertRepo): void
       reply.code(400);
       return err(400, 'BadRequest', 'Invalid alert: need symbol, metric, op, value');
     }
+    if (repo.atCapacityFor(ownerOf(req))) {
+      reply.code(429);
+      return err(429, 'TooManyRequests', 'Alert limit reached — delete some alerts before adding more.');
+    }
     reply.code(201);
     return repo.create(input, Date.now(), ownerOf(req));
   });

@@ -366,6 +366,7 @@ export function liquidationsFeed(quote: string, limit: number, now: number): Liq
     meta: {
       source: DEMO_SOURCE,
       available: true,
+      synthetic: true, // demo events are fabricated in-browser — never shown as 'live'
       note: NOTE,
       asOf: now,
     },

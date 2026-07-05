@@ -182,3 +182,56 @@ describe('AI copilot cost brake (per-caller rate limit)', () => {
     }
   });
 });
+
+describe('trusted proxy derives req.ip from X-Forwarded-For', () => {
+  let proxied: FastifyInstance;
+
+  beforeAll(async () => {
+    process.env.LOG_LEVEL = 'silent';
+    proxied = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      trustProxy: 1, // one nginx hop, as the shipped compose configures
+    });
+    await proxied.ready();
+    await proxied.inject({
+      method: 'POST',
+      url: '/api/auth/signup',
+      payload: { username: 'vic', password: 'correct-horse' },
+      headers: { 'x-forwarded-for': '9.9.9.9' },
+    });
+  });
+
+  afterAll(async () => {
+    await proxied.close();
+  });
+
+  it('keys the login throttle per forwarded client IP, not the shared proxy IP', async () => {
+    // Lock 'vic' out from one client IP by spraying wrong passwords.
+    for (let i = 0; i < 6; i++) {
+      await proxied.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { username: 'vic', password: `wrong-${i}` },
+        headers: { 'x-forwarded-for': '1.1.1.1' },
+      });
+    }
+    const locked = await proxied.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'vic', password: 'correct-horse' },
+      headers: { 'x-forwarded-for': '1.1.1.1' },
+    });
+    expect(locked.statusCode).toBe(429); // that client IP is locked out
+
+    // A DIFFERENT forwarded client IP logs in fine — proving req.ip came from
+    // X-Forwarded-For, not the (constant) proxy socket address. Without
+    // trustProxy both requests would share one bucket and this would be 429.
+    const other = await proxied.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'vic', password: 'correct-horse' },
+      headers: { 'x-forwarded-for': '2.2.2.2' },
+    });
+    expect(other.statusCode).toBe(200);
+  });
+});

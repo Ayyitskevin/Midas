@@ -8,6 +8,9 @@ import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './auth/passwo
 import { signToken, verifyToken } from './auth/token';
 import { isPublicPath } from './auth/guard';
 import { signupCredentialError } from './auth/routes';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 describe('auth guard public-path matching', () => {
   it('is public only on segment boundaries', () => {
@@ -346,5 +349,60 @@ describe('signup hardening (DoS brakes)', () => {
     }
     expect(codes).toContain(400);
     expect(codes[codes.length - 1]).toBe(429);
+  });
+});
+
+describe('signup default-closed still bootstraps the first account', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    process.env.LOG_LEVEL = 'silent';
+    app = await buildApp(createProvider('mock'), {
+      // allowSignup:false is now the shipped default; the first account must
+      // still be creatable so a fresh instance is usable.
+      auth: { enabled: true, allowSignup: false, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('allows the first signup (bootstrap) but closes it once an account exists', async () => {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/api/auth/signup',
+      payload: { username: 'founder', password: 'correct-horse' },
+    });
+    expect(first.statusCode).toBe(201); // count===0 → bootstrap allowed
+
+    const second = await app.inject({
+      method: 'POST',
+      url: '/api/auth/signup',
+      payload: { username: 'intruder', password: 'correct-horse' },
+    });
+    expect(second.statusCode).toBe(403); // signups closed by default
+  });
+});
+
+describe('UserRepo fails closed on a corrupt store', () => {
+  it('throws rather than silently resetting (which would wipe accounts + reopen admin)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'midas-users-'));
+    const file = join(dir, 'users.json');
+    writeFileSync(file, '{ this is not valid json'); // a truncated/corrupt write
+    // Silently resetting to [] would make count()===0 → canSignup true → the next
+    // signup becomes admin. Fail closed instead so an operator notices.
+    expect(() => new UserRepo(file)).toThrow(/unreadable/i);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('treats a genuinely missing file as a fresh install (no throw, empty store)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'midas-users-'));
+    const repo = new UserRepo(join(dir, 'users.json')); // does not exist yet
+    expect(repo.count()).toBe(0);
+    rmSync(dir, { recursive: true, force: true });
   });
 });

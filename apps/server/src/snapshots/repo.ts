@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { writeFileAtomic } from '../persist';
 
 /** Owner for single-user / auth-off deploys (and pre-auth snapshots). */
 const LOCAL = '@local';
@@ -45,8 +45,7 @@ export class UserSnapshotRepo {
   private persist(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify(this.store, null, 2));
+      writeFileAtomic(this.file, JSON.stringify(this.store, null, 2));
     } catch {
       /* best-effort */
     }

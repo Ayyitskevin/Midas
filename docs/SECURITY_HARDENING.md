@@ -43,9 +43,10 @@ Before a Midas box is reachable by anyone but you:
 |---|---|---|
 | `MIDAS_AUTH_ENABLED` | `false` | Require login for the whole API. **On** for any shared/exposed box. |
 | `MIDAS_AUTH_SECRET` | random/boot | HMAC key for session tokens. Set a fixed ≥16-char value; warned if weak. |
-| `MIDAS_AUTH_ALLOW_SIGNUP` | `true` | Open registration. Turn **off** after creating your accounts. |
+| `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Ongoing open registration. Default closed once your first account exists; set `true` only for deliberate open registration. |
 | `MIDAS_CORS_ORIGIN` | `*` | Allowed browser origin. Pin it; required (non-`*`) for no-auth trading. |
 | `MIDAS_RATE_LIMIT_RPM` | `0` (off) | Per-IP request ceiling. Set it on any public box. |
+| `MIDAS_TRUST_PROXY` | `0` | Trusted reverse-proxy hops. Set to `1` behind a single proxy (the shipped nginx) so per-IP controls see the real client; keep `0` if exposed directly (else `X-Forwarded-For` is spoofable). |
 | `MIDAS_TRADING_ENABLED` | `false` | Master switch for live order placement. Your kill switch. |
 | `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Permits trading without login — only on a trusted host, only with pinned CORS. |
 | `MIDAS_MAX_ORDER_USD` | `1000` | Hard per-order notional cap. Fails safe on a bad value. |

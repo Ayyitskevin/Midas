@@ -4,6 +4,15 @@ import { MIDAS_VERSION } from '@midas/shared';
 export interface Config {
   host: string;
   port: number;
+  /**
+   * Number of trusted reverse-proxy hops in front of the server (0 = none).
+   * When >0, Fastify derives req.ip from X-Forwarded-For instead of the socket
+   * peer, so per-IP controls (login throttle, rate limiters) see the real
+   * client. MUST stay 0 for a directly-exposed server — otherwise a client can
+   * forge X-Forwarded-For and spoof its req.ip. The shipped docker-compose sets
+   * it to 1 (one nginx hop).
+   */
+  trustProxy: number;
   /** Active data provider id: 'mock' | 'yahoo' | 'ccxt'. */
   provider: string;
   corsOrigin: string;
@@ -17,7 +26,13 @@ export interface Config {
   alertWebhook: string;
   /** Require login for the API + terminal. Off by default (single-user). */
   authEnabled: boolean;
-  /** Allow new accounts to register (the first user can always bootstrap). */
+  /**
+   * Allow ongoing open registration. Default OFF: the first account can always
+   * bootstrap (canSignup is true while the user store is empty), so a fresh
+   * instance still works — but once an account exists, signup is closed unless
+   * the operator explicitly opts into open registration. Left open, an outsider
+   * could self-register and reach the authenticated trading path.
+   */
   authAllowSignup: boolean;
   /** HMAC secret for session tokens (a random one is used if unset). */
   authSecret: string;
@@ -108,6 +123,7 @@ export function applyDemoMode(cfg: Config): Config {
 const baseConfig: Config = {
   host: env('HOST', '0.0.0.0'),
   port: numEnv('PORT', 4000),
+  trustProxy: numEnv('MIDAS_TRUST_PROXY', 0),
   provider: env('MIDAS_DATA_PROVIDER', 'mock').toLowerCase(),
   corsOrigin: env('MIDAS_CORS_ORIGIN', '*'),
   aiModel: env('MIDAS_AI_MODEL', 'claude-sonnet-4-6'),

@@ -33,6 +33,11 @@ services:
       MIDAS_RATE_LIMIT_RPM: ${MIDAS_RATE_LIMIT_RPM:-0}
       HOST: 0.0.0.0
       PORT: "4000"
+      # This server sits behind exactly one nginx hop (the `web` service), so
+      # trust 1 proxy: req.ip then reflects the real client, keeping the login
+      # throttle and rate limiters per-IP instead of one shared bucket. Keep at
+      # 0 only if you expose the server directly (no proxy).
+      MIDAS_TRUST_PROXY: ${MIDAS_TRUST_PROXY:-1}
       # Background alert engine — rules + triggers persist in the data volume.
       MIDAS_DATA_DIR: /app/data
       MIDAS_ALERT_INTERVAL_MS: ${MIDAS_ALERT_INTERVAL_MS:-15000}
@@ -40,7 +45,7 @@ services:
       MIDAS_ALERT_WEBHOOK: ${MIDAS_ALERT_WEBHOOK:-}
       # Optional multi-user auth (off by default; users persist in the volume).
       MIDAS_AUTH_ENABLED: ${MIDAS_AUTH_ENABLED:-false}
-      MIDAS_AUTH_ALLOW_SIGNUP: ${MIDAS_AUTH_ALLOW_SIGNUP:-true}
+      MIDAS_AUTH_ALLOW_SIGNUP: ${MIDAS_AUTH_ALLOW_SIGNUP:-false}
       MIDAS_AUTH_SECRET: ${MIDAS_AUTH_SECRET:-}
       # Optional account access (read-only keys → BAL/ORD/POSN/FILLS go live).
       MIDAS_CCXT_API_KEY: ${MIDAS_CCXT_API_KEY:-}

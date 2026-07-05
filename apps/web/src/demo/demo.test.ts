@@ -3,6 +3,7 @@ import {
   DEMO_SYMBOLS,
   balancesFor,
   historyFor,
+  liquidationsFeed,
   orderBookFor,
   quoteFor,
   screenerRows,
@@ -31,6 +32,13 @@ describe('demo engine', () => {
     const b = quoteFor('BTC/USDT', NOW + 60_000)!.price;
     expect(a).not.toBe(b);
     expect(Math.abs(b / a - 1)).toBeLessThan(0.05); // moves, but not absurdly
+  });
+
+  it('labels its liquidations feed synthetic — it surfaces events but is never "live"', () => {
+    const feed = liquidationsFeed('USDT', 30, NOW);
+    expect(feed.events.length).toBeGreaterThan(0); // the demo does show events...
+    expect(feed.meta.synthetic).toBe(true); // ...but they are honestly flagged synthetic
+    expect(feed.meta.source).toBe('demo');
   });
 
   it('candles are well-formed: ascending time, high ≥ open/close ≥ low', () => {

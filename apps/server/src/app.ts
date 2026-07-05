@@ -43,6 +43,8 @@ export interface BuildAppOptions {
   userRepo?: UserRepo;
   /** Auth overrides (tests); falls back to config. */
   auth?: { enabled?: boolean; allowSignup?: boolean; secret?: string };
+  /** Trusted reverse-proxy hop count (tests); falls back to config.trustProxy. */
+  trustProxy?: number;
   /** Account order watcher (index.ts starts one when keyed + live); null/omitted = off. */
   accountWatch?: AccountWatchHandle | null;
   /** Equity snapshot store + whether its loop runs; null/omitted = off. */
@@ -72,6 +74,14 @@ export async function buildApp(
     // The biggest legitimate payloads (workspace/portfolio snapshots) sit
     // well under this; everything larger is an honest 413, not an allocation.
     bodyLimit: 1024 * 1024,
+    // Derive req.ip from X-Forwarded-For ONLY when behind a known number of
+    // trusted proxy hops (config.trustProxy, default 0). Otherwise every per-IP
+    // control (login throttle, signup/ai/chat limiters, global limiter) sees the
+    // proxy's IP for every client and collapses to one shared bucket. Trusting a
+    // fixed hop count is spoof-resistant: a client's own forged X-Forwarded-For
+    // is discarded. Left 0 (default) for a directly-exposed server so a client
+    // can't forge its req.ip; the shipped docker-compose sets it to 1 (nginx).
+    trustProxy: (opts.trustProxy ?? config.trustProxy) > 0 ? (opts.trustProxy ?? config.trustProxy) : false,
   });
 
   await app.register(cors, { origin: config.corsOrigin });

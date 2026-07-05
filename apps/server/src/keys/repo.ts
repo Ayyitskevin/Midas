@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { writeFileAtomic } from '../persist';
 import { decryptText, encryptText } from './crypto';
 
 /**
@@ -63,8 +63,7 @@ export class KeyRepo {
   private persist(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify({ records: this.records }));
+      writeFileAtomic(this.file, JSON.stringify({ records: this.records }));
     } catch {
       /* best-effort */
     }
