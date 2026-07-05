@@ -355,6 +355,7 @@ export class MockProvider implements DataProvider {
     return {
       source: 'mock',
       available: true,
+      synthetic: true, // fabricated events — the panel shows 'demo', never a green 'live'
       note: 'Synthetic liquidations for offline/demo use — not real market data.',
     };
   }

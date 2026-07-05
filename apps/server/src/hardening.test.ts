@@ -235,3 +235,11 @@ describe('trusted proxy derives req.ip from X-Forwarded-For', () => {
     expect(other.statusCode).toBe(200);
   });
 });
+
+describe('mock provider data honesty', () => {
+  it('labels its synthetic liquidations feed synthetic — never presented as live', () => {
+    const meta = createProvider('mock').liquidationsProvenance();
+    expect(meta.synthetic).toBe(true); // so the panel renders 'demo', not green 'live'
+    expect(meta.source).toBe('mock');
+  });
+});
