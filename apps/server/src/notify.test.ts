@@ -30,6 +30,18 @@ describe('formatTrigger', () => {
     );
     expect(formatTrigger(trg({ metric: 'change', op: 'cross', value: -5, actual: -5.2 })).text).toContain('%');
   });
+
+  it('scales price precision to magnitude so a sub-cent token never reads 0.00', () => {
+    // Shares priceDecimals with the browser formatter — the webhook (Discord/Slack)
+    // and the in-app toast must agree, and both must show real digits for memecoins.
+    const bonk = formatTrigger(trg({ symbol: 'BONK/USDC', value: 0.000025, actual: 0.000031 }));
+    expect(bonk.title).toBe('BONK/USDC price ≥ 0.00002500');
+    expect(bonk.text).toContain('now 0.00003100');
+    // Sub-dollar (not sub-cent) prices get 6 places, not 2.
+    expect(formatTrigger(trg({ symbol: 'JUP/USDC', value: 0.9, actual: 0.94 })).title).toBe(
+      'JUP/USDC price ≥ 0.900000',
+    );
+  });
 });
 
 describe('buildWebhookPayload', () => {
