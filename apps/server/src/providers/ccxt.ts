@@ -48,6 +48,19 @@ import { mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 /**
+ * A ccxt error can carry raw upstream detail — a signed request URL (including the
+ * HMAC `signature=` and the API key), the raw response body, internal hostnames.
+ * None of that may reach a client. This returns a bounded, safe label — the error's
+ * class name (e.g. `AuthenticationError`, `NetworkError`) — for use in a
+ * client-facing message or an `unavailable` snapshot `note`. An explicit
+ * ProviderError is ours and already safe, so its message is preserved.
+ */
+export function safeErrorLabel(err: unknown): string {
+  if (err instanceof ProviderError) return err.message;
+  return err instanceof Error && err.name ? err.name : 'error';
+}
+
+/**
  * Live crypto market data via CCXT — one integration, ~100+ exchanges, with
  * public market-data endpoints that require no API keys. This is the cornerstone
  * of Midas's crypto-native direction (see VISION.md).
@@ -188,7 +201,7 @@ export class CcxtProvider implements DataProvider {
     } catch (err) {
       return {
         rows: [],
-        note: `Second venue (${this.secondary.id}) unreadable — ${err instanceof Error ? err.message : 'error'}.`,
+        note: `Second venue (${this.secondary.id}) unreadable — ${safeErrorLabel(err)}.`,
       };
     }
   }
@@ -577,7 +590,7 @@ export class CcxtProvider implements DataProvider {
       return {
         source: this.name,
         provenance: 'unavailable',
-        note: `Balance read failed — ${err instanceof Error ? err.message : 'error'}. Check that the API key is valid and has read access (read-only is sufficient).`,
+        note: `Balance read failed — ${safeErrorLabel(err)}. Check that the API key is valid and has read access (read-only is sufficient).`,
         totalValueUsd: null,
         balances: [],
         asOf: Date.now(),
@@ -646,7 +659,7 @@ export class CcxtProvider implements DataProvider {
       return {
         source: this.name,
         provenance: 'unavailable',
-        note: `Open-orders read failed — ${err instanceof Error ? err.message : 'error'}. Check the API key (read access is sufficient).`,
+        note: `Open-orders read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
         orders: [],
         asOf,
       };
@@ -699,7 +712,7 @@ export class CcxtProvider implements DataProvider {
       return {
         source: this.name,
         provenance: 'unavailable',
-        note: `Positions read failed — ${err instanceof Error ? err.message : 'error'}. Check the API key (read access is sufficient).`,
+        note: `Positions read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
         totalUnrealizedPnlUsd: null,
         positions: [],
         asOf,
@@ -743,14 +756,16 @@ export class CcxtProvider implements DataProvider {
       }
       return { source: this.name, provenance: 'live', note: second?.note ?? null, fills, asOf };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'error';
-      const needsSymbol = /symbol|argument/i.test(msg) && !symbol;
+      // Inspect the raw message internally to detect the "symbol required" case,
+      // but never place it in the note — it can carry the signed request URL.
+      const rawMsg = err instanceof Error ? err.message : '';
+      const needsSymbol = /symbol|argument/i.test(rawMsg) && !symbol;
       return {
         source: this.name,
         provenance: 'unavailable',
         note: needsSymbol
           ? `${this.name} requires a symbol for fills — open FILLS with a symbol (e.g. BTC/USDT FILLS).`
-          : `Fills read failed — ${msg}. Check the API key (read access is sufficient).`,
+          : `Fills read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
         fills: [],
         asOf,
       };
@@ -963,10 +978,12 @@ export class CcxtProvider implements DataProvider {
   }
 
   private describe(err: unknown, symbol?: string): string {
-    const base = err instanceof Error ? err.message : String(err);
+    if (err instanceof ProviderError) return err.message;
     const ctx = symbol ? ` for ${symbol}` : '';
+    // Never interpolate the raw err.message — it can leak the signed request URL
+    // (HMAC signature, API key) and response body to the client. Use a safe label.
     return (
-      `ccxt (${this.exchange.id}) request failed${ctx}: ${base}. ` +
+      `ccxt (${this.exchange.id}) request failed${ctx} (${safeErrorLabel(err)}). ` +
       `Check the symbol format (e.g. BTC/USDT) and that the exchange is reachable.`
     );
   }
