@@ -50,8 +50,10 @@ export async function evaluateOnce(
   // base account is nobody's in particular: reading it here would bind the
   // operator's equity/positions to any user's account-metric alert (a cross-user
   // financial-data leak). So the global loop reads account metrics ONLY when
-  // every owner is @local; under multi-user auth these alerts stay armed and
-  // unread (per-user account monitoring is the per-user loops' responsibility).
+  // every owner is @local. Under multi-user auth no loop evaluates them yet, so
+  // the API rejects CREATING equity/upnl alerts (see alerts/routes.ts) rather
+  // than persist one that can never fire; per-user account-alert evaluation is a
+  // planned follow-up.
   const accountReadsSafe = !all.some((a) => a.userId != null && a.userId !== '@local');
 
   // Account metrics — one read each, only when such alerts exist, and only

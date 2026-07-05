@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeFileAtomic } from './persist';
@@ -25,5 +25,13 @@ describe('writeFileAtomic', () => {
     writeFileAtomic(f, 'v1-longer-original');
     writeFileAtomic(f, 'v2');
     expect(readFileSync(f, 'utf8')).toBe('v2');
+  });
+
+  it('preserves the target file mode across writes (keeps an operator chmod 600)', () => {
+    const f = join(dir, 'perms.json');
+    writeFileAtomic(f, 'v1');
+    chmodSync(f, 0o600); // operator tightens the credential store
+    writeFileAtomic(f, 'v2'); // a fresh temp inode would otherwise land at umask default
+    expect(statSync(f).mode & 0o777).toBe(0o600);
   });
 });
