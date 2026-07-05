@@ -82,6 +82,10 @@ export const ALERT_OPS: readonly AlertOp[] = ['above', 'below', 'cross'];
 // Construction / validation
 // ---------------------------------------------------------------------------
 
+/** Upper bounds enforced at the edge — an unbounded symbol/note is a persisted-store DoS vector. */
+export const MAX_ALERT_SYMBOL_LEN = 32;
+export const MAX_ALERT_NOTE_LEN = 280;
+
 /** Coerce an untrusted body into a valid AlertInput, or null if unusable. */
 export function parseAlertInput(raw: unknown): AlertInput | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -90,10 +94,13 @@ export function parseAlertInput(raw: unknown): AlertInput | null {
   const metric = r.metric as AlertMetric;
   const op = r.op as AlertOp;
   const value = typeof r.value === 'number' ? r.value : Number(r.value);
-  if (!symbol) return null;
+  if (!symbol || symbol.length > MAX_ALERT_SYMBOL_LEN) return null;
   if (!ALERT_METRICS.includes(metric)) return null;
   if (!ALERT_OPS.includes(op)) return null;
   if (!Number.isFinite(value)) return null;
+  // A note is optional, but an over-long one is rejected outright rather than
+  // silently truncated — it never reaches the persisted store.
+  if (typeof r.note === 'string' && r.note.trim().length > MAX_ALERT_NOTE_LEN) return null;
   return {
     symbol,
     metric,

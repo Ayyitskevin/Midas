@@ -44,6 +44,40 @@ describe('parseAlertInput', () => {
     expect(parseAlertInput({ symbol: '', metric: 'price', op: 'above', value: 1 })).toBeNull();
     expect(parseAlertInput(null)).toBeNull();
   });
+
+  it('rejects an over-long symbol or note (persisted-store DoS guard)', () => {
+    expect(parseAlertInput({ symbol: 'A'.repeat(40), metric: 'price', op: 'above', value: 1 })).toBeNull();
+    expect(
+      parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: 1, note: 'x'.repeat(300) }),
+    ).toBeNull();
+    // A normal-length note still passes through unchanged.
+    expect(
+      parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: 1, note: 'watch me' }),
+    ).toMatchObject({ note: 'watch me' });
+  });
+});
+
+describe('alert store caps (unbounded-persistence guard)', () => {
+  it('refuses to create past the per-owner alert cap with 429', async () => {
+    const repo = new AlertRepo();
+    for (let i = 0; i < 200; i++) {
+      repo.create({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: i + 1, repeat: false }, i);
+    }
+    expect(repo.atCapacityFor()).toBe(true);
+
+    const app = await buildApp(stubProvider(70000), { alertRepo: repo });
+    await app.ready();
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/alerts',
+        payload: { symbol: 'ETH/USDT', metric: 'price', op: 'above', value: 1, repeat: false },
+      });
+      expect(res.statusCode).toBe(429);
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 describe('evaluateOnce', () => {

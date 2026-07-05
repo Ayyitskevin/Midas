@@ -1,8 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import { newAlert, type Alert, type AlertInput, type AlertTrigger } from '@midas/shared';
+import { writeFileAtomic } from '../persist';
 
 const TRIGGER_CAP = 500;
+/**
+ * Max stored alerts per owner. Bounds both the in-memory array and the O(n)
+ * full-file rewrite persist() does on every write — without it, one caller can
+ * grow the store unboundedly (memory + disk DoS, quadratic write cost).
+ */
+const MAX_ALERTS_PER_OWNER = 200;
 /** Owner for single-user / auth-off deploys (and pre-auth alerts). */
 const LOCAL = '@local';
 
@@ -43,8 +49,7 @@ export class AlertRepo {
   private persist(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(
+      writeFileAtomic(
         this.file,
         JSON.stringify({ alerts: this.alerts, triggers: this.triggers }, null, 2),
       );
@@ -67,6 +72,12 @@ export class AlertRepo {
   listFor(userId?: string): Alert[] {
     const owner = ownerKey(userId);
     return this.alerts.filter((a) => ownerOf(a) === owner);
+  }
+
+  /** Whether this owner has hit the per-owner cap — the route refuses further creates. */
+  atCapacityFor(userId?: string): boolean {
+    const owner = ownerKey(userId);
+    return this.alerts.filter((a) => ownerOf(a) === owner).length >= MAX_ALERTS_PER_OWNER;
   }
 
   logFor(userId?: string): AlertTrigger[] {

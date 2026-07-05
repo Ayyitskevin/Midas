@@ -75,4 +75,21 @@ describe('account-event alerts (upnl / equity)', () => {
     expect(fired).toHaveLength(0);
     expect(repo.all().every((a) => a.status === 'armed')).toBe(true);
   });
+
+  it('does not serve the operator (base) account to an authenticated owner', async () => {
+    // The global loop runs on the operator's base provider. An authenticated
+    // user's account-metric alert must NOT bind to that account — otherwise it
+    // leaks the operator's equity/positions across the user boundary.
+    const repo = new AlertRepo();
+    repo.create(
+      { symbol: ACCOUNT_SYMBOL, metric: 'equity', op: 'below', value: 900, repeat: false },
+      0,
+      'usr_alice', // an authenticated owner
+    );
+    // The base account WOULD satisfy the condition (850 < 900) — yet nothing fires,
+    // because the loop skips account reads once any authenticated owner is present.
+    const fired = await evaluateOnce(repo, stubProvider({ equity: 850 }), 1000);
+    expect(fired).toHaveLength(0);
+    expect(repo.all().every((a) => a.status === 'armed')).toBe(true);
+  });
 });

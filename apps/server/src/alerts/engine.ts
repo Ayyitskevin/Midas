@@ -44,10 +44,20 @@ export async function evaluateOnce(
     }
   }
 
+  // Account metrics (equity/upnl) read the account behind THIS loop's provider —
+  // the operator's base account. That is only anyone's account in single-user
+  // (@local) mode. Once auth is on, alerts belong to individual users and the
+  // base account is nobody's in particular: reading it here would bind the
+  // operator's equity/positions to any user's account-metric alert (a cross-user
+  // financial-data leak). So the global loop reads account metrics ONLY when
+  // every owner is @local; under multi-user auth these alerts stay armed and
+  // unread (per-user account monitoring is the per-user loops' responsibility).
+  const accountReadsSafe = !all.some((a) => a.userId != null && a.userId !== '@local');
+
   // Account metrics — one read each, only when such alerts exist, and only
   // honest live values (an unreadable account leaves the symbols unread, so
   // rules stay armed instead of firing on stale/synthetic numbers).
-  if (active.some((a) => a.metric === 'upnl')) {
+  if (accountReadsSafe && active.some((a) => a.metric === 'upnl')) {
     try {
       const pos = await provider.getPositions();
       if (pos.provenance === 'live') {
@@ -65,7 +75,7 @@ export async function evaluateOnce(
       /* leave upnl unread this pass */
     }
   }
-  if (active.some((a) => a.metric === 'equity')) {
+  if (accountReadsSafe && active.some((a) => a.metric === 'equity')) {
     try {
       const bal = await provider.getBalances();
       if (bal.provenance === 'live' && bal.totalValueUsd != null) {
