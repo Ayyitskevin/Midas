@@ -2,7 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { newAlert, type Alert, type AlertInput, type AlertTrigger } from '@midas/shared';
 import { writeFileAtomic } from '../persist';
 
-const TRIGGER_CAP = 500;
+/**
+ * Max stored triggers PER OWNER. Bounding per owner rather than with one global
+ * newest-N window keeps one busy user's fires from evicting every other user's
+ * trigger history (single-user @local behaviour is unchanged — it just owns its
+ * own 500).
+ */
+const MAX_TRIGGERS_PER_OWNER = 500;
 /**
  * Max stored alerts per owner. Bounds both the in-memory array and the O(n)
  * full-file rewrite persist() does on every write — without it, one caller can
@@ -14,6 +20,23 @@ const LOCAL = '@local';
 
 const ownerKey = (userId?: string): string => userId || LOCAL;
 const ownerOf = (x: { userId?: string }): string => x.userId ?? LOCAL;
+
+/**
+ * Keep the newest MAX_TRIGGERS_PER_OWNER triggers per owner, preserving the
+ * overall newest-first order. Input must be newest-first.
+ */
+function capTriggersPerOwner(triggers: AlertTrigger[]): AlertTrigger[] {
+  const counts = new Map<string, number>();
+  const kept: AlertTrigger[] = [];
+  for (const t of triggers) {
+    const owner = ownerOf(t);
+    const n = counts.get(owner) ?? 0;
+    if (n >= MAX_TRIGGERS_PER_OWNER) continue;
+    counts.set(owner, n + 1);
+    kept.push(t);
+  }
+  return kept;
+}
 
 interface Persisted {
   alerts: Alert[];
@@ -124,7 +147,7 @@ export class AlertRepo {
   /** Replace the rule set (post-evaluation) and record any fires. */
   commit(next: Alert[], fired: AlertTrigger[]): void {
     this.alerts = next;
-    if (fired.length > 0) this.triggers = [...fired, ...this.triggers].slice(0, TRIGGER_CAP);
+    if (fired.length > 0) this.triggers = capTriggersPerOwner([...fired, ...this.triggers]);
     this.persist();
   }
 }

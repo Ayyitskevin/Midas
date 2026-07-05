@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { parseAlertInput } from '@midas/shared';
+import { parseAlertInput, type AlertTrigger } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
@@ -223,5 +223,34 @@ describe('per-user alert isolation', () => {
       payload: { symbol: 'ETH/USDT', metric: 'price', op: 'above', value: 1, repeat: false },
     });
     expect(ok.statusCode).toBe(201);
+  });
+});
+
+describe('trigger log is bounded per owner (multi-user fairness)', () => {
+  const mkTrig = (id: string, userId: string): AlertTrigger => ({
+    id,
+    alertId: 'a',
+    userId,
+    symbol: 'BTC/USDT',
+    metric: 'price',
+    op: 'above',
+    value: 1,
+    actual: 2,
+    at: 1,
+  });
+
+  it('one busy user cannot evict another user’s trigger history', () => {
+    const repo = new AlertRepo();
+    repo.commit([], [mkTrig('b1', 'usr_bob')]);
+    expect(repo.logFor('usr_bob')).toHaveLength(1);
+
+    // Alice floods 600 fires — past the 500 per-owner cap.
+    const flood = Array.from({ length: 600 }, (_, i) => mkTrig(`a${i}`, 'usr_alice'));
+    repo.commit([], flood);
+
+    // Her own log is capped at 500; Bob's single trigger survives (with a single
+    // global cap it would have been evicted from the newest-500 window).
+    expect(repo.logFor('usr_alice')).toHaveLength(500);
+    expect(repo.logFor('usr_bob')).toHaveLength(1);
   });
 });
