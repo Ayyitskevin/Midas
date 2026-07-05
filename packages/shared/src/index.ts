@@ -234,6 +234,12 @@ export interface LiquidationsProvenance {
   source: string;
   /** Whether the source actually exposes a public liquidation feed. */
   available: boolean;
+  /**
+   * True when the events are synthetic (the in-browser demo). A synthetic feed
+   * is NEVER presented as 'live' — the panel shows a 'demo' state instead, even
+   * though `available` is true (it does surface events, they just aren't real).
+   */
+  synthetic?: boolean;
   /** Honest caveat: why the feed may be empty/partial, the throttling warning, etc. */
   note?: string;
 }
