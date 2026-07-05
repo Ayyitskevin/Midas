@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import type { User } from '@midas/shared';
+import { writeFileAtomic } from '../persist';
 
 export interface StoredUser extends User {
   passwordHash: string;
@@ -41,16 +41,25 @@ export class UserRepo {
           this.persist();
         }
       }
-    } catch {
-      /* corrupt store → start fresh */
+    } catch (err) {
+      // Fail CLOSED on a present-but-unparseable user store. Silently resetting
+      // to empty would wipe every account AND re-open admin bootstrap (with the
+      // store empty, count()===0 makes canSignup true and the next signup becomes
+      // admin) — turning a routine write interruption into an auth wipe + admin
+      // takeover, even with MIDAS_AUTH_ALLOW_SIGNUP=false. Abort startup so an
+      // operator restores the file instead of losing it.
+      throw new Error(
+        `User store at ${this.file} is present but unreadable ` +
+          `(${err instanceof Error ? err.message : 'parse error'}). Refusing to start with an ` +
+          `empty store — restore the file or move it aside to bootstrap a fresh one.`,
+      );
     }
   }
 
   private persist(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify({ users: this.users }, null, 2));
+      writeFileAtomic(this.file, JSON.stringify({ users: this.users }, null, 2));
     } catch {
       /* best-effort */
     }

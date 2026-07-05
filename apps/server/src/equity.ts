@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
 import type { AccountEquityResponse, AccountPositions, Balances, EquityPoint } from '@midas/shared';
+import { writeFileAtomic } from './persist';
 import type { FastifyInstance } from 'fastify';
 import type { DataProvider } from './providers';
 
@@ -34,8 +34,7 @@ export class EquityRepo {
   private persist(): void {
     if (!this.file) return;
     try {
-      mkdirSync(dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify({ points: this.pts }));
+      writeFileAtomic(this.file, JSON.stringify({ points: this.pts }));
     } catch {
       /* best-effort */
     }
