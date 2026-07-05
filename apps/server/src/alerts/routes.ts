@@ -24,12 +24,25 @@ export function registerAlertRoutes(app: FastifyInstance, repo: AlertRepo): void
       reply.code(400);
       return err(400, 'BadRequest', 'Invalid alert: need symbol, metric, op, value');
     }
-    if (repo.atCapacityFor(ownerOf(req))) {
+    const owner = ownerOf(req);
+    // Account-metric alerts (equity/uPnL) are only evaluated in single-user mode:
+    // the global loop can't read one user's account without leaking the
+    // operator's (see alerts/engine.ts). Under multi-user auth nothing evaluates
+    // them, so reject creation rather than persist an alert that can never fire.
+    if (owner != null && (input.metric === 'equity' || input.metric === 'upnl')) {
+      reply.code(400);
+      return err(
+        400,
+        'BadRequest',
+        'Account alerts (equity/uPnL) run only in single-user mode; they are not available for individual accounts yet.',
+      );
+    }
+    if (repo.atCapacityFor(owner)) {
       reply.code(429);
       return err(429, 'TooManyRequests', 'Alert limit reached — delete some alerts before adding more.');
     }
     reply.code(201);
-    return repo.create(input, Date.now(), ownerOf(req));
+    return repo.create(input, Date.now(), owner);
   });
 
   app.patch<{ Params: { id: string }; Body: { enabled?: boolean; rearm?: boolean } }>(

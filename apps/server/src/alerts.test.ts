@@ -202,4 +202,26 @@ describe('per-user alert isolation', () => {
     const own = await app.inject({ method: 'DELETE', url: `/api/alerts/${created.id}`, headers: hdr(tokenA) });
     expect(own.statusCode).toBe(200);
   });
+
+  it('rejects account-metric (equity/upnl) alerts under multi-user auth', async () => {
+    // These can never fire per-user in the current engine, so the route refuses
+    // to persist a dead 'armed' alert rather than mislead the user.
+    for (const metric of ['equity', 'upnl'] as const) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/alerts',
+        headers: hdr(tokenA),
+        payload: { symbol: 'ACCOUNT', metric, op: 'below', value: 1000, repeat: false },
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    // A normal price alert from the same authed user still works.
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/alerts',
+      headers: hdr(tokenA),
+      payload: { symbol: 'ETH/USDT', metric: 'price', op: 'above', value: 1, repeat: false },
+    });
+    expect(ok.statusCode).toBe(201);
+  });
 });
