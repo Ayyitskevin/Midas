@@ -7,6 +7,7 @@ import { UserRepo } from './auth/users';
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './auth/password';
 import { signToken, verifyToken } from './auth/token';
 import { isPublicPath } from './auth/guard';
+import { signupCredentialError } from './auth/routes';
 
 describe('auth guard public-path matching', () => {
   it('is public only on segment boundaries', () => {
@@ -43,6 +44,25 @@ describe('password hashing', () => {
 
   it('rejects a malformed hash', async () => {
     expect(await verifyPassword('x', 'garbage')).toBe(false);
+  });
+});
+
+describe('signupCredentialError (length bounds, before scrypt)', () => {
+  it('accepts in-bounds credentials', () => {
+    expect(signupCredentialError('alice', 'hunter2')).toBeNull();
+  });
+
+  it('rejects an over-long password so it never reaches scrypt', () => {
+    expect(signupCredentialError('alice', 'x'.repeat(257))).toMatch(/256/);
+  });
+
+  it('rejects an over-long or empty username', () => {
+    expect(signupCredentialError('a'.repeat(65), 'hunter2')).toMatch(/64/);
+    expect(signupCredentialError('', 'hunter2')).toMatch(/1/);
+  });
+
+  it('still rejects a too-short password', () => {
+    expect(signupCredentialError('alice', 'x')).toMatch(/6/);
   });
 });
 
@@ -281,5 +301,50 @@ describe('auth disabled (default)', () => {
     const res = await app.inject({ method: 'GET', url: '/api/alerts' });
     expect(res.statusCode).toBe(200);
     await app.close();
+  });
+});
+
+describe('signup hardening (DoS brakes)', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    process.env.LOG_LEVEL = 'silent';
+    app = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+    });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('rejects an over-long password with 400 (before scrypt runs)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/signup',
+      payload: { username: 'bigpass', password: 'x'.repeat(300) },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toMatch(/256/);
+  });
+
+  it('throttles repeated signups from one IP with 429', async () => {
+    // A too-short password still counts toward the per-IP window cap, so this
+    // exercises the limiter with no scrypt work. Early requests pass the limiter
+    // and fail the length check (400); past the cap the route short-circuits 429.
+    const codes: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/signup',
+        payload: { username: `spam${i}`, password: 'x' },
+      });
+      codes.push(res.statusCode);
+    }
+    expect(codes).toContain(400);
+    expect(codes[codes.length - 1]).toBe(429);
   });
 });
