@@ -91,8 +91,32 @@ export function useServerSync(cfg: ServerSyncConfig): void {
       timer = setTimeout(flush, PUSH_DEBOUNCE_MS);
     });
 
+    // Flush immediately when the tab is being hidden or torn down. Without this,
+    // an edit made inside the 1500ms debounce window is lost if the user closes
+    // the tab before it fires — and the next login's pull silently overwrites it.
+    const flushNow = (): void => {
+      if (!ready.current) return;
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      flush();
+    };
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') flushNow();
+    };
+    const hasDom = typeof document !== 'undefined' && typeof window !== 'undefined';
+    if (hasDom) {
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('pagehide', flushNow);
+    }
+
     return () => {
       if (timer) clearTimeout(timer);
+      if (hasDom) {
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.removeEventListener('pagehide', flushNow);
+      }
       unsub();
     };
   }, [token]);

@@ -38,15 +38,26 @@ export type {
 
 const USD_METRICS: readonly AlertMetric[] = ['upnl', 'equity'];
 
+/**
+ * Decimals to show a price at, scaled by magnitude — so a sub-cent token (BONK,
+ * PEPE) renders as 0.00002340, not 0.0000. Normal-magnitude prices stay at 2.
+ */
+export function priceDecimals(value: number): number {
+  const a = Math.abs(value);
+  if (a > 0 && a < 0.0001) return 8;
+  if (a > 0 && a < 1) return 6;
+  return 2;
+}
+
 export function formatThreshold(metric: AlertMetric, value: number): string {
-  if (metric === 'price') return fmtPrice(value);
+  if (metric === 'price') return fmtPrice(value, priceDecimals(value));
   if (USD_METRICS.includes(metric)) return `$${fmtPrice(value)}`;
   return `${value}%`;
 }
 
 export function formatActual(metric: AlertMetric, value: number | null): string {
   if (value == null || !Number.isFinite(value)) return '—';
-  if (metric === 'price') return fmtPrice(value);
+  if (metric === 'price') return fmtPrice(value, priceDecimals(value));
   if (USD_METRICS.includes(metric)) return `$${fmtPrice(value)}`;
   return `${value.toFixed(metric === 'funding' ? 4 : 2)}%`;
 }

@@ -353,11 +353,11 @@ export function OrderTicketModule({ panel }: ModuleProps) {
           <Row label={`Filled / rests (${base})`}>
             {fmtPrice(preview.filledBase, 4)} / {fmtPrice(preview.unfilledBase, 4)}
           </Row>
-          <Row label={`Notional (${quote})`}>{fmtCompact(preview.filledQuote)}</Row>
-          <Row label={`Fee (${preview.feeBps}bps)`}>{fmtCompact(preview.fee)}</Row>
+          <Row label={`Notional (${quote})`}>{fmtPrice(preview.filledQuote)}</Row>
+          <Row label={`Fee (${preview.feeBps}bps)`}>{fmtPrice(preview.fee)}</Row>
           <div className="mt-1 border-t border-term-border pt-1">
             <Row label={sideUp ? `Total cost (${quote})` : `Net proceeds (${quote})`}>
-              <span className="text-sm font-semibold">{fmtCompact(preview.cashValue)}</span>
+              <span className="text-sm font-semibold">{fmtPrice(preview.cashValue)}</span>
             </Row>
           </div>
           {preview.exhausted && <div className="mt-1 text-2xs text-term-down">⚠ book exhausted — order larger than resting liquidity</div>}
@@ -427,7 +427,7 @@ export function OrderTicketModule({ panel }: ModuleProps) {
           {/* What you're about to do, in numbers — est. fill, cash and cap usage. */}
           <div className="mb-1.5 rounded-sm bg-term-bg/40 px-1.5 py-1 font-mono text-2xs text-term-muted">
             est. fill {preview.avgPrice == null ? '—' : fmtPrice(preview.avgPrice)} · {sideUp ? 'cost' : 'proceeds'}{' '}
-            {fmtCompact(preview.cashValue)} {quote} · fee {fmtCompact(preview.fee)}
+            {fmtPrice(preview.cashValue)} {quote} · fee {fmtPrice(preview.fee)}
             {trading.data?.dailyCapUsd != null && estNotional != null
               ? ` · today after: $${fmtCompact(trading.data.dailyUsedUsd + estNotional)} / $${fmtCompact(trading.data.dailyCapUsd)}`
               : ''}

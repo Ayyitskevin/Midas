@@ -7,6 +7,7 @@ import {
   opSymbol,
   formatThreshold,
   formatActual,
+  priceDecimals,
   describeThreshold,
   type Alert,
   type AlertTrigger,
@@ -223,5 +224,22 @@ describe('newTriggersSince', () => {
 
   it('returns nothing when the seen id has fallen off the log', () => {
     expect(newTriggersSince([mkT('t2'), mkT('t1')], 'gone')).toEqual([]);
+  });
+});
+
+describe('sub-cent price formatting (alerts)', () => {
+  it('scales decimals so a sub-cent token price is not rendered as 0.0000', () => {
+    expect(priceDecimals(0.0000234)).toBe(8);
+    expect(priceDecimals(0.023)).toBe(6);
+    expect(priceDecimals(70_000)).toBe(2);
+    // The bug: default 2/4 decimals rendered these as "0.0000".
+    expect(formatThreshold('price', 0.0000234)).not.toBe('0.0000');
+    expect(formatThreshold('price', 0.0000234)).toContain('0.0000234');
+    expect(formatActual('price', 0.0000234)).toContain('0.0000234');
+  });
+
+  it('leaves normal-magnitude prices at two decimals', () => {
+    expect(formatThreshold('price', 70_000)).toBe('70,000.00');
+    expect(formatActual('price', 3_000)).toBe('3,000.00');
   });
 });
