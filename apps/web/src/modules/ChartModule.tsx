@@ -16,6 +16,7 @@ import { useStream } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
 import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
+import { INTERVAL_SECONDS, candleBucketStart } from '@/lib/candleBucket';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { bollinger, ema, fibLevels, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
@@ -87,6 +88,10 @@ export function ChartModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   const interval = (panel.params?.interval as Interval) ?? '1d';
   const range = (panel.params?.range as Range) ?? '6mo';
+  // Latest interval in a ref so the stream callback (stable, empty deps) can
+  // read it without resubscribing on every interval change.
+  const intervalRef = useRef(interval);
+  intervalRef.current = interval;
   const setPanelParams = usePanels((s) => s.setPanelParams);
   const alerts = useAlerts((s) => s.alerts);
   const priceAlerts = useMemo(
@@ -348,9 +353,24 @@ export function ChartModule({ panel }: ModuleProps) {
     symbol,
     useCallback((d: unknown) => {
       const price = (d as { price?: number }).price;
+      const ts = (d as { timestamp?: number }).timestamp;
       const bar = lastBarRef.current;
       const candle = candleRef.current;
       if (!bar || !candle || typeof price !== 'number') return;
+
+      // Roll a fresh candle when the print's timestamp crosses into a new
+      // interval bucket — otherwise every print folds into the last candle,
+      // ballooning its range at a stale timestamp and no new bar ever forms.
+      const stepSec = INTERVAL_SECONDS[intervalRef.current] ?? 0;
+      const bucket = ts != null && stepSec > 0 ? candleBucketStart(ts, stepSec) : (bar.time as number);
+      if (bucket > (bar.time as number)) {
+        const fresh = { time: bucket, open: price, high: price, low: price, close: price };
+        lastBarRef.current = fresh;
+        candle.update({ time: bucket as UTCTimestamp, open: price, high: price, low: price, close: price });
+        setLivePrice(price);
+        return;
+      }
+
       bar.close = price;
       if (price > bar.high) bar.high = price;
       if (price < bar.low) bar.low = price;
@@ -585,7 +605,7 @@ export function ChartModule({ panel }: ModuleProps) {
     if (!data || data.candles.length < 2) return null;
     const first = data.candles[0].close;
     const last = data.candles[data.candles.length - 1].close;
-    return { last, changePct: first === 0 ? 0 : ((last - first) / first) * 100 };
+    return { first, last };
   }, [data]);
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
@@ -595,12 +615,21 @@ export function ChartModule({ panel }: ModuleProps) {
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-bold text-term-amber">{symbol}</span>
-          {perf && <span className="text-xs tabular-nums">{fmtPrice(livePrice ?? perf.last)}</span>}
-          {perf && (
-            <span className={`text-2xs tabular-nums ${changeClass(perf.changePct)}`}>
-              {fmtSignedPercent(perf.changePct)} <span className="text-term-dim">{range}</span>
-            </span>
-          )}
+          {perf &&
+            (() => {
+              // Derive the % from the SHOWN (live) price so the header stays
+              // internally consistent as prints tick in — not frozen at load.
+              const shown = livePrice ?? perf.last;
+              const pct = perf.first === 0 ? 0 : ((shown - perf.first) / perf.first) * 100;
+              return (
+                <>
+                  <span className="text-xs tabular-nums">{fmtPrice(shown)}</span>
+                  <span className={`text-2xs tabular-nums ${changeClass(pct)}`}>
+                    {fmtSignedPercent(pct)} <span className="text-term-dim">{range}</span>
+                  </span>
+                </>
+              );
+            })()}
         </div>
         <div className="no-drag flex gap-0.5">
           {PRESETS.map((p) => {
