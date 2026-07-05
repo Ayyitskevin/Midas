@@ -4,6 +4,7 @@ import { UserRepo, toPublic, type StoredUser } from './users';
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './password';
 import { signToken, verifyToken } from './token';
 import { createLoginThrottle, type LoginThrottle } from './throttle';
+import { createRateLimiter, type RateLimiter } from '../rateLimit';
 
 export interface AuthDeps {
   enabled: boolean;
@@ -12,13 +13,38 @@ export interface AuthDeps {
   users: UserRepo;
   /** Login brute-force brake; a default is created when omitted (tests inject). */
   throttle?: LoginThrottle;
+  /** Per-IP signup limiter; a default is created when omitted (tests inject). */
+  signupLimiter?: RateLimiter;
 }
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MIN_PASSWORD = 6;
+// Upper bounds enforced at the edge, BEFORE the scrypt hash runs. Without them
+// an unbounded password lets one unauthenticated request burn CPU (scrypt) and
+// block the event loop, and every accepted signup rewrites the whole users file.
+const MAX_USERNAME = 64;
+const MAX_PASSWORD = 256;
+// Signup is expensive (scrypt + a synchronous users-file write), so cap it per IP
+// on its own — independent of the global limiter — or a spray is a cheap DoS.
+const SIGNUP_WINDOW_MS = 60_000;
+const SIGNUP_MAX_PER_WINDOW = 5;
 
 function err(statusCode: number, error: string, message: string): ApiError {
   return { error, message, statusCode };
+}
+
+/**
+ * Signup credential bounds, checked at the API edge before any hashing. Pure so
+ * it can be fixture-tested; returns a client-safe message or null when valid.
+ */
+export function signupCredentialError(username: string, password: string): string | null {
+  if (username.length < 1 || username.length > MAX_USERNAME) {
+    return `Username must be 1–${MAX_USERNAME} characters.`;
+  }
+  if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
+    return `Password must be ${MIN_PASSWORD}–${MAX_PASSWORD} characters.`;
+  }
+  return null;
 }
 
 /**
@@ -61,6 +87,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
     return toPublic(user);
   });
 
+  const signupLimiter = deps.signupLimiter ?? createRateLimiter(SIGNUP_WINDOW_MS, SIGNUP_MAX_PER_WINDOW);
+
   app.post<{ Body: { username?: string; password?: string } }>(
     '/api/auth/signup',
     async (req, reply): Promise<AuthSession | ApiError> => {
@@ -72,11 +100,22 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(403);
         return err(403, 'Forbidden', 'Signups are closed');
       }
+      // Per-IP cap BEFORE any parsing or hashing — a malformed request counts
+      // too, so a junk spray is throttled the same as a valid one.
+      const waitMs = signupLimiter.check(req.ip, Date.now());
+      if (waitMs != null) {
+        app.log.warn({ ip: req.ip }, 'signup throttled');
+        reply.code(429);
+        return err(429, 'TooManyRequests', `Too many signups — try again in ${Math.ceil(waitMs / 1000)}s.`);
+      }
       const username = (req.body?.username ?? '').trim();
       const password = req.body?.password ?? '';
-      if (username.length < 1 || password.length < MIN_PASSWORD) {
+      // Bound length before hashPassword (scrypt) — an unbounded password is a
+      // CPU/event-loop DoS otherwise.
+      const credError = signupCredentialError(username, password);
+      if (credError) {
         reply.code(400);
-        return err(400, 'BadRequest', `Username required and password ≥ ${MIN_PASSWORD} chars`);
+        return err(400, 'BadRequest', credError);
       }
       if (deps.users.findByUsername(username)) {
         reply.code(409);

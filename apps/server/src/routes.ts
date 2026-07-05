@@ -25,10 +25,16 @@ import {
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
 import { postWebhookText } from './webhook';
+import { createRateLimiter } from './rateLimit';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
 const MAX_BATCH_SYMBOLS = 50;
+// The AI copilot calls a paid upstream (Anthropic). Cap it per caller — far
+// below the global request limiter — so one client can't run up the operator's
+// bill even while staying under the general rate limit.
+const AI_CHAT_WINDOW_MS = 60_000;
+const AI_CHAT_MAX_PER_WINDOW = 10;
 
 // Real instruments across providers: BTC/USDT:USDT, BRK-B, ^GSPC, EURUSD=X.
 const SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
@@ -666,6 +672,8 @@ export function registerRoutes(
     return provider.getNews(symbol);
   });
 
+  const aiChatLimiter = createRateLimiter(AI_CHAT_WINDOW_MS, AI_CHAT_MAX_PER_WINDOW);
+
   app.post<{ Body: { messages?: ChatMessage[]; symbol?: string } }>(
     '/api/ai/chat',
     async (req, reply) => {
@@ -676,6 +684,19 @@ export function registerRoutes(
           error: 'AIUnavailable',
           message: 'AI copilot requires ANTHROPIC_API_KEY on the server.',
           statusCode: 503,
+        };
+      }
+
+      // Cost brake: this route calls a paid upstream, so cap it per caller
+      // (authenticated user when present, else IP) before building context or
+      // reaching Claude.
+      const waitMs = aiChatLimiter.check(req.userId ?? req.ip, Date.now());
+      if (waitMs != null) {
+        reply.status(429);
+        return {
+          error: 'TooManyRequests',
+          message: `AI copilot rate limit reached — try again in ${Math.ceil(waitMs / 1000)}s.`,
+          statusCode: 429,
         };
       }
 

@@ -152,3 +152,33 @@ describe('input validation at the API edge (auth off)', () => {
     expect(res.statusCode).toBe(200); // truncated to 64 chars, honestly empty result
   });
 });
+
+describe('AI copilot cost brake (per-caller rate limit)', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildApp(createProvider('mock'));
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('caps AI calls per caller with 429 before reaching the paid upstream', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key-never-used';
+    try {
+      // Empty-message requests pass the limiter (incrementing it) but 400 at the
+      // empty-check — so this exercises the 429 path without ever calling Claude.
+      const codes: number[] = [];
+      for (let i = 0; i < 12; i++) {
+        const res = await app.inject({ method: 'POST', url: '/api/ai/chat', payload: { messages: [] } });
+        codes.push(res.statusCode);
+      }
+      expect(codes).toContain(400); // early requests allowed through, fail the empty-check
+      expect(codes[codes.length - 1]).toBe(429); // past the cap, short-circuited
+    } finally {
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+  });
+});
