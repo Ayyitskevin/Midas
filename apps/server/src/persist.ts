@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -18,6 +18,14 @@ export function writeFileAtomic(file: string, data: string): void {
   const tmp = `${file}.tmp-${process.pid}`;
   try {
     writeFileSync(tmp, data);
+    // Preserve the target's existing permission bits. An operator may have
+    // tightened them (e.g. chmod 600 on the user/key store); a fresh temp inode
+    // would otherwise land at the default umask and silently drop that hardening.
+    try {
+      chmodSync(tmp, statSync(file).mode);
+    } catch {
+      /* target doesn't exist yet — the temp keeps the default mode */
+    }
     renameSync(tmp, file);
   } catch (err) {
     // Never leave a partial temp file lying around on failure.

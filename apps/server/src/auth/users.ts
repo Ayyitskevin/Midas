@@ -27,19 +27,24 @@ export class UserRepo {
     if (!this.file || !existsSync(this.file)) return;
     try {
       const data = JSON.parse(readFileSync(this.file, 'utf8')) as { users?: StoredUser[] };
-      if (Array.isArray(data.users)) {
-        // Normalise records written before token versions / admin existed.
-        this.users = data.users.map((u) => ({
-          ...u,
-          tokenVersion: typeof u.tokenVersion === 'number' ? u.tokenVersion : 0,
-          isAdmin: Boolean(u.isAdmin),
-        }));
-        // Bootstrap: if no admin exists, promote the earliest-created user.
-        if (this.users.length > 0 && !this.users.some((u) => u.isAdmin)) {
-          const earliest = this.users.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
-          earliest.isAdmin = true;
-          this.persist();
-        }
+      // Fail CLOSED on a present-but-structurally-invalid store too — valid JSON
+      // that isn't {users:[...]} (e.g. {"users":null}, {}, a bare array). Without
+      // this it would parse fine, skip the block, and silently leave an empty
+      // store: the exact wipe + admin-reopen the catch below guards against.
+      if (!Array.isArray(data.users)) {
+        throw new Error('missing a valid `users` array');
+      }
+      // Normalise records written before token versions / admin existed.
+      this.users = data.users.map((u) => ({
+        ...u,
+        tokenVersion: typeof u.tokenVersion === 'number' ? u.tokenVersion : 0,
+        isAdmin: Boolean(u.isAdmin),
+      }));
+      // Bootstrap: if no admin exists, promote the earliest-created user.
+      if (this.users.length > 0 && !this.users.some((u) => u.isAdmin)) {
+        const earliest = this.users.reduce((a, b) => (a.createdAt <= b.createdAt ? a : b));
+        earliest.isAdmin = true;
+        this.persist();
       }
     } catch (err) {
       // Fail CLOSED on a present-but-unparseable user store. Silently resetting

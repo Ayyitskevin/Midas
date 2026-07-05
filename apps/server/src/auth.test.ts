@@ -399,6 +399,14 @@ describe('UserRepo fails closed on a corrupt store', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it('also fails closed on valid JSON that is not a users array (no silent reset)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'midas-users-'));
+    const file = join(dir, 'users.json');
+    writeFileSync(file, '{"users":null}'); // parses fine, but structurally invalid
+    expect(() => new UserRepo(file)).toThrow(/unreadable/i);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it('treats a genuinely missing file as a fresh install (no throw, empty store)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'midas-users-'));
     const repo = new UserRepo(join(dir, 'users.json')); // does not exist yet
