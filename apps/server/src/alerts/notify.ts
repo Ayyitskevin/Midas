@@ -1,9 +1,13 @@
-import { opSymbol, type AlertTrigger } from '@midas/shared';
+import { opSymbol, priceDecimals, type AlertTrigger } from '@midas/shared';
 
 /** Trim a value to a sensible precision for its metric. */
 function fmtNum(value: number, metric: AlertTrigger['metric']): string {
   if (Number.isInteger(value)) return String(value);
-  return value.toFixed(metric === 'price' || metric === 'upnl' || metric === 'equity' ? 2 : 4);
+  // Prices are magnitude-scaled (shared with the browser formatter) so a
+  // sub-cent token reads as 0.00002500, not a meaningless 0.00; USD amounts
+  // stay at 2, rates (funding/change) at 4.
+  if (metric === 'price') return value.toFixed(priceDecimals(value));
+  return value.toFixed(metric === 'upnl' || metric === 'equity' ? 2 : 4);
 }
 
 /** Unit suffix per metric: prices/USD amounts are bare or $, rates are %. */

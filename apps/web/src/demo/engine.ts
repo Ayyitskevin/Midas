@@ -595,8 +595,21 @@ const DEMO_MINTS: Record<string, { symbol: string; decimals: number }> = {
 const SYMBOL_TO_MINT: Record<string, string> = Object.fromEntries(
   Object.entries(DEMO_MINTS).map(([mint, v]) => [v.symbol, mint]),
 );
-/** A small USD basis for synthetic swap quotes (the six swappable demo tokens). */
-const SWAP_BASIS_USD: Record<string, number> = { SOL: 152, USDC: 1, USDT: 1, BONK: 0.000025, JUP: 0.9, JTO: 3.1 };
+/**
+ * A small USD basis for synthetic swap quotes (the six swappable demo tokens).
+ * SOL is derived from the same ASSETS entry that drives every other SOL price in
+ * the demo, so the swap panel's notional math can't drift from the ~$158 SOL
+ * shown everywhere else (a hand-copied 152 disagreed here before). The memecoins
+ * (BONK/JUP/JTO) aren't in the CEX universe, so they carry their own basis.
+ */
+const SWAP_BASIS_USD: Record<string, number> = {
+  SOL: ASSETS.find((a) => a.base === 'SOL')?.price ?? 158,
+  USDC: 1,
+  USDT: 1,
+  BONK: 0.000025,
+  JUP: 0.9,
+  JTO: 3.1,
+};
 
 /** Synthetic SPL token (mint) snapshot — supply + authorities, seeded on the mint. */
 export function solanaTokenFor(mint: string, now: number): SolanaTokenInfo {

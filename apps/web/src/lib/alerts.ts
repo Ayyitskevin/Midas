@@ -8,7 +8,7 @@
  */
 
 import { fmtPrice } from './format';
-import { opSymbol } from '@midas/shared';
+import { opSymbol, priceDecimals } from '@midas/shared';
 import type { Alert, AlertMetric, AlertTrigger } from '@midas/shared';
 
 export {
@@ -20,6 +20,7 @@ export {
   newTriggersSince,
   opSymbol,
   parseAlertInput,
+  priceDecimals,
 } from '@midas/shared';
 export type {
   Alert,
@@ -38,16 +39,9 @@ export type {
 
 const USD_METRICS: readonly AlertMetric[] = ['upnl', 'equity'];
 
-/**
- * Decimals to show a price at, scaled by magnitude — so a sub-cent token (BONK,
- * PEPE) renders as 0.00002340, not 0.0000. Normal-magnitude prices stay at 2.
- */
-export function priceDecimals(value: number): number {
-  const a = Math.abs(value);
-  if (a > 0 && a < 0.0001) return 8;
-  if (a > 0 && a < 1) return 6;
-  return 2;
-}
+// priceDecimals (the magnitude-scaled price precision) now lives in @midas/shared
+// so the server webhook formatter and this browser formatter can't drift apart;
+// it is imported above and re-exported for existing '@/lib/alerts' consumers.
 
 export function formatThreshold(metric: AlertMetric, value: number): string {
   if (metric === 'price') return fmtPrice(value, priceDecimals(value));

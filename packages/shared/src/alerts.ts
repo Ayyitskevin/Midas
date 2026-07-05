@@ -169,6 +169,21 @@ export function opSymbol(op: AlertOp): string {
 }
 
 /**
+ * Decimals to show a *price* at, scaled by magnitude — so a sub-cent token
+ * (BONK, PEPE) renders with real digits (0.00002340) instead of collapsing to
+ * 0.00, while a normal-magnitude price stays at 2. This is the single source of
+ * price precision: the web toast/notification formatter and the server's
+ * webhook formatter both read it, so the two channels can never disagree on how
+ * one price reads. Pure numeric policy (Math only) — safe in the shared contract.
+ */
+export function priceDecimals(value: number): number {
+  const a = Math.abs(value);
+  if (a > 0 && a < 0.0001) return 8;
+  if (a > 0 && a < 1) return 6;
+  return 2;
+}
+
+/**
  * Given a newest-first trigger log and the id last surfaced to the user, return
  * the triggers that are newer than it. Returns nothing on the first look (null
  * seen) or if the seen id has fallen off the log — so reopening a tab doesn't
