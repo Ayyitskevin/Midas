@@ -116,6 +116,73 @@ function num(value: number | undefined | null, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * ccxt's exchange-constructor registry, typed for `registry[id]` lookups. The
+ * `as unknown as` cast is unavoidable (ccxt's namespace isn't indexable in its
+ * own types); centralizing it keeps that one unsafe cast in a single named place.
+ */
+function ccxtRegistry(): Record<string, new (config: object) => Exchange> {
+  return ccxt as unknown as Record<string, new (config: object) => Exchange>;
+}
+
+/**
+ * Derive the USDT-margined perpetual symbol from a spot pair — BTC/USDT →
+ * BTC/USDT:USDT — so the derivatives reads (funding, open interest, funding
+ * history) can key off a plain spot symbol. An already-perp symbol (one holding
+ * a ':' settle suffix) passes through unchanged; a malformed pair with no quote
+ * falls back to a USDT settle.
+ */
+export function toPerpSymbol(spot: string): string {
+  return spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+}
+
+/** A perp's funding snapshot; every field null when unavailable. */
+interface FundingSnapshot {
+  fundingRate: number | null;
+  nextFundingTime: number | null;
+  markPrice: number | null;
+  indexPrice: number | null;
+}
+
+/**
+ * Read a perp's funding snapshot from one exchange. READ-ONLY (fetchFundingRate
+ * only). Returns all-null when the venue lacks the endpoint or the call fails, so
+ * a spot-only venue degrades a field rather than throwing.
+ */
+async function readFunding(ex: Exchange, perp: string): Promise<FundingSnapshot> {
+  const empty: FundingSnapshot = { fundingRate: null, nextFundingTime: null, markPrice: null, indexPrice: null };
+  if (!ex.has['fetchFundingRate']) return empty;
+  try {
+    const f = await ex.fetchFundingRate(perp);
+    return {
+      fundingRate: f.fundingRate ?? null,
+      nextFundingTime: f.fundingTimestamp ?? f.nextFundingTimestamp ?? null,
+      markPrice: f.markPrice ?? null,
+      indexPrice: f.indexPrice ?? null,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * Read a perp's open interest from one exchange — base amount + quote notional.
+ * READ-ONLY (fetchOpenInterest only). Both null when unavailable.
+ */
+async function readOpenInterest(
+  ex: Exchange,
+  perp: string,
+): Promise<{ openInterest: number | null; openInterestValue: number | null }> {
+  const empty = { openInterest: null, openInterestValue: null };
+  if (!ex.has['fetchOpenInterest']) return empty;
+  try {
+    const oi = await ex.fetchOpenInterest(perp);
+    return { openInterest: oi.openInterestAmount ?? null, openInterestValue: oi.openInterestValue ?? null };
+  } catch {
+    return empty;
+  }
+}
+
 /** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
 export interface CcxtUserCreds {
   exchange: string;
@@ -144,7 +211,7 @@ export class CcxtProvider implements DataProvider {
     if (!isKnownExchange(id)) {
       throw new Error(`Unknown ccxt exchange "${id}". See ccxt.exchanges for valid ids.`);
     }
-    const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
+    const registry = ccxtRegistry();
     const ExchangeCtor = registry[id];
     // Optional READ-ONLY API keys for account reads (balances). Supplied via the
     // operator's own environment — or, for a per-user instance, via explicit
@@ -354,37 +421,21 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
-    const spot = this.normalize(symbol);
-    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    const perp = toPerpSymbol(this.normalize(symbol));
     const settled = await Promise.allSettled(
       this.getCompareExchanges().map(async (ex): Promise<VenueDerivatives> => {
-        const out: VenueDerivatives = {
+        const timestamp = Date.now();
+        // Sequential (funding then OI), matching the original single-venue read.
+        const funding = await readFunding(ex, perp);
+        const oi = await readOpenInterest(ex, perp);
+        return {
           exchange: ex.name ?? ex.id,
-          fundingRate: null,
-          nextFundingTime: null,
-          markPrice: null,
-          openInterestValue: null,
-          timestamp: Date.now(),
+          fundingRate: funding.fundingRate,
+          nextFundingTime: funding.nextFundingTime,
+          markPrice: funding.markPrice,
+          openInterestValue: oi.openInterestValue,
+          timestamp,
         };
-        if (ex.has['fetchFundingRate']) {
-          try {
-            const f = await ex.fetchFundingRate(perp);
-            out.fundingRate = f.fundingRate ?? null;
-            out.nextFundingTime = f.fundingTimestamp ?? f.nextFundingTimestamp ?? null;
-            out.markPrice = f.markPrice ?? null;
-          } catch {
-            // funding not available on this venue (e.g. spot-only exchange)
-          }
-        }
-        if (ex.has['fetchOpenInterest']) {
-          try {
-            const oi = await ex.fetchOpenInterest(perp);
-            out.openInterestValue = oi.openInterestValue ?? null;
-          } catch {
-            // open interest not available on this venue
-          }
-        }
-        return out;
       }),
     );
     // Keep venues that reported any perp field (funding, OI, mark or next-funding);
@@ -404,9 +455,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {
-    const spot = this.normalize(symbol);
-    // Derive the USDT-margined perp symbol from a spot pair (BTC/USDT -> BTC/USDT:USDT).
-    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    const perp = toPerpSymbol(this.normalize(symbol));
     const out: DerivativesInfo = {
       symbol: perp,
       fundingRate: null,
@@ -419,27 +468,15 @@ export class CcxtProvider implements DataProvider {
       timestamp: Date.now(),
     };
 
-    if (this.exchange.has['fetchFundingRate']) {
-      try {
-        const f = await this.exchange.fetchFundingRate(perp);
-        out.fundingRate = f.fundingRate ?? null;
-        out.nextFundingTime = f.fundingTimestamp ?? f.nextFundingTimestamp ?? null;
-        out.markPrice = f.markPrice ?? null;
-        out.indexPrice = f.indexPrice ?? null;
-      } catch {
-        // funding not available for this market
-      }
-    }
+    const funding = await readFunding(this.exchange, perp);
+    out.fundingRate = funding.fundingRate;
+    out.nextFundingTime = funding.nextFundingTime;
+    out.markPrice = funding.markPrice;
+    out.indexPrice = funding.indexPrice;
 
-    if (this.exchange.has['fetchOpenInterest']) {
-      try {
-        const oi = await this.exchange.fetchOpenInterest(perp);
-        out.openInterest = oi.openInterestAmount ?? null;
-        out.openInterestValue = oi.openInterestValue ?? null;
-      } catch {
-        // open interest not available
-      }
-    }
+    const oi = await readOpenInterest(this.exchange, perp);
+    out.openInterest = oi.openInterest;
+    out.openInterestValue = oi.openInterestValue;
 
     if (this.exchange.has['fetchLiquidations']) {
       try {
@@ -826,8 +863,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
-    const spot = this.normalize(symbol);
-    const perp = spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
+    const perp = toPerpSymbol(this.normalize(symbol));
     if (!this.exchange.has['fetchFundingRateHistory']) return [];
     const n = Math.min(Math.max(1, Math.floor(limit)), 500);
     try {
@@ -954,7 +990,7 @@ export class CcxtProvider implements DataProvider {
         .split(',')
         .map((s) => s.trim().toLowerCase())
         .filter(Boolean);
-      const registry = ccxt as unknown as Record<string, new (config: object) => Exchange>;
+      const registry = ccxtRegistry();
       this.compareExchanges = ids
         .map((id) => {
           const Ctor = registry[id];
