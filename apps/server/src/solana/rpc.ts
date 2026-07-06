@@ -11,6 +11,8 @@
  * throws, or a failed lookup would be mislabeled as a live read.
  */
 
+import { fetchJsonWithTimeout } from '../httpJson';
+
 const TIMEOUT_MS = 6000;
 export const LAMPORTS_PER_SOL = 1_000_000_000;
 
@@ -54,23 +56,17 @@ export function str(v: unknown): string {
  * throw into an honest `unavailable` snapshot.
  */
 export async function jsonRpc<T = unknown>(method: string, params: unknown[]): Promise<T> {
-  const url = solanaRpcUrl();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'content-type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = (await res.json()) as { result?: unknown; error?: { message?: unknown } };
-    if (body.error) throw new Error(str(body.error.message) || `RPC error (${method})`);
-    return body.result as T;
-  } finally {
-    clearTimeout(timer);
-  }
+  const body = (await fetchJsonWithTimeout(solanaRpcUrl(), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    timeoutMs: TIMEOUT_MS,
+  })) as { result?: unknown; error?: { message?: unknown } };
+  // A Solana node returns HTTP 200 even on a logical failure, carrying
+  // `{ error }` in the body — so inspect it here, or a failed lookup would be
+  // mislabeled as a live read.
+  if (body.error) throw new Error(str(body.error.message) || `RPC error (${method})`);
+  return body.result as T;
 }
 
 /**

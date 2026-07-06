@@ -1,4 +1,5 @@
 import type { DexPool, DexPools } from '@midas/shared';
+import { fetchJsonWithTimeout } from '../httpJson';
 
 /**
  * Second optional live on-chain source: GeckoTerminal's public, no-key pool
@@ -75,15 +76,11 @@ export function mapGeckoterminal(payload: unknown, base: string): DexPool[] {
 /** Fetch live DEX pools from GeckoTerminal; honest 'unavailable' on any failure. */
 export async function fetchGeckoPools(base: string): Promise<DexPools> {
   const sym = base.toUpperCase();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${ENDPOINT}?query=${encodeURIComponent(sym)}`, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
+    const payload = await fetchJsonWithTimeout(`${ENDPOINT}?query=${encodeURIComponent(sym)}`, {
+      timeoutMs: TIMEOUT_MS,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const pools = mapGeckoterminal(await res.json(), sym);
+    const pools = mapGeckoterminal(payload, sym);
     if (pools.length === 0) {
       return { symbol: sym, provenance: 'unavailable', note: `No DEX pools found for ${sym} on GeckoTerminal.`, pools: [] };
     }
@@ -95,7 +92,5 @@ export async function fetchGeckoPools(base: string): Promise<DexPools> {
       note: `Live DEX source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
       pools: [],
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

@@ -1,4 +1,5 @@
 import type { DexPool, DexPools } from '@midas/shared';
+import { fetchJsonWithTimeout } from '../httpJson';
 
 /**
  * Optional live on-chain source: Dexscreener's public, no-key search endpoint.
@@ -68,15 +69,11 @@ export function mapDexscreener(payload: unknown, base: string): DexPool[] {
 /** Fetch live DEX pools from Dexscreener; returns an honest 'unavailable' snapshot on any failure. */
 export async function fetchDexPools(base: string): Promise<DexPools> {
   const sym = base.toUpperCase();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`${ENDPOINT}?q=${encodeURIComponent(sym)}`, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
+    const payload = await fetchJsonWithTimeout(`${ENDPOINT}?q=${encodeURIComponent(sym)}`, {
+      timeoutMs: TIMEOUT_MS,
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const pools = mapDexscreener(await res.json(), sym);
+    const pools = mapDexscreener(payload, sym);
     if (pools.length === 0) {
       return { symbol: sym, provenance: 'unavailable', note: `No DEX pools found for ${sym} on Dexscreener.`, pools: [] };
     }
@@ -88,7 +85,5 @@ export async function fetchDexPools(base: string): Promise<DexPools> {
       note: `Live DEX source (Dexscreener) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
       pools: [],
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

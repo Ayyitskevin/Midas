@@ -1,5 +1,6 @@
 import type { SolanaSwapHop, SolanaSwapQuote } from '@midas/shared';
 import { MINT_BY_SYMBOL, MINT_DECIMALS, num, shortMint, str } from './rpc';
+import { fetchJsonWithTimeout } from '../httpJson';
 
 /**
  * Read-only Jupiter swap quotes — the SJUP panel's live source. QUOTE ONLY:
@@ -140,18 +141,14 @@ export async function fetchSolanaQuote(
     return unavailable(inSym, outSym, 'Pick two different tokens to quote a swap.');
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     // Amount → raw base units. `amount` is already a JS number (float), which is
     // fine for the display-scale sizes this panel quotes; BigInt just renders it
     // as an integer string for the query.
     const rawAmount = BigInt(Math.round(amount * 10 ** inputDecimals)).toString();
     const url = `${jupiterQuoteUrl()}?inputMint=${inputMint}&outputMint=${outputMint}&amount=${rawAmount}&slippageBps=${DEFAULT_SLIPPAGE_BPS}`;
-    const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const quote = mapSwapQuote({
-      payload: await res.json(),
+      payload: await fetchJsonWithTimeout(url, { timeoutMs: TIMEOUT_MS }),
       inputSymbol: inSym,
       outputSymbol: outSym,
       inputMint,
@@ -169,7 +166,5 @@ export async function fetchSolanaQuote(
     return quote;
   } catch (err) {
     return unavailable(inSym, outSym, `Live Jupiter quote unavailable — ${err instanceof Error ? err.message : 'error'}.`);
-  } finally {
-    clearTimeout(timer);
   }
 }
