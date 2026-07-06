@@ -6,6 +6,8 @@
  * live in exactly one place.
  */
 
+import { fetchJsonWithTimeout } from '../httpJson';
+
 export const GT_TRENDING_ENDPOINT = 'https://api.geckoterminal.com/api/v2/networks/solana/trending_pools';
 export const GT_SEARCH_ENDPOINT = 'https://api.geckoterminal.com/api/v2/search/pools';
 /** The `source` label for a live GeckoTerminal-backed Solana snapshot. */
@@ -59,13 +61,5 @@ export function parsePairName(name: string): { base: string; quote: string; feeB
  * honest `unavailable` snapshot.
  */
 export async function gtFetch(url: string): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { signal: controller.signal, headers: { Accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchJsonWithTimeout(url, { timeoutMs: TIMEOUT_MS });
 }
