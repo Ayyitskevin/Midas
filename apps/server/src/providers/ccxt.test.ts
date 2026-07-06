@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeErrorLabel } from './ccxt';
+import { safeErrorLabel, toPerpSymbol } from './ccxt';
 import { ProviderError } from './types';
 
 // safeErrorLabel is the single sanitizer every ccxt read-error path routes
@@ -32,5 +32,22 @@ describe('safeErrorLabel', () => {
     expect(safeErrorLabel(anon)).toBe('error');
     expect(safeErrorLabel('signature=deadbeef')).toBe('error');
     expect(safeErrorLabel(null)).toBe('error');
+  });
+});
+
+// The single perp-symbol derivation shared by every derivatives read (funding,
+// open interest, funding history) — extracted so the three call sites can't drift.
+describe('toPerpSymbol', () => {
+  it('derives the settle-margined perp from a spot pair', () => {
+    expect(toPerpSymbol('BTC/USDT')).toBe('BTC/USDT:USDT');
+    expect(toPerpSymbol('ETH/USDC')).toBe('ETH/USDC:USDC');
+  });
+
+  it('passes an already-perp symbol through unchanged', () => {
+    expect(toPerpSymbol('BTC/USDT:USDT')).toBe('BTC/USDT:USDT');
+  });
+
+  it('falls back to a USDT settle when the pair has no quote', () => {
+    expect(toPerpSymbol('BTC')).toBe('BTC:USDT');
   });
 });
