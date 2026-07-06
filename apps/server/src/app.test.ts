@@ -313,6 +313,15 @@ describe('GET /api/solana/quote/:input/:output/:amount', () => {
     expect(q.outAmount).toBeNull();
     expect(q.note).toMatch(/different tokens/i);
   });
+
+  it('rejects a non-positive or non-numeric amount at the edge with 400', async () => {
+    // The tokens are validated at the edge; the amount now is too, so a malformed
+    // path segment never reaches the provider. (The UI only queries amount > 0.)
+    for (const bad of ['0', '-5', 'abc']) {
+      const res = await app.inject({ method: 'GET', url: `/api/solana/quote/SOL/USDC/${bad}` });
+      expect(res.statusCode).toBe(400);
+    }
+  });
 });
 
 describe('GET /api/solana/market', () => {
