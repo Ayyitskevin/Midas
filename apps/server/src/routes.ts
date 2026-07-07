@@ -317,6 +317,10 @@ export function registerRoutes(
       const output = normalizeSymbol(req.params.output);
       if (!input || !output) throw new ProviderError('Missing or invalid token', 400);
       const amount = Number(req.params.amount);
+      // Validate the amount at the edge — like the tokens above — so a malformed
+      // path segment (NaN/negative/zero) is an honest 400, not a dispatch to the
+      // provider. The UI only ever queries with amount > 0; this guards direct callers.
+      if (!Number.isFinite(amount) || amount <= 0) throw new ProviderError('Invalid amount', 400);
       if (provider.getSolanaQuote) return provider.getSolanaQuote(input, output, amount);
       return {
         source: provider.name,
