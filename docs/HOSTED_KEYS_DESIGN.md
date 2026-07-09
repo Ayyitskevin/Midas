@@ -1,4 +1,8 @@
-# Design: per-user exchange keys (hosted-tier groundwork)
+# Design: per-user exchange keys (historical)
+
+> The account-read isolation and encrypted key-storage portions remain current.
+> All execution sections are historical and are superseded by the fail-closed
+> [execution safety hold](EXECUTION_SAFETY_HOLD.md).
 
 Status: **implemented** — PRs 1–3 shipped (deviations noted inline). This
 is the one architectural change a multi-tenant hosted Midas needs. Written
@@ -84,14 +88,13 @@ exchange account, on shared infrastructure).
    per-user background loops — the watcher/equity/digest stay on the
    operator's env keys for now; per-user loops move to PR 3 with trading,
    where their lifecycle and caps get one review together.)*
-3. ✅ PR 3: per-user trading gates + scoped ledgers/idempotency + per-user
-   loops (watcher + equity); security review before merge (roadmap-v2
-   Week 3). *(Follow-up, not in this PR: a KEYS panel in the web terminal —
-   today the key API is curl/HTTP-first, documented in the README.)*
+3. ✅ PR 3: per-user watcher/equity loops and the historical execution
+   prototype. The loops remain; the execution portion is retired behind the
+   safety hold. The `KEYS` panel now exposes the encrypted key store.
 
 ### Open questions
 
 - Idle-loop eviction policy for very large user counts (hosted-only; today
   the cap refuses loops past `MIDAS_MAX_KEYED_USERS`, reads stay per-request).
-- Whether the hosted tier should force `canTrade=false` at $20 and reserve
-  trading for the $49 desk tier (product decision, not architecture).
+- Whether to remove legacy `canTrade` metadata entirely while execution remains
+  held (product and compatibility decision, not architecture).

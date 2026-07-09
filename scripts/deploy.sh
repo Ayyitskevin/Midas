@@ -68,8 +68,8 @@ for i in $(seq 1 30); do
     echo "   • Alert webhook ........ MIDAS_ALERT_WEBHOOK=<discord/slack url>"
     echo "   • Weekly digest ........ MIDAS_DIGEST_HOURS=168"
     echo "   • Multi-user login ..... MIDAS_AUTH_ENABLED=true  (secret already set)"
-    echo "   • Live trading ......... read SECURITY.md first — it is off by default"
-    echo "   • Public demo box ...... MIDAS_DEMO_MODE=true  (mock data, no trading, no signups)"
+    echo "   • Order previews ....... TICKET  (execution is held server-side)"
+    echo "   • Public demo box ...... MIDAS_DEMO_MODE=true  (mock data, no signups)"
     exit 0
   fi
   sleep 2

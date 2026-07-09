@@ -14,8 +14,7 @@ const inputCls =
  * KEYS — manage your own exchange API keys on a shared/hosted Midas: save
  * (write-only; encrypted at rest server-side and never shown again), inspect
  * the metadata, delete in one action. With keys stored, BAL/ORD/POSN/FILLS
- * read YOUR account; a key saved with "can trade" may also place orders on
- * YOUR account — behind every operator trading gate.
+ * read YOUR account. Execution is held server-side.
  */
 export function KeysModule() {
   const pushToast = useToasts((s) => s.push);
@@ -112,7 +111,7 @@ export function KeysModule() {
           </div>
           <div className="mt-1 flex items-baseline justify-between text-2xs">
             <span className={keys.canTrade ? 'text-term-amber' : 'text-term-up'}>
-              {keys.canTrade ? '⚠ trade-enabled' : 'read-only'}
+              {keys.canTrade ? 'trade permission recorded · execution held' : 'read-only'}
             </span>
             <span className="text-term-dim">saved {fmtTimeAgo(keys.createdAt)}</span>
           </div>
@@ -173,12 +172,11 @@ export function KeysModule() {
           />
           <label
             className="no-drag flex items-start gap-1.5 text-2xs text-term-muted"
-            title="Only enable if this key has trade permission at the exchange and you intend to place orders from Midas. Trading additionally requires the operator's gates (master switch, caps)."
+            title="Records exchange-key metadata for future compatibility. It does not bypass the server execution safety hold."
           >
             <input type="checkbox" checked={canTrade} onChange={(e) => setCanTrade(e.target.checked)} className="mt-0.5" />
             <span>
-              this key can trade — orders placed here are <span className="text-term-amber">real</span>, on{' '}
-              <span className="text-term-amber">your</span> account (never enable on withdrawal-permissioned keys)
+              record that this exchange key has trade permission (execution remains held; never use withdrawal permission)
             </span>
           </label>
           {problems.length > 0 && (
@@ -199,8 +197,8 @@ export function KeysModule() {
       )}
 
       <div className="mt-auto border-t border-term-border/30 pt-1.5 text-2xs text-term-dim">
-        Non-custodial: Midas reads (and, only with the gates above, trades) — it can never withdraw. Your keys never
-        appear in any API response or log after this save.
+        Non-custodial and read-only: execution is held and Midas can never withdraw. Your keys never appear in any API
+        response or log after this save.
       </div>
     </div>
   );

@@ -44,7 +44,7 @@ export function SysModule() {
       <Row label="Provider" value={`${data.provider} (${data.live ? 'live' : 'synthetic'})`} on={data.live} />
       <Row label="Version" value={`v${data.version}`} />
       <Row label="Uptime" value={fmtUptime(data.startedAt)} />
-      {data.demo && <Row label="Demo mode" value="PUBLIC DEMO — trading & signups disabled" on={false} />}
+      {data.demo && <Row label="Demo mode" value="PUBLIC DEMO · mock data · signups closed" on={false} />}
       <Row
         label="Account watcher"
         value={data.accountWatch.on ? `on · every ${ms(data.accountWatch.intervalMs)}` : 'off'}
@@ -61,7 +61,7 @@ export function SysModule() {
         value={data.equity.on ? `on · every ${ms(data.equity.intervalMs)}` : 'off'}
         on={data.equity.on}
       />
-      <Row label="Live trading" value={data.tradingEnabled ? 'ENABLED' : 'off (read-only)'} on={data.tradingEnabled} />
+      <Row label="Execution" value="HELD · read-only" on={false} />
       <Row label="Auth" value={data.authEnabled ? 'required' : 'off (single-user)'} on={data.authEnabled} />
       <p className="px-2 py-2 text-2xs leading-relaxed text-term-dim">
         Off states are configuration, not failures — each loop starts when its env var and prerequisites (keys, live

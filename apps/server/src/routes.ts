@@ -8,23 +8,13 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
-import type { OrderRequest, PlacedOrder, TradingStatus } from '@midas/shared';
+import type { TradingStatus } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
-import { ccxtKeysConfigured } from './providers/balances';
 import { config } from './config';
-import {
-  checkDailyCap,
-  computeTradingStatus,
-  createIdempotencyCache,
-  createScopedDailyLedgers,
-  estimateNotionalUsd,
-  validateOrderRequest,
-  type TradingConfig,
-} from './trading';
+import { EXECUTION_SAFETY_HOLD_REASON, executionSafetyHoldStatus } from './trading';
 import { COPILOT_SYSTEM_PREAMBLE, buildContext, callClaude } from './ai';
 import type { ChatMessage } from './ai';
-import { postWebhookText } from './webhook';
 import { createRateLimiter } from './rateLimit';
 
 const DEFAULT_INTERVAL: Interval = '1d';
@@ -64,30 +54,6 @@ function normalizeSolanaAddress(raw: string): string {
   return SOLANA_ADDRESS_RE.test(s) ? s : '';
 }
 
-/**
- * Fire-and-forget operator notification to the configured alert webhook.
- * Live account mutations — order placed, order canceled — are exactly the
- * events an operator wants pushed out-of-band; failures never affect the
- * request. (Fill notifications come from the account watcher, which shares
- * the same webhook via postWebhookText.)
- */
-function notifyWebhook(text: string): void {
-  postWebhookText(config.alertWebhook, text);
-}
-
-/**
- * A ccxt error on the write path can carry raw upstream detail (request URLs,
- * response bodies). We log the full error server-side for the operator's audit
- * trail, but return the caller a bounded, generic message — never the raw
- * upstream text — so an exchange error can't reflect request internals to the
- * client. Preserves an explicit ProviderError (those are ours and safe).
- */
-function toSafeWriteError(err: unknown): ProviderError {
-  if (err instanceof ProviderError) return err;
-  const name = err instanceof Error && err.name ? err.name : 'ExchangeError';
-  return new ProviderError(`The exchange rejected the request (${name}).`, 502);
-}
-
 /** Resolves the provider for a request (per-user keys); defaults to the base provider. */
 export interface ProviderResolver {
   for(userId: string | undefined): DataProvider;
@@ -103,7 +69,7 @@ export function registerRoutes(
   app: FastifyInstance,
   provider: DataProvider,
   pool: ProviderResolver = { for: () => provider, userFor: () => null },
-  keyMeta: KeyMetaLookup = () => null,
+  _keyMeta: KeyMetaLookup = () => null,
 ): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
@@ -387,200 +353,29 @@ export function registerRoutes(
     },
   );
 
-  // --- Live trading (opt-in, OFF by default) -------------------------------
-  // Every gate lives in trading.ts (pure + tested). The status endpoint tells
-  // the UI whether placement is possible; the POST is the ONLY write path, and
-  // it re-checks the gate, validates, and enforces a hard notional cap on every
-  // request before reaching the provider's single createOrder call.
-  const tradingCfg: TradingConfig = {
-    enabled: config.tradingEnabled,
-    allowNoAuth: config.tradingAllowNoAuth,
-    maxOrderUsd: config.maxOrderUsd,
-    maxDailyUsd: config.maxDailyUsd,
-    authEnabled: config.authEnabled,
-    corsOrigin: config.corsOrigin,
-  };
-  // Cumulative UTC-day notional per trading identity (in-memory; a restart
-  // resets the budgets — the restart is also the kill switch). The operator's
-  // env-keyed account is the '@local' scope; each keyed user has their own.
-  const dailyLedgers = createScopedDailyLedgers();
-  const OPERATOR_SCOPE = '@local';
+  // --- Execution safety hold -------------------------------------------------
+  // Market, account-read, paper, and preview routes stay available. The two
+  // mutation endpoints fail closed regardless of keys or environment flags.
+  // Existing resting orders must be managed directly at the exchange.
+  const heldStatus: TradingStatus = executionSafetyHoldStatus(provider.name);
 
-  interface TradingResolution {
-    status: TradingStatus;
-    /** The ONLY provider this request may write through. */
-    trader: DataProvider;
-    /** Ledger + idempotency scope ('@local' or the userId). */
-    scope: string;
-    /** True when the write goes to the user's own account (stored keys). */
-    userKeyed: boolean;
-  }
+  app.get('/api/trading/status', async () => heldStatus);
 
-  // The core per-user trading rule: whichever account a user's reads resolve
-  // to is the only account their writes may touch. A user WITH stored keys
-  // trades on their own account through their own client (canTrade gate,
-  // per-user ledger) — and if those keys are unusable, trading is OFF for
-  // them, never silently redirected to the operator's account. Users without
-  // stored keys keep the self-host behavior: operator provider, operator
-  // gates, shared '@local' budget.
-  const resolveTrading = (userId: string | undefined): TradingResolution => {
-    const meta = userId ? keyMeta(userId) : null;
-    if (userId && meta) {
-      const userProvider = pool.userFor(userId);
-      const status = computeTradingStatus(
-        tradingCfg,
-        {
-          providerName: userProvider?.name ?? provider.name,
-          providerLive: userProvider?.live ?? true,
-          hasKeys: true,
-        },
-        dailyLedgers.used(userId, Date.now()),
-        { canTrade: meta.canTrade, usable: userProvider != null },
-      );
-      return { status, trader: userProvider ?? provider, scope: userId, userKeyed: true };
-    }
-    const status = computeTradingStatus(
-      tradingCfg,
-      {
-        providerName: provider.name,
-        providerLive: provider.live,
-        hasKeys: ccxtKeysConfigured(),
-      },
-      dailyLedgers.used(OPERATOR_SCOPE, Date.now()),
-    );
-    return { status, trader: provider, scope: OPERATOR_SCOPE, userKeyed: false };
-  };
-
-  app.get('/api/trading/status', async (req) => resolveTrading(req.userId).status);
-
-  // Recent placements by clientOrderId, so a retry/double-submit returns the
-  // original acknowledgement instead of placing twice. Keys are scoped per
-  // trading identity: two users using the same clientOrderId must never see
-  // (or suppress) each other's orders.
-  const placedOrders = createIdempotencyCache();
-  const idemKey = (scope: string, clientOrderId: string): string => `${scope}\u0000${clientOrderId}`;
-
-  app.post<{ Body: OrderRequest }>('/api/orders', async (req, reply) => {
-    const { status, trader, scope, userKeyed } = resolveTrading(req.userId);
-    if (!status.enabled) {
-      reply.status(403);
-      return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
-    }
-    const v = validateOrderRequest(req.body);
-    if (!v.ok) throw new ProviderError(v.errors.join(' '), 400);
-    if (!trader.placeOrder) throw new ProviderError('This provider cannot place orders.', 501);
-
-    const body: OrderRequest = { ...req.body, symbol: normalizeSymbol(req.body.symbol) };
-    if (!body.symbol) throw new ProviderError('Invalid symbol.', 400);
-
-    // Idempotency: a duplicate clientOrderId within the TTL is answered from
-    // the cache — the exchange is never asked to place a second time.
-    if (body.clientOrderId) {
-      const duplicate = placedOrders.recall(idemKey(scope, body.clientOrderId), Date.now());
-      if (duplicate) {
-        app.log.warn(
-          { clientOrderId: body.clientOrderId, scope },
-          'duplicate order suppressed (idempotency)',
-        );
-        return duplicate;
-      }
-    }
-
-    // Hard notional caps: price the order and reject anything over the
-    // per-order ceiling OR anything that would breach the cumulative daily
-    // cap. The reference quote comes from the SAME client that will trade,
-    // so the cap is priced on the venue the order lands on.
-    let placedNotional: number | null = null;
-    if (status.maxOrderUsd != null || status.dailyCapUsd != null) {
-      let refPrice: number | null = null;
-      if (body.type === 'market') {
-        try {
-          refPrice = (await trader.getQuote(body.symbol)).price;
-        } catch {
-          refPrice = null;
-        }
-      }
-      const notional = estimateNotionalUsd(body, refPrice);
-      if (notional == null) {
-        throw new ProviderError('Could not price the order to enforce the notional caps — rejected.', 400);
-      }
-      if (status.maxOrderUsd != null && notional > status.maxOrderUsd) {
-        throw new ProviderError(
-          `Order notional ~$${Math.round(notional)} exceeds the per-order cap of $${status.maxOrderUsd} (raise MIDAS_MAX_ORDER_USD to allow it).`,
-          400,
-        );
-      }
-      const dailyReject = checkDailyCap(status.dailyCapUsd, dailyLedgers.used(scope, Date.now()), notional);
-      if (dailyReject) throw new ProviderError(dailyReject, 400);
-      placedNotional = notional;
-    }
-
-    // Audit: every live placement attempt is logged with who/what.
-    app.log.warn(
-      { symbol: body.symbol, side: body.side, type: body.type, amount: body.amount, userId: req.userId, userKeyed },
-      'LIVE order placement',
-    );
-    // Reserve against the identity's daily cap BEFORE placing, so two
-    // in-flight orders can't both squeeze under it while the exchange call is
-    // awaited; release the reservation if the placement fails.
-    if (placedNotional != null) dailyLedgers.add(scope, placedNotional, Date.now());
-    let placed: PlacedOrder;
-    try {
-      placed = await trader.placeOrder(body);
-    } catch (err) {
-      if (placedNotional != null) dailyLedgers.add(scope, -placedNotional, Date.now());
-      // Audit the OUTCOME, not just the attempt: a failed placement leaves a
-      // durable record with the full upstream error (server-side only). The
-      // caller gets a bounded, generic message — never the raw ccxt text.
-      app.log.warn({ symbol: body.symbol, scope, err }, 'LIVE order placement failed');
-      throw toSafeWriteError(err);
-    }
-    // Audit the successful outcome with the resulting order id + status, so the
-    // trail is complete whether or not an operator webhook is configured.
-    app.log.warn({ orderId: placed.id, status: placed.status, symbol: body.symbol, scope }, 'LIVE order placed');
-    if (body.clientOrderId) placedOrders.remember(idemKey(scope, body.clientOrderId), placed, Date.now());
-    notifyWebhook(
-      `🟢 LIVE order placed — ${body.side.toUpperCase()} ${body.amount} ${body.symbol} ${body.type}` +
-        `${body.type === 'limit' ? ` @ ${body.price}` : ''} (id ${placed.id}, status ${placed.status}` +
-        `${userKeyed ? `, by ${scope}` : ''})`,
-    );
-    return placed;
+  const safetyHoldResponse = () => ({
+    error: 'TradingSafetyHold',
+    message: EXECUTION_SAFETY_HOLD_REASON,
+    statusCode: 503,
   });
 
-  // Cancel a resting order. Risk-reducing, but still a write: gated by the
-  // exact same trading switches as placement, audited and notified — and
-  // routed through the same per-user client resolution, so a user can only
-  // ever cancel on their OWN account.
-  app.delete<{ Params: { id: string }; Querystring: { symbol?: string } }>(
-    '/api/orders/:id',
-    async (req, reply) => {
-      const { status, trader, scope, userKeyed } = resolveTrading(req.userId);
-      if (!status.enabled) {
-        reply.status(403);
-        return { error: 'TradingDisabled', message: status.reason, statusCode: 403 };
-      }
-      const id = req.params.id.trim();
-      const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
-      if (!id) throw new ProviderError('Missing order id', 400);
-      if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to cancel)', 400);
-      if (!trader.cancelOrder) throw new ProviderError('This provider cannot cancel orders.', 501);
+  app.post('/api/orders', async (_req, reply) => {
+    reply.status(503);
+    return safetyHoldResponse();
+  });
 
-      app.log.warn({ orderId: id, symbol, userId: req.userId, userKeyed }, 'LIVE order cancel');
-      let result;
-      try {
-        result = await trader.cancelOrder(id, symbol);
-      } catch (err) {
-        app.log.warn({ orderId: id, symbol, scope, err }, 'LIVE order cancel failed');
-        throw toSafeWriteError(err);
-      }
-      app.log.warn({ orderId: result.id, status: result.status, symbol, scope }, 'LIVE order canceled');
-      notifyWebhook(
-        `🔴 LIVE order canceled — ${symbol} order ${result.id} (status ${result.status}` +
-          `${userKeyed ? `, by ${scope}` : ''})`,
-      );
-      return result;
-    },
-  );
+  app.delete('/api/orders/:id', async (_req, reply) => {
+    reply.status(503);
+    return safetyHoldResponse();
+  });
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
     '/api/funding-history/:symbol',

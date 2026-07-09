@@ -192,8 +192,8 @@ export const api = {
       signal,
     ),
 
-  // Live trading (opt-in, off by default). status() tells the UI whether placement
-  // is possible; placeOrder() is the only call that can submit a real order.
+  // Execution compatibility surface. The server currently reports a safety hold
+  // and rejects both mutation calls; the ticket remains a read-only preview.
   tradingStatus: (signal?: AbortSignal) => apiGet<TradingStatus>('/api/trading/status', signal),
   placeOrder: (req: OrderRequest, signal?: AbortSignal) => apiPost<PlacedOrder>('/api/orders', req, signal),
   cancelOrder: (id: string, symbol: string, signal?: AbortSignal) =>

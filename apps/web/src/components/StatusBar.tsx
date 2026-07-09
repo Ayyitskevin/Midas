@@ -69,7 +69,7 @@ export function StatusBar() {
             </span>
           </span>
         )}
-        {/* Terminal-wide honesty about live trading — not just inside the TICKET panel. */}
+        {/* Defensive legacy state: current servers always report the safety hold. */}
         {trading?.enabled && (
           <span className="flex items-center gap-1 font-semibold text-term-down" title={trading.reason}>
             <span>●</span>

@@ -70,15 +70,13 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
   no transaction); synthetic by default, live via `MIDAS_SOLANA_RPC`,
   `MIDAS_SOLANA_JUPITER` and `MIDAS_DEX_SOURCE`.
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
-- **Account & execution (non-custodial, opt-in).** Read-only keys light up your
+- **Account research (non-custodial).** Read-only keys light up your
   real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
   (`FILLS`), and a read-only account watcher turns every fill/cancel into a
   terminal toast + webhook push — even for orders placed outside Midas.
-  Explicitly enable trading and the order ticket (`TICKET`) places — and `ORD`
-  cancels — real orders behind two-step confirms, per-order **and** daily
-  notional caps, idempotency, audit logs and webhook notifications, then tracks
-  each placement live to filled/canceled. A red **LIVE TRADING** badge shows
-  terminal-wide whenever it's on.
+  The order ticket (`TICKET`) previews fills against the live book. Real order
+  placement and in-app cancellation are under an unconditional execution safety
+  hold; manage existing orders directly at the exchange.
 - **Pluggable data layer.** `mock` (deterministic, offline), `ccxt` (live
   multi-exchange crypto), `yahoo` (equities) — swap behind one interface.
 - **Typed end-to-end** with a shared data contract package.
@@ -238,7 +236,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Read-only open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial: reads only (`fetchOpenOrders`) — never places or cancels orders. Synthetic demo set until read-only keys are set. |
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
-| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build & validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, book-exhausted warning. **Previews by default; placement is OFF** unless you explicitly enable live trading (see below) — then a red LIVE banner + two-step confirm, with a server-side notional cap. After placement the ticket **tracks the order live** (open → partially filled → filled/canceled, with a fill progress bar). When trading is live, `ORD` also gains a two-step per-order **cancel**. |
+| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build and validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, and book-exhausted warning. **Preview only:** the server execution safety hold rejects placement and in-app cancellation. |
 | `START` | `TOUR`, `GETSTART`, `INTRO` | no | First-run tour — six one-click rows that each **run** a real command, teaching the grammar by doing. Opens automatically on the very first visit. |
 | `SYS`   | `STATUS`, `SYSTEM` | no | System status — provider, version, uptime, and which background loops are actually running (watcher, stream nudge, digest, equity snapshots, trading gate). |
 | `WN`    | `WHATSNEW`, `CHANGELOG`, `RELEASES` | no | What's New — release highlights in-terminal, newest first. Pairs with a one-time "Midas updated to vX" toast when your server moves to a new version. |
@@ -450,8 +448,8 @@ a panel type means writing a module component and registering it.
 | `GET /api/orders` · `GET /api/positions` · `GET /api/fills?symbol=` | read-only open orders / positions / executions |
 | `GET /api/orders/:id?symbol=`      | read-only single-order lookup (TICKET tracking) |
 | `GET /api/account/events?since=`   | account watcher feed (fills/cancels observed) |
-| `GET /api/trading/status`          | whether live trading is enabled, caps, usage |
-| `POST /api/orders` · `DELETE /api/orders/:id` | the ONLY two writes — gated, capped, audited |
+| `GET /api/trading/status`          | current execution posture and safety-hold reason |
+| `POST /api/orders` · `DELETE /api/orders/:id` | compatibility endpoints; return `503 TradingSafetyHold` |
 | `GET /api/auth/status`             | whether auth is on / signup open |
 | `POST /api/auth/signup\|login`     | create a session (returns a token)|
 | `GET /api/auth/me`                 | the signed-in user (bearer token)|
@@ -495,7 +493,7 @@ Server (environment variables):
 | `MIDAS_CCXT_API_KEY`  | _(unset)_   | **Read-only** exchange API key for live account balances (`BAL`). Non-custodial: Midas only ever reads (`fetchBalance`) — it never places orders or moves funds. Leave unset to keep balances in synthetic demo mode. |
 | `MIDAS_CCXT_SECRET`   | _(unset)_   | Secret paired with `MIDAS_CCXT_API_KEY`. Both must be set to enable live balances. |
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
-| `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only; the trading write path never touches it. |
+| `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only. |
 | `MIDAS_ACCOUNT_WATCH_MS` | `10000`  | With keys set, a **read-only** watcher polls open orders at this cadence and turns changes into fill notifications (terminal toasts + the alert webhook). `0` = off; floored at `2000` to protect exchange rate limits. |
 | `MIDAS_DEX_SOURCE`    | _(unset)_   | Set to `dexscreener` or `geckoterminal` to read live on-chain/DEX pools (`DEX`) from a public API; otherwise DEX data is honestly labeled unavailable. `geckoterminal` also powers live Solana DeFi markets — trending tokens (`STREND`), per-asset Solana DEX pools (`SOLDEX`) and the ecosystem overview (`SOLMKT`). |
 | `MIDAS_SOLANA_RPC`    | _(unset)_   | A Solana JSON-RPC URL (e.g. `https://api.mainnet-beta.solana.com`) powers **live** `SOLNET` (network health), `SWAL` (wallet), `SVAL` (validators), `SSTAKE` (staking yield) and `SPL` (token explorer) reads via the ccxt provider. **Read-only** RPC calls only — Midas never signs or sends a transaction. Unset keeps these panels honestly synthetic (mock) / unavailable. |
@@ -503,10 +501,10 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
-| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys** (hosted tier): signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Account panels then read *their* account; keys saved with `canTrade: true` may trade on *their* account behind every gate above, with a per-user daily budget. A user's writes can only ever touch the account their reads come from. Needs `MIDAS_AUTH_ENABLED=true`. |
+| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Account panels then read *their* account. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold. Needs `MIDAS_AUTH_ENABLED=true`. |
 | `MIDAS_MAX_KEYED_USERS` | `25`      | Keyed users allowed to run per-user background loops (fill watcher + equity snapshots). Beyond the cap, reads still work per-request; the events/equity panels say loops are off. |
 | `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
-| `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data, disables live trading (both switches) and closes signups — regardless of everything else. Makes an instance safe to expose as a try-before-you-buy demo. |
+| `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data and closes signups. Execution is already held globally. |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
@@ -518,25 +516,24 @@ Server (environment variables):
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
-| `MIDAS_TRADING_ENABLED` | `false`   | **Master switch for LIVE order placement (`TICKET`). Off by default.** When `true` (and the ccxt provider has trade-permissioned keys, and auth is on) the order ticket can place real orders. |
-| `MIDAS_MAX_ORDER_USD` | `1000`      | Hard per-order notional cap the server enforces; orders above it are rejected. `0` = uncapped (not recommended). |
-| `MIDAS_MAX_DAILY_USD` | `5000`      | Cumulative UTC-day notional cap across all orders — bounds a whole session's exposure, not just one order. In-memory (resets on restart). `0` = uncapped. |
-| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Escape hatch to allow trading without login on a trusted single-user/localhost host. Leave off; enabling it on a network-reachable instance is dangerous. Requires a pinned `MIDAS_CORS_ORIGIN` (not `*`) — the server refuses no-auth trading with wildcard CORS to avoid cross-site order placement. |
+| `MIDAS_TRADING_ENABLED` | `false`   | Legacy compatibility flag. It does not enable execution while the safety hold is active. |
+| `MIDAS_MAX_ORDER_USD` | `1000`      | Legacy per-order cap target retained for execution repair work. |
+| `MIDAS_MAX_DAILY_USD` | `5000`      | Legacy daily cap target retained for execution repair work. |
+| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Legacy compatibility flag. It does not bypass the execution safety hold. |
 
-### Live trading (opt-in, off by default)
+### Execution safety hold
 
-Midas is read-only and non-custodial unless you deliberately turn trading on.
-Order placement (the `TICKET` panel) stays a preview until **every** gate passes:
+Midas currently operates as a read-only, non-custodial research terminal. The
+`TICKET` panel remains a live-book preview, but the server unconditionally returns
+`503 TradingSafetyHold` from order placement and in-app cancellation. Environment
+flags and trade-marked keys cannot bypass the hold.
 
-1. `MIDAS_TRADING_ENABLED=true` (master switch), **and**
-2. the `ccxt` provider with **trade-permissioned** `MIDAS_CCXT_API_KEY` / `MIDAS_CCXT_SECRET`, **and**
-3. `MIDAS_AUTH_ENABLED=true` (or the explicit `MIDAS_TRADING_ALLOW_NO_AUTH=true` override on a trusted host).
-
-Even then, every order is validated and capped at `MIDAS_MAX_ORDER_USD` server-side,
-the panel shows a red **LIVE** banner, and placement requires a two-step confirm.
-The single `createOrder` call is the only write in Midas; keys never leave your
-server. Trading on a network-exposed instance without auth is strongly discouraged —
-see [SECURITY.md](./SECURITY.md).
+The hold exists because the retired execution path used process-local daily limits
+and idempotency state, and its notional estimate was not USD-normalized for every
+instrument. Re-enabling execution requires durable transactional state, atomic
+idempotency, startup reconciliation, explicit unknown-outcome handling, and
+instrument-aware USD normalization. See
+[`docs/EXECUTION_SAFETY_HOLD.md`](./docs/EXECUTION_SAFETY_HOLD.md).
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),
 `VITE_API_BASE` (API base URL when hosted separately).
@@ -566,11 +563,10 @@ TradingView lightweight-charts · Fastify · pnpm workspaces.
 
 ## Roadmap
 
-Midas is a full crypto-native terminal: command line + tiling panels, charts and
-microstructure, derivatives, ~115 indicator/analytics boards, screening, alerts,
-portfolio, an on-chain/DEX read layer, and a complete **non-custodial account &
-execution suite** (read-only by default; live trading strictly opt-in behind
-caps and confirms) — all behind a data-honesty guarantee. It ships from `main`.
+Midas is a full crypto-native research terminal: command line + tiling panels,
+charts and microstructure, derivatives, ~115 indicator/analytics boards,
+screening, alerts, portfolio, an on-chain/DEX read layer, and non-custodial
+account reads — all behind a data-honesty guarantee. It ships from `main`.
 
 Where it's heading (open-core, open-source first) — the detailed 30-day plan
 lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md):
@@ -597,13 +593,13 @@ updated for you, **$20/month flat** — no seat math, no per-panel pricing, no
 
 Compare: a Bloomberg seat runs ~$2,400/month; mainstream charting platforms
 charge $30–60/month and still meter your indicators, alerts and layouts. Midas
-gives you every panel, every board, unlimited alerts and live execution
-tooling — self-hosted for $0, or hosted for less than most people's exchange
+gives you every panel, every board, and unlimited alerts — self-hosted for $0,
+or hosted for less than most people's exchange
 fees in a week.
 
 Planned tiers (waitlist replies size the split): **$20/mo solo** — one venue,
-full terminal, alerts + digests; **$49/mo desk** — two venues, multi-user,
-trading gates. Self-hosting always includes everything.
+full terminal, alerts + digests; **$49/mo desk** — two venues and multi-user
+research workspaces. Self-hosting always includes everything.
 
 **[→ Join the waitlist](https://github.com/ayyitskevin/midas/issues/new?title=Hosted+Midas+waitlist&body=Add+me+to+the+hosted-tier+waitlist.+%28Optional%3A+which+exchange%28s%29+do+you+trade%3F%29&labels=hosted-waitlist)**
 — it's a GitHub issue; a 👍 on an existing waitlist issue counts too. Nothing

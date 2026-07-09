@@ -46,13 +46,13 @@ export interface Config {
   watchlistsFile: string;
   /** JSON file backing the per-user notes snapshot store. */
   notesFile: string;
-  /** Master switch for LIVE order placement. Off by default — opt-in only. */
+  /** Legacy execution switch retained for compatibility; ignored during the safety hold. */
   tradingEnabled: boolean;
-  /** Allow trading without auth on a trusted host (escape hatch; default off). */
+  /** Legacy no-auth override retained for compatibility; ignored during the safety hold. */
   tradingAllowNoAuth: boolean;
-  /** Hard per-order USD notional cap the server enforces (0 = uncapped). */
+  /** Legacy per-order cap retained for execution repair work. */
   maxOrderUsd: number;
-  /** Cumulative UTC-day USD notional cap across all orders (0 = uncapped). */
+  /** Legacy daily cap retained for execution repair work. */
   maxDailyUsd: number;
   /** How often the account watcher polls open orders for fill events, in ms (0 = off). */
   accountWatchMs: number;
@@ -103,9 +103,8 @@ export function numEnv(key: string, fallback: number): number {
 
 /**
  * Demo-mode posture: one flag that makes an instance safe to expose as a
- * public demo, no matter what else the environment says — synthetic data
- * only, live trading impossible, no account signups. Pure and applied last,
- * so a stray MIDAS_TRADING_ENABLED=true on a demo box cannot win.
+ * public demo, no matter what else the environment says — synthetic data,
+ * execution held, no account signups. Pure and applied last.
  */
 export function applyDemoMode(cfg: Config): Config {
   if (!cfg.demoMode) return cfg;

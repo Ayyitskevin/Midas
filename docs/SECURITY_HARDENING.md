@@ -5,9 +5,9 @@ Operator-facing companion to [SECURITY.md](https://github.com/Ayyitskevin/Midas/
 is the concrete pre-exposure checklist and the environment-variable security
 matrix for anyone putting Midas on a network other people can reach.
 
-Midas is safe by default: an empty `.env` runs the offline mock feed with
-trading impossible and no accounts. Everything below matters only as you turn
-capabilities *on*.
+Midas is a read-only research terminal at the HTTP boundary: an empty `.env`
+runs the offline mock feed, and the execution safety hold cannot be disabled by
+environment flags or stored key metadata.
 
 ## Pre-exposure checklist
 
@@ -26,13 +26,12 @@ Before a Midas box is reachable by anyone but you:
    **required** for the no-auth trading override.
 4. **Set a request ceiling.** `MIDAS_RATE_LIMIT_RPM=120` (or to taste) so one
    client can't monopolize the box. Demo mode turns this on automatically.
-5. **Exchange keys are trade-scoped, never withdrawal-scoped.** Midas has no
-   withdrawal code path, so a withdrawal-enabled key buys you nothing and
+5. **Use read-only exchange keys.** Midas has no withdrawal path and its HTTP
+   execution routes are held. A withdrawal-enabled key buys you nothing and
    risks everything. IP-allowlist the key at the exchange too.
-6. **Set the notional caps to what you can afford to lose to a bug** — yours
-   or an exchange's. `MIDAS_MAX_ORDER_USD` and `MIDAS_MAX_DAILY_USD` are your
-   blast radius. A malformed value now fails *safe* (falls back to the default
-   and logs it) rather than silently disabling the cap.
+6. **Do not treat legacy execution flags as controls.** `MIDAS_TRADING_ENABLED`,
+   `MIDAS_MAX_ORDER_USD`, and `MIDAS_MAX_DAILY_USD` are retained for compatibility
+   and repair tests; they do not bypass the safety hold.
 7. **Per-user keys need their own secret.** If you enable `MIDAS_KEYS_KMS_SECRET`
    (hosted multi-user), generate it the same way (`openssl rand -hex 32`) and
    back it up — losing it makes every stored key undecryptable (fail-closed).
@@ -47,43 +46,36 @@ Before a Midas box is reachable by anyone but you:
 | `MIDAS_CORS_ORIGIN` | `*` | Allowed browser origin. Pin it; required (non-`*`) for no-auth trading. |
 | `MIDAS_RATE_LIMIT_RPM` | `0` (off) | Per-IP request ceiling. Set it on any public box. |
 | `MIDAS_TRUST_PROXY` | `0` | Trusted reverse-proxy hops. Set to `1` behind a single proxy (the shipped nginx) so per-IP controls see the real client; keep `0` if exposed directly (else `X-Forwarded-For` is spoofable). |
-| `MIDAS_TRADING_ENABLED` | `false` | Master switch for live order placement. Your kill switch. |
-| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Permits trading without login — only on a trusted host, only with pinned CORS. |
-| `MIDAS_MAX_ORDER_USD` | `1000` | Hard per-order notional cap. Fails safe on a bad value. |
-| `MIDAS_MAX_DAILY_USD` | `5000` | Cumulative UTC-day cap. Fails safe on a bad value. |
-| `MIDAS_CCXT_API_KEY` / `_SECRET` | empty | Operator exchange keys. **Trade-scoped, never withdrawal.** |
+| `MIDAS_TRADING_ENABLED` | `false` | Legacy compatibility flag; ignored by the execution safety hold. |
+| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Legacy compatibility flag; cannot bypass the hold. |
+| `MIDAS_MAX_ORDER_USD` | `1000` | Legacy repair target; not an active execution control. |
+| `MIDAS_MAX_DAILY_USD` | `5000` | Legacy repair target; not an active execution control. |
+| `MIDAS_CCXT_API_KEY` / `_SECRET` | empty | Operator account-read keys. Use read-only scope, never withdrawal. |
 | `MIDAS_KEYS_KMS_SECRET` | empty | Enables per-user keys, AES-256-GCM at rest. Back it up; loss = fail-closed. |
 | `MIDAS_MAX_KEYED_USERS` | `25` | Bounds per-user background loops. |
 | `ANTHROPIC_API_KEY` | empty | AI copilot key. Requests are bounded (12 messages, 32k chars). |
 
-## The trading-gate stack
+## The execution safety hold
 
-Live order placement requires **every** gate to pass — defense in depth, all
-enforced server-side in `apps/server/src/trading.ts` (pure, unit-tested) before
-the single `createOrder` call:
+Order placement and in-app cancellation stop at the route boundary:
 
 ```
-MIDAS_TRADING_ENABLED=true
-  └─ ccxt provider with trade-permissioned keys
-       └─ auth enabled  (or MIDAS_TRADING_ALLOW_NO_AUTH=true AND pinned CORS)
-            └─ per-order notional ≤ MIDAS_MAX_ORDER_USD   (fail-safe)
-                 └─ day's cumulative notional ≤ MIDAS_MAX_DAILY_USD  (fail-safe)
-                      └─ for a keyed user: their key is canTrade AND usable
-                           └─ writes go to THEIR client, never the operator's
+POST /api/orders       -> 503 TradingSafetyHold
+DELETE /api/orders/:id -> 503 TradingSafetyHold
 ```
 
-If any check fails, `/api/trading/status` reports exactly which one, and the
-order is refused with that reason. The master switch is the kill switch: set
-`MIDAS_TRADING_ENABLED=false` and restart to stop placement instantly.
+`GET /api/trading/status` always reports preview-only with the hold reason.
+Tests exercise trade-marked users, operator-backed users, invalid instruments,
+concurrent retries, and cancellation, and assert that provider write methods are
+never called. Existing resting orders must be managed directly at the exchange.
 
 ## Guarantees the codebase enforces (verified by tests)
 
 These are invariants, not aspirations — each has a test that fails CI if it
 regresses:
 
-- **Caps fail safe.** Every numeric env var (`numEnv` in `config.ts`) rejects
-  NaN/negative/Infinity and falls back to its shipped default, loudly. A typo
-  in a money cap can never silently mean "uncapped".
+- **Execution fails closed.** Runtime flags, credentials, key metadata, request
+  shape, and retry timing cannot make the HTTP API reach provider writes.
 - **The input edges are bounded.** Symbols are charset+length checked at every
   route; the public WebSocket validates channel/symbol, caps frame size,
   bounds subscriptions per socket, and ceilings total upstream sources;
@@ -95,14 +87,8 @@ regresses:
 - **Auth is timing-safe.** Tokens verify with `timingSafeEqual`; login runs a
   scrypt compare whether or not the username exists, so response time can't
   enumerate accounts; passwords are scrypt with a per-user random salt.
-- **Secrets never leave the server.** Stored keys are AES-256-GCM at rest,
-  returned only as metadata (exchange + last 4 + canTrade), and never logged.
-  A raw exchange error on the write path is logged server-side but returned to
-  the caller only as a bounded, class-only message — request internals can't
-  leak in a response.
-- **Every write is audited with its outcome.** Order place/cancel log the
-  actor and the result (order id + status, or the failure) as structured JSON,
-  independent of whether an operator webhook is configured.
+- **Secrets never leave the server.** Stored keys are AES-256-GCM at rest and
+  returned only as metadata (exchange + last 4 + canTrade).
 
 ## What is deliberately *not* in the app
 
@@ -113,10 +99,9 @@ baking them into a JSON API server would be scope creep:
   (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`). HSTS
   belongs at your TLS terminator; a CSP belongs wherever the static web bundle
   is served. Add them there.
-- **A bespoke monitoring stack.** Security events (failed-login throttling,
-  cap rejections, key writes, order placements) are emitted as structured
-  pino JSON in your existing log pipeline — greppable by message. Ship those
-  logs where you already ship logs.
+- **A bespoke monitoring stack.** Security events such as failed-login
+  throttling and key writes are emitted as structured pino JSON in your existing
+  log pipeline. Ship those logs where you already ship logs.
 - **Withdrawal / transfer.** There is no code path. This is not a setting.
 
 ## Secret scanning

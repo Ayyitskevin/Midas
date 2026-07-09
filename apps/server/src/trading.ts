@@ -1,15 +1,32 @@
 import type { OrderRequest, PlacedOrder, TradingStatus } from '@midas/shared';
 
+export const EXECUTION_SAFETY_HOLD_REASON =
+  'Execution safety hold: live order placement and in-app cancellation are disabled until ' +
+  'restart-safe limits, atomic idempotency, and USD-normalized notional checks are implemented. ' +
+  'Manage existing orders directly at the exchange.';
+
 /**
- * Live-trading safety core — pure, defensive, and heavily tested. Live order
- * placement is OFF by default and gated by defense in depth: a master switch,
- * a live keyed provider, an auth requirement (with an explicit override), and a
- * hard per-order notional cap. The actual `createOrder` call lives in the ccxt
- * provider and is only reachable when {@link computeTradingStatus} reports
- * enabled AND the request passes validation AND the notional cap.
+ * The public execution posture while the legacy write path is being repaired.
+ * Keeping this status independent of environment flags makes the hold fail closed.
+ */
+export function executionSafetyHoldStatus(source: string): TradingStatus {
+  return {
+    enabled: false,
+    reason: EXECUTION_SAFETY_HOLD_REASON,
+    maxOrderUsd: null,
+    dailyCapUsd: null,
+    dailyUsedUsd: 0,
+    source,
+  };
+}
+
+/**
+ * Legacy live-trading gate calculations retained for repair work and tests.
+ * HTTP execution is held unconditionally by {@link executionSafetyHoldStatus};
+ * these calculations must not be used to make provider writes reachable.
  *
  * Keeping every gate here pure means the rules are unit-testable without a live
- * exchange — which, for code that can move real money, is the point.
+ * exchange.
  */
 export interface TradingConfig {
   /** MIDAS_TRADING_ENABLED — the master switch. */
