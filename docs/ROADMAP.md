@@ -43,16 +43,15 @@ many users).
 - ✅ **Workspace share links.** *(Shipped)* ⧉ copies a URL carrying the
   workspace in its fragment; opening imports it as a new workspace. Nothing
   uploaded.
-- ✅ **Per-user keys, PR 3.** *(Shipped)* Per-user trading gates (canTrade,
-  own client only, never operator fallback), per-user daily budgets +
-  idempotency, per-user watcher/equity loops under `MIDAS_MAX_KEYED_USERS`.
-  Web KEYS panel is a follow-up (API-first for now).
+- ✅ **Per-user account reads.** *(Shipped)* Isolated provider clients plus
+  per-user watcher/equity loops under `MIDAS_MAX_KEYED_USERS`. The retired
+  execution prototype is superseded by the fail-closed safety hold.
 
 ## Week 4 — scale & polish (worth $49)
 
 - **Hosted tier private beta** — first 5 waitlist users on managed
   instances; $20 solo (1 venue, read+alerts) / $49 desk (2 venues,
-  multi-user, trading gates) — billing via Stripe Payment Links first,
+  multi-user research) — billing via Stripe Payment Links first,
   engineering later. ✅ *Engineering side shipped:* the `KEYS` panel makes
   per-user keys usable without curl.
 - ✅ **Docs site.** *(Shipped)* mkdocs-material over /docs with a Pages

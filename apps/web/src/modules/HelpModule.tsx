@@ -23,10 +23,9 @@ HELP              this panel`}
       </section>
 
       <section>
-        <h3 className="term-label mb-1">Account &amp; trading</h3>
+        <h3 className="term-label mb-1">Account &amp; previews</h3>
         <p className="text-term-muted">
-          Midas is <span className="text-term-text">non-custodial and read-only by default</span>. It scales up only
-          as you opt in:
+          Midas is <span className="text-term-text">non-custodial and read-only</span>:
         </p>
         <ul className="mt-1 list-disc space-y-0.5 pl-4 text-term-muted">
           <li>
@@ -40,11 +39,9 @@ HELP              this panel`}
             watcher also turns fills and cancels into toasts here + webhook pushes (MIDAS_ACCOUNT_WATCH_MS).
           </li>
           <li>
-            <span className="text-term-text">Live</span> — explicitly enable trading on the server (master switch +
-            caps + auth; see SECURITY.md) and <span className="text-term-amber">TICKET</span> places real orders
-            behind a two-step confirm, with per-order and daily notional caps enforced server-side.{' '}
-            <span className="text-term-amber">ORD</span> gains per-order cancel. A red{' '}
-            <span className="text-term-down">● LIVE TRADING</span> badge shows in the status bar whenever this is on.
+            <span className="text-term-text">Preview</span> — <span className="text-term-amber">TICKET</span> models a
+            market or limit order against the live book without submitting it. Server placement and in-app cancellation
+            remain under the execution safety hold.
           </li>
         </ul>
         <p className="mt-1 text-term-muted">

@@ -84,7 +84,8 @@ async function main(): Promise<void> {
         on: accountEquity != null,
         intervalMs: accountEquity ? Math.max(60_000, config.equitySnapMs) : null,
       },
-      tradingEnabled: config.tradingEnabled,
+      // Legacy MIDAS_TRADING_ENABLED is not execution authority while held.
+      tradingEnabled: false,
       authEnabled: config.authEnabled,
     }),
   });

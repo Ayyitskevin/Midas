@@ -29,7 +29,7 @@ MIDAS_MAX_KEYED_USERS=25          # per-user watcher/equity loop cap
 MIDAS_RATE_LIMIT_RPM=240          # per-IP ceiling; keep public surfaces boring
 MIDAS_ACCOUNT_WATCH_MS=10000      # fill events for keyed users
 MIDAS_EQUITY_SNAP_MS=3600000      # hourly equity snapshots per keyed user
-# Trading stays OFF until a user asks for it and you both understand the gates:
+# Legacy execution flags remain false; the server safety hold cannot be bypassed:
 MIDAS_TRADING_ENABLED=false
 MIDAS_MAX_ORDER_USD=1000
 MIDAS_MAX_DAILY_USD=5000
@@ -41,9 +41,8 @@ site origin. The full checklist lives in
 
 **Tier shapes (product, not code):** solo = one instance, one user, keys +
 alerts + digest. Desk = one instance, `MIDAS_AUTH_ALLOW_SIGNUP` for the
-team, per-user keys, optionally the trading gates. Per-user isolation is
-already enforced by the server (reads-account = writes-account, per-user
-budgets, per-user feeds).
+team and per-user read keys. Per-user account reads and feeds are isolated;
+execution is not part of the hosted beta.
 
 ## 2. Onboard a beta user
 
@@ -54,8 +53,8 @@ budgets, per-user feeds).
    toasts and the equity curve are theirs alone.
 3. Set `MIDAS_DIGEST_HOURS=24` + `MIDAS_ALERT_WEBHOOK` if they want the
    morning P&L recap.
-4. Trading only on explicit request: user re-saves keys with "can trade" in
-   `KEYS`, you set `MIDAS_TRADING_ENABLED=true` and agree on the caps.
+4. Confirm the `TICKET` panel says preview-only and `ORD` says read-only. Existing
+   exchange orders are managed at the exchange.
 
 ## 3. Before inviting anyone: load-check the box
 

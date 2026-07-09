@@ -45,11 +45,8 @@ const inputCls =
  * order against the live L2 book (average fill, fees, slippage, marketable vs
  * resting).
  *
- * Placement is OFF by default: the panel previews only, and the place button is
- * disabled, unless the operator has explicitly enabled live trading on the server
- * (MIDAS_TRADING_ENABLED + trade keys + auth). When live, the button arms a
- * two-step confirm and the panel shows a red LIVE banner so the mode is never
- * ambiguous — every order is validated and notional-capped server-side.
+ * Placement is held server-side while the execution subsystem is being made
+ * restart-safe. The panel remains useful as a live-book order preview.
  */
 export function OrderTicketModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
@@ -220,8 +217,8 @@ export function OrderTicketModule({ panel }: ModuleProps) {
             PREVIEW ONLY
           </span>
           <span className="text-2xs leading-relaxed text-term-text">
-            Midas builds and checks this order against the live book but never submits it — placement is disabled until
-            live trading is explicitly enabled on the server.
+            {trading.data?.reason ??
+              'Midas builds and checks this order against the live book but does not submit it.'}
           </span>
         </div>
       )}
@@ -364,7 +361,7 @@ export function OrderTicketModule({ panel }: ModuleProps) {
         </div>
       )}
 
-      {/* Placement — disabled unless live trading is enabled on the server. */}
+      {/* Placement remains disabled while the server execution hold is active. */}
       {!live ? (
         <button
           type="button"

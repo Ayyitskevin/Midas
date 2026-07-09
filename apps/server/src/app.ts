@@ -220,7 +220,8 @@ export async function buildApp(
       streamNudge: false,
       digest: { on: false, hours: null },
       equity: { on: false, intervalMs: null },
-      tradingEnabled: config.tradingEnabled,
+      // Legacy MIDAS_TRADING_ENABLED is not execution authority while held.
+      tradingEnabled: false,
       authEnabled: authDeps.enabled,
     }));
   app.get('/api/system', async () => systemInfo());

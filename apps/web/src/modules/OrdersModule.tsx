@@ -31,9 +31,8 @@ function fmtAge(ts: number | null): string {
 
 /**
  * ORD — read-only open (resting) orders on the connected exchange account.
- * Account-wide (ignores the panel symbol). When live trading is enabled on the
- * server, each row gains a two-step cancel (risk-reducing write, same gates as
- * placement); otherwise the panel stays purely read-only.
+ * Account-wide (ignores the panel symbol). The execution safety hold keeps this
+ * panel read-only; existing orders must be managed directly at the exchange.
  */
 export function OrdersModule(_props: ModuleProps) {
   const { data, error, loading, refresh } = useFetch((signal) => api.openOrders(signal), [], {
@@ -178,7 +177,7 @@ export function OrdersModule(_props: ModuleProps) {
             title={
               canCancel
                 ? 'Live trading is enabled — cancels execute on the exchange after a two-step confirm.'
-                : 'Midas is non-custodial and read-only — it never places or cancels orders unless you enable trading.'
+                : trading?.reason ?? 'Midas is non-custodial and read-only.'
             }
           >
             {canCancel ? 'non-custodial · cancel enabled' : 'non-custodial · read-only'}

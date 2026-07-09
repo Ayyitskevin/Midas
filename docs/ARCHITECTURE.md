@@ -103,33 +103,27 @@ Midas never presents synthetic, delayed, or unavailable data as if it were live:
 
 When you add a surface that shows data, label its provenance.
 
-## The trading write path (opt-in)
+## Execution safety boundary
 
-Everything above is reads. Exactly two writes exist — **place** and **cancel**
-(`ccxt.placeOrder` / `ccxt.cancelOrder`; never withdraw/transfer) — and both sit
-behind the same defense-in-depth stack, off by default:
+Everything above is read-only market, account, research, or paper state. The two
+legacy execution endpoints are registered as fail-closed compatibility routes:
 
 ```
 POST /api/orders            DELETE /api/orders/:id
       │                            │
       ▼                            ▼
-computeTradingStatus  ←  src/trading.ts (pure, unit-tested)
-  master switch (MIDAS_TRADING_ENABLED)
-  + live ccxt provider + trade keys
-  + auth on (or explicit no-auth override, which requires pinned CORS)
-      │
-      ▼
-validateOrderRequest → idempotency cache (clientOrderId) →
-per-order cap (MIDAS_MAX_ORDER_USD) → daily ledger (MIDAS_MAX_DAILY_USD)
-      │
-      ▼
-audit log + webhook notify → provider.placeOrder / cancelOrder
+503 TradingSafetyHold      503 TradingSafetyHold
 ```
 
-The gates live in `apps/server/src/trading.ts` as pure functions with injected
-clocks so every rule is unit-tested without an exchange. The UI mirrors the
-state honestly: a red **● LIVE TRADING** status-bar badge, a LIVE banner and
-two-step confirm in `TICKET`, and per-row cancel in `ORD` only when enabled.
+No request path from these endpoints resolves or invokes `provider.placeOrder`
+or `provider.cancelOrder`. `GET /api/trading/status` returns the same hold reason
+regardless of runtime flags or key metadata, and the UI remains in preview-only
+mode. Read-only open-order lookup remains available. Existing orders must be
+managed directly at the exchange.
+
+The legacy pure gate helpers remain in `apps/server/src/trading.ts` only as repair
+scaffolding. They are not execution authority. Re-enable criteria are documented
+in [EXECUTION_SAFETY_HOLD.md](./EXECUTION_SAFETY_HOLD.md).
 
 ## Adding an indicator/analytics board
 

@@ -193,12 +193,12 @@ describe('demo shim', () => {
     expect(passthrough).toHaveBeenCalledTimes(1); // only the non-API request
   });
 
-  it('refuses writes and unsupported surfaces with honest 501s', async () => {
+  it('refuses execution with the safety hold and unsupported surfaces with honest 501s', async () => {
     window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
     installDemoShim();
     const order = await fetch('/api/orders', { method: 'POST', body: '{}' });
-    expect(order.status).toBe(501);
-    expect((await order.json()).message).toMatch(/deploy your own/i);
+    expect(order.status).toBe(503);
+    expect((await order.json()).error).toBe('TradingSafetyHold');
     const keys = await fetch('/api/account/keys');
     expect(keys.status).toBe(501);
     const trading = await (await fetch('/api/trading/status')).json();

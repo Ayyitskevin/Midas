@@ -16,10 +16,10 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
 
 - **Your funds never touch Midas.** The terminal reads market data and (when you
   configure a provider) reads from your exchange — it does not custody assets.
-- **Read-only by default; trading is strictly opt-in.** Account access starts
-  read-only (balances/orders/positions), and live order placement is **off**
-  unless you deliberately enable it (see below). Midas never moves or withdraws
-  funds — the only write it can perform is placing an order you explicitly confirm.
+- **Execution is held.** Account access is read-only (balances, orders,
+  positions, and fills). Order placement and in-app cancellation return
+  `503 TradingSafetyHold` regardless of environment flags or key metadata.
+  Midas never moves, withdraws, or custodies funds.
 - **Bring-your-own data source.** With the default `mock` provider, nothing
   leaves your machine. Live providers (`ccxt`, `yahoo`) talk to public market
   endpoints; any exchange credentials you supply stay in your own deployment's
@@ -36,29 +36,19 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   write-only API (metadata comes back, secrets never), one-action delete,
   and strict isolation — a user-keyed client never inherits the operator's
   env keys, secondary venue or stream.
-- **Per-user trading follows one rule: your reads' account is your writes'
-  account.** A user with stored keys trades only through their own client,
-  only if they explicitly marked the key trade-permissioned (`canTrade`),
-  and only while every operator gate (master switch, ccxt provider, auth,
-  caps) still passes — with their **own** UTC-daily notional budget and
-  idempotency scope. If their stored keys can't be used, trading is OFF for
-  them; it never silently falls back to the operator's account. Users
-  without stored keys keep the single-account self-host behavior unchanged.
-  Every write is audited with the acting identity, and per-user background
-  loops (fill watcher, equity snapshots) only ever poll the user's own
-  client, bounded by `MIDAS_MAX_KEYED_USERS`.
+- **Per-user account reads are isolated.** A user with stored keys reads only
+  through their own client and never inherits the operator's secondary venue
+  or stream. Per-user background loops (fill watcher and equity snapshots)
+  only poll that user's client, bounded by `MIDAS_MAX_KEYED_USERS`.
 
 **For a step-by-step pre-exposure checklist, the full environment-variable
-security matrix, and the trading-gate stack, see
+security matrix, and the execution safety boundary, see
 [docs/SECURITY_HARDENING.md](docs/SECURITY_HARDENING.md).**
 
-The codebase enforces these as invariants (each has a CI test): money caps and
-every numeric env var **fail safe** on a bad value (never silently "uncapped");
-stored exchange keys are allowlisted to real ccxt ids; auth is timing-safe and
-cannot be used to enumerate usernames; secrets are AES-256-GCM at rest and never
-returned or logged; a raw exchange error is logged server-side but returned to
-the caller only as a bounded, class-only message; and every order place/cancel
-is audited with its outcome.
+The codebase enforces these as invariants (each has a CI test): the execution
+routes fail closed before provider access; stored exchange keys are allowlisted
+to real ccxt ids; auth is timing-safe and cannot be used to enumerate usernames;
+and secrets are AES-256-GCM at rest and never returned by the key API.
 
 If you operate a shared or internet-exposed instance, enable authentication, put
 it behind TLS, and treat any configured provider credentials as secrets. The
@@ -66,36 +56,26 @@ recommended checklist:
 
 1. `MIDAS_AUTH_ENABLED=true` and a fixed `MIDAS_AUTH_SECRET` (e.g.
    `openssl rand -hex 32` — `scripts/deploy.sh` generates one for you).
-2. Pin `MIDAS_CORS_ORIGIN` to your terminal's exact origin — required for the
-   no-auth trading override, sensible everywhere else.
+2. Pin `MIDAS_CORS_ORIGIN` to your terminal's exact origin.
 3. TLS in front (Caddy/nginx/Traefik); never expose the raw HTTP port.
-4. Read-only exchange keys unless you have deliberately enabled trading; keys
-   with withdrawal permission are never appropriate — Midas has no withdrawal
-   code path to use them, and their blast radius if leaked is total.
-5. Keep `MIDAS_MAX_ORDER_USD` / `MIDAS_MAX_DAILY_USD` at values you can afford
-   to lose to a bug — yours or an exchange's.
+4. Use read-only exchange keys. Withdrawal permission is never appropriate:
+   Midas has no withdrawal code path, and the blast radius if a key leaks is total.
 
-## Live trading (opt-in)
+## Execution safety hold
 
-Live order placement is gated by defense in depth and **off by default**. It
-activates only when all of these hold: `MIDAS_TRADING_ENABLED=true`, the `ccxt`
-provider with **trade-permissioned** API keys, and auth enabled (or an explicit
-`MIDAS_TRADING_ALLOW_NO_AUTH=true` override). Every order is validated and capped
-at `MIDAS_MAX_ORDER_USD` server-side before the single `createOrder` call.
+Live order placement is currently **NO-GO**. `POST /api/orders` and
+`DELETE /api/orders/:id` fail with `503 TradingSafetyHold` before resolving a
+provider mutation. `GET /api/trading/status` reports the same hold reason to the
+terminal, which keeps `TICKET` in preview-only mode and `ORD` read-only.
 
-Recommendations if you enable trading:
+No value of `MIDAS_TRADING_ENABLED`, `MIDAS_TRADING_ALLOW_NO_AUTH`, the notional
+cap variables, operator credentials, stored user credentials, or `canTrade`
+metadata bypasses the hold. Manage existing resting orders at the exchange.
 
-- Use API keys scoped to **trade only** — never enable withdrawal permission, and
-  IP-allowlist the keys at the exchange.
-- Keep `MIDAS_MAX_ORDER_USD` as low as your use allows; it is your blast-radius cap.
-- Require auth (`MIDAS_AUTH_ENABLED=true`) and TLS for any non-localhost instance;
-  do not use the no-auth override on a network-reachable host. The server **refuses
-  to enable no-auth trading while `MIDAS_CORS_ORIGIN=*`** (the default), since that
-  combination is a cross-site request-forgery vector — pin `MIDAS_CORS_ORIGIN` to
-  your terminal's exact origin, or just enable auth (bearer tokens are not sent
-  cross-site).
-- The master switch is your kill switch: set `MIDAS_TRADING_ENABLED=false` and
-  restart to disable placement instantly.
+The re-enable criteria are documented in
+[docs/EXECUTION_SAFETY_HOLD.md](docs/EXECUTION_SAFETY_HOLD.md). Until every item
+passes a security review and exchange-sandbox certification, the hold is the
+execution authority.
 
 ## Data honesty is a safety property
 

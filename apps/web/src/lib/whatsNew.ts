@@ -56,7 +56,7 @@ export const RELEASES: Release[] = [
     title: 'The execution release',
     highlights: [
       'Full non-custodial account suite: BAL / ORD / POSN / FILLS with honest live/demo labeling',
-      'Gated LIVE trading: two-step confirms, per-order + daily notional caps, idempotency, audit + webhook',
+      'Historical execution prototype (retired behind the current execution safety hold)',
       'Fill notifications: account watcher → terminal toasts + webhook, even for orders placed outside Midas',
       'TICKET tracks each placement live: open → partially filled → filled/canceled',
       'Trade Desk workspace template with click-to-price from the order book',

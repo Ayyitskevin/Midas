@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import type { OrderRequest, PlacedOrder } from '@midas/shared';
-import { computeTradingStatus, createScopedDailyLedgers, type TradingConfig } from '../trading';
+import {
+  computeTradingStatus,
+  createScopedDailyLedgers,
+  EXECUTION_SAFETY_HOLD_REASON,
+  type TradingConfig,
+} from '../trading';
 import { KeyRepo, type UserExchangeKeys } from './repo';
 import { createUserLoops, userEquityFileName } from './loops';
 import { buildApp } from '../app';
@@ -191,7 +196,7 @@ describe('per-user loops', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Route-level: the write path end to end
+// Route-level: execution safety hold
 // ---------------------------------------------------------------------------
 
 interface TradeStub {
@@ -200,7 +205,7 @@ interface TradeStub {
   placeOrder: ReturnType<typeof vi.fn>;
   cancelOrder: ReturnType<typeof vi.fn>;
   getQuote: ReturnType<typeof vi.fn>;
-  getOpenOrders: () => Promise<unknown>;
+  getOpenOrders: ReturnType<typeof vi.fn>;
 }
 
 const makeTradeStub = (name: string, tag: string): TradeStub => {
@@ -225,15 +230,18 @@ const makeTradeStub = (name: string, tag: string): TradeStub => {
     }),
     cancelOrder: vi.fn(async (id: string, symbol: string) => ({ id, symbol, status: 'canceled' })),
     getQuote: vi.fn(async () => ({ price: 100 })),
-    getOpenOrders: async () => ({ source: name, provenance: 'live', note: null, orders: [], asOf: 0 }),
+    getOpenOrders: vi.fn(async () => ({ source: name, provenance: 'live', note: null, orders: [], asOf: 0 })),
   };
 };
 
-describe('per-user trading routes', () => {
+describe('execution safety hold routes', () => {
   let app: FastifyInstance;
   let tokenA = '';
   let tokenB = '';
+  let tokenC = '';
   const stubs = new Map<string, TradeStub>(); // apiKey → stub
+  const operatorPlace = vi.fn();
+  const operatorCancel = vi.fn();
   const saved = {
     tradingEnabled: config.tradingEnabled,
     authEnabled: config.authEnabled,
@@ -243,9 +251,14 @@ describe('per-user trading routes', () => {
 
   beforeAll(async () => {
     process.env.LOG_LEVEL = 'silent';
-    // registerRoutes reads config at registration time — set the gates first.
-    Object.assign(config, { tradingEnabled: true, authEnabled: true, maxOrderUsd: 1000, maxDailyUsd: 150 });
-    app = await buildApp(createProvider('mock'), {
+    // Deliberately enable every legacy gate. The safety hold must still win.
+    Object.assign(config, { tradingEnabled: true, authEnabled: true, maxOrderUsd: 0, maxDailyUsd: 0 });
+    const operatorProvider = createProvider('mock');
+    Object.assign(operatorProvider, {
+      placeOrder: operatorPlace,
+      cancelOrder: operatorCancel,
+    });
+    app = await buildApp(operatorProvider, {
       auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
       keyRepo: new KeyRepo(KMS),
       userLoops: null, // loops exercised above; here we isolate the write path
@@ -261,6 +274,7 @@ describe('per-user trading routes', () => {
         .token as string;
     tokenA = await signup('alice');
     tokenB = await signup('bob');
+    tokenC = await signup('carol');
     const put = (token: string, apiKey: string, canTrade: boolean) =>
       app.inject({
         method: 'PUT',
@@ -272,6 +286,17 @@ describe('per-user trading routes', () => {
     await put(tokenB, 'bob-api-key', false);
   });
 
+  beforeEach(() => {
+    operatorPlace.mockClear();
+    operatorCancel.mockClear();
+    for (const stub of stubs.values()) {
+      stub.placeOrder.mockClear();
+      stub.cancelOrder.mockClear();
+      stub.getQuote.mockClear();
+      stub.getOpenOrders.mockClear();
+    }
+  });
+
   afterAll(async () => {
     Object.assign(config, saved);
     await app.close();
@@ -279,126 +304,114 @@ describe('per-user trading routes', () => {
 
   const asA = () => ({ authorization: `Bearer ${tokenA}` });
   const asB = () => ({ authorization: `Bearer ${tokenB}` });
+  const asC = () => ({ authorization: `Bearer ${tokenC}` });
   const order = (over: Partial<OrderRequest> = {}): OrderRequest =>
     ({ symbol: 'BTC/USDT', side: 'buy', type: 'limit', amount: 1, price: 100, ...over }) as OrderRequest;
 
-  it('status is per-user: trade-marked keys enable, unmarked keys refuse with the reason', async () => {
+  const expectHeld = (res: { statusCode: number; json(): Record<string, unknown> }) => {
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({
+      error: 'TradingSafetyHold',
+      message: EXECUTION_SAFETY_HOLD_REASON,
+      statusCode: 503,
+    });
+  };
+
+  it('reports preview-only for trade-marked, unmarked, and operator-backed users', async () => {
     const a = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asA() })).json();
-    expect(a.enabled).toBe(true);
-    expect(a.source).toBe('ccxt:kraken');
+    expect(a.enabled).toBe(false);
+    expect(a.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
+    expect(a.source).toBe('mock');
+
     const b = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asB() })).json();
     expect(b.enabled).toBe(false);
-    expect(b.reason).toMatch(/not marked trade-permissioned/);
+    expect(b.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
+
+    const c = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asC() })).json();
+    expect(c.enabled).toBe(false);
+    expect(c.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
+
+    const system = (await app.inject({ method: 'GET', url: '/api/system', headers: asC() })).json();
+    expect(system.tradingEnabled).toBe(false);
   });
 
-  it("a keyed user's order is placed through THEIR client — and only theirs", async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: order() });
-    expect(res.statusCode).toBe(200);
-    expect(res.json().id).toMatch(/^alice-api-key-ord-/); // HER client, not bob's or the base
-    expect(stubs.get('alice-api-key')!.placeOrder).toHaveBeenCalledTimes(1);
-    expect(stubs.get('bob-api-key')!.placeOrder).not.toHaveBeenCalled();
+  it('rejects all placements before validation, pricing, or provider access', async () => {
+    await app.inject({ method: 'GET', url: '/api/orders', headers: asA() });
+    const attempts = await Promise.all([
+      app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: order() }),
+      app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: order({ symbol: 'ETH/BTC' }) }),
+      app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: { nope: true } }),
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: asA(),
+        payload: order({ clientOrderId: 'same-request' }),
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/orders',
+        headers: asA(),
+        payload: order({ clientOrderId: 'same-request' }),
+      }),
+    ]);
+    attempts.forEach(expectHeld);
+    expect(stubs.get('alice-api-key')!.placeOrder).not.toHaveBeenCalled();
+    expect(stubs.get('alice-api-key')!.getQuote).not.toHaveBeenCalled();
   });
 
-  it('a keyed user without canTrade gets 403 and no exchange call', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/orders', headers: asB(), payload: order() });
-    expect(res.statusCode).toBe(403);
-    expect(res.json().message).toMatch(/not marked trade-permissioned/);
-    expect(stubs.get('bob-api-key')!.placeOrder).not.toHaveBeenCalled();
+  it('cannot be bypassed by user key metadata or operator-backed credentials', async () => {
+    await app.inject({ method: 'GET', url: '/api/orders', headers: asB() });
+    const bobStub = stubs.get('bob-api-key');
+    expect(bobStub).toBeDefined();
+    const userAttempt = await app.inject({ method: 'POST', url: '/api/orders', headers: asB(), payload: order() });
+    const operatorAttempt = await app.inject({ method: 'POST', url: '/api/orders', headers: asC(), payload: order() });
+    expectHeld(userAttempt);
+    expectHeld(operatorAttempt);
+    expect(operatorPlace).not.toHaveBeenCalled();
+    expect(bobStub!.placeOrder).not.toHaveBeenCalled();
   });
 
-  it('daily budgets are per user: one user maxing out does not spend another’s day', async () => {
-    // Alice already spent $100 of her $150 day above — the next $100 is refused.
-    const second = await app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: order() });
-    expect(second.statusCode).toBe(400);
-    expect(second.json().message).toMatch(/daily cap/);
-    // Bob (given trade keys now) still has a fresh budget of his own.
-    await app.inject({
-      method: 'PUT',
-      url: '/api/account/keys',
-      headers: asB(),
-      payload: { exchange: 'kraken', apiKey: 'bob-api-key-2', secret: 'sss', canTrade: true },
+  it('remains held when authentication is disabled', async () => {
+    const noAuthPlace = vi.fn();
+    const noAuthCancel = vi.fn();
+    const noAuthProvider = createProvider('mock');
+    Object.assign(noAuthProvider, { placeOrder: noAuthPlace, cancelOrder: noAuthCancel });
+    const noAuthApp = await buildApp(noAuthProvider, {
+      auth: { enabled: false, allowSignup: false, secret: 'unused-test-secret' },
+      userLoops: null,
     });
-    const bob = await app.inject({ method: 'POST', url: '/api/orders', headers: asB(), payload: order() });
-    expect(bob.statusCode).toBe(200);
-    expect(stubs.get('bob-api-key-2')!.placeOrder).toHaveBeenCalledTimes(1);
+    await noAuthApp.ready();
+    try {
+      const placed = await noAuthApp.inject({ method: 'POST', url: '/api/orders', payload: order() });
+      const canceled = await noAuthApp.inject({ method: 'DELETE', url: '/api/orders/some-order?symbol=BTC/USDT' });
+      expectHeld(placed);
+      expectHeld(canceled);
+      expect(noAuthPlace).not.toHaveBeenCalled();
+      expect(noAuthCancel).not.toHaveBeenCalled();
+    } finally {
+      await noAuthApp.close();
+    }
   });
 
-  it('idempotency is scoped per user: the same clientOrderId never crosses accounts', async () => {
-    const tiny = order({ amount: 0.1, clientOrderId: 'shared-client-id' }); // $10 — fits both budgets
-    const a1 = await app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: tiny });
-    expect(a1.statusCode).toBe(200);
-    const aCalls = stubs.get('alice-api-key')!.placeOrder.mock.calls.length;
-    // Alice retries: answered from her cache, no second exchange call.
-    const a2 = await app.inject({ method: 'POST', url: '/api/orders', headers: asA(), payload: tiny });
-    expect(a2.json().id).toBe(a1.json().id);
-    expect(stubs.get('alice-api-key')!.placeOrder.mock.calls.length).toBe(aCalls);
-    // Bob uses the SAME clientOrderId: his own order is placed, not Alice's ack.
-    const b1 = await app.inject({ method: 'POST', url: '/api/orders', headers: asB(), payload: tiny });
-    expect(b1.statusCode).toBe(200);
-    expect(b1.json().id).toMatch(/^bob-api-key-2-ord-/); // his own placement, not Alice's cached ack
-  });
-
-  it('cancel routes through the same per-user client', async () => {
-    const res = await app.inject({
+  it('rejects in-app cancellation before provider access', async () => {
+    await app.inject({ method: 'GET', url: '/api/orders', headers: asA() });
+    const withSymbol = await app.inject({
       method: 'DELETE',
       url: '/api/orders/some-order?symbol=BTC/USDT',
       headers: asA(),
     });
+    const withoutSymbol = await app.inject({ method: 'DELETE', url: '/api/orders/some-order', headers: asA() });
+    expectHeld(withSymbol);
+    expectHeld(withoutSymbol);
+    expect(stubs.get('alice-api-key')!.cancelOrder).not.toHaveBeenCalled();
+    expect(operatorCancel).not.toHaveBeenCalled();
+  });
+
+  it('preserves read-only account access while execution is held', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/orders', headers: asA() });
     expect(res.statusCode).toBe(200);
-    expect(stubs.get('alice-api-key')!.cancelOrder).toHaveBeenCalledWith('some-order', 'BTC/USDT');
-  });
-
-  it('a raw exchange error is never reflected to the caller — bounded 502, full detail server-side only', async () => {
-    // Fresh signup so this user has an untouched daily budget and their OWN
-    // stub (the factory rebuilds one per stored key, keyed by apiKey).
-    const tokenD = (
-      await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'dave', password: 'correct-horse' } })
-    ).json().token as string;
-    await app.inject({
-      method: 'PUT',
-      url: '/api/account/keys',
-      headers: { authorization: `Bearer ${tokenD}` },
-      payload: { exchange: 'kraken', apiKey: 'dave-api-key', secret: 'sss', canTrade: true },
-    });
-    // Resolve the provider once (status read) so the factory has built dave's
-    // stub — loops are off in this suite, so construction is otherwise lazy.
-    await app.inject({ method: 'GET', url: '/api/trading/status', headers: { authorization: `Bearer ${tokenD}` } });
-    // Make THIS user's exchange client throw an error whose message carries
-    // request internals (as some ccxt auth errors do).
-    stubs
-      .get('dave-api-key')!
-      .placeOrder.mockRejectedValueOnce(
-        Object.assign(
-          new Error('invalid signature for apiKey=dave-api-key secret=sss https://api.kraken.com/0/private/AddOrder'),
-          { name: 'AuthenticationError' },
-        ),
-      );
-
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/orders',
-      headers: { authorization: `Bearer ${tokenD}` },
-      payload: order({ amount: 0.1 }),
-    });
-    expect(res.statusCode).toBe(502);
-    const body = res.body;
-    // The bounded message names only the error CLASS, never the raw text.
-    expect(res.json().message).toBe('The exchange rejected the request (AuthenticationError).');
-    expect(body).not.toContain('secret=sss');
-    expect(body).not.toContain('api.kraken.com');
-    expect(body).not.toContain('apiKey=');
-  });
-
-  it('anonymous/operator path still requires operator env keys (self-host unchanged)', async () => {
-    // No auth header → the guard rejects; with auth but no stored keys the
-    // operator gates answer. Simplest honest check: an authed user who
-    // DELETEs their keys drops back to the operator path.
-    const tokenC = (
-      await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'carol', password: 'correct-horse' } })
-    ).json().token as string;
-    const s = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: { authorization: `Bearer ${tokenC}` } })).json();
-    expect(s.enabled).toBe(false);
-    expect(s.reason).toMatch(/ccxt provider/); // mock base provider → operator gate reasons
+    expect(res.json()).toMatchObject({ source: 'ccxt:kraken', provenance: 'live', orders: [] });
+    expect(stubs.get('alice-api-key')!.getOpenOrders).toHaveBeenCalledTimes(1);
   });
 });
 

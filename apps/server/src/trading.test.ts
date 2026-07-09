@@ -4,6 +4,8 @@ import {
   computeTradingStatus,
   createDailyLedger,
   createIdempotencyCache,
+  executionSafetyHoldStatus,
+  EXECUTION_SAFETY_HOLD_REASON,
   validateOrderRequest,
   estimateNotionalUsd,
   mapPlacedOrder,
@@ -22,6 +24,21 @@ const onCfg: TradingConfig = {
   authEnabled: true,
   corsOrigin: '*',
 };
+
+describe('execution safety hold', () => {
+  it('cannot be enabled by runtime trading configuration', () => {
+    const status = executionSafetyHoldStatus('ccxt:binance');
+    expect(status).toEqual({
+      enabled: false,
+      reason: EXECUTION_SAFETY_HOLD_REASON,
+      maxOrderUsd: null,
+      dailyCapUsd: null,
+      dailyUsedUsd: 0,
+      source: 'ccxt:binance',
+    });
+    expect(status.reason).toMatch(/directly at the exchange/);
+  });
+});
 
 describe('computeTradingStatus — defense in depth', () => {
   it('is enabled only when every gate passes', () => {

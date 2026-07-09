@@ -53,6 +53,16 @@ const unavailable = (what: string): Response =>
     501,
   );
 
+const executionHeld = (): Response =>
+  json(
+    {
+      error: 'TradingSafetyHold',
+      message: 'Execution safety hold: order placement and in-app cancellation are disabled. Order preview remains available.',
+      statusCode: 503,
+    },
+    503,
+  );
+
 const notFound = (symbol: string): Response =>
   json({ error: 'NotFound', message: `Unknown demo symbol ${symbol} — try BTC/USDT, ETH/USDT, SOL/USDT…`, statusCode: 404 }, 404);
 
@@ -63,7 +73,7 @@ function handle(method: string, url: URL): Response | null {
 
   if (method !== 'GET') {
     if (path.startsWith('/api/alerts')) return unavailable('The server-side alert engine');
-    if (path.startsWith('/api/orders')) return unavailable('Live trading');
+    if (path.startsWith('/api/orders')) return executionHeld();
     if (path.startsWith('/api/auth')) return unavailable('Accounts');
     if (path.startsWith('/api/account/keys')) return unavailable('Per-user exchange keys');
     return unavailable('This action');
@@ -174,7 +184,7 @@ function handle(method: string, url: URL): Response | null {
     case path === '/api/trading/status': {
       const body: TradingStatus = {
         enabled: false,
-        reason: 'This is the public static demo — trading is impossible here by construction. Deploy your own Midas to enable the (opt-in, capped, audited) trading gates.',
+        reason: 'This is the public static demo. Midas execution is under a server safety hold; order preview remains available.',
         maxOrderUsd: null,
         dailyCapUsd: null,
         dailyUsedUsd: 0,

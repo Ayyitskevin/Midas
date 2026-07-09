@@ -650,7 +650,7 @@ export const COMMANDS: CommandDef[] = [
     module: 'KEYS',
     requiresSymbol: false,
     description:
-      'Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, BAL/ORD/POSN/FILLS read YOUR account; a key saved with \'can trade\' may place orders on YOUR account behind every operator trading gate. Needs login; the operator enables the store with MIDAS_KEYS_KMS_SECRET. Never use withdrawal-permissioned keys.',
+      'Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, BAL/ORD/POSN/FILLS read YOUR account. Execution remains under a server safety hold regardless of canTrade metadata. Needs login; the operator enables the store with MIDAS_KEYS_KMS_SECRET. Use read-only keys and never enable withdrawal permission.',
   },
   {
     code: 'START',
@@ -695,7 +695,7 @@ export const COMMANDS: CommandDef[] = [
     module: 'TICKET',
     requiresSymbol: true,
     description:
-      'Order ticket — build & validate a market/limit order and preview its execution against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Previews by default and never submits — placement is OFF unless the operator explicitly enables live trading on the server (MIDAS_TRADING_ENABLED + trade keys + auth). When live, the panel shows a red LIVE banner and requires a two-step confirm; every order is validated and notional-capped (MIDAS_MAX_ORDER_USD) server-side.',
+      'Order ticket — build and validate a market/limit order and preview it against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Preview only: the server execution safety hold rejects placement and in-app cancellation regardless of environment flags or key metadata.',
   },
   {
     code: 'RHEAT',

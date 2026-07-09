@@ -17,10 +17,10 @@ own box for free, forever.
   provider works offline; flip `MIDAS_DATA_PROVIDER=ccxt` for live markets.
 - **Every configuration flag** — the [README environment reference](https://github.com/Ayyitskevin/Midas#configuration)
   is the single source of truth for env vars (provider, auth, alerts,
-  account keys, trading gates, caps, demo mode).
+  account keys, execution hold, and demo mode).
 - **Security model** — [SECURITY.md](https://github.com/Ayyitskevin/Midas/blob/main/SECURITY.md):
-  non-custodial by design, read-only by default, trading strictly opt-in
-  behind defense in depth, per-user keys encrypted at rest.
+  non-custodial by design, read-only account access, execution held fail-closed,
+  and per-user keys encrypted at rest.
 
 ## Guides in this site
 
@@ -29,6 +29,8 @@ own box for free, forever.
   invite email.
 - **[Architecture](ARCHITECTURE.md)** — the monorepo, the provider seam,
   the data-honesty rules, and how a panel comes to exist.
+- **[Execution safety hold](EXECUTION_SAFETY_HOLD.md)** — current posture,
+  root causes, and the complete re-enable gate.
 - **[Per-user keys design](HOSTED_KEYS_DESIGN.md)** — the multi-tenant key
   model: encrypted storage, provider pool, the reads-account = writes-account
   rule, per-user loops.
@@ -39,7 +41,7 @@ own box for free, forever.
 1. **Data honesty.** Synthetic, delayed or unavailable data is always labeled;
    a gap is truthful, a made-up point is a bug.
 2. **Non-custodial.** Midas never holds funds and has no withdrawal code path.
-   Reads by default; the only writes are placing/canceling an order you
-   explicitly enabled, capped and audited.
+   Account access is read-only; placement and in-app cancellation fail closed
+   under the execution safety hold.
 3. **Self-hosting stays free.** The hosted tier (waitlist) pays for the
    convenience, not the software.

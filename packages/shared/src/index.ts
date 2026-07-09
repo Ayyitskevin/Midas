@@ -752,10 +752,8 @@ export interface CancelResult {
 }
 
 /**
- * A request to place a live order. Live trading is strictly opt-in and off by
- * default — see {@link TradingStatus}. Midas only places an order when the
- * operator has explicitly enabled trading and provisioned trade-permissioned
- * keys; every order is gated, validated and notional-capped server-side.
+ * A legacy order-placement request retained for client compatibility while the
+ * server execution safety hold is active. See {@link TradingStatus}.
  */
 export interface OrderRequest {
   symbol: string;
@@ -785,9 +783,9 @@ export interface PlacedOrder {
 }
 
 /**
- * Whether live order placement is currently enabled, plus the reason and limits —
- * so the UI can stay honest about LIVE vs preview mode and never imply an order
- * can be placed when it can't (or vice versa).
+ * Execution posture plus the reason and limits, so the UI can stay honest about
+ * live versus preview-only mode. The current server always reports the execution
+ * safety hold.
  */
 export interface TradingStatus {
   enabled: boolean;
@@ -797,9 +795,9 @@ export interface TradingStatus {
   maxOrderUsd: number | null;
   /** Cumulative UTC-day USD notional cap, or null if uncapped. */
   dailyCapUsd: number | null;
-  /** Notional already placed today (UTC), USD. Resets on server restart. */
+  /** Notional already placed today (UTC), USD. Zero while execution is held. */
   dailyUsedUsd: number;
-  /** The source that would receive orders, e.g. 'ccxt:binance'. */
+  /** The active account-data source, e.g. 'ccxt:binance'. */
   source: string;
 }
 
@@ -854,6 +852,7 @@ export interface SystemStatus {
   streamNudge: boolean;
   digest: { on: boolean; hours: number | null };
   equity: { on: boolean; intervalMs: number | null };
+  /** Legacy field; false while the execution safety hold is authoritative. */
   tradingEnabled: boolean;
   authEnabled: boolean;
 }
