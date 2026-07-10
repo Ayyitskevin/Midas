@@ -228,10 +228,14 @@ function startMockTicker(
 
 // The /api/stream endpoint is public even with auth on (browsers cannot set
 // WS auth headers), so its input handling is the server's most exposed edge:
-// everything below is bounded before it can allocate anything.
+// everything below is bounded before it can allocate anything. The frame size
+// is capped twice — once here (a belt-and-suspenders re-check) and, crucially,
+// at the ws protocol layer via the plugin's `maxPayload` (app.ts), so an
+// oversized frame is rejected before ws buffers it into the heap.
 const STREAM_CHANNELS = new Set(['trades', 'orderbook', 'ticker']);
 const STREAM_SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
-const MAX_STREAM_FRAME_BYTES = 512; // a real subscribe message is ~70 bytes
+/** Max bytes for one client frame — enforced at the ws layer (maxPayload) AND here. */
+export const MAX_STREAM_FRAME_BYTES = 512; // a real subscribe message is ~70 bytes
 const MAX_SUBS_PER_SOCKET = 60; // a 20-panel desk × 3 channels still fits
 
 export interface StreamRequest {
