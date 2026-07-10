@@ -100,12 +100,12 @@ export function startEquityLoop(
 }
 
 /**
- * Resolves whose equity series a request sees. `keyed` is true when the user
- * has stored their own exchange keys — a keyed user only ever sees THEIR
- * series (or an honest "not running"), never the operator's.
+ * Resolves an authenticated caller's isolated equity series whenever the
+ * per-user key store is enabled. `configured` distinguishes a missing key from
+ * a loop that is off; neither case may fall back to the operator's curve.
  */
 export type UserEquityResolver = (userId: string) => {
-  keyed: boolean;
+  configured: boolean;
   repo: EquityRepo | null;
 };
 
@@ -117,15 +117,17 @@ export function registerEquityRoute(
 ): void {
   app.get('/api/account/equity', async (req): Promise<AccountEquityResponse> => {
     const ue = req.userId && userEquity ? userEquity(req.userId) : null;
-    if (ue?.keyed) {
-      // Isolation: a keyed user's curve is their own snapshots or honestly
-      // off — the operator's account curve is never shown to them.
+    if (ue) {
+      // Isolation: a tenant's curve is their own snapshots or honestly off —
+      // the operator's account curve is never shown to them.
       if (!ue.repo) {
         return {
           watching: false,
-          note:
-            'Per-user equity snapshots are not running for your keys — they need MIDAS_EQUITY_SNAP_MS > 0 ' +
-            'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).',
+          note: ue.configured
+            ? 'Per-user equity snapshots are not running for your keys — they need MIDAS_EQUITY_SNAP_MS > 0 ' +
+              'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).'
+            : 'No per-user exchange key is configured. Save read-only credentials in KEYS to build an equity curve. ' +
+              'Operator account equity is never used as a fallback.',
           points: [],
         };
       }

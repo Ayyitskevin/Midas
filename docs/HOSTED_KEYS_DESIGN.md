@@ -22,8 +22,9 @@ exchange account, on shared infrastructure).
    login; no user can ever read another's keys or data.
 2. Keys are encrypted at rest, never returned by any API after write, never
    logged, and deletable in one action.
-3. The self-hosted env-key model keeps working unchanged — per-user keys are
-   an additive layer, not a migration.
+3. The self-hosted env-key model keeps working unchanged while the per-user
+   key store is off. Enabling the store establishes a strict tenant boundary:
+   authenticated users must supply their own usable keys.
 4. The non-custodial invariants survive verbatim: reads by default, exactly
    two write methods, every trading gate re-checked per user.
 
@@ -50,8 +51,11 @@ exchange account, on shared infrastructure).
 
 - Today: one `CcxtProvider` per process. After: a `ProviderPool` keyed by
   userId — `poolFor(userId)` returns (and caches, LRU ~50 with idle
-  eviction) a per-user authenticated exchange client; the env-keyed client
-  remains the `@local` default so self-host behavior is unchanged.
+  eviction) a per-user authenticated exchange client. The env-keyed client
+  remains the default only while the per-user store is disabled (normal
+  self-hosting). With the store enabled, a missing, undecryptable, or invalid
+  user key—or a missing authenticated identity—returns unavailable and never
+  falls back to the operator account.
 - Account routes (`/api/balances`, orders, positions, fills, equity,
   events) resolve their provider through the pool using `req.userId`.
 - Background loops (watcher, equity) become per-user loop sets, started on
@@ -70,12 +74,11 @@ exchange account, on shared infrastructure).
   All existing gates and caps remain; the daily ledger and clientOrderId
   idempotency cache are scoped per trading identity ('@local' for the
   operator, the userId for keyed users).
-- **The account rule** (the security core, enforced in `resolveTrading` +
-  `ProviderPool.userFor`): whichever account a user's reads resolve to is
-  the only account their writes may touch. A user WITH stored keys trades
-  through their own client or not at all — undecryptable keys hard-disable
-  trading for them rather than silently falling back to the operator's
-  account. Users WITHOUT stored keys keep the self-host behavior verbatim.
+- **The account rule** (the security core, enforced by `ProviderPool`): when
+  the per-user store is enabled, authenticated reads and any future writes use
+  the caller's own client or remain unavailable. Missing or undecryptable keys
+  never redirect account access to the operator. The execution details below
+  are historical; the current HTTP mutation boundary remains held.
 - Cap-check reference quotes come from the same client that will trade, so
   notional caps are priced on the venue the order lands on. Audit logs and
   the operator webhook tag user-keyed writes with the userId (never key

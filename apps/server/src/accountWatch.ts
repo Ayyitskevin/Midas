@@ -235,21 +235,21 @@ export function startAccountWatch(deps: AccountWatchDeps & { intervalMs: number 
 }
 
 /**
- * Resolves whose event feed a request sees. `keyed` is true when the user has
- * stored their own exchange keys — a keyed user only ever sees THEIR feed (or
- * an honest "not running"), never the operator's.
+ * Resolves an authenticated caller's isolated event feed whenever the per-user
+ * key store is enabled. `configured` distinguishes a missing key from a loop
+ * that is off; neither case may fall back to the operator's feed.
  */
 export type UserFeedResolver = (userId: string) => {
-  keyed: boolean;
+  configured: boolean;
   watch: AccountWatchHandle | null;
 };
 
 /**
  * GET /api/account/events?since= — the feed the web client polls for toasts.
  * Registered even when the watcher is off so the response can say so honestly.
- * Auth-guarded like every other /api route when auth is enabled. Users with
- * stored keys resolve to their own per-user watcher; everyone else sees the
- * operator's (self-host behavior unchanged).
+ * Auth-guarded like every other /api route when auth is enabled. When a
+ * per-user resolver exists, every authenticated caller is isolated from the
+ * operator feed, including callers who have not configured keys yet.
  */
 export function registerAccountEventsRoute(
   app: FastifyInstance,
@@ -263,17 +263,19 @@ export function registerAccountEventsRoute(
       const since = Number.isFinite(sinceRaw) && sinceRaw > 0 ? Math.floor(sinceRaw) : 0;
 
       const uf = req.userId && userFeed ? userFeed(req.userId) : null;
-      if (uf?.keyed) {
-        // Isolation: a keyed user's feed is their watcher or honestly off —
-        // the operator's feed is never shown to them.
+      if (uf) {
+        // Isolation: a tenant's feed is their watcher or honestly off — the
+        // operator's feed is never shown to them.
         if (!uf.watch) {
           return {
             watching: false,
             latestId: 0,
             events: [],
-            note:
-              'Per-user account watcher is not running for your keys — it needs MIDAS_ACCOUNT_WATCH_MS > 0 ' +
-              'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).',
+            note: uf.configured
+              ? 'Per-user account watcher is not running for your keys — it needs MIDAS_ACCOUNT_WATCH_MS > 0 ' +
+                'and a free slot under MIDAS_MAX_KEYED_USERS (ask the operator).'
+              : 'No per-user exchange key is configured. Save read-only credentials in KEYS to enable account events. ' +
+                'Operator account events are never used as a fallback.',
           };
         }
         return { watching: true, latestId: uf.watch.latestId(), events: uf.watch.eventsSince(since), note: null };

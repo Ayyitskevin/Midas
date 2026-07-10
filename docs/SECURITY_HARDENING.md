@@ -35,6 +35,9 @@ Before a Midas box is reachable by anyone but you:
 7. **Per-user keys need their own secret.** If you enable `MIDAS_KEYS_KMS_SECRET`
    (hosted multi-user), generate it the same way (`openssl rand -hex 32`) and
    back it up — losing it makes every stored key undecryptable (fail-closed).
+   Enabling this store also disables operator-account fallback for authenticated
+   account reads; each user must save their own key. The server refuses to start
+   the per-user store unless `MIDAS_AUTH_ENABLED=true`.
 
 ## Environment-variable security matrix
 
@@ -51,7 +54,7 @@ Before a Midas box is reachable by anyone but you:
 | `MIDAS_MAX_ORDER_USD` | `1000` | Legacy repair target; not an active execution control. |
 | `MIDAS_MAX_DAILY_USD` | `5000` | Legacy repair target; not an active execution control. |
 | `MIDAS_CCXT_API_KEY` / `_SECRET` | empty | Operator account-read keys. Use read-only scope, never withdrawal. |
-| `MIDAS_KEYS_KMS_SECRET` | empty | Enables per-user keys, AES-256-GCM at rest. Back it up; loss = fail-closed. |
+| `MIDAS_KEYS_KMS_SECRET` | empty | Enables strictly isolated per-user keys, AES-256-GCM at rest. Authenticated users without a usable key get unavailable account data, never operator fallback. Back it up; loss = fail-closed. |
 | `MIDAS_MAX_KEYED_USERS` | `25` | Bounds per-user background loops. |
 | `ANTHROPIC_API_KEY` | empty | AI copilot key. Requests are bounded (12 messages, 32k chars). |
 

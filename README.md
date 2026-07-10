@@ -501,7 +501,7 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
-| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Account panels then read *their* account. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold. Needs `MIDAS_AUTH_ENABLED=true`. |
+| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Once enabled, account reads require each user's own usable key and never fall back to operator env credentials. The server refuses this mode unless `MIDAS_AUTH_ENABLED=true`. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold. |
 | `MIDAS_MAX_KEYED_USERS` | `25`      | Keyed users allowed to run per-user background loops (fill watcher + equity snapshots). Beyond the cap, reads still work per-request; the events/equity panels say loops are off. |
 | `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
 | `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data and closes signups. Execution is already held globally. |

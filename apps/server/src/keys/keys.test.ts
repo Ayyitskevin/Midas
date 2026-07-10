@@ -66,7 +66,7 @@ describe('provider pool', () => {
   repo.set('alice', { exchange: 'binance', apiKey: 'aaaa', secret: 's', canTrade: false }, 0);
   repo.set('bob', { exchange: 'kraken', apiKey: 'bbbb', secret: 's', canTrade: false }, 0);
 
-  it('resolves per user with caching and strict isolation, base for everyone else', () => {
+  it('resolves per user with caching and never serves the base account to an unkeyed tenant', () => {
     let built = 0;
     const pool = createProviderPool({
       base,
@@ -76,21 +76,21 @@ describe('provider pool', () => {
         return { name: `user:${k.exchange}` } as unknown as DataProvider;
       },
     });
-    expect(pool.for(undefined)).toBe(base);
-    expect(pool.for('nobody')).toBe(base);
-    const a1 = pool.for('alice');
-    const a2 = pool.for('alice');
-    const b = pool.for('bob');
-    expect(a1.name).toBe('user:binance');
-    expect(b.name).toBe('user:kraken');
+    expect(pool.accountFor(undefined)).toBeNull();
+    expect(pool.accountFor('nobody')).toBeNull();
+    const a1 = pool.accountFor('alice');
+    const a2 = pool.accountFor('alice');
+    const b = pool.accountFor('bob');
+    expect(a1?.name).toBe('user:binance');
+    expect(b?.name).toBe('user:kraken');
     expect(a1).toBe(a2); // cached
     expect(built).toBe(2);
     pool.invalidate('alice');
-    pool.for('alice');
+    pool.accountFor('alice');
     expect(built).toBe(3); // rebuilt after key change
   });
 
-  it('falls back to base when the factory cannot construct (bad exchange id)', () => {
+  it('fails closed when the user provider cannot be constructed', () => {
     const pool = createProviderPool({
       base,
       repo,
@@ -98,7 +98,19 @@ describe('provider pool', () => {
         throw new Error('unknown exchange');
       },
     });
-    expect(pool.for('alice')).toBe(base);
+    expect(pool.accountFor('alice')).toBeNull();
+  });
+
+  it('keeps the self-hosted base provider when the per-user key store is off', () => {
+    const pool = createProviderPool({
+      base,
+      repo: null,
+      factory: () => {
+        throw new Error('not reached');
+      },
+    });
+    expect(pool.accountFor(undefined)).toBe(base);
+    expect(pool.accountFor('self-host-user')).toBe(base);
   });
 });
 
@@ -209,5 +221,14 @@ describe('key routes', () => {
     expect(res.statusCode).toBe(501);
     expect(res.json().message).toMatch(/MIDAS_KEYS_KMS_SECRET/);
     await off.close();
+  });
+
+  it('refuses to enable the per-user key store without authentication', async () => {
+    await expect(
+      buildApp(createProvider('mock'), {
+        auth: { enabled: false, allowSignup: false, secret: 'unused-test-secret' },
+        keyRepo: new KeyRepo(KMS),
+      }),
+    ).rejects.toThrow(/require authentication/i);
   });
 });

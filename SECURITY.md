@@ -38,8 +38,13 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   env keys, secondary venue or stream.
 - **Per-user account reads are isolated.** A user with stored keys reads only
   through their own client and never inherits the operator's secondary venue
-  or stream. Per-user background loops (fill watcher and equity snapshots)
-  only poll that user's client, bounded by `MIDAS_MAX_KEYED_USERS`.
+  or stream. When the per-user key store is enabled, a user without usable
+  stored keys gets an honest unavailable response — never the operator's env-
+  keyed account, event feed, or equity curve. A missing identity also fails
+  closed, and the server refuses to enable the key store while auth is off.
+  Per-user background loops (fill
+  watcher and equity snapshots) only poll that user's client, bounded by
+  `MIDAS_MAX_KEYED_USERS`.
 
 **For a step-by-step pre-exposure checklist, the full environment-variable
 security matrix, and the execution safety boundary, see
