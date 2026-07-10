@@ -136,14 +136,20 @@ export async function buildApp(
   registerAuthRoutes(app, authDeps);
 
   // Per-user exchange keys (hosted-tier): encrypted store + a provider pool
-  // that resolves account reads — and, with stored trade-marked keys, the
-  // trading write path — to the requesting user's own exchange client.
+  // that resolves authenticated account reads only to the requesting user's
+  // own exchange client. No usable user key means honestly unavailable —
+  // never an operator-account fallback.
   const keyRepo =
     opts.keyRepo !== undefined
       ? opts.keyRepo
       : config.keysKmsSecret
         ? new KeyRepo(config.keysKmsSecret)
         : null;
+  if (keyRepo && !authDeps.enabled) {
+    throw new Error(
+      'Per-user exchange keys require authentication. Set MIDAS_AUTH_ENABLED=true or remove MIDAS_KEYS_KMS_SECRET.',
+    );
+  }
   const pool = createProviderPool({
     base: provider,
     repo: keyRepo,
@@ -194,14 +200,14 @@ export async function buildApp(
     app,
     opts.accountWatch ?? null,
     keyRepo
-      ? (userId) => ({ keyed: keyedFor(userId), watch: userLoops?.watcherFor(userId) ?? null })
+      ? (userId) => ({ configured: keyedFor(userId), watch: userLoops?.watcherFor(userId) ?? null })
       : undefined,
   );
   registerEquityRoute(
     app,
     opts.accountEquity ?? null,
     keyRepo
-      ? (userId) => ({ keyed: keyedFor(userId), repo: userLoops?.equityRepoFor(userId) ?? null })
+      ? (userId) => ({ configured: keyedFor(userId), repo: userLoops?.equityRepoFor(userId) ?? null })
       : undefined,
   );
 

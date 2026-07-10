@@ -2,22 +2,24 @@ import type { DataProvider } from '../providers';
 import type { KeyRepo, UserExchangeKeys } from './repo';
 
 /**
- * Per-user provider resolution (HOSTED_KEYS_DESIGN.md, PR 2–3). Anonymous
- * callers and users without stored keys get the base (operator env-keyed)
- * provider — self-host behavior unchanged. Users with stored keys get a
- * cached provider built from THEIR credentials, isolated from the operator's
- * env (no secondary venue, no stream).
+ * Per-user provider resolution (HOSTED_KEYS_DESIGN.md, PR 2–3). Without a
+ * per-user key store, account reads keep the self-hosted base-provider model.
+ * Once the store is enabled, account reads use the authenticated caller's own
+ * cached provider or return unavailable. A missing user identity also fails
+ * closed, so an auth misconfiguration cannot expose the operator's env-keyed
+ * account.
  *
  * Two accessors with different fallback rules:
- * - {@link ProviderPool.for} (reads): falls back to base, so a read never
- *   500s just because a user's stored keys are broken.
+ * - {@link ProviderPool.accountFor} (reads): returns the base only when the
+ *   per-user store is off; otherwise it returns the caller's provider or null.
  * - {@link ProviderPool.userFor} (trading + per-user loops): returns null
  *   instead of falling back — a user's writes and background polling must
  *   NEVER silently land on the operator's account.
  */
 
 export interface ProviderPool {
-  for(userId: string | undefined): DataProvider;
+  /** Account provider for this caller, or null when per-user credentials are unavailable. */
+  accountFor(userId: string | undefined): DataProvider | null;
   /**
    * The user's OWN provider or null (no keys stored / undecryptable /
    * construction failed). Never the base provider.
@@ -48,8 +50,8 @@ export function createProviderPool(deps: {
     try {
       provider = deps.factory(keys);
     } catch {
-      // Bad exchange id / construction failure → null; `for()` turns that
-      // into an honest base fallback for reads.
+      // Bad exchange id / construction failure → null. Account reads surface
+      // that honestly; they never fall back to the operator's credentials.
       return null;
     }
     cache.set(userId, provider);
@@ -61,7 +63,13 @@ export function createProviderPool(deps: {
   };
 
   return {
-    for: (userId) => userFor(userId) ?? deps.base,
+    accountFor: (userId) => {
+      // No per-user store (normal self-host) keeps the operator provider. With
+      // a store, an authenticated caller is a tenant boundary and must use
+      // only their own credentials.
+      if (!deps.repo) return deps.base;
+      return userFor(userId);
+    },
     userFor,
     invalidate(userId) {
       cache.delete(userId);

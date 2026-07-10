@@ -331,7 +331,7 @@ describe('execution safety hold routes', () => {
     const c = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asC() })).json();
     expect(c.enabled).toBe(false);
     expect(c.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
-    expect(c.source).toBe('mock');
+    expect(c.source).toBe('per-user-keys');
 
     const system = (await app.inject({ method: 'GET', url: '/api/system', headers: asC() })).json();
     expect(system.tradingEnabled).toBe(false);
@@ -415,6 +415,26 @@ describe('execution safety hold routes', () => {
     expect(res.json()).toMatchObject({ source: 'ccxt:kraken', provenance: 'live', orders: [] });
     expect(stubs.get('alice-api-key')!.getOpenOrders).toHaveBeenCalledTimes(1);
   });
+
+  it('never falls back to operator account data for a user without usable stored keys', async () => {
+    for (const url of ['/api/balances', '/api/orders', '/api/positions', '/api/fills']) {
+      const res = await app.inject({ method: 'GET', url, headers: asC() });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({
+        source: 'per-user-keys',
+        provenance: 'unavailable',
+        note: expect.stringMatching(/never used as a fallback/i),
+      });
+    }
+
+    const orderLookup = await app.inject({
+      method: 'GET',
+      url: '/api/orders/operator-order?symbol=BTC/USDT',
+      headers: asC(),
+    });
+    expect(orderLookup.statusCode).toBe(503);
+    expect(orderLookup.json().message).toMatch(/never used as a fallback/i);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -422,7 +442,7 @@ describe('execution safety hold routes', () => {
 // ---------------------------------------------------------------------------
 
 describe('per-user feed and equity isolation', () => {
-  it('a keyed user never sees the operator feed or curve — honest "not running" instead', async () => {
+  it('an authenticated tenant never sees the operator feed or curve, even before saving keys', async () => {
     process.env.LOG_LEVEL = 'silent';
     const operatorWatch = {
       stop: () => {},
@@ -445,10 +465,18 @@ describe('per-user feed and equity isolation', () => {
     ).json().token as string;
     const auth = { authorization: `Bearer ${token}` };
 
-    // Before storing keys: the operator feed (self-host behavior).
+    // Before storing keys: isolated and honestly unavailable, never the
+    // operator's event feed or equity curve.
     const before = (await app.inject({ method: 'GET', url: '/api/account/events', headers: auth })).json();
-    expect(before.watching).toBe(true);
-    expect(before.latestId).toBe(7);
+    expect(before.watching).toBe(false);
+    expect(before.latestId).toBe(0);
+    expect(before.events).toEqual([]);
+    expect(before.note).toMatch(/No per-user exchange key/);
+
+    const equityBefore = (await app.inject({ method: 'GET', url: '/api/account/equity', headers: auth })).json();
+    expect(equityBefore.watching).toBe(false);
+    expect(equityBefore.points).toEqual([]);
+    expect(equityBefore.note).toMatch(/No per-user exchange key/);
 
     await app.inject({
       method: 'PUT',

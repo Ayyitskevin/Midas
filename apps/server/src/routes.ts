@@ -1,11 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { isInterval, isRange } from '@midas/shared';
 import type {
+  AccountFills,
+  AccountPositions,
+  Balances,
   FundingRow,
   HealthResponse,
   Interval,
   LiquidationEvent,
   LiquidationsFeed,
+  OpenOrders,
   Range,
 } from '@midas/shared';
 import type { DataProvider } from './providers';
@@ -24,6 +28,10 @@ const MAX_BATCH_SYMBOLS = 50;
 // bill even while staying under the general rate limit.
 const AI_CHAT_WINDOW_MS = 60_000;
 const AI_CHAT_MAX_PER_WINDOW = 10;
+const PER_USER_ACCOUNT_SOURCE = 'per-user-keys';
+const PER_USER_ACCOUNT_UNAVAILABLE_NOTE =
+  'No usable per-user exchange key is configured for this account. Save read-only credentials in KEYS. ' +
+  'Operator account credentials are never used as a fallback.';
 
 // Real instruments across providers: BTC/USDT:USDT, BRK-B, ^GSPC, EURUSD=X.
 const SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
@@ -53,9 +61,9 @@ function normalizeSolanaAddress(raw: string): string {
   return SOLANA_ADDRESS_RE.test(s) ? s : '';
 }
 
-/** Resolves the provider for a request (per-user keys); defaults to the base provider. */
+/** Resolves account providers without crossing a per-user tenant boundary. */
 export interface ProviderResolver {
-  for(userId: string | undefined): DataProvider;
+  accountFor(userId: string | undefined): DataProvider | null;
   /** The user's OWN provider or null — never a base fallback (trading path). */
   userFor(userId: string | undefined): DataProvider | null;
 }
@@ -67,7 +75,7 @@ export type KeyMetaLookup = (userId: string) => { canTrade: boolean } | null;
 export function registerRoutes(
   app: FastifyInstance,
   provider: DataProvider,
-  pool: ProviderResolver = { for: () => provider, userFor: () => null },
+  pool: ProviderResolver = { accountFor: () => provider, userFor: () => null },
   _keyMeta: KeyMetaLookup = () => null,
 ): void {
   app.get('/api/health', async (): Promise<HealthResponse> => {
@@ -324,16 +332,52 @@ export function registerRoutes(
 
   // Read-only account reads (non-custodial). Account-wide, so no symbol.
   // Auth-guarded when auth is enabled — these are not public prefixes, so the
-  // onRequest guard covers them. Per-user keys (when stored) resolve these
-  // READS to that user's own exchange client; everyone else gets the
-  // operator's env-keyed provider. The trading section below follows the same
-  // resolution with stricter rules (no base fallback) — see resolveTrading.
-  app.get('/api/balances', async (req) => pool.for(req.userId).getBalances());
-  app.get('/api/orders', async (req) => pool.for(req.userId).getOpenOrders());
-  app.get('/api/positions', async (req) => pool.for(req.userId).getPositions());
+  // onRequest guard covers them. With the per-user store enabled, every
+  // authenticated caller resolves to their own exchange client or an honest
+  // unavailable snapshot — never the operator's env-keyed account.
+  const unavailableBalances = (): Balances => ({
+    source: PER_USER_ACCOUNT_SOURCE,
+    provenance: 'unavailable',
+    note: PER_USER_ACCOUNT_UNAVAILABLE_NOTE,
+    totalValueUsd: null,
+    balances: [],
+    asOf: Date.now(),
+  });
+  const unavailableOrders = (): OpenOrders => ({
+    source: PER_USER_ACCOUNT_SOURCE,
+    provenance: 'unavailable',
+    note: PER_USER_ACCOUNT_UNAVAILABLE_NOTE,
+    orders: [],
+    asOf: Date.now(),
+  });
+  const unavailablePositions = (): AccountPositions => ({
+    source: PER_USER_ACCOUNT_SOURCE,
+    provenance: 'unavailable',
+    note: PER_USER_ACCOUNT_UNAVAILABLE_NOTE,
+    totalUnrealizedPnlUsd: null,
+    positions: [],
+    asOf: Date.now(),
+  });
+  const unavailableFills = (): AccountFills => ({
+    source: PER_USER_ACCOUNT_SOURCE,
+    provenance: 'unavailable',
+    note: PER_USER_ACCOUNT_UNAVAILABLE_NOTE,
+    fills: [],
+    asOf: Date.now(),
+  });
+
+  app.get('/api/balances', async (req) =>
+    pool.accountFor(req.userId)?.getBalances() ?? unavailableBalances(),
+  );
+  app.get('/api/orders', async (req) =>
+    pool.accountFor(req.userId)?.getOpenOrders() ?? unavailableOrders(),
+  );
+  app.get('/api/positions', async (req) =>
+    pool.accountFor(req.userId)?.getPositions() ?? unavailablePositions(),
+  );
   app.get<{ Querystring: { symbol?: string } }>('/api/fills', async (req) => {
     const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
-    return pool.for(req.userId).getFills(symbol);
+    return pool.accountFor(req.userId)?.getFills(symbol) ?? unavailableFills();
   });
   // Read-only single-order lookup — powers TICKET's post-placement tracking
   // (placed → partial → filled/canceled) and the account watcher's
@@ -346,7 +390,8 @@ export function registerRoutes(
       const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
       if (!id) throw new ProviderError('Missing order id', 400);
       if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to look up an order)', 400);
-      const reader = pool.for(req.userId);
+      const reader = pool.accountFor(req.userId);
+      if (!reader) throw new ProviderError(PER_USER_ACCOUNT_UNAVAILABLE_NOTE, 503);
       if (!reader.getOrder) throw new ProviderError('This provider cannot look up orders.', 501);
       return reader.getOrder(id, symbol);
     },
@@ -360,7 +405,7 @@ export function registerRoutes(
     // Keep the hold unconditional, but report the same account-data source
     // this caller's reads resolve to. A keyed user must not be told "mock"
     // while BAL/ORD/POSN/FILLS are served by their isolated ccxt provider.
-    return executionSafetyHoldStatus(pool.for(req.userId).name);
+    return executionSafetyHoldStatus(pool.accountFor(req.userId)?.name ?? PER_USER_ACCOUNT_SOURCE);
   });
 
   const safetyHoldResponse = () => ({
