@@ -16,7 +16,15 @@ export interface CsvColumn<T> {
 /** Stringify and escape a single field. */
 export function escapeCsvField(value: CsvValue): string {
   if (value == null) return '';
-  const s = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value);
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  let s = String(value);
+  // Formula-injection guard: a *string* field beginning with a spreadsheet
+  // formula trigger (= + - @ tab CR) is prefixed with a single quote, so Excel /
+  // Google Sheets render it as text rather than evaluating it (a hostile Symbol,
+  // Status or imported Note starting with '=HYPERLINK(...)' / '=cmd|...' would
+  // otherwise run on open). Numbers are app-produced and exempt — a leading '-'
+  // there is a real negative, not an injection.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
