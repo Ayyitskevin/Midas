@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { DataProvider } from './providers';
-import { createStreamHub, parseStreamRequest } from './streaming';
+import { createIpQuota, createStreamHub, parseStreamRequest } from './streaming';
 
 /** Counts how many sources the hub actually started (each seeds one quote). */
 function countingProvider(): { provider: DataProvider; starts: () => number } {
@@ -91,5 +91,29 @@ describe('createStreamHub resource bounds', () => {
     hub.removeSocket(b);
     expect(hub.subscribe(a, 'trades', 'CCC/USDT')).toBe(true);
     hub.removeSocket(a);
+  });
+});
+
+describe('createIpQuota (per-client stream fairness)', () => {
+  it('caps subscriptions per client key, isolates clients, and frees on release', () => {
+    const q = createIpQuota(2);
+    expect(q.tryAcquire('1.1.1.1')).toBe(true);
+    expect(q.tryAcquire('1.1.1.1')).toBe(true);
+    // At the cap: one client cannot take more of the shared pool…
+    expect(q.tryAcquire('1.1.1.1')).toBe(false);
+    expect(q.countFor('1.1.1.1')).toBe(2);
+    // …and a different client is unaffected by the first's usage.
+    expect(q.tryAcquire('2.2.2.2')).toBe(true);
+
+    // Releasing frees a slot back for that client.
+    q.release('1.1.1.1');
+    expect(q.countFor('1.1.1.1')).toBe(1);
+    expect(q.tryAcquire('1.1.1.1')).toBe(true);
+
+    // Over-release never goes negative or grants free capacity.
+    q.release('2.2.2.2');
+    q.release('2.2.2.2');
+    expect(q.countFor('2.2.2.2')).toBe(0);
+    expect(q.tryAcquire('2.2.2.2')).toBe(true);
   });
 });
