@@ -514,7 +514,7 @@ Server (environment variables):
 | `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a P&L recap (equity change, fills + round-trip P&L, top movers) plus alerts fired + order flow to the webhook (`24` = daily, `168` = weekly, `0` = off, floored at 1). |
 | `MIDAS_EQUITY_SNAP_MS` | `3600000`  | Account equity snapshot cadence for the `AEQ` curve (read-only; persisted in the data dir). `0` = off; floored at `60000`. |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
-| `MIDAS_AUTH_ALLOW_SIGNUP` | `true`  | Allow new accounts (first user always can).|
+| `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Allow ongoing open registration. The first account can always bootstrap; later signups require an explicit `true`. |
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
 | `MIDAS_TRADING_ENABLED` | `false`   | Legacy compatibility flag. It does not enable execution while the safety hold is active. |
 | `MIDAS_MAX_ORDER_USD` | `1000`      | Legacy per-order cap target retained for execution repair work. |
