@@ -19,6 +19,26 @@ describe('escapeCsvField', () => {
     expect(escapeCsvField('he said "hi"')).toBe('"he said ""hi"""');
     expect(escapeCsvField('line1\nline2')).toBe('"line1\nline2"');
   });
+
+  it('neutralizes leading spreadsheet-formula characters (CSV-injection guard)', () => {
+    // A string field starting with a formula trigger gets a single-quote prefix
+    // so a spreadsheet renders it as text, not an evaluated formula.
+    expect(escapeCsvField('=1+1')).toBe("'=1+1");
+    expect(escapeCsvField('+area')).toBe("'+area");
+    expect(escapeCsvField('-cmd|calc')).toBe("'-cmd|calc");
+    expect(escapeCsvField('@SUM(A1)')).toBe("'@SUM(A1)");
+    expect(escapeCsvField('\tX')).toBe("'\tX");
+    // Numbers are exempt — a leading '-' is a real negative, not an injection.
+    expect(escapeCsvField(-5.2)).toBe('-5.2');
+    // An '=' that isn't the first character is a normal value, untouched.
+    expect(escapeCsvField('a=b')).toBe('a=b');
+  });
+
+  it('applies BOTH the formula guard and RFC quoting when needed', () => {
+    const out = escapeCsvField('=HYPERLINK("evil","x")');
+    expect(out.startsWith('"\'=')).toBe(true); // RFC-quoted, then a leading ' → text
+    expect(out.startsWith('=')).toBe(false); // never emitted as a bare formula
+  });
 });
 
 describe('toCsv', () => {
