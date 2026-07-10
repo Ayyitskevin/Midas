@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app';
 import { createProvider } from './providers';
+import { MAX_STREAM_FRAME_BYTES } from './streaming';
 
 let app: FastifyInstance;
 
@@ -32,6 +33,19 @@ describe('security response headers', () => {
     expect(res.statusCode).toBeGreaterThanOrEqual(400);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(res.headers['x-frame-options']).toBe('DENY');
+  });
+});
+
+describe('WebSocket frame cap (unauthenticated OOM guard)', () => {
+  it('registers the ws server with a tight maxPayload, not the 100 MiB default', () => {
+    // /api/stream is public even with auth on; without a maxPayload, ws buffers
+    // up to its 100 MiB default per frame before the app-level check can run.
+    // @fastify/websocket forwards { options } to the ws.Server and decorates the
+    // instance with `websocketServer`.
+    const wss = (app as unknown as { websocketServer?: { options?: { maxPayload?: number } } })
+      .websocketServer;
+    expect(wss?.options?.maxPayload).toBe(MAX_STREAM_FRAME_BYTES);
+    expect(MAX_STREAM_FRAME_BYTES).toBeLessThan(10_000); // nowhere near the 100 MiB default
   });
 });
 

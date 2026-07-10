@@ -7,7 +7,7 @@ import type { ApiError, SystemStatus } from '@midas/shared';
 import { config } from './config';
 import { ProviderError, type DataProvider } from './providers';
 import { registerRoutes } from './routes';
-import { createStreamHub, registerStream } from './streaming';
+import { MAX_STREAM_FRAME_BYTES, createStreamHub, registerStream } from './streaming';
 import { AlertRepo } from './alerts/repo';
 import { registerAlertRoutes } from './alerts/routes';
 import { WorkspaceRepo } from './workspaces/repo';
@@ -85,7 +85,12 @@ export async function buildApp(
   });
 
   await app.register(cors, { origin: config.corsOrigin });
-  await app.register(websocket);
+  // Cap WS frames at the protocol layer. /api/stream is public even with auth
+  // on, and a real subscribe message is ~70 bytes; without this, ws defaults to
+  // buffering up to 100 MiB per frame into the heap BEFORE the app-level check
+  // runs — an unauthenticated OOM on the most exposed edge. maxPayload rejects
+  // an oversized frame before it is buffered.
+  await app.register(websocket, { options: { maxPayload: MAX_STREAM_FRAME_BYTES } });
 
   // Baseline security headers on every HTTP response. The API serves JSON
   // (the web bundle is a separate origin/container), so refusing MIME
