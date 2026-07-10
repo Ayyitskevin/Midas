@@ -10,7 +10,7 @@ import * as ccxt from 'ccxt';
  */
 type Emit = (data: unknown) => void;
 
-interface ProExchange {
+export interface ProExchange {
   watchTrades(symbol: string): Promise<
     Array<{ price?: number; amount?: number; side?: string; timestamp?: number }>
   >;
@@ -30,14 +30,31 @@ export interface StreamSource {
   start(channel: string, symbol: string, emit: Emit): () => void;
 }
 
-export function createCcxtStreamSource(): StreamSource {
+/**
+ * ccxt raises BadSymbol for a market the exchange does not list — a permanent
+ * error, not a transient disconnect. Detected by class name so it survives the
+ * CJS/ESM interop (the class isn't reliably reachable off the namespace).
+ */
+function isUnknownSymbol(err: unknown): boolean {
+  return err instanceof Error && err.constructor?.name === 'BadSymbol';
+}
+
+/** Build the CCXT Pro exchange for the configured id, or null when unavailable. */
+function buildProExchange(): ProExchange | null {
   const id = (process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
   const proNs = (ccxt as unknown as {
     pro: Record<string, new (config: object) => ProExchange>;
   }).pro;
   const Ctor = proNs?.[id];
-  const exchange: ProExchange | null =
-    typeof Ctor === 'function' ? new Ctor({ enableRateLimit: true }) : null;
+  return typeof Ctor === 'function' ? new Ctor({ enableRateLimit: true }) : null;
+}
+
+/**
+ * @param injected test seam — pass a fake ProExchange (or null); omit in
+ *   production to build the live exchange from MIDAS_CCXT_EXCHANGE.
+ */
+export function createCcxtStreamSource(injected?: ProExchange | null): StreamSource {
+  const exchange: ProExchange | null = injected !== undefined ? injected : buildProExchange();
 
   return {
     start(channel, symbol, emit) {
@@ -77,9 +94,16 @@ export function createCcxtStreamSource(): StreamSource {
             } else {
               return;
             }
-          } catch {
+          } catch (err) {
             if (!running) break;
-            // Back off on transient errors (unsupported symbol, disconnect, …).
+            // A symbol the exchange does not list will never resolve — stop
+            // instead of retrying every second forever (which hammers the
+            // exchange and the operator's key). Transient errors (disconnect,
+            // temporary blip) still back off and retry.
+            if (isUnknownSymbol(err)) {
+              running = false;
+              break;
+            }
             await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
 import type { OrderBook, OrderBookLevel, Trade } from '@midas/shared';
 import type { DataProvider } from './providers';
@@ -237,6 +237,43 @@ const STREAM_SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
 /** Max bytes for one client frame — enforced at the ws layer (maxPayload) AND here. */
 export const MAX_STREAM_FRAME_BYTES = 512; // a real subscribe message is ~70 bytes
 const MAX_SUBS_PER_SOCKET = 60; // a 20-panel desk × 3 channels still fits
+/**
+ * Max live subscriptions one client IP may hold across ALL its sockets. The hub's
+ * global source ceiling protects the process, but on its own it is
+ * first-come-first-served — a per-IP budget keeps one client from taking the
+ * whole pool and starving everyone else. 120 ≪ the 500 global ceiling, so the
+ * pool always has headroom for other clients.
+ */
+const MAX_SUBS_PER_IP = 120;
+
+/**
+ * A per-key (client IP) budget over the shared, globally-bounded source pool.
+ * `tryAcquire` returns false once a key is at its cap; `release` returns a slot.
+ * Pure and exported for tests.
+ */
+export function createIpQuota(maxPerKey: number): {
+  tryAcquire(key: string): boolean;
+  release(key: string): void;
+  countFor(key: string): number;
+} {
+  const counts = new Map<string, number>();
+  return {
+    tryAcquire(key) {
+      const n = counts.get(key) ?? 0;
+      if (n >= maxPerKey) return false;
+      counts.set(key, n + 1);
+      return true;
+    },
+    release(key) {
+      const n = counts.get(key) ?? 0;
+      if (n <= 1) counts.delete(key);
+      else counts.set(key, n - 1);
+    },
+    countFor(key) {
+      return counts.get(key) ?? 0;
+    },
+  };
+}
 
 export interface StreamRequest {
   type: 'subscribe' | 'unsubscribe';
@@ -267,11 +304,21 @@ export function parseStreamRequest(
   return { type: msg.type, channel, symbol };
 }
 
+/** Send a JSON error frame to a still-open socket. */
+function sendError(socket: WebSocket, message: string): void {
+  if (socket.readyState === 1 /* OPEN */) socket.send(JSON.stringify({ type: 'error', message }));
+}
+
 /** Register the WebSocket streaming endpoint. Requires @fastify/websocket. */
 export function registerStream(app: FastifyInstance, hub: StreamHub): void {
-  app.get('/api/stream', { websocket: true }, (socket: WebSocket) => {
-    // Per-socket subscription ledger: bounds one connection's resource use
-    // and lets close/error release exactly what this socket held.
+  // Per-client budget over the shared source pool — lives for the app's lifetime,
+  // keyed by req.ip (real client IP when trustProxy is configured).
+  const ipQuota = createIpQuota(MAX_SUBS_PER_IP);
+
+  app.get('/api/stream', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
+    const ip = request.ip;
+    // Per-socket subscription ledger: bounds one connection's resource use and
+    // lets close/error release exactly what this socket held (and its IP quota).
     const held = new Set<string>();
 
     socket.on('message', (raw: RawData) => {
@@ -285,23 +332,32 @@ export function registerStream(app: FastifyInstance, hub: StreamHub): void {
         if (held.has(key)) return; // idempotent re-subscribe
         if (held.size >= MAX_SUBS_PER_SOCKET) {
           // The one violation a legitimate power user could hit — tell them.
-          if (socket.readyState === 1) {
-            socket.send(
-              JSON.stringify({
-                type: 'error',
-                message: `Subscription limit reached (${MAX_SUBS_PER_SOCKET} per connection).`,
-              }),
-            );
-          }
+          sendError(socket, `Subscription limit reached (${MAX_SUBS_PER_SOCKET} per connection).`);
+          return;
+        }
+        // Per-IP fairness: keep one client from monopolizing the shared pool and
+        // starving other clients, even across many sockets.
+        if (!ipQuota.tryAcquire(ip)) {
+          sendError(socket, `Subscription limit reached (${MAX_SUBS_PER_IP} per client).`);
           return;
         }
         if (hub.subscribe(socket, req.channel, req.symbol)) held.add(key);
+        else ipQuota.release(ip); // hub refused (global ceiling) — return the slot
       } else {
-        held.delete(key);
-        hub.unsubscribe(socket, req.channel, req.symbol);
+        // Only release what this socket actually held (unsubscribe is idempotent).
+        if (held.delete(key)) {
+          hub.unsubscribe(socket, req.channel, req.symbol);
+          ipQuota.release(ip);
+        }
       }
     });
-    socket.on('close', () => hub.removeSocket(socket));
-    socket.on('error', () => hub.removeSocket(socket));
+
+    const cleanup = (): void => {
+      hub.removeSocket(socket);
+      held.forEach(() => ipQuota.release(ip)); // free every slot this socket held
+      held.clear();
+    };
+    socket.on('close', cleanup);
+    socket.on('error', cleanup);
   });
 }
