@@ -8,7 +8,6 @@ import type {
   LiquidationsFeed,
   Range,
 } from '@midas/shared';
-import type { TradingStatus } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { ProviderError } from './providers';
 import { config } from './config';
@@ -357,9 +356,12 @@ export function registerRoutes(
   // Market, account-read, paper, and preview routes stay available. The two
   // mutation endpoints fail closed regardless of keys or environment flags.
   // Existing resting orders must be managed directly at the exchange.
-  const heldStatus: TradingStatus = executionSafetyHoldStatus(provider.name);
-
-  app.get('/api/trading/status', async () => heldStatus);
+  app.get('/api/trading/status', async (req) => {
+    // Keep the hold unconditional, but report the same account-data source
+    // this caller's reads resolve to. A keyed user must not be told "mock"
+    // while BAL/ORD/POSN/FILLS are served by their isolated ccxt provider.
+    return executionSafetyHoldStatus(pool.for(req.userId).name);
+  });
 
   const safetyHoldResponse = () => ({
     error: 'TradingSafetyHold',

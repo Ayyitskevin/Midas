@@ -317,19 +317,21 @@ describe('execution safety hold routes', () => {
     });
   };
 
-  it('reports preview-only for trade-marked, unmarked, and operator-backed users', async () => {
+  it('reports preview-only with each caller\'s resolved account-data source', async () => {
     const a = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asA() })).json();
     expect(a.enabled).toBe(false);
     expect(a.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
-    expect(a.source).toBe('mock');
+    expect(a.source).toBe('ccxt:kraken');
 
     const b = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asB() })).json();
     expect(b.enabled).toBe(false);
     expect(b.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
+    expect(b.source).toBe('ccxt:kraken');
 
     const c = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asC() })).json();
     expect(c.enabled).toBe(false);
     expect(c.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
+    expect(c.source).toBe('mock');
 
     const system = (await app.inject({ method: 'GET', url: '/api/system', headers: asC() })).json();
     expect(system.tradingEnabled).toBe(false);
