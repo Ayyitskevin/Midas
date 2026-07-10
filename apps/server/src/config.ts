@@ -81,6 +81,15 @@ function env(key: string, fallback: string): string {
 }
 
 /**
+ * Ongoing registration is an explicit opt-in. Keep this lookup callable so the
+ * security-sensitive default can be tested without depending on module import
+ * order or the test runner's ambient environment.
+ */
+export function authAllowSignupEnv(): boolean {
+  return env('MIDAS_AUTH_ALLOW_SIGNUP', 'false').toLowerCase() === 'true';
+}
+
+/**
  * Numeric env parsing that fails SAFE. `Number('1o00')` is NaN, and NaN
  * poisons every downstream comparison in the quiet direction: `notional >
  * NaN` is false, so a typo in MIDAS_MAX_ORDER_USD would silently disable a
@@ -130,7 +139,7 @@ const baseConfig: Config = {
   alertIntervalMs: numEnv('MIDAS_ALERT_INTERVAL_MS', 15000),
   alertWebhook: env('MIDAS_ALERT_WEBHOOK', ''),
   authEnabled: env('MIDAS_AUTH_ENABLED', 'false').toLowerCase() === 'true',
-  authAllowSignup: env('MIDAS_AUTH_ALLOW_SIGNUP', 'true').toLowerCase() === 'true',
+  authAllowSignup: authAllowSignupEnv(),
   authSecret: env('MIDAS_AUTH_SECRET', ''),
   usersFile: env('MIDAS_USERS_FILE', `${env('MIDAS_DATA_DIR', './data')}/users.json`),
   workspacesFile: env(

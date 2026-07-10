@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { applyDemoMode, config, numEnv, type Config } from './config';
+import { applyDemoMode, authAllowSignupEnv, config, numEnv, type Config } from './config';
 
 describe('numEnv', () => {
   const KEY = 'MIDAS_TEST_NUM_ENV';
@@ -27,6 +27,23 @@ describe('numEnv', () => {
       process.env[KEY] = bad;
       expect(numEnv(KEY, 1000)).toBe(1000);
     }
+  });
+});
+
+describe('authAllowSignupEnv', () => {
+  const KEY = 'MIDAS_AUTH_ALLOW_SIGNUP';
+  const original = process.env[KEY];
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+  });
+
+  it('defaults ongoing registration closed and requires an explicit opt-in', () => {
+    delete process.env[KEY];
+    expect(authAllowSignupEnv()).toBe(false);
+    process.env[KEY] = 'true';
+    expect(authAllowSignupEnv()).toBe(true);
   });
 });
 
