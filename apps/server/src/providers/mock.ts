@@ -1,1017 +1,149 @@
 import type {
-  AccountBalance,
-  AccountFill,
   AccountFills,
-  AccountPosition,
   AccountPositions,
   Balances,
-  Candle,
   DerivativesInfo,
-  DexPool,
   DexPools,
   FundingHistoryPoint,
   HistoryResponse,
   LiquidationsProvenance,
-  MarketState,
   NewsItem,
-  OpenOrder,
   OpenOrders,
   OrderBook,
-  OrderBookLevel,
   Quote,
   ScreenerRow,
   SearchResult,
   SolanaMarket,
-  SolanaMarketToken,
   SolanaNetwork,
   SolanaStaking,
   SolanaSwapQuote,
-  SolanaTokenHolding,
   SolanaTokenInfo,
   SolanaTrending,
-  SolanaTrendingToken,
-  SolanaValidator,
   SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
-import { STABLES, sumValueUsd } from './balances';
-import { sumUnrealizedPnl } from './accountReads';
-import { KNOWN_MINTS, MINT_BY_SYMBOL, MINT_DECIMALS, STABLE_SYMBOLS, shortMint } from '../solana/rpc';
 import {
-  INTERVAL_SECONDS,
-  RANGE_SECONDS,
-  clamp,
-  gaussian,
-  hashString,
-  round,
-  seeded,
-  sortScreener,
-  uniform,
-  usMarketState,
-} from './util';
-
-interface RosterEntry {
-  symbol: string;
-  name: string;
-  exchange: string;
-  type: string;
-  /** Reference price the synthetic series anchors around. */
-  base: number;
-  currency: string;
-}
-
-/**
- * A roster of well-known securities so search, watchlists and quotes feel real.
- * Any symbol not listed here is synthesized on the fly from its hash, so the
- * terminal still responds to anything the user types.
- */
-const ROSTER: RosterEntry[] = [
-  { symbol: 'AAPL', name: 'Apple Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 212, currency: 'USD' },
-  { symbol: 'MSFT', name: 'Microsoft Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 444, currency: 'USD' },
-  { symbol: 'GOOGL', name: 'Alphabet Inc. Class A', exchange: 'NASDAQ', type: 'EQUITY', base: 178, currency: 'USD' },
-  { symbol: 'AMZN', name: 'Amazon.com, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 186, currency: 'USD' },
-  { symbol: 'NVDA', name: 'NVIDIA Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 126, currency: 'USD' },
-  { symbol: 'META', name: 'Meta Platforms, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 503, currency: 'USD' },
-  { symbol: 'TSLA', name: 'Tesla, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 185, currency: 'USD' },
-  { symbol: 'NFLX', name: 'Netflix, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 678, currency: 'USD' },
-  { symbol: 'AMD', name: 'Advanced Micro Devices, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 162, currency: 'USD' },
-  { symbol: 'INTC', name: 'Intel Corporation', exchange: 'NASDAQ', type: 'EQUITY', base: 31, currency: 'USD' },
-  { symbol: 'JPM', name: 'JPMorgan Chase & Co.', exchange: 'NYSE', type: 'EQUITY', base: 205, currency: 'USD' },
-  { symbol: 'BAC', name: 'Bank of America Corporation', exchange: 'NYSE', type: 'EQUITY', base: 40, currency: 'USD' },
-  { symbol: 'GS', name: 'The Goldman Sachs Group, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 478, currency: 'USD' },
-  { symbol: 'V', name: 'Visa Inc.', exchange: 'NYSE', type: 'EQUITY', base: 273, currency: 'USD' },
-  { symbol: 'MA', name: 'Mastercard Incorporated', exchange: 'NYSE', type: 'EQUITY', base: 446, currency: 'USD' },
-  { symbol: 'DIS', name: 'The Walt Disney Company', exchange: 'NYSE', type: 'EQUITY', base: 101, currency: 'USD' },
-  { symbol: 'KO', name: 'The Coca-Cola Company', exchange: 'NYSE', type: 'EQUITY', base: 63, currency: 'USD' },
-  { symbol: 'PEP', name: 'PepsiCo, Inc.', exchange: 'NASDAQ', type: 'EQUITY', base: 168, currency: 'USD' },
-  { symbol: 'WMT', name: 'Walmart Inc.', exchange: 'NYSE', type: 'EQUITY', base: 67, currency: 'USD' },
-  { symbol: 'XOM', name: 'Exxon Mobil Corporation', exchange: 'NYSE', type: 'EQUITY', base: 114, currency: 'USD' },
-  { symbol: 'CVX', name: 'Chevron Corporation', exchange: 'NYSE', type: 'EQUITY', base: 156, currency: 'USD' },
-  { symbol: 'BA', name: 'The Boeing Company', exchange: 'NYSE', type: 'EQUITY', base: 182, currency: 'USD' },
-  { symbol: 'CAT', name: 'Caterpillar Inc.', exchange: 'NYSE', type: 'EQUITY', base: 338, currency: 'USD' },
-  { symbol: 'GE', name: 'General Electric Company', exchange: 'NYSE', type: 'EQUITY', base: 165, currency: 'USD' },
-  { symbol: 'PFE', name: 'Pfizer Inc.', exchange: 'NYSE', type: 'EQUITY', base: 28, currency: 'USD' },
-  { symbol: 'JNJ', name: 'Johnson & Johnson', exchange: 'NYSE', type: 'EQUITY', base: 148, currency: 'USD' },
-  { symbol: 'UNH', name: 'UnitedHealth Group Incorporated', exchange: 'NYSE', type: 'EQUITY', base: 480, currency: 'USD' },
-  { symbol: 'HD', name: 'The Home Depot, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 345, currency: 'USD' },
-  { symbol: 'CRM', name: 'Salesforce, Inc.', exchange: 'NYSE', type: 'EQUITY', base: 248, currency: 'USD' },
-  { symbol: 'ORCL', name: 'Oracle Corporation', exchange: 'NYSE', type: 'EQUITY', base: 140, currency: 'USD' },
-  { symbol: 'SPY', name: 'SPDR S&P 500 ETF Trust', exchange: 'NYSEARCA', type: 'ETF', base: 545, currency: 'USD' },
-  { symbol: 'QQQ', name: 'Invesco QQQ Trust', exchange: 'NASDAQ', type: 'ETF', base: 480, currency: 'USD' },
-  { symbol: 'DIA', name: 'SPDR Dow Jones Industrial Average ETF', exchange: 'NYSEARCA', type: 'ETF', base: 402, currency: 'USD' },
-  { symbol: 'IWM', name: 'iShares Russell 2000 ETF', exchange: 'NYSEARCA', type: 'ETF', base: 205, currency: 'USD' },
-  { symbol: '^GSPC', name: 'S&P 500 Index', exchange: 'SNP', type: 'INDEX', base: 5460, currency: 'USD' },
-  { symbol: '^IXIC', name: 'NASDAQ Composite', exchange: 'NASDAQ', type: 'INDEX', base: 17700, currency: 'USD' },
-  { symbol: '^DJI', name: 'Dow Jones Industrial Average', exchange: 'DJI', type: 'INDEX', base: 39100, currency: 'USD' },
-  { symbol: 'BTC-USD', name: 'Bitcoin USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 64000, currency: 'USD' },
-  { symbol: 'ETH-USD', name: 'Ethereum USD', exchange: 'CCC', type: 'CRYPTOCURRENCY', base: 3400, currency: 'USD' },
-  // Crypto pairs in CCXT unified form (BASE/QUOTE) — Midas's native asset class.
-  { symbol: 'BTC/USDT', name: 'Bitcoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 64000, currency: 'USDT' },
-  { symbol: 'ETH/USDT', name: 'Ethereum', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 3400, currency: 'USDT' },
-  { symbol: 'SOL/USDT', name: 'Solana', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 152, currency: 'USDT' },
-  { symbol: 'BNB/USDT', name: 'BNB', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 592, currency: 'USDT' },
-  { symbol: 'XRP/USDT', name: 'XRP', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.52, currency: 'USDT' },
-  { symbol: 'DOGE/USDT', name: 'Dogecoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.12, currency: 'USDT' },
-  { symbol: 'ADA/USDT', name: 'Cardano', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.38, currency: 'USDT' },
-  { symbol: 'AVAX/USDT', name: 'Avalanche', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 27, currency: 'USDT' },
-  { symbol: 'LINK/USDT', name: 'Chainlink', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 14, currency: 'USDT' },
-  { symbol: 'MATIC/USDT', name: 'Polygon', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.55, currency: 'USDT' },
-  { symbol: 'DOT/USDT', name: 'Polkadot', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 6.2, currency: 'USDT' },
-  { symbol: 'LTC/USDT', name: 'Litecoin', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 72, currency: 'USDT' },
-  { symbol: 'TRX/USDT', name: 'TRON', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.13, currency: 'USDT' },
-  { symbol: 'ATOM/USDT', name: 'Cosmos', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 7.5, currency: 'USDT' },
-  { symbol: 'UNI/USDT', name: 'Uniswap', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 9.1, currency: 'USDT' },
-  { symbol: 'ETH/BTC', name: 'Ethereum', exchange: 'BINANCE', type: 'CRYPTOCURRENCY', base: 0.053, currency: 'BTC' },
-];
-
-const ROSTER_BY_SYMBOL = new Map(ROSTER.map((entry) => [entry.symbol, entry]));
-
-const COMPARE_VENUES = ['Binance', 'Coinbase', 'Kraken', 'Bitfinex', 'OKX', 'KuCoin'];
-
-const NEWS_PUBLISHERS = [
-  'Reuters',
-  'Bloomberg',
-  'The Wall Street Journal',
-  'Financial Times',
-  'CNBC',
-  'MarketWatch',
-  'Barron’s',
-  'Yahoo Finance',
-];
-
-const HEADLINE_TEMPLATES = [
-  '{name} beats quarterly estimates as revenue climbs',
-  '{sym} shares rally after upbeat guidance',
-  'Analysts raise price target on {sym} citing margin strength',
-  '{name} unveils new product line, shares in focus',
-  '{sym} slips as investors weigh macro headwinds',
-  'Is {sym} still a buy after its latest run? Analysts weigh in',
-  '{name} announces buyback and dividend increase',
-  'Options traders position for volatility in {sym}',
-  '{sym} downgraded on valuation concerns',
-  '{name} expands into new markets amid sector rotation',
-  'What {sym}’s latest filing reveals about the road ahead',
-  '{sym} among most active names as volume spikes',
-];
-
-const MARKET_HEADLINES = [
-  'Stocks mixed as traders await fresh inflation data',
-  'Treasury yields edge higher; tech leads early gains',
-  'Fed officials signal patience on rate path',
-  'Oil steadies as markets digest supply outlook',
-  'Dollar firms ahead of key economic releases',
-  'Megacap tech drives index futures higher',
-  'Volatility gauge eases as risk appetite returns',
-  'Earnings season kicks off with banks in focus',
-];
-
-/** Resolve a symbol to a roster entry, synthesizing one if unknown. */
-function resolveEntry(rawSymbol: string): RosterEntry {
-  const symbol = rawSymbol.toUpperCase();
-  const known = ROSTER_BY_SYMBOL.get(symbol);
-  if (known) return known;
-
-  // BASE/QUOTE → synthesize a crypto pair so any market the user types works.
-  if (symbol.includes('/')) {
-    const [base, quote] = symbol.split('/');
-    const rng = seeded(symbol, 'crypto');
-    return {
-      symbol,
-      name: `${base} / ${quote}`,
-      exchange: 'BINANCE',
-      type: 'CRYPTOCURRENCY',
-      base: round(uniform(rng, 0.05, 200), 4),
-      currency: quote || 'USDT',
-    };
-  }
-
-  const rng = seeded(symbol, 'entry');
-  const base = round(uniform(rng, 12, 480));
-  return {
-    symbol,
-    name: `${symbol} Holdings Corp.`,
-    exchange: rng() > 0.5 ? 'NASDAQ' : 'NYSE',
-    type: 'EQUITY',
-    base,
-    currency: 'USD',
-  };
-}
-
-/** Synthetic DEX pools the mock fabricates per asset (name, fee tier, quote). */
-const DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
-  { dex: 'Uniswap v3', feeBps: 5, quote: 'USDC' },
-  { dex: 'Uniswap v3', feeBps: 30, quote: 'USDC' },
-  { dex: 'Curve', feeBps: 4, quote: 'USDT' },
-  { dex: 'PancakeSwap', feeBps: 25, quote: 'USDT' },
-  { dex: 'Balancer', feeBps: 10, quote: 'DAI' },
-];
-
-// Solana-native DEX venues (SOLDEX) and a trending-token roster (STREND) for the
-// synthetic offline experience. Live data comes from GeckoTerminal's Solana
-// network; these keep the panels useful without a source configured.
-const SOLANA_DEX_VENUES: Array<{ dex: string; feeBps: number; quote: string }> = [
-  { dex: 'Raydium', feeBps: 25, quote: 'SOL' },
-  { dex: 'Orca', feeBps: 30, quote: 'USDC' },
-  { dex: 'Meteora', feeBps: 20, quote: 'USDC' },
-  { dex: 'Phoenix', feeBps: 2, quote: 'USDC' },
-  { dex: 'Lifinity', feeBps: 10, quote: 'SOL' },
-];
-
-const SOLANA_TRENDING_ROSTER: Array<{ symbol: string; price: number; dex: string }> = [
-  { symbol: 'WIF', price: 2.4, dex: 'Raydium' },
-  { symbol: 'BONK', price: 0.000023, dex: 'Orca' },
-  { symbol: 'JUP', price: 0.85, dex: 'Meteora' },
-  { symbol: 'JTO', price: 3.1, dex: 'Raydium' },
-  { symbol: 'PYTH', price: 0.42, dex: 'Orca' },
-  { symbol: 'RAY', price: 4.6, dex: 'Raydium' },
-  { symbol: 'POPCAT', price: 1.3, dex: 'Raydium' },
-  { symbol: 'MEW', price: 0.008, dex: 'Meteora' },
-  { symbol: 'PENGU', price: 0.03, dex: 'Orca' },
-  { symbol: 'W', price: 0.28, dex: 'Meteora' },
-  { symbol: 'RENDER', price: 7.2, dex: 'Orca' },
-  { symbol: 'PNUT', price: 0.9, dex: 'Raydium' },
-];
+  mockExchangeQuotes,
+  mockFundingHistory,
+  mockHistory,
+  mockNews,
+  mockOrderBook,
+  mockQuote,
+  mockQuotes,
+  mockScreen,
+  mockSearch,
+} from './mock/market';
+import {
+  mockDerivatives,
+  mockDexPools,
+  mockLiquidationsProvenance,
+  mockVenueDerivatives,
+} from './mock/derivatives';
+import {
+  mockSolanaDexPools,
+  mockSolanaMarket,
+  mockSolanaNetwork,
+  mockSolanaQuote,
+  mockSolanaStaking,
+  mockSolanaToken,
+  mockSolanaTrending,
+  mockSolanaValidators,
+  mockSolanaWallet,
+} from './mock/solana';
+import { mockBalances, mockFills, mockOpenOrders, mockPositions } from './mock/account';
 
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
  * terminal feels alive) but are stable within a given minute, and historical
  * series are fully reproducible for a (symbol, interval, range) triple.
+ *
+ * The provider is stateless: every method is a thin delegator to a pure
+ * synthetic generator, grouped by domain under ./mock (market, derivatives,
+ * solana, account) over the shared roster fixtures and quote engine.
  */
 export class MockProvider implements DataProvider {
   readonly name = 'mock';
   readonly live = false;
 
-  async getQuote(symbol: string): Promise<Quote> {
-    return this.buildQuote(resolveEntry(symbol));
+  getQuote(symbol: string): Promise<Quote> {
+    return mockQuote(symbol);
   }
-
-  async getQuotes(symbols: string[]): Promise<Quote[]> {
-    return symbols.map((symbol) => this.buildQuote(resolveEntry(symbol)));
+  getQuotes(symbols: string[]): Promise<Quote[]> {
+    return mockQuotes(symbols);
   }
-
-  async getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
-    const entry = resolveEntry(symbol);
-    const mid = this.buildQuote(entry).price;
-    // Wiggle the book each minute so the DOM feels alive but is stable within a minute.
-    const minuteBucket = Math.floor(Date.now() / 60_000);
-    const rng = seeded(entry.symbol, minuteBucket, 'book');
-
-    const tick = Math.max(mid * 0.0002, mid < 1 ? 0.00001 : 0.01);
-    const halfSpread = tick * uniform(rng, 0.5, 1.5);
-    const sizeBase = mid > 0 ? clamp(50_000 / mid, 0.5, 5_000) : 1;
-
-    const bids: OrderBookLevel[] = [];
-    const asks: OrderBookLevel[] = [];
-    for (let i = 0; i < depth; i++) {
-      const bidPrice = mid - halfSpread - i * tick * (1 + uniform(rng, 0, 0.4));
-      const askPrice = mid + halfSpread + i * tick * (1 + uniform(rng, 0, 0.4));
-      const grow = 1 + i * 0.12;
-      bids.push({ price: round(bidPrice, 6), amount: round(sizeBase * uniform(rng, 0.2, 1.8) * grow, 4) });
-      asks.push({ price: round(askPrice, 6), amount: round(sizeBase * uniform(rng, 0.2, 1.8) * grow, 4) });
-    }
-    return { symbol: entry.symbol, bids, asks, timestamp: Date.now() };
+  getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
+    return mockOrderBook(symbol, depth);
   }
-
-  async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
-    const entry = resolveEntry(symbol);
-    const mid = this.buildQuote(entry).price;
-    const minuteBucket = Math.floor(Date.now() / 60_000);
-    return COMPARE_VENUES.map((venue) => {
-      const rng = seeded(entry.symbol, venue, minuteBucket, 'venue');
-      // Each venue prices slightly differently (a realistic cross-exchange basis).
-      const price = round(mid * (1 + uniform(rng, -0.0015, 0.0015)), 6);
-      const spread = price * uniform(rng, 0.0001, 0.0006);
-      return {
-        exchange: venue,
-        price,
-        bid: round(price - spread / 2, 6),
-        ask: round(price + spread / 2, 6),
-        changePercent: round(gaussian(rng) * 1.2, 2),
-        volume: Math.floor(uniform(rng, 0.3, 1.5) * (mid > 1000 ? 5_000 : 5_000_000)),
-        timestamp: Date.now(),
-      };
-    });
+  getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
+    return mockExchangeQuotes(symbol);
   }
-
-  async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
-    const entry = resolveEntry(symbol);
-    const mid = this.buildQuote(entry).price;
-    const eightHour = Math.floor(Date.now() / (8 * 3_600_000));
-    const nextFunding = (eightHour + 1) * (8 * 3_600_000);
-    return COMPARE_VENUES.map((venue) => {
-      // Each venue funds slightly differently → a realistic cross-venue spread.
-      const rng = seeded(entry.symbol, venue, eightHour, 'venuederiv');
-      const oiBase = Math.floor(uniform(rng, 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
-      return {
-        exchange: venue,
-        fundingRate: round(gaussian(rng) * 0.0001, 6),
-        nextFundingTime: nextFunding,
-        markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
-        openInterestValue: Math.floor(oiBase * mid),
-        timestamp: Date.now(),
-      };
-    });
+  getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
+    return mockVenueDerivatives(symbol);
   }
-
-  async getDerivatives(symbol: string): Promise<DerivativesInfo> {
-    const entry = resolveEntry(symbol);
-    const mid = this.buildQuote(entry).price;
-    const hourBucket = Math.floor(Date.now() / 3_600_000);
-    const rng = seeded(entry.symbol, hourBucket, 'deriv');
-    const oiBase = Math.floor(uniform(rng, 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
-    // Next funding at the next 8-hour boundary.
-    const nextFunding = (Math.floor(Date.now() / (8 * 3_600_000)) + 1) * (8 * 3_600_000);
-
-    const minuteBucket = Math.floor(Date.now() / 60_000);
-    const lrng = seeded(entry.symbol, minuteBucket, 'liq');
-    const recentLiquidations = Array.from({ length: 12 }, (_, i) => {
-      const side = lrng() > 0.5 ? ('buy' as const) : ('sell' as const);
-      const price = round(mid * (1 + (side === 'buy' ? 1 : -1) * uniform(lrng, 0, 0.012)), 6);
-      return {
-        side,
-        price,
-        amount: round(uniform(lrng, 0.05, 8) * (mid > 1000 ? 1 : 1000), 4),
-        timestamp: Date.now() - Math.floor(i * uniform(lrng, 4_000, 30_000)),
-      };
-    });
-
-    return {
-      symbol: entry.symbol.includes(':') ? entry.symbol : `${entry.symbol}:${entry.currency}`,
-      fundingRate: round(gaussian(rng) * 0.0001, 6),
-      nextFundingTime: nextFunding,
-      markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
-      indexPrice: mid,
-      openInterest: oiBase,
-      openInterestValue: Math.floor(oiBase * mid),
-      recentLiquidations,
-      timestamp: Date.now(),
-    };
+  getDerivatives(symbol: string): Promise<DerivativesInfo> {
+    return mockDerivatives(symbol);
   }
-
   liquidationsProvenance(): LiquidationsProvenance {
-    return {
-      source: 'mock',
-      available: true,
-      synthetic: true, // fabricated events — the panel shows 'demo', never a green 'live'
-      note: 'Synthetic liquidations for offline/demo use — not real market data.',
-    };
+    return mockLiquidationsProvenance();
   }
-
-  async getDexPools(symbol: string): Promise<DexPools> {
-    const entry = resolveEntry(symbol);
-    const mid = this.buildQuote(entry).price;
-    const base = entry.symbol.split('/')[0].replace(/:.*$/, '');
-    const day = Math.floor(Date.now() / 86_400_000);
-    const pools: DexPool[] = DEX_VENUES.map(({ dex, feeBps, quote }) => {
-      // Each pool prices slightly off mid and carries its own TVL/volume.
-      const rng = seeded(entry.symbol, dex, feeBps, day, 'dex');
-      const liquidityUsd = Math.floor(uniform(rng, 0.5, 40) * 1_000_000);
-      return {
-        dex,
-        pair: `${base}/${quote}`,
-        priceUsd: round(mid * (1 + gaussian(rng) * 0.002), 6),
-        liquidityUsd,
-        volume24hUsd: Math.floor(uniform(rng, 0.1, 3) * liquidityUsd),
-        feeBps,
-      };
-    });
-    return {
-      symbol: base,
-      provenance: 'synthetic',
-      note: 'Synthetic DEX pools for offline/demo use — not real on-chain data.',
-      pools,
-    };
+  getDexPools(symbol: string): Promise<DexPools> {
+    return mockDexPools(symbol);
   }
-
-  async getSolanaNetwork(): Promise<SolanaNetwork> {
-    // Deterministic-per-minute synthetic network health so SOLNET is useful
-    // offline. Clearly labeled synthetic — never presented as a real RPC read.
-    const minute = Math.floor(Date.now() / 60_000);
-    const rng = seeded('solana', minute, 'solnet');
-    const slotsInEpoch = 432_000;
-    const slotIndex = Math.floor(uniform(rng, 0.1, 0.95) * slotsInEpoch);
-    const solPriceUsd = round(this.buildQuote(resolveEntry('SOL/USDT')).price, 4);
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana network health for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for live data.',
-      slot: 296_000_000 + Math.floor(uniform(rng, 0, 5_000_000)),
-      epoch: 685,
-      epochProgressPct: round((slotIndex / slotsInEpoch) * 100, 1),
-      tps: Math.round(uniform(rng, 1800, 4200)),
-      validatorCount: Math.round(uniform(rng, 1400, 1500)),
-      totalStakeSol: Math.round(uniform(rng, 385_000_000, 395_000_000)),
-      circulatingSupplySol: 468_000_000,
-      totalSupplySol: 586_000_000,
-      solPriceUsd,
-      asOf: Date.now(),
-    };
+  getSolanaNetwork(): Promise<SolanaNetwork> {
+    return mockSolanaNetwork();
   }
-
-  async getSolanaWallet(address: string): Promise<SolanaWallet> {
-    // Holdings are seeded on the ADDRESS ONLY (stable across polls); only the USD
-    // value moves with the live SOL price. Clearly labeled synthetic.
-    const rng = seeded(address, 'solwallet');
-    const solPrice = this.buildQuote(resolveEntry('SOL/USDT')).price;
-    const solBalance = round(uniform(rng, 0.5, 250), 4);
-    const roster: Array<{ mint: string; symbol: string; price: number | null }> = [
-      { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', symbol: 'USDC', price: 1 },
-      { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', symbol: 'USDT', price: 1 },
-      { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', symbol: 'JUP', price: round(uniform(rng, 0.4, 1.2), 4) },
-      { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: 'BONK', price: null },
-    ];
-    const tokens: SolanaTokenHolding[] = roster.map(({ mint, symbol, price }) => {
-      const amount = round(uniform(seeded(address, mint, 'amt'), 5, symbol === 'BONK' ? 5_000_000 : 5_000), 2);
-      return { mint, symbol, amount, valueUsd: price == null ? null : round(price * amount, 2) };
-    });
-    const totalValueUsd = round(
-      solBalance * solPrice + tokens.reduce((s, t) => s + (t.valueUsd ?? 0), 0),
-      2,
-    );
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana wallet for offline/demo use — not a real on-chain read. Set MIDAS_SOLANA_RPC (ccxt provider) to inspect a real address.',
-      address,
-      solBalance,
-      tokens,
-      totalValueUsd,
-      asOf: Date.now(),
-    };
+  getSolanaWallet(address: string): Promise<SolanaWallet> {
+    return mockSolanaWallet(address);
   }
-
-  async getSolanaTrending(): Promise<SolanaTrending> {
-    // Deterministic-per-minute synthetic trending list so STREND is useful
-    // offline. Clearly labeled synthetic — never presented as a live read.
-    const minute = Math.floor(Date.now() / 60_000);
-    const tokens: SolanaTrendingToken[] = SOLANA_TRENDING_ROSTER.map(({ symbol, price, dex }) => {
-      const rng = seeded(symbol, minute, 'strend');
-      const px = price * (1 + gaussian(rng) * 0.04);
-      const liquidityUsd = Math.floor(uniform(rng, 0.3, 25) * 1_000_000);
-      const quote = dex === 'Raydium' ? 'SOL' : 'USDC';
-      return {
-        symbol,
-        pair: `${symbol}/${quote}`,
-        dex,
-        priceUsd: round(px, px < 0.01 ? 8 : 4),
-        change24hPct: round(uniform(rng, -18, 22), 2),
-        volume24hUsd: Math.floor(uniform(rng, 0.2, 4) * liquidityUsd),
-        liquidityUsd,
-      };
-    });
-    tokens.sort((a, b) => (b.volume24hUsd ?? 0) - (a.volume24hUsd ?? 0));
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic trending Solana tokens for offline/demo use — not real on-chain data. Set MIDAS_DEX_SOURCE=geckoterminal (ccxt provider) for live data.',
-      tokens,
-      asOf: Date.now(),
-    };
+  getSolanaTrending(): Promise<SolanaTrending> {
+    return mockSolanaTrending();
   }
-
-  async getSolanaDexPools(symbol: string): Promise<DexPools> {
-    const base = resolveEntry(symbol).symbol.split('/')[0].replace(/:.*$/, '');
-    const mid = this.buildQuote(resolveEntry(`${base}/USDT`)).price;
-    const day = Math.floor(Date.now() / 86_400_000);
-    const pools: DexPool[] = SOLANA_DEX_VENUES.map(({ dex, feeBps, quote }) => {
-      const rng = seeded(base, dex, feeBps, day, 'soldex');
-      const liquidityUsd = Math.floor(uniform(rng, 0.3, 30) * 1_000_000);
-      return {
-        dex,
-        pair: `${base}/${quote}`,
-        priceUsd: round(mid * (1 + gaussian(rng) * 0.003), 6),
-        liquidityUsd,
-        volume24hUsd: Math.floor(uniform(rng, 0.2, 4) * liquidityUsd),
-        feeBps,
-      };
-    });
-    return {
-      symbol: base,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana DEX pools for offline/demo use — not real on-chain data.',
-      pools,
-    };
+  getSolanaDexPools(symbol: string): Promise<DexPools> {
+    return mockSolanaDexPools(symbol);
   }
-
-  async getSolanaValidators(): Promise<SolanaValidators> {
-    // Deterministic-per-hour synthetic leaderboard. Clearly labeled synthetic.
-    const hour = Math.floor(Date.now() / 3_600_000);
-    const count = 30;
-    const raw = Array.from({ length: count }, (_, i) => {
-      const rng = seeded('solval', i, hour, 'val');
-      // Stake decays down the ranking, so the leaderboard looks realistic.
-      return {
-        stake: Math.floor(uniform(rng, 0.4, 1) * 4_000_000 * Math.pow(0.9, i)),
-        commissionPct: Math.round(uniform(rng, 0, 10)),
-        delinquent: i > 26 && uniform(rng, 0, 1) > 0.5, // a couple at the tail
-        seed: rng,
-      };
-    });
-    const totalStakeSol = raw.reduce((s, v) => s + v.stake, 0);
-    const validators: SolanaValidator[] = raw.map((v, i) => ({
-      votePubkey: `Vote${i}1111111111111111111111111111111111111`,
-      identity: `Node${i}…${(1000 + i).toString(36)}`,
-      activatedStakeSol: v.stake,
-      commissionPct: v.commissionPct,
-      stakeSharePct: Math.round((v.stake / totalStakeSol) * 10000) / 100,
-      delinquent: v.delinquent,
-      lastVoteSlot: 296_000_000 + Math.floor(uniform(v.seed, 0, 5000)),
-    }));
-    validators.sort((a, b) => (b.activatedStakeSol ?? 0) - (a.activatedStakeSol ?? 0));
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana validators for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for the live leaderboard.',
-      totalStakeSol,
-      validatorCount: validators.filter((v) => !v.delinquent).length,
-      delinquentCount: validators.filter((v) => v.delinquent).length,
-      validators,
-      asOf: Date.now(),
-    };
+  getSolanaValidators(): Promise<SolanaValidators> {
+    return mockSolanaValidators();
   }
-
-  async getSolanaStaking(): Promise<SolanaStaking> {
-    const hour = Math.floor(Date.now() / 3_600_000);
-    const rng = seeded('solstake', hour, 'stake');
-    const inflation = uniform(rng, 0.044, 0.048); // ~4.5% total, disinflating
-    const stakedRatio = uniform(rng, 0.63, 0.67); // ~65% of supply staked
-    const epochsPerYear = 182;
-    const nominal = inflation / stakedRatio;
-    const real = (1 + nominal / epochsPerYear) ** epochsPerYear - 1;
-    const pct = (x: number): number => Math.round(x * 1000) / 10;
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana staking economics for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for live data.',
-      inflationPct: pct(inflation),
-      stakedRatioPct: pct(stakedRatio),
-      nominalApyPct: pct(nominal),
-      realApyPct: pct(real),
-      epochsPerYear,
-      asOf: Date.now(),
-    };
+  getSolanaStaking(): Promise<SolanaStaking> {
+    return mockSolanaStaking();
   }
-
-  async getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
-    // Deterministic-per-mint synthetic token snapshot. Clearly labeled synthetic.
-    const symbol = KNOWN_MINTS[mint] ?? shortMint(mint);
-    const decimals = MINT_DECIMALS[mint] ?? 6;
-    const rng = seeded('spl', mint, 'token');
-    const mintActive = uniform(rng, 0, 1) > 0.5;
-    const freezeActive = uniform(rng, 0, 1) > 0.6;
-    const price = STABLE_SYMBOLS.has(symbol)
-      ? 1
-      : symbol === 'SOL'
-        ? this.buildQuote(resolveEntry('SOL/USDT')).price
-        : null;
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic SPL token data for offline/demo use — not a real RPC read. Set MIDAS_SOLANA_RPC (ccxt provider) for a live read.',
-      mint,
-      symbol,
-      program: 'spl-token',
-      decimals,
-      supply: Math.floor(uniform(rng, 1, 900) * 1_000_000),
-      mintAuthority: mintActive ? 'Mint1111111111111111111111111111111111111' : null,
-      mintAuthorityActive: mintActive,
-      freezeAuthority: freezeActive ? 'Freeze11111111111111111111111111111111111' : null,
-      freezeAuthorityActive: freezeActive,
-      priceUsd: price,
-      asOf: Date.now(),
-    };
+  getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
+    return mockSolanaToken(mint);
   }
-
-  async getSolanaQuote(input: string, output: string, amount: number): Promise<SolanaSwapQuote> {
-    // Synthetic swap quote from a small USD basis; impact grows with notional.
-    // Read-only and clearly labeled — the demo never routes or signs anything.
-    const inSym = input.toUpperCase();
-    const outSym = output.toUpperCase();
-    const basis: Record<string, number> = { SOL: 152, USDC: 1, USDT: 1, BONK: 0.000025, JUP: 0.9, JTO: 3.1 };
-    const bad = (note: string): SolanaSwapQuote => ({
-      source: this.name,
-      provenance: 'synthetic',
-      note,
-      inputSymbol: inSym,
-      outputSymbol: outSym,
-      inputMint: MINT_BY_SYMBOL[inSym] ?? '',
-      outputMint: MINT_BY_SYMBOL[outSym] ?? '',
-      inAmount: null,
-      outAmount: null,
-      price: null,
-      priceImpactPct: null,
-      slippageBps: null,
-      route: [],
-      asOf: Date.now(),
-    });
-    if (basis[inSym] == null || basis[outSym] == null)
-      return bad('Synthetic quotes cover a known set (SOL, USDC, USDT, BONK, JUP, JTO).');
-    if (inSym === outSym) return bad('Pick two different tokens to quote a swap.');
-    if (!(amount > 0)) return bad('Enter a positive input amount to quote.');
-    const rng = seeded('sjup', inSym, outSym, Math.round(amount * 100), Math.floor(Date.now() / 60_000));
-    const notionalUsd = amount * basis[inSym];
-    const impactPct = Math.min(8, Math.sqrt(notionalUsd / 50_000) * 0.5) * (1 + Math.abs(gaussian(rng)) * 0.1);
-    const feePct = 0.25;
-    const out = ((amount * basis[inSym]) / basis[outSym]) * (1 - impactPct / 100 - feePct / 100);
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic swap quote for offline/demo use — not a live Jupiter route. Set MIDAS_SOLANA_JUPITER (ccxt provider) for live quotes.',
-      inputSymbol: inSym,
-      outputSymbol: outSym,
-      inputMint: MINT_BY_SYMBOL[inSym] ?? '',
-      outputMint: MINT_BY_SYMBOL[outSym] ?? '',
-      inAmount: amount,
-      outAmount: round(out, out < 1 ? 6 : 4),
-      price: round(out / amount, out / amount < 1 ? 8 : 4),
-      priceImpactPct: round(impactPct, 3),
-      slippageBps: 50,
-      route: [
-        { dex: 'Orca', percent: 60 },
-        { dex: 'Raydium', percent: 40 },
-      ],
-      asOf: Date.now(),
-    };
+  getSolanaQuote(input: string, output: string, amount: number): Promise<SolanaSwapQuote> {
+    return mockSolanaQuote(input, output, amount);
   }
-
-  async getSolanaMarket(): Promise<SolanaMarket> {
-    // Reuse the synthetic trending list (unique per symbol) and roll it up with
-    // a SOL price header. Clearly labeled synthetic — never a live read.
-    const trending = await this.getSolanaTrending();
-    const tokens: SolanaMarketToken[] = trending.tokens.map((t) => ({
-      symbol: t.symbol,
-      priceUsd: t.priceUsd,
-      change24hPct: t.change24hPct,
-      volume24hUsd: t.volume24hUsd,
-      liquidityUsd: t.liquidityUsd,
-    }));
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note: 'Synthetic Solana market overview for offline/demo use — not real on-chain data. Set MIDAS_DEX_SOURCE=geckoterminal (ccxt provider) for live data.',
-      solPriceUsd: this.buildQuote(resolveEntry('SOL/USDT')).price,
-      totalVolume24hUsd: Math.round(tokens.reduce((s, t) => s + (t.volume24hUsd ?? 0), 0)),
-      totalLiquidityUsd: Math.round(tokens.reduce((s, t) => s + (t.liquidityUsd ?? 0), 0)),
-      tokenCount: tokens.length,
-      tokens,
-      asOf: Date.now(),
-    };
+  getSolanaMarket(): Promise<SolanaMarket> {
+    return mockSolanaMarket();
   }
-
-  async getBalances(): Promise<Balances> {
-    // A small deterministic demo book so the BAL panel is useful offline. Clearly
-    // labeled synthetic — never a real account. The `used` column is exercised by
-    // a couple of holdings so the free/used split isn't all zeros in the demo.
-    const book: Array<{ asset: string; free: number; used: number }> = [
-      { asset: 'BTC', free: 0.6231, used: 0 },
-      { asset: 'ETH', free: 6.42, used: 1.0 },
-      { asset: 'SOL', free: 145.8, used: 0 },
-      { asset: 'USDT', free: 8650, used: 350 },
-    ];
-    const balances: AccountBalance[] = book.map(({ asset, free, used }) => {
-      const total = round(free + used, 6);
-      const priceUsd = STABLES.has(asset) ? 1 : this.buildQuote(resolveEntry(`${asset}/USDT`)).price;
-      return { asset, free, used, total, valueUsd: round(priceUsd * total) };
-    });
-    balances.sort((a, b) => (b.valueUsd ?? 0) - (a.valueUsd ?? 0));
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note:
-        'Synthetic demo balances for offline/demo use — not a real account. ' +
-        'Configure read-only exchange API keys (ccxt provider) for live balances.',
-      totalValueUsd: sumValueUsd(balances),
-      balances,
-      asOf: Date.now(),
-    };
+  getBalances(): Promise<Balances> {
+    return mockBalances();
   }
-
-  async getOpenOrders(): Promise<OpenOrders> {
-    // A couple of resting limit orders around the live mock price so the ORD
-    // panel is useful offline. Clearly labeled synthetic — never a real account.
-    const specs: Array<{ symbol: string; side: 'buy' | 'sell'; offsetPct: number; amount: number; filledPct: number }> = [
-      { symbol: 'BTC/USDT', side: 'buy', offsetPct: -0.03, amount: 0.25, filledPct: 0.2 },
-      { symbol: 'ETH/USDT', side: 'sell', offsetPct: 0.04, amount: 4, filledPct: 0 },
-      { symbol: 'SOL/USDT', side: 'buy', offsetPct: -0.06, amount: 60, filledPct: 0 },
-    ];
-    const now = Date.now();
-    const orders: OpenOrder[] = specs.map((s, i) => {
-      const mid = this.buildQuote(resolveEntry(s.symbol)).price;
-      const price = round(mid * (1 + s.offsetPct), 6);
-      const filled = round(s.amount * s.filledPct, 6);
-      return {
-        id: `demo-${i + 1}`,
-        symbol: s.symbol,
-        side: s.side,
-        type: 'limit',
-        price,
-        amount: s.amount,
-        filled,
-        remaining: round(s.amount - filled, 6),
-        value: round(price * s.amount),
-        timestamp: now - (i + 1) * 3_600_000,
-        status: filled > 0 ? 'partial' : 'open',
-      };
-    });
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note:
-        'Synthetic demo orders for offline/demo use — not a real account. ' +
-        'Configure read-only exchange API keys (ccxt provider) for live orders.',
-      orders,
-      asOf: now,
-    };
+  getOpenOrders(): Promise<OpenOrders> {
+    return mockOpenOrders();
   }
-
-  async getPositions(): Promise<AccountPositions> {
-    // Two demo perp positions so the POSN panel is useful offline. Synthetic.
-    const specs: Array<{ symbol: string; side: 'long' | 'short'; contracts: number; entryOffsetPct: number; leverage: number }> = [
-      { symbol: 'BTC/USDT', side: 'long', contracts: 0.4, entryOffsetPct: -0.05, leverage: 10 },
-      { symbol: 'ETH/USDT', side: 'short', contracts: 5, entryOffsetPct: 0.03, leverage: 5 },
-    ];
-    const now = Date.now();
-    const positions: AccountPosition[] = specs.map((s) => {
-      const mark = this.buildQuote(resolveEntry(s.symbol)).price;
-      const entry = round(mark * (1 + s.entryOffsetPct), 6);
-      const notionalUsd = round(mark * s.contracts);
-      const dir = s.side === 'long' ? 1 : -1;
-      const unrealizedPnlUsd = round(dir * (mark - entry) * s.contracts);
-      const margin = notionalUsd / s.leverage;
-      const pnlPct = margin > 0 ? round((unrealizedPnlUsd / margin) * 100, 2) : null;
-      // Rough synthetic liquidation: entry moved against by ~1/leverage.
-      const liquidationPrice = round(entry * (1 - dir / s.leverage), 6);
-      return {
-        symbol: `${s.symbol}:${s.symbol.split('/')[1]}`,
-        side: s.side,
-        contracts: s.contracts,
-        notionalUsd,
-        entryPrice: entry,
-        markPrice: round(mark, 6),
-        unrealizedPnlUsd,
-        pnlPct,
-        liquidationPrice,
-        leverage: s.leverage,
-      };
-    });
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note:
-        'Synthetic demo positions for offline/demo use — not a real account. ' +
-        'Configure read-only exchange API keys (ccxt provider) for live positions.',
-      totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
-      positions,
-      asOf: now,
-    };
+  getPositions(): Promise<AccountPositions> {
+    return mockPositions();
   }
-
-  async getFills(symbol?: string): Promise<AccountFills> {
-    // A dozen deterministic demo fills across the demo book's symbols so the
-    // FILLS panel is useful offline. Clearly labeled synthetic.
-    const symbols = symbol ? [symbol.toUpperCase()] : ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'];
-    const now = Date.now();
-    const hourBucket = Math.floor(now / 3_600_000);
-    const fills: AccountFill[] = [];
-    for (let i = 0; i < 12; i++) {
-      const sym = symbols[i % symbols.length];
-      const mid = this.buildQuote(resolveEntry(sym)).price;
-      const rng = seeded(sym, hourBucket, i, 'fills');
-      const side = rng() > 0.5 ? ('buy' as const) : ('sell' as const);
-      const price = round(mid * (1 + gaussian(rng) * 0.004), 6);
-      const amount = round(uniform(rng, 0.05, 2) * (mid > 1000 ? 0.4 : 40), 4);
-      const cost = round(price * amount);
-      fills.push({
-        id: `demo-fill-${hourBucket}-${i}`,
-        orderId: `demo-${(i % 3) + 1}`,
-        symbol: sym,
-        side,
-        price,
-        amount,
-        cost,
-        fee: round(cost * 0.001, 4),
-        feeCurrency: sym.split('/')[1] ?? 'USDT',
-        takerOrMaker: rng() > 0.4 ? 'taker' : 'maker',
-        timestamp: now - i * uniform(rng, 0.5, 4) * 3_600_000,
-      });
-    }
-    fills.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
-    return {
-      source: this.name,
-      provenance: 'synthetic',
-      note:
-        'Synthetic demo fills for offline/demo use — not a real account. ' +
-        'Configure read-only exchange API keys (ccxt provider) for live fills.',
-      fills,
-      asOf: now,
-    };
+  getFills(symbol?: string): Promise<AccountFills> {
+    return mockFills(symbol);
   }
-
-  async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
-    const entry = resolveEntry(symbol);
-    const interval = 8 * 3_600_000; // 8h settlements
-    const n = Math.min(Math.max(1, Math.floor(limit)), 500);
-    const latest = Math.floor(Date.now() / interval) * interval;
-    const out: FundingHistoryPoint[] = [];
-    for (let i = n - 1; i >= 0; i--) {
-      const time = latest - i * interval;
-      const rng = seeded(entry.symbol, Math.floor(time / interval), 'fundhist');
-      out.push({ time, fundingRate: round(gaussian(rng) * 0.0001, 6) });
-    }
-    return out;
+  getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
+    return mockFundingHistory(symbol, limit);
   }
-
-  async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
-    const quote = (opts.quote ?? 'USDT').toUpperCase();
-    const rows: ScreenerRow[] = ROSTER.filter(
-      (e) => e.type === 'CRYPTOCURRENCY' && e.symbol.includes('/') && e.symbol.split('/')[1] === quote,
-    ).map((e) => {
-      const q = this.buildQuote(e);
-      return {
-        symbol: e.symbol,
-        name: e.name,
-        price: q.price,
-        changePercent: q.changePercent,
-        volume: q.volume,
-        quoteVolume: q.volume != null ? Math.floor(q.volume * q.price) : null,
-      };
-    });
-    return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+  screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+    return mockScreen(opts);
   }
-
-  async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
-    const entry = resolveEntry(symbol);
-    const { interval, range } = opts;
-    const stepSeconds = INTERVAL_SECONDS[interval];
-    const rangeSeconds = RANGE_SECONDS[range];
-    const count = clamp(Math.floor(rangeSeconds / stepSeconds), 2, 1200);
-
-    // Anchor the final candle to the symbol's current quote so the chart and
-    // the quote modules agree on "the price right now".
-    const quote = this.buildQuote(entry);
-    const rng = seeded(entry.symbol, interval, range, 'history');
-    const volatility = 0.012 + uniform(rng, 0, 0.01); // per-step sigma
-    const nowSec = Math.floor(Date.now() / 1000);
-    const alignedNow = nowSec - (nowSec % stepSeconds);
-
-    // Build a backward random walk from the current price.
-    const closes = new Array<number>(count);
-    closes[count - 1] = quote.price;
-    for (let i = count - 2; i >= 0; i--) {
-      const drift = gaussian(rng) * volatility;
-      closes[i] = closes[i + 1] / (1 + drift);
-    }
-
-    const candles: Candle[] = [];
-    for (let i = 0; i < count; i++) {
-      const time = alignedNow - (count - 1 - i) * stepSeconds;
-      const close = closes[i];
-      const open = i === 0 ? close / (1 + gaussian(rng) * volatility * 0.5) : closes[i - 1];
-      const wick = Math.abs(gaussian(rng)) * volatility;
-      const high = Math.max(open, close) * (1 + wick);
-      const low = Math.min(open, close) * (1 - wick);
-      const volume = Math.floor(uniform(rng, 0.4, 1.6) * 5_000_000);
-      candles.push({
-        time,
-        open: round(open),
-        high: round(high),
-        low: round(low),
-        close: round(close),
-        volume,
-      });
-    }
-
-    return {
-      symbol: entry.symbol,
-      interval,
-      range,
-      currency: entry.currency,
-      candles,
-    };
+  getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
+    return mockHistory(symbol, opts);
   }
-
-  async search(query: string): Promise<SearchResult[]> {
-    const q = query.trim().toUpperCase();
-    if (!q) return [];
-
-    const matches = ROSTER.filter(
-      (entry) =>
-        entry.symbol.includes(q) || entry.name.toUpperCase().includes(q),
-    ).slice(0, 15);
-
-    if (matches.length === 0) {
-      const entry = resolveEntry(q);
-      return [
-        {
-          symbol: entry.symbol,
-          name: entry.name,
-          exchange: entry.exchange,
-          type: entry.type,
-        },
-      ];
-    }
-
-    return matches.map((entry) => ({
-      symbol: entry.symbol,
-      name: entry.name,
-      exchange: entry.exchange,
-      type: entry.type,
-    }));
+  search(query: string): Promise<SearchResult[]> {
+    return mockSearch(query);
   }
-
-  async getNews(symbol?: string): Promise<NewsItem[]> {
-    const dayBucket = Math.floor(Date.now() / 86_400_000);
-    const count = 12;
-
-    if (!symbol) {
-      const rng = seeded('market', dayBucket);
-      return Array.from({ length: count }, (_, i) => {
-        const title = MARKET_HEADLINES[Math.floor(rng() * MARKET_HEADLINES.length)];
-        return this.buildNewsItem(`market-${dayBucket}-${i}`, title, [], rng, i);
-      });
-    }
-
-    const entry = resolveEntry(symbol);
-    const rng = seeded(entry.symbol, 'news', dayBucket);
-    return Array.from({ length: count }, (_, i) => {
-      const template = HEADLINE_TEMPLATES[Math.floor(rng() * HEADLINE_TEMPLATES.length)];
-      const title = template
-        .replace('{sym}', entry.symbol)
-        .replace('{name}', entry.name.replace(/,?\s+(Inc\.|Corporation|Corp\.|Company|Incorporated|Holdings Corp\.).*$/, ''));
-      return this.buildNewsItem(`${entry.symbol}-${dayBucket}-${i}`, title, [entry.symbol], rng, i);
-    });
-  }
-
-  // -- internals -----------------------------------------------------------
-
-  private buildQuote(entry: RosterEntry): Quote {
-    const now = Date.now();
-    const dayBucket = Math.floor(now / 86_400_000);
-    const minuteBucket = Math.floor(now / 60_000);
-
-    // Day-stable components (previous close, 52wk band, volume baseline).
-    const dayRng = seeded(entry.symbol, dayBucket, 'day');
-    const previousClose = round(entry.base * (1 + gaussian(dayRng) * 0.01));
-    const fiftyTwoWeekHigh = round(entry.base * uniform(dayRng, 1.08, 1.4));
-    const fiftyTwoWeekLow = round(entry.base * uniform(dayRng, 0.6, 0.92));
-    const baseVolume = Math.floor(uniform(dayRng, 0.5, 1.5) * 30_000_000);
-    const shares = Math.floor(uniform(dayRng, 0.4, 8) * 1_000_000_000);
-    const open = round(previousClose * (1 + gaussian(dayRng) * 0.004));
-
-    // Minute-stable component (the live wiggle).
-    const minRng = seeded(entry.symbol, minuteBucket, 'min');
-    const changePercent = clamp(gaussian(minRng) * 1.4, -8, 8);
-    const price = round(previousClose * (1 + changePercent / 100));
-    const change = round(price - previousClose);
-
-    const dayHigh = round(Math.max(open, price) * (1 + Math.abs(gaussian(dayRng)) * 0.006));
-    const dayLow = round(Math.min(open, price) * (1 - Math.abs(gaussian(dayRng)) * 0.006));
-
-    const state: MarketState = entry.type === 'CRYPTOCURRENCY' ? 'REGULAR' : usMarketState(now);
-
-    return {
-      symbol: entry.symbol,
-      name: entry.name,
-      currency: entry.currency,
-      exchange: entry.exchange,
-      marketState: state,
-      price,
-      previousClose,
-      open,
-      dayHigh,
-      dayLow,
-      change,
-      changePercent: round(previousClose === 0 ? 0 : (change / previousClose) * 100),
-      volume: Math.floor(baseVolume * uniform(minRng, 0.6, 1.1)),
-      marketCap: entry.type === 'INDEX' ? null : Math.floor(price * shares),
-      fiftyTwoWeekHigh,
-      fiftyTwoWeekLow,
-      asOf: now,
-    };
-  }
-
-  private buildNewsItem(
-    id: string,
-    title: string,
-    relatedSymbols: string[],
-    rng: () => number,
-    index: number,
-  ): NewsItem {
-    const publisher = NEWS_PUBLISHERS[Math.floor(rng() * NEWS_PUBLISHERS.length)];
-    // Spread headlines across the last ~72 hours, newest first.
-    const ageMinutes = Math.floor(index * 220 + rng() * 200);
-    const slug = String(hashString(id).toString(36));
-    return {
-      id,
-      title,
-      publisher,
-      link: `https://example.com/news/${slug}`,
-      publishedAt: Date.now() - ageMinutes * 60_000,
-      relatedSymbols,
-      summary: 'Synthetic headline generated by the Midas mock data provider for offline development.',
-    };
+  getNews(symbol?: string): Promise<NewsItem[]> {
+    return mockNews(symbol);
   }
 }
