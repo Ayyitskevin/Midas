@@ -30,6 +30,21 @@ describe('computeSeasonality', () => {
     expect(s.byHour[13].avg).toBeCloseTo(10);
   });
 
+  it('handles candle times in Unix SECONDS (the shared contract), not only ms', () => {
+    // Providers deliver candle.time in seconds; feeding those to new Date()
+    // as-is lands every sample in ~Jan 1970. This is the regression guard.
+    const tSec = Math.floor(Date.UTC(2026, 0, 6, 9, 0, 0) / 1000); // Tue 09:00 UTC, seconds
+    const day = new Date(tSec * 1000).getUTCDay();
+    const s = computeSeasonality([
+      { time: tSec - 3600, close: 100 },
+      { time: tSec, close: 105 },
+    ]);
+    expect(s.totalSamples).toBe(1);
+    expect(s.grid[day][9].n).toBe(1);
+    expect(s.grid[day][9].avg).toBeCloseTo(5);
+    expect(s.byHour[9].avg).toBeCloseTo(5);
+  });
+
   it('skips returns spanning a non-positive close', () => {
     const t = Date.UTC(2026, 0, 5, 5, 0, 0);
     const s = computeSeasonality([

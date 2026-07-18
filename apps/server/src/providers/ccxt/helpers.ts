@@ -69,6 +69,37 @@ export function num(value: number | undefined | null, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+const TF_UNIT_SECONDS: Record<string, number> = { m: 60, h: 3600, d: 86400, w: 604800, M: 2592000 };
+
+/**
+ * Seconds in a ccxt timeframe string ('1m', '1h', '1d', '1w', '1M'); 0 if
+ * unparseable. Case matters — 'm' is minute, 'M' is month. Used to size the
+ * candle window from the ACTUALLY-fetched timeframe, not the requested one.
+ */
+export function timeframeSeconds(tf: string): number {
+  const m = /^(\d+)([mhdwM])$/.exec(tf);
+  return m ? Number(m[1]) * (TF_UNIT_SECONDS[m[2]] ?? 0) : 0;
+}
+
+/**
+ * Best available price from a ticker: last, else close, else the bid/ask mid;
+ * null when a ticker carries none of them (some venues return bid/ask-only
+ * tickers for illiquid pairs). Callers must treat null as "no price" rather
+ * than coercing it to 0 — a fabricated 0 flows into compare rows, the screener
+ * and alert readings as a real live price.
+ */
+export function tickerPrice(t: {
+  last?: number | null;
+  close?: number | null;
+  bid?: number | null;
+  ask?: number | null;
+}): number | null {
+  const lastOrClose = t.last ?? t.close;
+  if (typeof lastOrClose === 'number' && Number.isFinite(lastOrClose) && lastOrClose > 0) return lastOrClose;
+  if (typeof t.bid === 'number' && typeof t.ask === 'number' && t.bid > 0 && t.ask > 0) return (t.bid + t.ask) / 2;
+  return null;
+}
+
 /**
  * ccxt's exchange-constructor registry, typed for `registry[id]` lookups. The
  * `as unknown as` cast is unavoidable (ccxt's namespace isn't indexable in its

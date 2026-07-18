@@ -55,6 +55,8 @@ import {
   readFunding,
   readOpenInterest,
   safeErrorLabel,
+  tickerPrice,
+  timeframeSeconds,
   toPerpSymbol,
 } from './ccxt/helpers';
 
@@ -129,7 +131,7 @@ export class CcxtProvider implements DataProvider {
     const id2 = (process.env.MIDAS_CCXT_EXCHANGE_2 ?? '').toLowerCase();
     const key2 = process.env.MIDAS_CCXT_API_KEY_2;
     const secret2 = process.env.MIDAS_CCXT_SECRET_2;
-    if (!this.userKeyed && id2 && id2 !== id && key2 && secret2) {
+    if (!this.userKeyed && id2 && id2 !== id && isKnownExchange(id2) && key2 && secret2) {
       const Ctor2 = registry[id2];
       if (typeof Ctor2 === 'function') {
         const cfg2: Record<string, unknown> = { enableRateLimit: true, apiKey: key2, secret: secret2 };
@@ -240,9 +242,14 @@ export class CcxtProvider implements DataProvider {
     const s = this.normalize(symbol);
     const timeframe = this.resolveTimeframe(opts.interval);
     const rangeSec = RANGE_SECONDS[opts.range];
-    const intervalSec = INTERVAL_SECONDS[opts.interval];
-    const limit = Math.min(Math.max(Math.floor(rangeSec / intervalSec), 2), 1000);
-    const since = Date.now() - rangeSec * 1000;
+    // Size the window from the ACTUALLY-fetched timeframe, not the requested
+    // interval (they differ when a timeframe is substituted). ccxt returns bars
+    // starting AT `since` capped at `limit`, so anchoring `since` at the full
+    // range start while clamping `limit` to 1000 drops the NEWEST bars. Derive
+    // `since` from the clamped bar count so the window is always the most recent.
+    const barSec = timeframeSeconds(timeframe) || INTERVAL_SECONDS[opts.interval];
+    const limit = Math.min(Math.max(Math.floor(rangeSec / barSec), 2), 1000);
+    const since = Date.now() - limit * barSec * 1000;
 
     try {
       const rows = (await this.exchange.fetchOHLCV(s, timeframe, since, limit)) as number[][];
@@ -260,7 +267,8 @@ export class CcxtProvider implements DataProvider {
           volume: num(volume),
         });
       }
-      const quote = s.split('/')[1] ?? '';
+      // Strip the perp settle suffix so BTC/USDT:USDT reports currency 'USDT'.
+      const quote = (s.split('/')[1] ?? '').replace(/:.*$/, '');
       return {
         symbol: s,
         interval: opts.interval,
@@ -295,9 +303,13 @@ export class CcxtProvider implements DataProvider {
     const settled = await Promise.allSettled(
       this.getCompareExchanges().map(async (ex): Promise<VenueQuote> => {
         const t = await ex.fetchTicker(s);
+        const price = tickerPrice(t);
+        // Drop a venue whose ticker carries no usable price rather than
+        // fabricating 0 — a fake 0 reads as a ~100% cross-venue discrepancy.
+        if (price == null) throw new ProviderError(`${ex.id} ${s}: ticker has no price`, 502, s);
         return {
           exchange: ex.name ?? ex.id,
-          price: num(t.last ?? t.close),
+          price,
           bid: t.bid ?? null,
           ask: t.ask ?? null,
           changePercent: num(t.percentage),
@@ -377,13 +389,21 @@ export class CcxtProvider implements DataProvider {
           amount?: number;
           contracts?: number;
           timestamp?: number;
+          info?: { side?: string };
         }>;
-        out.recentLiquidations = liqs.slice(0, 20).map((l) => ({
-          side: l.side === 'sell' ? ('sell' as const) : ('buy' as const),
-          price: num(l.price),
-          amount: num(l.amount ?? l.contracts),
-          timestamp: l.timestamp ?? Date.now(),
-        }));
+        // ccxt's unified liquidation shape has no top-level `side` — it lives,
+        // venue-specifically, inside `info`. Read it from there; when the side
+        // (or a usable price) can't be determined, drop the row rather than
+        // fabricating 'buy' (which would render every liquidation as a short).
+        const recent: DerivativesInfo['recentLiquidations'] = [];
+        for (const l of liqs.slice(0, 20)) {
+          const rawSide = (l.side ?? l.info?.side ?? '').toString().toLowerCase();
+          const side = rawSide === 'sell' ? ('sell' as const) : rawSide === 'buy' ? ('buy' as const) : null;
+          const price = num(l.price);
+          if (!side || !(price > 0)) continue;
+          recent.push({ side, price, amount: num(l.amount ?? l.contracts), timestamp: l.timestamp ?? Date.now() });
+        }
+        out.recentLiquidations = recent;
       } catch {
         // public liquidations feed not available
       }
@@ -539,13 +559,24 @@ export class CcxtProvider implements DataProvider {
     try {
       const tickers = await exchange.fetchTickers(need.map((a) => `${a}/USDT`));
       for (const a of need) {
-        const t = tickers[`${a}/USDT`];
-        const px = t ? t.last ?? t.close : null;
-        if (typeof px === 'number' && Number.isFinite(px) && px > 0) map.set(a, px);
+        const px = tickerPrice(tickers[`${a}/USDT`] ?? {});
+        if (px != null) map.set(a, px);
       }
     } catch {
-      // Best-effort valuation: any failure just leaves those assets unpriced
-      // (valueUsd: null) rather than failing the whole balances read.
+      // The batched fetchTickers rejects the WHOLE request when any one symbol
+      // is invalid (a delisted/dust asset with no /USDT market), which would
+      // otherwise leave EVERY balance unpriced. Fall back to per-symbol reads
+      // so one bad asset only unprices itself.
+      await Promise.all(
+        need.map(async (a) => {
+          try {
+            const px = tickerPrice(await exchange.fetchTicker(`${a}/USDT`));
+            if (px != null) map.set(a, px);
+          } catch {
+            // leave this one asset unpriced (valueUsd: null)
+          }
+        }),
+      );
     }
     return map;
   }
@@ -710,8 +741,15 @@ export class CcxtProvider implements DataProvider {
       throw new ProviderError(`${this.name} does not support single-order lookup.`, 501);
     }
     const sym = this.normalize(symbol);
-    const raw = await this.exchange.fetchOrder(id, sym);
-    return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
+    try {
+      const raw = await this.exchange.fetchOrder(id, sym);
+      return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
+    } catch (err) {
+      // Sanitize like every other keyed read in this file — a raw ccxt error
+      // embeds the signed request URL (HMAC signature / API key) and response
+      // body; describe()/safeErrorLabel strip it.
+      throw err instanceof ProviderError ? err : new ProviderError(this.describe(err, sym), 502, sym);
+    }
   }
 
   /**
@@ -778,10 +816,12 @@ export class CcxtProvider implements DataProvider {
       const rows: ScreenerRow[] = [];
       for (const [sym, t] of Object.entries(tickers)) {
         if (!sym.endsWith(`/${quote}`)) continue;
+        const price = tickerPrice(t);
+        if (price == null) continue; // skip pairs with no usable price, not price 0
         rows.push({
           symbol: sym,
           name: sym,
-          price: num(t.last ?? t.close),
+          price,
           changePercent: num(t.percentage),
           volume: t.baseVolume ?? null,
           quoteVolume: t.quoteVolume ?? null,
@@ -844,8 +884,9 @@ export class CcxtProvider implements DataProvider {
   }
 
   private toQuote(symbol: string, t: Ticker): Quote {
-    const [base, quote] = symbol.split('/');
-    const price = num(t.last ?? t.close);
+    const [base, rawQuote] = symbol.split('/');
+    const quote = (rawQuote ?? '').replace(/:.*$/, ''); // strip perp settle suffix
+    const price = tickerPrice(t) ?? 0; // mid-from-bid/ask before any 0 fallback
     const previousClose = num(t.previousClose ?? t.open ?? price, price);
     const change = num(t.change, price - previousClose);
     const changePercent = num(
@@ -884,6 +925,10 @@ export class CcxtProvider implements DataProvider {
       const registry = ccxtRegistry();
       this.compareExchanges = ids
         .map((id) => {
+          // Same allowlist the primary-exchange constructor uses: `registry[id]`
+          // for an inherited Object member (constructor, toString, …) IS a
+          // function, so the typeof guard alone is bypassable.
+          if (!isKnownExchange(id)) return null;
           const Ctor = registry[id];
           return typeof Ctor === 'function' ? new Ctor({ enableRateLimit: true }) : null;
         })
@@ -896,8 +941,10 @@ export class CcxtProvider implements DataProvider {
     const wanted = TIMEFRAME_MAP[interval];
     const supported = this.exchange.timeframes as Record<string, unknown> | undefined;
     if (supported && !(wanted in supported)) {
-      if ('1d' in supported) return '1d';
+      // Prefer the nearest finer timeframe ('1h') over jumping to daily, so a
+      // request for a minute/hour interval doesn't silently return daily bars.
       if ('1h' in supported) return '1h';
+      if ('1d' in supported) return '1d';
       const first = Object.keys(supported)[0];
       if (first) return first;
     }

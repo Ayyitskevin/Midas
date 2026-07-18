@@ -59,7 +59,7 @@ export function registerAiRoutes(app: FastifyInstance, provider: DataProvider): 
         throw new ProviderError('Conversation too large — 32k characters max per request.', 400);
       }
 
-      const symbol = req.body?.symbol ? normalizeSymbol(req.body.symbol) : undefined;
+      const symbol = normalizeSymbol(req.body?.symbol) || undefined;
       const context = await buildContext(provider, symbol);
       const system = `${COPILOT_SYSTEM_PREAMBLE}\n\nLIVE DATA:\n${context}`;
       const content = await callClaude({ system, messages, model: config.aiModel, apiKey });

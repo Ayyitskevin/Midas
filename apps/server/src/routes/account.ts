@@ -60,7 +60,7 @@ export function registerAccountRoutes(app: FastifyInstance, pool: ProviderResolv
     pool.accountFor(req.userId)?.getPositions() ?? unavailablePositions(),
   );
   app.get<{ Querystring: { symbol?: string } }>('/api/fills', async (req) => {
-    const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : undefined;
+    const symbol = normalizeSymbol(req.query.symbol) || undefined;
     return pool.accountFor(req.userId)?.getFills(symbol) ?? unavailableFills();
   });
   // Read-only single-order lookup — powers TICKET's post-placement tracking
@@ -71,7 +71,7 @@ export function registerAccountRoutes(app: FastifyInstance, pool: ProviderResolv
     '/api/orders/:id',
     async (req) => {
       const id = req.params.id.trim();
-      const symbol = req.query.symbol ? normalizeSymbol(req.query.symbol) : '';
+      const symbol = normalizeSymbol(req.query.symbol);
       if (!id) throw new ProviderError('Missing order id', 400);
       if (!symbol) throw new ProviderError('Missing symbol (most exchanges require it to look up an order)', 400);
       const reader = pool.accountFor(req.userId);

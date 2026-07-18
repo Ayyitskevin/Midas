@@ -48,7 +48,11 @@ export function computeSeasonality(candles: readonly SeasonCandle[]): Seasonalit
     if (!(c0 > 0) || !(c1 > 0)) continue;
     const r = (c1 / c0 - 1) * 100;
 
-    const d = new Date(candles[i].time);
+    // Candle `time` is a Unix timestamp in SECONDS (the @midas/shared contract);
+    // new Date() wants ms, so scale up. The threshold also tolerates a value
+    // that already arrived in ms.
+    const t = candles[i].time;
+    const d = new Date(t < 1e12 ? t * 1000 : t);
     const day = d.getUTCDay();
     const hour = d.getUTCHours();
 
