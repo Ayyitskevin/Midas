@@ -108,6 +108,97 @@ export interface VenueQuote {
   timestamp: number;
 }
 
+/** One venue's top-of-book for a symbol, in the cross-venue arb screener. */
+export interface VenuePricePoint {
+  exchange: string;
+  bid: number | null;
+  ask: number | null;
+  /** Last / mid price. */
+  price: number;
+}
+
+/**
+ * One row of the cross-venue arb screener — a symbol's price disagreement
+ * across the compare set, reduced to the sell-here / buy-here legs and the
+ * spread. Extends the single-symbol ARB view to a whole board so the widest
+ * cross-venue dispersions (and any crossed books) sort to the top.
+ */
+export interface VenueArbRow {
+  /** Display symbol, e.g. BTC/USDT. */
+  symbol: string;
+  /** Per-venue top-of-book, sorted by price (dearest first). */
+  venues: VenuePricePoint[];
+  /** Highest bid across venues — sell here; null if none reported. */
+  bestBid: { exchange: string; value: number } | null;
+  /** Lowest ask across venues — buy here; null if none reported. */
+  bestAsk: { exchange: string; value: number } | null;
+  /** (bestBid − bestAsk) / bestAsk in basis points; null with < 2 quoting venues. Positive ⇒ crossed. */
+  spreadBps: number | null;
+  /** True when the highest bid exceeds the lowest ask across venues — a gross-of-fees arb. */
+  crossed: boolean;
+  /** (max − min) / min of last price across venues, in bps — how much venues disagree; null with < 2. */
+  dispersionBps: number | null;
+  /** Cheapest last price across venues; null if none. */
+  priceMin: number | null;
+  /** Dearest last price across venues; null if none. */
+  priceMax: number | null;
+}
+
+/**
+ * Reduce a symbol's per-venue quotes into a cross-venue arb row: the best bid
+ * (sell here) and best ask (buy here) across venues, their spread in bps (the
+ * arb signal — positive means a crossed, gross-of-fees arb), and the last-price
+ * dispersion (how much venues disagree). Pure; ignores venues with a
+ * non-positive price and bid/ask legs that are null or ≤ 0. `spreadBps` and
+ * `dispersionBps` are null unless at least two venues quote.
+ */
+export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueArbRow {
+  const venues: VenuePricePoint[] = quotes
+    .map((q) => ({ exchange: q.exchange, bid: q.bid, ask: q.ask, price: q.price }))
+    .sort((a, b) => b.price - a.price);
+
+  let bestBid: { exchange: string; value: number } | null = null;
+  let bestAsk: { exchange: string; value: number } | null = null;
+  let priceMin: number | null = null;
+  let priceMax: number | null = null;
+  let priced = 0;
+  for (const v of venues) {
+    if (v.bid != null && v.bid > 0 && (bestBid === null || v.bid > bestBid.value)) {
+      bestBid = { exchange: v.exchange, value: v.bid };
+    }
+    if (v.ask != null && v.ask > 0 && (bestAsk === null || v.ask < bestAsk.value)) {
+      bestAsk = { exchange: v.exchange, value: v.ask };
+    }
+    if (v.price > 0) {
+      priced++;
+      if (priceMin === null || v.price < priceMin) priceMin = v.price;
+      if (priceMax === null || v.price > priceMax) priceMax = v.price;
+    }
+  }
+
+  // A cross-venue spread needs the two legs on *different* venues; a single
+  // venue holding both the best bid and best ask is its own book, not an arb.
+  const crossVenue = bestBid !== null && bestAsk !== null && bestBid.exchange !== bestAsk.exchange;
+  const spread = crossVenue && bestBid && bestAsk ? bestBid.value - bestAsk.value : null;
+  const spreadBps = spread !== null && bestAsk ? (spread / bestAsk.value) * 10_000 : null;
+  const dispersionBps =
+    priced >= 2 && priceMin !== null && priceMax !== null && priceMin > 0
+      ? ((priceMax - priceMin) / priceMin) * 10_000
+      : null;
+
+  return {
+    symbol,
+    venues,
+    bestBid,
+    bestAsk,
+    spreadBps,
+    crossed: spread !== null && spread > 0,
+    dispersionBps,
+    priceMin,
+    priceMax,
+  };
+}
+
 /**
  * A single venue's perpetual funding & open interest, for the cross-exchange
  * derivatives view (same perp, many exchanges). Funding diverges across venues,

@@ -27,6 +27,7 @@ import {
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
+  venueArbRows,
   venueDerivatives,
   venueQuotes,
 } from './engine';
@@ -138,6 +139,8 @@ function handle(method: string, url: URL): Response | null {
       return json(fundingHistoryFor(seg(3), Number(url.searchParams.get('limit') ?? 90), now));
     case path.startsWith('/api/exchange-quotes/'):
       return json(venueQuotes(seg(3), now));
+    case path === '/api/venue-arb':
+      return json(venueArbRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 15), now));
     case path.startsWith('/api/venue-derivatives/'):
       return json(venueDerivatives(seg(3), now));
     case path === '/api/screener':

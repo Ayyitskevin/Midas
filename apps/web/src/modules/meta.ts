@@ -26,6 +26,7 @@ export type ModuleCode =
   | 'IMB'
   | 'LQA'
   | 'ALLQ'
+  | 'XARB'
   | 'DXV'
   | 'FUND'
   | 'FUNDR'
@@ -268,6 +269,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   IMB: { code: 'IMB', title: 'Book Imbalance', w: 5, h: 11, minW: 4, minH: 6 },
   LQA: { code: 'LQA', title: 'Liquidity', w: 5, h: 11, minW: 4, minH: 6 },
   ALLQ: { code: 'ALLQ', title: 'Multi-Exchange', w: 5, h: 8, minW: 4, minH: 5 },
+  XARB: { code: 'XARB', title: 'Arb Screener', w: 6, h: 11, minW: 5, minH: 6 },
   DXV: { code: 'DXV', title: 'Derivatives by Venue', w: 5, h: 9, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
   FUNDR: { code: 'FUNDR', title: 'Funding Rates', w: 5, h: 11, minW: 4, minH: 6 },

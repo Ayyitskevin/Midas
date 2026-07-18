@@ -234,6 +234,15 @@ export const MARKET_COMMANDS: CommandDef[] = [
       "Cross-venue funding dispersion — for the top perps by volume, the funding-rate spread across the compare set (Binance, OKX, Bybit, …), ranked widest-first. The market-wide funding-arbitrage scanner: long the cheapest-funded venue, short the dearest. Extends DXV (one perp across venues) to the whole board and complements FUNDR (single-venue funding board). Crypto-only (ccxt provider).",
   },
   {
+    code: 'XARB',
+    aliases: ['ARBBOARD', 'VARB', 'ARBSCAN'],
+    title: 'Arb Screener',
+    module: 'XARB',
+    requiresSymbol: false,
+    description:
+      'Cross-venue arb screener — for the top symbols by volume, how far the price disagrees across the compare set (Binance, OKX, Bybit, …), ranked by dispersion. Surfaces the sell-here (highest bid) and buy-here (lowest ask) legs and flags crossed books (a gross-of-fees arb). The market-wide board version of ALLQ/ARB (one symbol across venues). Crypto-only (ccxt provider).',
+  },
+  {
     code: 'LIQS',
     aliases: ['LIQUIDATIONS', 'REKT'],
     title: 'Liquidations',
