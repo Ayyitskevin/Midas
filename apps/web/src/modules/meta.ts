@@ -29,6 +29,7 @@ export type ModuleCode =
   | 'DXV'
   | 'FUND'
   | 'FUNDR'
+  | 'FUNDX'
   | 'CARRY'
   | 'FPL'
   | 'FRH'
@@ -270,6 +271,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   DXV: { code: 'DXV', title: 'Derivatives by Venue', w: 5, h: 9, minW: 4, minH: 5 },
   FUND: { code: 'FUND', title: 'Derivatives', w: 4, h: 11, minW: 3, minH: 7 },
   FUNDR: { code: 'FUNDR', title: 'Funding Rates', w: 5, h: 11, minW: 4, minH: 6 },
+  FUNDX: { code: 'FUNDX', title: 'Funding Dispersion', w: 6, h: 11, minW: 5, minH: 6 },
   CARRY: { code: 'CARRY', title: 'Funding Carry', w: 6, h: 11, minW: 4, minH: 6 },
   FPL: { code: 'FPL', title: 'Funding P&L', w: 5, h: 13, minW: 4, minH: 8 },
   FRH: { code: 'FRH', title: 'Funding History', w: 5, h: 11, minW: 4, minH: 6 },

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { isInterval, isRange } from '@midas/shared';
+import { computeFundingDispersion, isInterval, isRange } from '@midas/shared';
 import type {
+  FundingDispersionRow,
   FundingRow,
   HealthResponse,
   Interval,
@@ -11,11 +12,16 @@ import type {
 import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
 import { config } from '../config';
+import { createTtlCache } from '../ttlCache';
 import { normalizeSymbol } from './shared';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
 const MAX_BATCH_SYMBOLS = 50;
+// The cross-venue funding board reads N perps × M venues per sweep — expensive
+// against a live exchange pool. Cache the assembled board briefly so concurrent
+// users and client polling share one sweep per (quote, limit) window.
+const FUNDING_DISPERSION_TTL_MS = 45_000;
 
 /**
  * Market-data + provider-status routes: health, quotes, history, order books,
@@ -24,6 +30,9 @@ const MAX_BATCH_SYMBOLS = 50;
  * against the active provider.
  */
 export function registerMarketRoutes(app: FastifyInstance, provider: DataProvider): void {
+  // Per-provider, per-server-lifetime cache for the fan-out funding board.
+  const fundingDispersionCache = createTtlCache<FundingDispersionRow[]>(FUNDING_DISPERSION_TTL_MS);
+
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
       status: 'ok',
@@ -157,6 +166,33 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       }),
     );
     return board.filter((x): x is FundingRow => x !== null);
+  });
+
+  // Cross-venue funding-dispersion board: for the top-N perps by volume, the
+  // funding-rate spread across the compare set (the arb signal), ranked widest
+  // first. Composed from screen() + getVenueDerivatives() so every provider
+  // supports it; a short single-flight TTL cache bounds the N×M fan-out cost.
+  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding-dispersion', async (req) => {
+    const quote = (req.query.quote ?? 'USDT').toUpperCase();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
+    return fundingDispersionCache.get(`${quote}|${limit}`, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      const board = await Promise.all(
+        rows.map(async (r): Promise<FundingDispersionRow | null> => {
+          try {
+            return computeFundingDispersion(r.symbol, await provider.getVenueDerivatives(r.symbol));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      // Keep only perps with a real cross-venue spread (≥ 2 reporting venues),
+      // widest spread first — the funding-arb signal.
+      return board
+        .filter((x): x is FundingDispersionRow => x !== null && x.spreadBps !== null)
+        .sort((a, b) => (b.spreadBps ?? 0) - (a.spreadBps ?? 0));
+    });
   });
 
   // Market-wide liquidations feed: the recent liquidations across the top-N
