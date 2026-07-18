@@ -710,8 +710,15 @@ export class CcxtProvider implements DataProvider {
       throw new ProviderError(`${this.name} does not support single-order lookup.`, 501);
     }
     const sym = this.normalize(symbol);
-    const raw = await this.exchange.fetchOrder(id, sym);
-    return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
+    try {
+      const raw = await this.exchange.fetchOrder(id, sym);
+      return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
+    } catch (err) {
+      // Sanitize like every other keyed read in this file — a raw ccxt error
+      // embeds the signed request URL (HMAC signature / API key) and response
+      // body; describe()/safeErrorLabel strip it.
+      throw err instanceof ProviderError ? err : new ProviderError(this.describe(err, sym), 502, sym);
+    }
   }
 
   /**

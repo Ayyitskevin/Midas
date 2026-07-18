@@ -244,16 +244,22 @@ export async function buildApp(
   registerStream(app, createStreamHub(provider));
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
-    const statusCode =
-      error instanceof ProviderError
+    const isProvider = error instanceof ProviderError;
+    const statusCode = isProvider
+      ? error.statusCode
+      : typeof error.statusCode === 'number'
         ? error.statusCode
-        : typeof error.statusCode === 'number'
-          ? error.statusCode
-          : 500;
+        : 500;
     request.log.error(error);
+    // Only echo the error's own message when it is a deliberate, client-safe
+    // error: a ProviderError (already sanitized via describe()/safeErrorLabel)
+    // or any <500 (e.g. Fastify validation). An unexpected 5xx carries a raw
+    // internal message — a stack string, or a ccxt error embedding the signed
+    // request URL (HMAC signature / API key) — and must never reach the client.
+    const clientSafe = isProvider || statusCode < 500;
     const body: ApiError = {
       error: error.name || 'Error',
-      message: error.message || 'Internal Server Error',
+      message: clientSafe ? error.message || 'Error' : 'Internal Server Error',
       statusCode,
     };
     reply.status(statusCode).send(body);

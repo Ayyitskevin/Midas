@@ -1,16 +1,30 @@
 import type { DataProvider } from '../providers';
 
+/**
+ * First usable string from a raw request value. Fastify's default query parser
+ * yields `string | string[] | undefined` — a repeated param (`?quote=a&quote=b`)
+ * arrives as an array, and a body field can be any JSON type. Calling a string
+ * method on that (`.toUpperCase()`, `.split()`, `.trim()`) throws a TypeError
+ * that surfaces as a 500. This collapses arrays to their first element and any
+ * non-string to '', so every edge read is total.
+ */
+export function firstStr(v: unknown): string {
+  const first = Array.isArray(v) ? v[0] : v;
+  return typeof first === 'string' ? first : '';
+}
+
 // Real instruments across providers: BTC/USDT:USDT, BRK-B, ^GSPC, EURUSD=X.
 const SYMBOL_RE = /^[A-Z0-9/:^=._-]{1,64}$/;
 
 /**
- * Uppercase + bound every symbol at the API edge. Anything outside the
- * charset/length is junk that would otherwise flow unbounded into provider
- * lookups, stream keys and error messages; it normalizes to '' and the
- * routes answer 400.
+ * Uppercase + bound every symbol at the API edge. Accepts an unknown raw value
+ * (path param, repeated query param, or arbitrary body field) and coerces it
+ * safely first. Anything outside the charset/length is junk that would
+ * otherwise flow unbounded into provider lookups, stream keys and error
+ * messages; it normalizes to '' and the routes answer 400.
  */
-export function normalizeSymbol(raw: string): string {
-  const s = raw.trim().toUpperCase();
+export function normalizeSymbol(raw: unknown): string {
+  const s = firstStr(raw).trim().toUpperCase();
   return SYMBOL_RE.test(s) ? s : '';
 }
 
@@ -23,8 +37,8 @@ const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
  * and charset/length-checks. It's a sanity gate, not full validity (the RPC is
  * the source of truth); junk normalizes to '' and the route answers 400.
  */
-export function normalizeSolanaAddress(raw: string): string {
-  const s = raw.trim();
+export function normalizeSolanaAddress(raw: unknown): string {
+  const s = firstStr(raw).trim();
   return SOLANA_ADDRESS_RE.test(s) ? s : '';
 }
 
