@@ -43,6 +43,7 @@ import type {
   SystemStatus,
   TradingStatus,
   User,
+  VenueArbRow,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -139,6 +140,9 @@ export const api = {
 
   venueDerivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<VenueDerivatives[]>(`/api/venue-derivatives/${encodeURIComponent(symbol)}`, signal),
+
+  venueArb: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
+    apiGet<VenueArbRow[]>(`/api/venue-arb?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),

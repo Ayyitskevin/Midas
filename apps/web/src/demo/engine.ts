@@ -1,4 +1,4 @@
-import { computeFundingDispersion } from '@midas/shared';
+import { computeFundingDispersion, computeVenueArbRow } from '@midas/shared';
 import type {
   AccountFills,
   AccountPositions,
@@ -31,6 +31,7 @@ import type {
   SolanaValidator,
   SolanaValidators,
   SolanaWallet,
+  VenueArbRow,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -309,6 +310,13 @@ export function venueQuotes(symbol: string, now: number): VenueQuote[] {
       timestamp: now,
     };
   });
+}
+
+export function venueArbRows(quote: string, limit: number, now: number): VenueArbRow[] {
+  return ASSETS.slice(0, limit)
+    .map((a) => computeVenueArbRow(`${a.base}/${quote}`, venueQuotes(`${a.base}/${quote}`, now)))
+    .filter((r) => r.dispersionBps !== null)
+    .sort((a, b) => (b.dispersionBps ?? 0) - (a.dispersionBps ?? 0));
 }
 
 export function venueDerivatives(symbol: string, now: number): VenueDerivatives[] {

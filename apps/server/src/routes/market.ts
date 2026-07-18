@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { computeFundingDispersion, isInterval, isRange } from '@midas/shared';
+import { computeFundingDispersion, computeVenueArbRow, isInterval, isRange } from '@midas/shared';
 import type {
   FundingDispersionRow,
   FundingRow,
@@ -8,6 +8,7 @@ import type {
   LiquidationEvent,
   LiquidationsFeed,
   Range,
+  VenueArbRow,
 } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
@@ -22,6 +23,9 @@ const MAX_BATCH_SYMBOLS = 50;
 // against a live exchange pool. Cache the assembled board briefly so concurrent
 // users and client polling share one sweep per (quote, limit) window.
 const FUNDING_DISPERSION_TTL_MS = 45_000;
+// Same fan-out shape (N symbols × M venues) for the cross-venue arb screener,
+// but top-of-book moves faster than funding — a shorter window keeps it live.
+const VENUE_ARB_TTL_MS = 20_000;
 
 /**
  * Market-data + provider-status routes: health, quotes, history, order books,
@@ -30,8 +34,9 @@ const FUNDING_DISPERSION_TTL_MS = 45_000;
  * against the active provider.
  */
 export function registerMarketRoutes(app: FastifyInstance, provider: DataProvider): void {
-  // Per-provider, per-server-lifetime cache for the fan-out funding board.
+  // Per-provider, per-server-lifetime caches for the fan-out venue boards.
   const fundingDispersionCache = createTtlCache<FundingDispersionRow[]>(FUNDING_DISPERSION_TTL_MS);
+  const venueArbCache = createTtlCache<VenueArbRow[]>(VENUE_ARB_TTL_MS);
 
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
@@ -192,6 +197,33 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       return board
         .filter((x): x is FundingDispersionRow => x !== null && x.spreadBps !== null)
         .sort((a, b) => (b.spreadBps ?? 0) - (a.spreadBps ?? 0));
+    });
+  });
+
+  // Cross-venue arb screener: for the top-N symbols by volume, how far the
+  // price disagrees across the compare set — the sell-here/buy-here legs, the
+  // spread (positive ⇒ a crossed, gross-of-fees arb), ranked by dispersion.
+  // Composed from screen() + getExchangeQuotes(); a short single-flight TTL
+  // cache bounds the N×M fan-out cost.
+  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/venue-arb', async (req) => {
+    const quote = (req.query.quote ?? 'USDT').toUpperCase();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
+    return venueArbCache.get(`${quote}|${limit}`, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      const board = await Promise.all(
+        rows.map(async (r): Promise<VenueArbRow | null> => {
+          try {
+            return computeVenueArbRow(r.symbol, await provider.getExchangeQuotes(r.symbol));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      // Keep only symbols quoted on ≥ 2 venues (a real dispersion), widest first.
+      return board
+        .filter((x): x is VenueArbRow => x !== null && x.dispersionBps !== null)
+        .sort((a, b) => (b.dispersionBps ?? 0) - (a.dispersionBps ?? 0));
     });
   });
 

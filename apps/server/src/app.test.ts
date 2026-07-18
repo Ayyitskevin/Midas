@@ -151,6 +151,33 @@ describe('GET /api/liquidations', () => {
   });
 });
 
+describe('GET /api/venue-arb', () => {
+  it('returns cross-venue arb rows ranked by price dispersion, widest first', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/venue-arb?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json() as Array<{
+      symbol: string;
+      venues: unknown[];
+      dispersionBps: number | null;
+      bestBid: { exchange: string; value: number } | null;
+      bestAsk: { exchange: string; value: number } | null;
+      crossed: boolean;
+    }>;
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThanOrEqual(5);
+    for (const r of rows) {
+      expect(r.dispersionBps).not.toBeNull();
+      expect(r.venues.length).toBeGreaterThanOrEqual(2);
+      expect(typeof r.crossed).toBe('boolean');
+    }
+    // Ranked widest-dispersion first.
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].dispersionBps!).toBeGreaterThanOrEqual(rows[i].dispersionBps!);
+    }
+  });
+});
+
 describe('GET /api/venue-derivatives/:symbol', () => {
   it('returns per-venue funding & open interest across the compare set', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/venue-derivatives/BTC%2FUSDT' });
