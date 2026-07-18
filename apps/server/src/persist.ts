@@ -1,4 +1,14 @@
-import { chmodSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -17,16 +27,37 @@ export function writeFileAtomic(file: string, data: string): void {
   mkdirSync(dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}`;
   try {
-    writeFileSync(tmp, data);
-    // Preserve the target's existing permission bits. An operator may have
-    // tightened them (e.g. chmod 600 on the user/key store); a fresh temp inode
-    // would otherwise land at the default umask and silently drop that hardening.
+    // Owner-only from creation. These stores hold secrets (encrypted exchange
+    // keys, password hashes); a default-umask temp would be briefly (and, on
+    // first creation, permanently) world-readable.
+    writeFileSync(tmp, data, { mode: 0o600 });
+    // Preserve the target's existing permission bits if it already exists — an
+    // operator may have widened a non-secret store, or tightened a secret one.
     try {
       chmodSync(tmp, statSync(file).mode);
     } catch {
-      /* target doesn't exist yet — the temp keeps the default mode */
+      /* target doesn't exist yet — the temp keeps its owner-only 0o600 */
+    }
+    // fsync the temp's bytes to disk BEFORE the rename so a power failure can't
+    // leave the renamed store empty/corrupt — the exact outcome the rename is
+    // meant to prevent. Then fsync the directory so the rename itself is durable.
+    const fd = openSync(tmp, 'r');
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
     }
     renameSync(tmp, file);
+    try {
+      const dir = openSync(dirname(file), 'r');
+      try {
+        fsyncSync(dir);
+      } finally {
+        closeSync(dir);
+      }
+    } catch {
+      /* directory fsync is best-effort; the rename already landed */
+    }
   } catch (err) {
     // Never leave a partial temp file lying around on failure.
     try {

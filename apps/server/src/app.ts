@@ -106,7 +106,10 @@ export async function buildApp(
   if (config.rateLimitRpm > 0) {
     const limiter = createRateLimiter(60_000, config.rateLimitRpm);
     app.addHook('onRequest', async (req, reply) => {
-      if (req.url.startsWith('/api/health')) return;
+      // Segment-boundary match (not a bare substring) after stripping the query,
+      // so '/api/health-internal' or '/api/healthz' is NOT silently exempt.
+      const path = req.url.split('?')[0];
+      if (path === '/api/health' || path.startsWith('/api/health/')) return;
       const waitMs = limiter.check(req.ip, Date.now());
       if (waitMs != null) {
         return reply

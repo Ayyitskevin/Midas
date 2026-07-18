@@ -27,6 +27,13 @@ describe('writeFileAtomic', () => {
     expect(readFileSync(f, 'utf8')).toBe('v2');
   });
 
+  it('creates a NEW store owner-only (0o600), never world-readable at the umask default', () => {
+    const f = join(dir, 'secret-store.json'); // holds encrypted keys / password hashes
+    writeFileAtomic(f, '{"secret":true}');
+    expect(statSync(f).mode & 0o077).toBe(0); // no group/other bits
+    expect(statSync(f).mode & 0o777).toBe(0o600);
+  });
+
   it('preserves the target file mode across writes (keeps an operator chmod 600)', () => {
     const f = join(dir, 'perms.json');
     writeFileAtomic(f, 'v1');
