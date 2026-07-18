@@ -17,6 +17,7 @@ import type {
   DerivativesInfo,
   DexPools,
   OpenOrders,
+  FundingDispersionRow,
   FundingHistoryPoint,
   FundingRow,
   LiquidationsFeed,
@@ -212,6 +213,12 @@ export const api = {
 
   funding: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
     apiGet<FundingRow[]>(`/api/funding?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
+
+  fundingDispersion: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
+    apiGet<FundingDispersionRow[]>(
+      `/api/funding-dispersion?quote=${encodeURIComponent(quote)}&limit=${limit}`,
+      signal,
+    ),
 
   liquidations: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
     apiGet<LiquidationsFeed>(

@@ -225,6 +225,15 @@ export const MARKET_COMMANDS: CommandDef[] = [
     description: 'Funding rates & open interest across the top perps — sortable board.',
   },
   {
+    code: 'FUNDX',
+    aliases: ['FUNDISP', 'FDISP', 'FARB'],
+    title: 'Funding Dispersion',
+    module: 'FUNDX',
+    requiresSymbol: false,
+    description:
+      "Cross-venue funding dispersion — for the top perps by volume, the funding-rate spread across the compare set (Binance, OKX, Bybit, …), ranked widest-first. The market-wide funding-arbitrage scanner: long the cheapest-funded venue, short the dearest. Extends DXV (one perp across venues) to the whole board and complements FUNDR (single-venue funding board). Crypto-only (ccxt provider).",
+  },
+  {
     code: 'LIQS',
     aliases: ['LIQUIDATIONS', 'REKT'],
     title: 'Liquidations',

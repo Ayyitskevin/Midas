@@ -6,6 +6,7 @@ import {
   derivativesFor,
   dexPoolsFor,
   fillsFor,
+  fundingDispersionRows,
   fundingHistoryFor,
   fundingRows,
   historyFor,
@@ -131,6 +132,8 @@ function handle(method: string, url: URL): Response | null {
     }
     case path === '/api/funding':
       return json(fundingRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 30), now));
+    case path === '/api/funding-dispersion':
+      return json(fundingDispersionRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 15), now));
     case path.startsWith('/api/funding-history/'):
       return json(fundingHistoryFor(seg(3), Number(url.searchParams.get('limit') ?? 90), now));
     case path.startsWith('/api/exchange-quotes/'):

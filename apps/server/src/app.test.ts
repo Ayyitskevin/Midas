@@ -98,6 +98,37 @@ describe('GET /api/funding', () => {
   });
 });
 
+describe('GET /api/funding-dispersion', () => {
+  it('returns cross-venue funding-dispersion rows ranked widest-spread first', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/funding-dispersion?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json() as Array<{
+      symbol: string;
+      venues: unknown[];
+      spreadBps: number | null;
+      minRate: number | null;
+      maxRate: number | null;
+      highVenue: string | null;
+      lowVenue: string | null;
+    }>;
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThanOrEqual(5);
+    // Every row has a real cross-venue spread (≥ 2 reporting venues) and legs.
+    for (const r of rows) {
+      expect(r.spreadBps).not.toBeNull();
+      expect(r.venues.length).toBeGreaterThanOrEqual(2);
+      expect(typeof r.highVenue).toBe('string');
+      expect(typeof r.lowVenue).toBe('string');
+      expect(r.maxRate! - r.minRate!).toBeGreaterThanOrEqual(0);
+    }
+    // Ranked widest-first — the funding-arb signal.
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].spreadBps!).toBeGreaterThanOrEqual(rows[i].spreadBps!);
+    }
+  });
+});
+
 describe('GET /api/liquidations', () => {
   it('returns a merged, newest-first feed with notional values and provenance meta', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });

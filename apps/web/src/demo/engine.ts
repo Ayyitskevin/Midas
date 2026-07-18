@@ -1,3 +1,4 @@
+import { computeFundingDispersion } from '@midas/shared';
 import type {
   AccountFills,
   AccountPositions,
@@ -5,6 +6,7 @@ import type {
   Candle,
   DerivativesInfo,
   DexPools,
+  FundingDispersionRow,
   FundingHistoryPoint,
   FundingRow,
   HistoryResponse,
@@ -269,6 +271,13 @@ export function fundingRows(quote: string, limit: number, now: number): FundingR
       openInterestValue: d.openInterestValue,
     };
   });
+}
+
+export function fundingDispersionRows(quote: string, limit: number, now: number): FundingDispersionRow[] {
+  return ASSETS.slice(0, limit)
+    .map((a) => computeFundingDispersion(`${a.base}/${quote}`, venueDerivatives(`${a.base}/${quote}`, now)))
+    .filter((r) => r.spreadBps !== null)
+    .sort((a, b) => (b.spreadBps ?? 0) - (a.spreadBps ?? 0));
 }
 
 export function fundingHistoryFor(symbol: string, limit: number, now: number): FundingHistoryPoint[] {

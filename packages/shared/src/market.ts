@@ -251,6 +251,82 @@ export interface FundingRow {
   openInterestValue: number | null;
 }
 
+/** One venue's funding rate for a perp, in the cross-venue dispersion board. */
+export interface FundingVenuePoint {
+  exchange: string;
+  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  fundingRate: number | null;
+  /** Epoch millis of the next funding. */
+  nextFundingTime: number | null;
+}
+
+/**
+ * One row of the cross-venue funding-dispersion board — a perp's funding rate
+ * across the compare set, reduced to the spread (the arb signal). Extends the
+ * single-perp {@link VenueDerivatives} view to a whole board, so the widest
+ * cross-venue funding spreads (the best funding-arb candidates) sort to the top.
+ */
+export interface FundingDispersionRow {
+  /** Display symbol, e.g. BTC/USDT. */
+  symbol: string;
+  /** Per-venue funding points that reported a rate, sorted dearest → cheapest. */
+  venues: FundingVenuePoint[];
+  /** Lowest funding across venues (fraction); null if none reported. */
+  minRate: number | null;
+  /** Highest funding across venues (fraction); null if none reported. */
+  maxRate: number | null;
+  /** Mean funding across the reporting venues (fraction); null if none. */
+  meanRate: number | null;
+  /** (max − min) funding in basis points — the arb signal; null with < 2 venues. */
+  spreadBps: number | null;
+  /** Venue with the highest funding (dearest to be long → short it); null if none. */
+  highVenue: string | null;
+  /** Venue with the lowest funding (cheapest to be long → long it); null if none. */
+  lowVenue: string | null;
+  /** Aggregate open-interest notional across venues (quote units); null if none. */
+  totalOiValue: number | null;
+}
+
+/**
+ * Reduce a perp's per-venue derivatives into a cross-venue funding-dispersion
+ * row: the funding extremes and their spread (the funding-arb signal — long the
+ * cheapest-funded venue, short the dearest), the mean, and aggregate open
+ * interest. Pure; ignores venues that report no funding rate. Returned venues
+ * are sorted by funding rate, dearest first. `spreadBps` is null (no arb signal)
+ * unless at least two venues report a rate.
+ */
+export function computeFundingDispersion(
+  symbol: string,
+  rows: VenueDerivatives[],
+): FundingDispersionRow {
+  const funded = rows
+    .filter(
+      (r): r is VenueDerivatives & { fundingRate: number } =>
+        r.fundingRate != null && Number.isFinite(r.fundingRate),
+    )
+    .map((r) => ({ exchange: r.exchange, fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime }))
+    .sort((a, b) => b.fundingRate - a.fundingRate); // dearest → cheapest
+
+  const maxRate = funded.length ? funded[0].fundingRate : null;
+  const minRate = funded.length ? funded[funded.length - 1].fundingRate : null;
+  const highVenue = funded.length ? funded[0].exchange : null;
+  const lowVenue = funded.length ? funded[funded.length - 1].exchange : null;
+  const meanRate = funded.length
+    ? funded.reduce((s, p) => s + p.fundingRate, 0) / funded.length
+    : null;
+  const spreadBps =
+    funded.length >= 2 && maxRate !== null && minRate !== null ? (maxRate - minRate) * 10_000 : null;
+
+  let totalOiValue: number | null = null;
+  for (const r of rows) {
+    if (r.openInterestValue != null && Number.isFinite(r.openInterestValue)) {
+      totalOiValue = (totalOiValue ?? 0) + r.openInterestValue;
+    }
+  }
+
+  return { symbol, venues: funded, minRate, maxRate, meanRate, spreadBps, highVenue, lowVenue, totalOiValue };
+}
+
 /** One historical funding settlement for a perp. */
 export interface FundingHistoryPoint {
   /** Epoch millis of the settlement. */
