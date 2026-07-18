@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeVenueArbRow } from '@midas/shared';
+import { computeFundingDispersion, computeOiConcentration, computeVenueArbRow } from '@midas/shared';
 import type {
   AccountFills,
   AccountPositions,
@@ -9,6 +9,7 @@ import type {
   FundingDispersionRow,
   FundingHistoryPoint,
   FundingRow,
+  OiConcentrationRow,
   HistoryResponse,
   Interval,
   LiquidationsFeed,
@@ -330,6 +331,13 @@ export function venueDerivatives(symbol: string, now: number): VenueDerivatives[
     openInterestValue: (base.openInterestValue ?? 0) * (0.2 + u(`${v}:${symbol}:vo`)),
     timestamp: now,
   }));
+}
+
+export function oiConcentrationRows(quote: string, limit: number, now: number): OiConcentrationRow[] {
+  return ASSETS.slice(0, limit)
+    .map((a) => computeOiConcentration(`${a.base}/${quote}`, venueDerivatives(`${a.base}/${quote}`, now)))
+    .filter((r) => r.totalOiValue !== null)
+    .sort((a, b) => (b.totalOiValue ?? 0) - (a.totalOiValue ?? 0));
 }
 
 export function screenerRows(quote: string, sort: string, limit: number, now: number): ScreenerRow[] {

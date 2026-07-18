@@ -21,6 +21,7 @@ import type {
   FundingHistoryPoint,
   FundingRow,
   LiquidationsFeed,
+  OiConcentrationRow,
   HealthResponse,
   HistoryResponse,
   Interval,
@@ -221,6 +222,12 @@ export const api = {
   fundingDispersion: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
     apiGet<FundingDispersionRow[]>(
       `/api/funding-dispersion?quote=${encodeURIComponent(quote)}&limit=${limit}`,
+      signal,
+    ),
+
+  oiConcentration: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
+    apiGet<OiConcentrationRow[]>(
+      `/api/oi-concentration?quote=${encodeURIComponent(quote)}&limit=${limit}`,
       signal,
     ),
 

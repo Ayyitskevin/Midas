@@ -243,6 +243,15 @@ export const MARKET_COMMANDS: CommandDef[] = [
       'Cross-venue arb screener — for the top symbols by volume, how far the price disagrees across the compare set (Binance, OKX, Bybit, …), ranked by dispersion. Surfaces the sell-here (highest bid) and buy-here (lowest ask) legs and flags crossed books (a gross-of-fees arb). The market-wide board version of ALLQ/ARB (one symbol across venues). Crypto-only (ccxt provider).',
   },
   {
+    code: 'OIV',
+    aliases: ['CROWD', 'OICONC', 'XOI'],
+    title: 'OI by Venue',
+    module: 'OIV',
+    requiresSymbol: false,
+    description:
+      "Cross-venue open-interest / crowding board — for the top perps by volume, aggregate open interest across the compare set (Binance, OKX, Bybit, …) plus how concentrated it is on one venue (top-venue share + a Herfindahl index), ranked by total OI. High OI concentrated on a single venue is crowding / venue risk. The size-and-positioning companion to FUNDX (funding) and XARB (price). Crypto-only (ccxt provider).",
+  },
+  {
     code: 'LIQS',
     aliases: ['LIQUIDATIONS', 'REKT'],
     title: 'Liquidations',
