@@ -121,7 +121,20 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(409);
         return err(409, 'Conflict', 'Username is taken');
       }
-      const user = deps.users.create(username, await hashPassword(password), Date.now());
+      const passwordHash = await hashPassword(password);
+      // Re-check admission AFTER the scrypt await, atomically with create(). Two
+      // concurrent bootstrap signups both saw count()===0 before this point; with
+      // no await between here and create() this is a critical section on Node's
+      // single thread, so only the first claims the admin slot / the username.
+      if (!canSignup(deps)) {
+        reply.code(403);
+        return err(403, 'Forbidden', 'Signups are closed');
+      }
+      if (deps.users.findByUsername(username)) {
+        reply.code(409);
+        return err(409, 'Conflict', 'Username is taken');
+      }
+      const user = deps.users.create(username, passwordHash, Date.now());
       reply.code(201);
       return session(user);
     },
@@ -147,11 +160,20 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(429);
         return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(waitMs / 1000)}s.`);
       }
+      // Bound the candidate BEFORE scrypt — an unbounded password is a
+      // CPU/event-loop DoS, the same reason signup bounds it. Independent of the
+      // username, so this leaks nothing about account existence.
+      const candidate = req.body?.password ?? '';
+      if (candidate.length > MAX_PASSWORD) {
+        throttle.fail(throttleKey, Date.now());
+        reply.code(401);
+        return err(401, 'Unauthorized', 'Invalid username or password');
+      }
       const user = deps.users.findByUsername(username);
       // Always run a scrypt verification — against the real hash, or a dummy
       // one when the username is unknown — so response time cannot reveal
       // whether an account exists (username-enumeration timing oracle).
-      const ok = await verifyPassword(req.body?.password ?? '', user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+      const ok = await verifyPassword(candidate, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
       if (!user || !ok) {
         throttle.fail(throttleKey, Date.now());
         reply.code(401);
@@ -176,14 +198,20 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(401);
         return err(401, 'Unauthorized', 'Not signed in');
       }
-      if (!(await verifyPassword(req.body?.currentPassword ?? '', current.passwordHash))) {
+      // Bound both passwords before scrypt (DoS guard), mirroring signup.
+      const currentPw = req.body?.currentPassword ?? '';
+      const next = req.body?.newPassword ?? '';
+      if (currentPw.length > MAX_PASSWORD) {
         reply.code(401);
         return err(401, 'Unauthorized', 'Current password is incorrect');
       }
-      const next = req.body?.newPassword ?? '';
-      if (next.length < MIN_PASSWORD) {
+      if (!(await verifyPassword(currentPw, current.passwordHash))) {
+        reply.code(401);
+        return err(401, 'Unauthorized', 'Current password is incorrect');
+      }
+      if (next.length < MIN_PASSWORD || next.length > MAX_PASSWORD) {
         reply.code(400);
-        return err(400, 'BadRequest', `Password must be ≥ ${MIN_PASSWORD} chars`);
+        return err(400, 'BadRequest', `Password must be ${MIN_PASSWORD}–${MAX_PASSWORD} chars`);
       }
       const updated = deps.users.setPassword(current.id, await hashPassword(next));
       if (!updated) {
