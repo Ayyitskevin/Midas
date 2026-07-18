@@ -1,5 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { computeFundingDispersion, computeVenueArbRow, isInterval, isRange } from '@midas/shared';
+import {
+  computeFundingDispersion,
+  computeOiConcentration,
+  computeVenueArbRow,
+  isInterval,
+  isRange,
+} from '@midas/shared';
 import type {
   FundingDispersionRow,
   FundingRow,
@@ -7,6 +13,7 @@ import type {
   Interval,
   LiquidationEvent,
   LiquidationsFeed,
+  OiConcentrationRow,
   Range,
   VenueArbRow,
 } from '@midas/shared';
@@ -26,6 +33,8 @@ const FUNDING_DISPERSION_TTL_MS = 45_000;
 // Same fan-out shape (N symbols × M venues) for the cross-venue arb screener,
 // but top-of-book moves faster than funding — a shorter window keeps it live.
 const VENUE_ARB_TTL_MS = 20_000;
+// OI moves slowly (like funding), so the OI/crowding board reuses a 45s window.
+const OI_CONCENTRATION_TTL_MS = 45_000;
 
 /**
  * Market-data + provider-status routes: health, quotes, history, order books,
@@ -37,6 +46,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // Per-provider, per-server-lifetime caches for the fan-out venue boards.
   const fundingDispersionCache = createTtlCache<FundingDispersionRow[]>(FUNDING_DISPERSION_TTL_MS);
   const venueArbCache = createTtlCache<VenueArbRow[]>(VENUE_ARB_TTL_MS);
+  const oiConcentrationCache = createTtlCache<OiConcentrationRow[]>(OI_CONCENTRATION_TTL_MS);
 
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
@@ -224,6 +234,32 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       return board
         .filter((x): x is VenueArbRow => x !== null && x.dispersionBps !== null)
         .sort((a, b) => (b.dispersionBps ?? 0) - (a.dispersionBps ?? 0));
+    });
+  });
+
+  // Cross-venue OI / crowding board: for the top-N perps by volume, aggregate
+  // open interest across the compare set + how concentrated it is on one venue
+  // (top-venue share, Herfindahl). Reuses the getVenueDerivatives() fan-out (as
+  // the funding board does) with its own short single-flight TTL cache.
+  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/oi-concentration', async (req) => {
+    const quote = (req.query.quote ?? 'USDT').toUpperCase();
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
+    return oiConcentrationCache.get(`${quote}|${limit}`, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      const board = await Promise.all(
+        rows.map(async (r): Promise<OiConcentrationRow | null> => {
+          try {
+            return computeOiConcentration(r.symbol, await provider.getVenueDerivatives(r.symbol));
+          } catch {
+            return null;
+          }
+        }),
+      );
+      // Keep perps with OI reported on ≥ 1 venue, biggest total OI first.
+      return board
+        .filter((x): x is OiConcentrationRow => x !== null && x.totalOiValue !== null)
+        .sort((a, b) => (b.totalOiValue ?? 0) - (a.totalOiValue ?? 0));
     });
   });
 

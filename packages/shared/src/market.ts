@@ -418,6 +418,71 @@ export function computeFundingDispersion(
   return { symbol, venues: funded, minRate, maxRate, meanRate, spreadBps, highVenue, lowVenue, totalOiValue };
 }
 
+/** One venue's open interest for a perp, in the cross-venue OI/crowding board. */
+export interface VenueOiPoint {
+  exchange: string;
+  /** Open-interest notional in quote units; null if unavailable. */
+  openInterestValue: number | null;
+  /** This venue's share of the total OI (0..1); null when the total is unknown. */
+  share: number | null;
+}
+
+/**
+ * One row of the cross-venue OI / crowding board — a perp's open interest
+ * aggregated across the compare set, plus how concentrated it is on a single
+ * venue. High total OI with a high top-venue share is venue/crowding risk
+ * (one exchange holds most of the leverage). Complements FUNDX (funding) and
+ * XARB (price) with the size/positioning dimension.
+ */
+export interface OiConcentrationRow {
+  /** Display symbol, e.g. BTC/USDT. */
+  symbol: string;
+  /** Per-venue OI that reported a value, sorted largest first. */
+  venues: VenueOiPoint[];
+  /** Aggregate OI notional across venues (quote units); null if none reported. */
+  totalOiValue: number | null;
+  /** Venue holding the most OI; null if none reported. */
+  topVenue: string | null;
+  /** Top venue's share of the total (0..1); null if none. */
+  topVenueShare: number | null;
+  /** Herfindahl concentration index — Σ(shareᵢ²), 0..1 (1 = all on one venue); null if none. */
+  herfindahl: number | null;
+  /** Number of venues reporting OI. */
+  venueCount: number;
+}
+
+/**
+ * Reduce a perp's per-venue derivatives into an OI-concentration row: the
+ * aggregate open interest across venues, each venue's share, and how
+ * concentrated it is (top-venue share + Herfindahl index). Pure; ignores
+ * venues that report no positive OI. A single reporting venue is a valid row
+ * (share 1, HHI 1) — that IS maximum crowding, so it is not filtered out here.
+ */
+export function computeOiConcentration(symbol: string, rows: VenueDerivatives[]): OiConcentrationRow {
+  const reporting = rows.filter(
+    (r): r is VenueDerivatives & { openInterestValue: number } =>
+      r.openInterestValue != null && Number.isFinite(r.openInterestValue) && r.openInterestValue > 0,
+  );
+  const total = reporting.reduce((s, r) => s + r.openInterestValue, 0);
+  const venues: VenueOiPoint[] = reporting
+    .map((r) => ({
+      exchange: r.exchange,
+      openInterestValue: r.openInterestValue,
+      share: total > 0 ? r.openInterestValue / total : null,
+    }))
+    .sort((a, b) => (b.openInterestValue ?? 0) - (a.openInterestValue ?? 0));
+
+  return {
+    symbol,
+    venues,
+    totalOiValue: reporting.length ? total : null,
+    topVenue: venues.length ? venues[0].exchange : null,
+    topVenueShare: venues.length ? venues[0].share : null,
+    herfindahl: total > 0 ? reporting.reduce((s, r) => s + (r.openInterestValue / total) ** 2, 0) : null,
+    venueCount: reporting.length,
+  };
+}
+
 /** One historical funding settlement for a perp. */
 export interface FundingHistoryPoint {
   /** Epoch millis of the settlement. */

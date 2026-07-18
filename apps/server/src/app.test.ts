@@ -178,6 +178,38 @@ describe('GET /api/venue-arb', () => {
   });
 });
 
+describe('GET /api/oi-concentration', () => {
+  it('returns cross-venue OI/crowding rows ranked by total OI, biggest first', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/oi-concentration?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const rows = res.json() as Array<{
+      symbol: string;
+      venues: unknown[];
+      totalOiValue: number | null;
+      topVenue: string | null;
+      topVenueShare: number | null;
+      herfindahl: number | null;
+      venueCount: number;
+    }>;
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThanOrEqual(5);
+    for (const r of rows) {
+      expect(r.totalOiValue).not.toBeNull();
+      expect(r.venueCount).toBeGreaterThanOrEqual(1);
+      expect(typeof r.topVenue).toBe('string');
+      expect(r.topVenueShare!).toBeGreaterThan(0);
+      expect(r.topVenueShare!).toBeLessThanOrEqual(1);
+      expect(r.herfindahl!).toBeGreaterThan(0);
+      expect(r.herfindahl!).toBeLessThanOrEqual(1);
+    }
+    // Ranked biggest-total-OI first.
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].totalOiValue!).toBeGreaterThanOrEqual(rows[i].totalOiValue!);
+    }
+  });
+});
+
 describe('GET /api/venue-derivatives/:symbol', () => {
   it('returns per-venue funding & open interest across the compare set', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/venue-derivatives/BTC%2FUSDT' });
