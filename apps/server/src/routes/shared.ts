@@ -28,6 +28,20 @@ export function normalizeSymbol(raw: unknown): string {
   return SYMBOL_RE.test(s) ? s : '';
 }
 
+// A quote-currency ticker: USDT, USDC, BTC, USD… Kept short and alphanumeric.
+const QUOTE_RE = /^[A-Z0-9]{1,10}$/;
+
+/**
+ * Normalize a quote-currency query param. Beyond safety, this bounds what can
+ * become a TTL-cache key on the fan-out boards (funding-dispersion, venue-arb,
+ * oi-concentration): an unvalidated quote lets a spray of distinct junk strings
+ * grow the cache without limit. Junk or absent → the 'USDT' default.
+ */
+export function normalizeQuote(raw: unknown): string {
+  const s = firstStr(raw).trim().toUpperCase();
+  return QUOTE_RE.test(s) ? s : 'USDT';
+}
+
 // Base-58 alphabet (no 0/O/I/l) — a Solana address is 32–44 of these chars.
 const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 

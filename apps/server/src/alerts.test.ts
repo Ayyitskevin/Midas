@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { parseAlertInput, type AlertTrigger } from '@midas/shared';
+import { parseAlertInput, ACCOUNT_SYMBOL, type AlertTrigger } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
@@ -54,6 +54,40 @@ describe('parseAlertInput', () => {
     expect(
       parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: 1, note: 'watch me' }),
     ).toMatchObject({ note: 'watch me' });
+  });
+
+  it('rejects null/empty/array/boolean/blank-string values (the Number(null) === 0 footgun)', () => {
+    // Every one of these coerces to 0 (or 1) via a bare Number(...) and would
+    // otherwise pass the isFinite gate as a bogus threshold-0 alert.
+    for (const value of [null, undefined, '', '   ', [], {}, false, true]) {
+      expect(parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value })).toBeNull();
+    }
+    // The real-world path: JSON.stringify({ value: NaN }) === '{"value":null}'.
+    const overWire = JSON.parse(JSON.stringify({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: NaN }));
+    expect(parseAlertInput(overWire)).toBeNull();
+  });
+
+  it('accepts a numeric string threshold but not a blank one', () => {
+    expect(
+      parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: '70000' }),
+    ).toMatchObject({ value: 70000 });
+    expect(parseAlertInput({ symbol: 'BTC/USDT', metric: 'price', op: 'above', value: '  ' })).toBeNull();
+  });
+
+  it('forces equity alerts onto the ACCOUNT pseudo-symbol so they can actually fire', () => {
+    // Equity is only ever published under ACCOUNT_SYMBOL, so an equity alert on
+    // a market pair would arm but never fire — normalize the symbol.
+    expect(
+      parseAlertInput({ symbol: 'BTC/USDT', metric: 'equity', op: 'below', value: 5000 }),
+    ).toMatchObject({ symbol: ACCOUNT_SYMBOL, metric: 'equity' });
+    // …and an equity alert needs no symbol at all.
+    expect(parseAlertInput({ metric: 'equity', op: 'below', value: 5000 })).toMatchObject({
+      symbol: ACCOUNT_SYMBOL,
+    });
+    // upnl stays per-position (keyed by the position's own symbol).
+    expect(
+      parseAlertInput({ symbol: 'BTC/USDT', metric: 'upnl', op: 'below', value: -100 }),
+    ).toMatchObject({ symbol: 'BTC/USDT', metric: 'upnl' });
   });
 });
 

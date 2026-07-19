@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app';
 import { createProvider } from './providers';
-import { firstStr, normalizeSymbol, normalizeSolanaAddress } from './routes/shared';
+import { firstStr, normalizeSymbol, normalizeSolanaAddress, normalizeQuote } from './routes/shared';
 
 describe('firstStr', () => {
   it('returns strings unchanged and the first element of arrays', () => {
@@ -32,6 +32,21 @@ describe('normalizeSymbol accepts unknown safely', () => {
   it('does not crash on a non-string Solana address', () => {
     expect(normalizeSolanaAddress(123)).toBe('');
     expect(normalizeSolanaAddress(undefined)).toBe('');
+  });
+});
+
+describe('normalizeQuote bounds the TTL-cache key', () => {
+  it('upper-cases a valid quote and defaults when absent', () => {
+    expect(normalizeQuote('usdc')).toBe('USDC');
+    expect(normalizeQuote(['usdc', 'usdt'])).toBe('USDC'); // repeated param
+    expect(normalizeQuote(undefined)).toBe('USDT');
+    expect(normalizeQuote('')).toBe('USDT');
+  });
+  it('rejects junk that would otherwise become an unbounded cache key', () => {
+    expect(normalizeQuote('A'.repeat(16))).toBe('USDT'); // too long
+    expect(normalizeQuote('US/DT')).toBe('USDT'); // illegal char
+    expect(normalizeQuote(123)).toBe('USDT'); // non-string
+    expect(normalizeQuote({})).toBe('USDT');
   });
 });
 
