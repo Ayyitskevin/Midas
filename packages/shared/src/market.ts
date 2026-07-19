@@ -502,3 +502,53 @@ export interface ScreenerRow {
   /** 24h quote (notional) volume. */
   quoteVolume: number | null;
 }
+
+/** Whether a coin-universe snapshot is real, synthetic, or unavailable for this provider. */
+export type CoinUniverseProvenance = 'live' | 'synthetic' | 'unavailable';
+
+/**
+ * One coin in the market-cap reference universe — the "top N by market cap"
+ * view an exchange cannot produce alone. A CEX ticker has price and 24h volume
+ * but no circulating supply, so it has no honest market cap (`Quote.marketCap`
+ * is null for the ccxt provider). This shape is populated by a reference-data
+ * source: synthetic in the mock/demo, live via an env-gated provider.
+ */
+export interface CoinRef {
+  /** Rank by circulating market cap, 1 = largest. */
+  rank: number;
+  /** Base asset symbol, uppercased, e.g. 'BTC'. */
+  base: string;
+  /** Human-readable name, e.g. 'Bitcoin'. */
+  name: string;
+  /** Latest reference price in USD; null if unknown. */
+  priceUsd: number | null;
+  /** Circulating-supply market cap in USD (price × circulating supply); null if unknown. */
+  marketCapUsd: number | null;
+  /** Circulating supply in units of the base asset; null if unknown. */
+  circulatingSupply: number | null;
+  /** Total / max supply in base units; null if unknown or uncapped. */
+  totalSupply: number | null;
+  /** Fully-diluted valuation (price × total supply) in USD; null if total supply is unknown. */
+  fdvUsd: number | null;
+  /** 24h price change percent (e.g. 1.23 = +1.23%); null if unknown. */
+  change24hPct: number | null;
+  /** Coarse category tag, e.g. 'L1', 'DeFi', 'Meme', 'Payments'; null if untagged. */
+  category: string | null;
+}
+
+/**
+ * The market-cap reference universe (top N coins by circulating market cap),
+ * with honest provenance labeling — mirrors {@link DexPools}: `note` is null
+ * only when the data is live. `source` and `asOf` follow {@link LiquidationsMeta}.
+ */
+export interface CoinUniverse {
+  /** Coins ranked by market cap, largest first; empty when unavailable. */
+  coins: CoinRef[];
+  provenance: CoinUniverseProvenance;
+  /** Source label, e.g. 'mock' or 'coingecko'. */
+  source: string;
+  /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
+  note: string | null;
+  /** Epoch millis the universe was assembled; null when unavailable. */
+  asOf: number | null;
+}

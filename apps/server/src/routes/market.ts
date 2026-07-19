@@ -7,6 +7,7 @@ import {
   isRange,
 } from '@midas/shared';
 import type {
+  CoinUniverse,
   FundingDispersionRow,
   FundingRow,
   HealthResponse,
@@ -36,6 +37,10 @@ const FUNDING_DISPERSION_TTL_MS = 45_000;
 const VENUE_ARB_TTL_MS = 20_000;
 // OI moves slowly (like funding), so the OI/crowding board reuses a 45s window.
 const OI_CONCENTRATION_TTL_MS = 45_000;
+// The coin-universe (market-cap reference) changes slowly — supplies barely move
+// and only the price wiggles — so a 60s window is plenty and shares one build
+// across concurrent users and client polling.
+const COINS_TTL_MS = 60_000;
 
 /**
  * Register one cross-venue board route (funding dispersion, venue arb, OI
@@ -208,6 +213,28 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       });
     },
   );
+
+  // Top-N coins by circulating market cap (rank / cap / supply / FDV). Reference
+  // data an exchange feed can't produce (a CEX ticker has no circulating supply,
+  // so `Quote.marketCap` is null on ccxt). Providers without getCoinUniverse
+  // degrade to an honest 'unavailable' universe — never a fabricated cap; a live
+  // reference source is env-gated. TTL-cached: supplies barely move.
+  const coinsCache = createTtlCache<CoinUniverse>(COINS_TTL_MS);
+  const getCoinUniverse = provider.getCoinUniverse?.bind(provider);
+  app.get<{ Querystring: { limit?: string } }>('/api/coins', async (req) => {
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 250) : 100;
+    if (!getCoinUniverse) {
+      return {
+        coins: [],
+        provenance: 'unavailable',
+        source: provider.name,
+        note: 'No market-cap reference source is configured for this provider.',
+        asOf: null,
+      } satisfies CoinUniverse;
+    }
+    return coinsCache.get(String(limit), () => getCoinUniverse(limit));
+  });
 
   // Funding-rates board: the top-N perps by volume with their funding + OI.
   // Composed from screen() + getDerivatives() so every provider supports it.

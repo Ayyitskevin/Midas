@@ -52,6 +52,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   SCR: mod(() => import('./ScreenerModule'), 'ScreenerModule'),
   HEAT: mod(() => import('./HeatmapModule'), 'HeatmapModule'),
   MOV: mod(() => import('./MarketOverviewModule'), 'MarketOverviewModule'),
+  TOP: mod(() => import('./TopCoinsModule'), 'TopCoinsModule'),
   CORR: mod(() => import('./CorrelationModule'), 'CorrelationModule'),
   AVGCORR: mod(() => import('./AvgCorrModule'), 'AvgCorrModule'),
   BREADTH: mod(() => import('./BreadthModule'), 'BreadthModule'),

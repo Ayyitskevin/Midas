@@ -4,6 +4,8 @@ import type {
   AccountPositions,
   Balances,
   Candle,
+  CoinRef,
+  CoinUniverse,
   DerivativesInfo,
   DexPools,
   FundingDispersionRow,
@@ -142,6 +144,74 @@ function priceAt(asset: DemoAsset, tMs: number): number {
   const tick = Math.floor(tMs / TICK_MS);
   const jitter = (u(`${asset.base}:t${tick}`) - 0.5) * 0.25;
   return asset.price * (1 + asset.vol * (slow + shock + jitter));
+}
+
+/**
+ * Supplies + categories for the market-cap reference board (TOP), keyed by base.
+ * Kept in parity with the server's mock fixture (apps/server/src/providers/mock/
+ * coins.ts) — approximate figures for a synthetic-but-realistic ranking. Prices
+ * come from the demo walk (priceAt), so the board agrees with the rest of the
+ * demo. Always labeled synthetic; never presented as live market cap.
+ */
+const COIN_SUPPLY: Record<string, { circ: number; total: number | null; cat: string }> = {
+  BTC: { circ: 19_800_000, total: 21_000_000, cat: 'L1' },
+  ETH: { circ: 120_400_000, total: null, cat: 'L1' },
+  BNB: { circ: 146_000_000, total: 146_000_000, cat: 'Exchange' },
+  SOL: { circ: 470_000_000, total: null, cat: 'L1' },
+  XRP: { circ: 57_000_000_000, total: 100_000_000_000, cat: 'Payments' },
+  DOGE: { circ: 146_000_000_000, total: null, cat: 'Meme' },
+  ADA: { circ: 35_000_000_000, total: 45_000_000_000, cat: 'L1' },
+  TON: { circ: 2_500_000_000, total: null, cat: 'L1' },
+  AVAX: { circ: 400_000_000, total: 720_000_000, cat: 'L1' },
+  LINK: { circ: 620_000_000, total: 1_000_000_000, cat: 'Oracle' },
+  DOT: { circ: 1_450_000_000, total: null, cat: 'L1' },
+  MATIC: { circ: 9_300_000_000, total: 10_000_000_000, cat: 'L2' },
+  NEAR: { circ: 1_100_000_000, total: null, cat: 'L1' },
+  LTC: { circ: 75_000_000, total: 84_000_000, cat: 'Payments' },
+  BCH: { circ: 19_800_000, total: 21_000_000, cat: 'Payments' },
+  UNI: { circ: 600_000_000, total: 1_000_000_000, cat: 'DeFi' },
+  ATOM: { circ: 390_000_000, total: null, cat: 'L1' },
+  APT: { circ: 480_000_000, total: null, cat: 'L1' },
+  ARB: { circ: 3_500_000_000, total: 10_000_000_000, cat: 'L2' },
+  OP: { circ: 1_100_000_000, total: 4_290_000_000, cat: 'L2' },
+  SUI: { circ: 2_800_000_000, total: 10_000_000_000, cat: 'L1' },
+  INJ: { circ: 97_000_000, total: 100_000_000, cat: 'DeFi' },
+  FIL: { circ: 600_000_000, total: null, cat: 'Storage' },
+  AAVE: { circ: 15_000_000, total: 16_000_000, cat: 'DeFi' },
+  SEI: { circ: 3_600_000_000, total: 10_000_000_000, cat: 'L1' },
+  TIA: { circ: 200_000_000, total: null, cat: 'L1' },
+  RUNE: { circ: 340_000_000, total: 500_000_000, cat: 'DeFi' },
+  FTM: { circ: 2_800_000_000, total: 3_175_000_000, cat: 'L1' },
+  PEPE: { circ: 420_000_000_000_000, total: null, cat: 'Meme' },
+  WIF: { circ: 1_000_000_000, total: null, cat: 'Meme' },
+};
+
+/** The market-cap reference universe (TOP), ranked by cap — synthetic, in-browser. */
+export function coinUniverseFor(limit: number, now: number): CoinUniverse {
+  const coins: CoinRef[] = ASSETS.filter((a) => COIN_SUPPLY[a.base]).map((a) => {
+    const meta = COIN_SUPPLY[a.base];
+    const price = priceAt(a, now);
+    const prev = priceAt(a, now - 86_400_000);
+    const change24hPct = prev !== 0 ? ((price - prev) / prev) * 100 : 0;
+    return {
+      rank: 0,
+      base: a.base,
+      name: a.name,
+      priceUsd: price,
+      marketCapUsd: Math.round(price * meta.circ),
+      circulatingSupply: meta.circ,
+      totalSupply: meta.total,
+      fdvUsd: meta.total != null ? Math.round(price * meta.total) : null,
+      change24hPct: Math.round(change24hPct * 100) / 100,
+      category: meta.cat,
+    };
+  });
+  coins.sort((a, b) => (b.marketCapUsd ?? 0) - (a.marketCapUsd ?? 0));
+  coins.forEach((c, i) => {
+    c.rank = i + 1;
+  });
+  const n = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : coins.length;
+  return { coins: coins.slice(0, n), provenance: 'synthetic', source: DEMO_SOURCE, note: NOTE, asOf: now };
 }
 
 export function quoteFor(symbol: string, now: number): Quote | null {
