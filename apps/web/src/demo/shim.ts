@@ -105,6 +105,7 @@ function handle(method: string, url: URL): Response | null {
         status: 'ok',
         provider: DEMO_SOURCE,
         live: false,
+        streamLive: false, // the static demo never opens a live socket; its data is synthetic
         time: now,
         version: DEMO_VERSION,
         demo: true,

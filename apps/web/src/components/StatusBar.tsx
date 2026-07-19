@@ -33,7 +33,6 @@ export function StatusBar() {
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.clear);
   const status = useStreamStatus();
-  const conn = streamStatusView(status, stream.subscriberCount());
   const [latencyMs, setLatencyMs] = useState<number | null>(null);
   const { data: health } = useFetch(
     async (signal) => {
@@ -46,6 +45,10 @@ export function StatusBar() {
     { intervalMs: 30000 },
   );
   const src = health ? sourceView(health.provider, health.live) : null;
+  // streamLive (from health) downgrades the socket badge from LIVE to SIM when the
+  // provider streams synthetic data — so an open socket over a mock/yahoo feed is
+  // never labeled "LIVE". Default true until health loads (avoids a SIM flash on ccxt).
+  const conn = streamStatusView(status, stream.subscriberCount(), health?.streamLive ?? true);
   const trading = useTradingStatus();
 
   return (

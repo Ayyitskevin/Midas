@@ -21,6 +21,7 @@ import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
 import { config } from '../config';
 import { createTtlCache } from '../ttlCache';
+import { providerStreamsLive } from '../streaming';
 import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
 
 const DEFAULT_INTERVAL: Interval = '1d';
@@ -53,6 +54,10 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       status: 'ok',
       provider: provider.name,
       live: provider.live,
+      // Distinct from `live`: the stream is synthetic for every non-ccxt provider
+      // (yahoo has live REST quotes but no live stream), so the UI can avoid a
+      // "LIVE" badge over synthetic prints.
+      streamLive: providerStreamsLive(provider),
       time: Date.now(),
       version: config.version,
       demo: config.demoMode,
