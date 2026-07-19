@@ -66,6 +66,20 @@ recommended checklist:
 4. Use read-only exchange keys. Withdrawal permission is never appropriate:
    Midas has no withdrawal code path, and the blast radius if a key leaks is total.
 
+## Reviewer and demo hygiene
+
+Use [`scripts/reviewer_demo.mjs`](scripts/reviewer_demo.mjs) for peer review. It
+serves the static synthetic demo on loopback and intentionally does not start a
+server, load `.env`, contact an exchange, call Anthropic, send a webhook, or
+write account state. Never replace it with real keys or hosted state just to
+make a screenshot look live.
+
+The optional `AI` copilot is an outbound, paid integration and is disabled
+without `ANTHROPIC_API_KEY`. It has its own size and rate limits, but it is not
+an execution authority, investment adviser, or source of live-data truth. See
+[`docs/AI-DEVELOPMENT.md`](docs/AI-DEVELOPMENT.md) for coding-agent and product-
+AI boundaries.
+
 ## Execution safety hold
 
 Live order placement is currently **NO-GO**. `POST /api/orders` and

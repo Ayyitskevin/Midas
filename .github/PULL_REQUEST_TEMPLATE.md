@@ -20,3 +20,5 @@
 - [ ] web build passes (`cd apps/web && npx vite build`)
 - [ ] Added/updated tests for new pure logic
 - [ ] Any surfaced data is honestly labeled (live vs synthetic/unavailable)
+- [ ] Reviewer demo remains deterministic and credential-free (`pnpm test:reviewer`)
+- [ ] No live exchange, hosted-state, or model call was used by tests or fixtures

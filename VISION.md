@@ -127,8 +127,11 @@ See [`docs/research/godel-live-recon.md`](docs/research/godel-live-recon.md).
   command bar drive linked panels (fixing Gödel's command-bar-vs-link confusion).
 - **AI copilot:** a genuine differentiator, not parity — Gödel ships none.
 
+Resolved:
+- **License** — AGPL-3.0-only, so hosted modifications remain available to the
+  users who run them while self-hosting stays free.
+
 Still open:
-- **License** — MIT (max adoption) vs. source-available.
 - **Default exchange**, and whether to aggregate quotes across exchanges by default.
 
 ---

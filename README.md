@@ -7,12 +7,17 @@ on-chain/DEX, alerts and portfolio — across a dense, dark workspace. Your
 machine, your data, your keys. Inspired by [Gödel Terminal](https://godelterminal.com).
 
 [![CI](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml/badge.svg)](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-663399.svg)](./LICENSE)
 ![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
 **Free to self-host, forever.** A hosted tier (**$20/month flat** — we run it,
 you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
+
+> **Project status:** pre-release and read-only by design. The public demo uses
+> deterministic synthetic data in the browser; the hosted tier is a waitlist
+> concept, not a generally available service. Midas does not custody funds, and
+> live order placement/cancellation remains under an unconditional safety hold.
 
 <p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
@@ -20,6 +25,24 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
 > The demo is the real terminal running against a synthetic in-browser market:
 > no server, no signup, nothing real, everything honest. Or run it locally in
 > 60 seconds: `pnpm install && pnpm dev`.
+
+## Review Midas safely
+
+For a reproducible peer-review path that needs no exchange account, API key, or
+server state:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm reviewer:demo
+```
+
+Open <http://127.0.0.1:4173/Midas/demo/>. The launcher builds the static terminal
+with the deterministic in-browser provider, strips Midas and credential-bearing
+environment variables, binds only to loopback, and performs no network/API
+calls. Stop it with `Ctrl+C`; the build output is disposable and ignored by Git.
+
+Continue with the [reviewer guide](docs/REVIEWER-GUIDE.md), [architecture](docs/ARCHITECTURE.md),
+and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
 
 ## Why Midas
 
@@ -118,7 +141,7 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_WEB_PORT=9000 docker compose up -d --build   # li
 
 ```bash
 # 1. Install (Node 20+ and pnpm)
-pnpm install
+pnpm install --frozen-lockfile
 
 # 2. Run web + API together (mock data, no network needed)
 pnpm dev
@@ -295,6 +318,9 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `STOCH` | `STOCHASTIC`, `STOCH14`, `KD` | no | Stochastic oscillator board — Lane's %K (the close's position in its N-bar high-low range) and %D signal line per name, with overbought (≥80) / oversold (≤20) zones and a fresh %K-vs-%D crossover flag. A range-position oscillator, distinct from RSI (gains/losses), MFI (volume-weighted) and CCI (mean deviation). |
 | `DON` | `DONCHIAN`, `TURTLE`, `DC` | no | Donchian breakout board (the Turtle channel) — the prior N-bar highest-high / lowest-low channel per name: where the close sits in it (0 lower · 100 upper, exceeding on breakouts), the channel width relative to price, and an up/down flag on a new N-bar high / low. The pure price-extreme complement to the ATR (KELT) and stdev (BB) volatility bands. |
 | `VTX` | `VORTEX`, `VI` | no | Vortex indicator board — +VI / −VI trend-direction lines (up vs down vortex movement ÷ true range over N bars) per name, their signed difference, which line leads, and a fresh +VI/−VI crossover flag. A trend-direction board, distinct from ADX (strength only), Aroon (time-since-extreme) and Supertrend (ATR stop). |
+Warning: truncated output (original token count: 12398)
+Total output lines: 160
+
 | `TTM` | `TTMSQUEEZE`, `SQZ` | no | TTM squeeze board (Carter) — flags when each name's Bollinger bands sit inside its Keltner channel (volatility compression → coiling), with a squeeze on/off state, a fired flag when it releases, and Carter's de-trended momentum (value, direction & rising/falling). A genuine BB-meets-KELT setup scanner. |
 | `ICHI` | `ICHIMOKU`, `CLOUD`, `KUMO` | no | Ichimoku cloud board — the five-line system per name reduced to the latest signals: price vs the kumo (above = bull / below = bear / inside = neutral), the cloud colour (Senkou A vs B), a fresh Tenkan×Kijun cross, and the signed distance of the close from the cloud. The current cloud is read at the displaced supplier bar (displacement = Kijun). |
 | `PSAR` | `SAR`, `PARABOLIC` | no | Parabolic SAR board (Wilder stop-and-reverse) — the trailing-stop trend per name: long (stop below price) / short (stop above), the signed distance of the close from the stop, the acceleration factor (trend maturity), and a fresh-flip flag when the stop reverses. An iterative trailing-stop system, distinct from the ATR-band Supertrend (SUPER). |
@@ -346,9 +372,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `HMA` | `HULL`, `HULLMA`, `HMASLOPE` | no | Hull MA Slope board — Alan Hull's low-lag MA = WMA(2·WMA(close, n/2) − WMA(close, n), round(√n)) with the linearly-weighted MA; the double-weighted half-length term minus the full term strips most of the lag, and the √n smoothing tames overshoot. The board screens by the HMA's slope: the raw per-bar change is in price units, so it sorts cross-symbol on the scale-invariant SLOPE% = 100·(HMA − prior HMA) ÷ prior HMA, with ▲ rising / ▼ falling from the sign. Default period 20, with a slower 55 preset. Shows the HMA, its percent slope, and the trend direction. |
 | `PROJ` | `PROJECTION`, `POSC`, `PROJOSC` | no | Projection Oscillator board — Mel Widner's regression-slope-adjusted Stochastic. Over N bars it fits separate least-squares lines to the highs and lows and projects every bar forward along its own slope: PBU = max(high[i−k] + slopeH·k), PBL = min(low[i−k] + slopeL·k). PO = 100·(close − PBL) ÷ (PBU − PBL) is the close's position in that tilted band (0–100, 50 = mid), with a 5-period EMA trigger. Bounded 0–100 so it ranks cleanly across symbols; above 80 overbought, below 20 oversold. Default period 14, with a faster 7 preset. Shows the PO, its signal, the ▲/▼ trigger relation, and the OB/OS zone. |
 | `MAMA` | `MESA`, `MAMAFAMA`, `ADAPTIVEMA` | no | MAMA / FAMA board — John Ehlers' MESA Adaptive Moving Average. A Hilbert-transform homodyne discriminator measures the dominant cycle and adapts the EMA smoothing α bar-by-bar (clamped 0.05–0.5); MAMA is the fast adaptive line and FAMA follows at half α, so MAMA leads in trends and the two cross in consolidations. MAMA above FAMA is bullish, below bearish, crossovers are signals. Sorts cross-symbol on the scale-invariant GAP% (MAMA − FAMA as a % of price), flags fresh crosses, and shows the live α. Default FastLimit 0.5 / SlowLimit 0.05, with a smoother 0.25 preset. Needs ≥ 40 bars of warm-up. |
-| `T3` | `TILLSON`, `T3MA` | no | T3 Slope board — Tim Tillson's T3, a very smooth low-lag MA from nesting his generalized DEMA three times: GD(x) = EMA(x, N)·(1+v) − EMA(EMA(x, N), N)·v, T3 = GD(GD(GD(close))) (equivalently a fixed combination of six chained EMAs). The board screens by the T3's slope: the raw per-bar change is in price units, so it sorts cross-symbol on the scale-invariant SLOPE% = 100·(T3 − prior T3) ÷ prior T3, with ▲ rising / ▼ falling from the sign. Default period 5, volume factor v 0.7, with a smoother 14 preset. Shows the T3, its percent slope, and the trend direction. |
-| `SINE` | `SINEWAVE`, `EHLERSSINE` | no | Ehlers Sinewave board — John Ehlers' Sine Wave Indicator. A Hilbert-transform homodyne discriminator measures the dominant cycle, then a correlation of the smoothed price gives the cycle phase, from which Sine = sin(phase) and LeadSine = sin(phase + 45°) are drawn (both −1…+1). LeadSine crossing above Sine is a cyclic up-turn, below a down-turn; in a trend the cycle degrades and the lines flatten and stop crossing. Bounded so they rank cleanly across symbols; sorts by LeadSine and flags fresh crosses. Fully adaptive (no parameters); needs ≥ 63 bars of warm-up. |
-| `FRSI` | `FISHERRSI`, `FISHRSI`, `RSIFISHER` | no | Fisher Transform of RSI board — Ehlers' Fisher Transform fed the Wilder RSI of closes instead of price. Each symbol's RSI is normalized into its recent N-bar range, centred/smoothed (value = 0.66·(raw − 0.5) + 0.67·prior, clamp ±0.999), then Fisher-transformed (0.5·ln((1 + value) ÷ (1 − value)) + 0.5·prior) so turns are sharp. Screens how *stretched* RSI is within its own recent swing — a different lens than the absolute RSI board — with the underlying RSI shown for 70/30 context. Output saturates near ±3…±8 (not ±1), coloured by sign; TRIG = prior Fisher, a turn against it flags a reversal. Default RSI 9 / Fisher window 9, with a slower RSI 14 preset. |
+| `T3` | `TILLSON`, `T3MA` | no | T3 Slope board — Tim Tillson's T3, a very smooth low-lag MA from nesting his generalized DEMA three times: GD(x) = EMA(x, N)·(1+v) − EMA(EMA(x, N), N)·v, T3 = GD(GD(GD(close))) (equival…398 tokens truncated… ±3…±8 (not ±1), coloured by sign; TRIG = prior Fisher, a turn against it flags a reversal. Default RSI 9 / Fisher window 9, with a slower RSI 14 preset. |
 | `TCF` | `TRENDCONT`, `CONTFACTOR`, `TCFACTOR` | no | Trend Continuation Factor board — M.H. Pee's TCF (S&C, March 2002), a trend-strength/direction filter used like ADX. Each bar's move splits into up/down parts; each direction accumulates a continuation factor that resets when the trend pauses, netted against the opposite run: +TCF = Σ(plus − CF_minus), −TCF = Σ(minus − CF_plus) over a window. +TCF > 0 = clean uptrend, −TCF > 0 = downtrend (never both); both ≤ 0 = consolidation. Computed on percent returns for cross-symbol comparability; sorts most-bullish first and flags the UP / DOWN / RANGE regime. Default length 35, faster 20 preset. Distinct from Pee's Trend *Trigger* Factor (TTF). |
 | `CG` | `COG`, `CENTERGRAVITY`, `EHLERSCG` | no | Center of Gravity board — John Ehlers' CG oscillator (Cybernetic Analysis, 2004). Treats the last N median prices (H+L)/2 as a mass distribution and reports where their centre of gravity sits versus the window midpoint: CG = −Σ(1 + k)·price[k] ÷ Σ price[k] + (N + 1) ÷ 2 (price[k] = k bars ago). Centring on (N+1)/2 makes CG swing within ±(N−1)/2 around zero; as a price ratio it is dimensionless → inherently scale-invariant, ranking cleanly across symbols. Near-zero-lag and built to call turns: TRIG = prior CG, and a CG-vs-trigger cross (↑/↓) flags the reversal. Default length 10, with a smoother 20 preset. |
 | `CORAL` | `CORALTREND`, `CRL` | no | Coral Trend board — LazyBear's Coral Trend Indicator. A six-stage zero-seeded recursive EMA cascade (smoothing from di = (length − 1)/2 + 1) combined with Tillson-T3 weights into a smooth, low-lag trend line: coral = −cd³·i6 + 3(cd²+cd³)·i5 − 3(2cd²+cd+cd³)·i4 + (3cd+1+cd³+3cd²)·i3. Trend = sign of coral vs its prior bar (rising = up/green, falling = down/red); a sign change is a flip. Screens trend STATE (not slope like the T3 board): sorts by signed trend persistence (longest uptrends first), shows DIST% of close from the coral line (scale-invariant), the AGE of the current trend in bars, and flags fresh flips. Default length 21 / cd 0.4, with a slower 34 preset. |
@@ -609,4 +633,4 @@ is billed today; the waitlist is how we size the first cohort.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+AGPL-3.0-only — see [LICENSE](./LICENSE).

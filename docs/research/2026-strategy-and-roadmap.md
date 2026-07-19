@@ -164,7 +164,8 @@ anchor and free tier**, but make **hosted the default on-ramp**.
 
 ### NEXT — commercial layer + stickiness (≈2–4 mo)
 - **X1. Hosted Midas (open-core tier)** — one-click managed instance; OSS core stays
-  MIT. The business begins here.
+  AGPL-3.0-only. The business begins here while hosted improvements remain
+  available to the users who run them.
 - **X2. Stickiness > indicators** — rock-solid **alerts → action**, **saved/shareable
   scans**, 24/7 hosted alerts that fire without the user keeping a box up (the
   natural premium lever, à la Glassnode gating).
@@ -192,7 +193,7 @@ based enterprise. Prosumer sweet spot is **sub-$50/mo**.
 
 | Tier | Price | What |
 |---|---|---|
-| **Self-host (OSS, MIT)** | Free | Full core; own your stack |
+| **Self-host (OSS, AGPL-3.0-only)** | Free | Full core; own your stack |
 | **Hosted Free** | $0 | Managed instance, basic real-time, capped alerts |
 | **Pro** | **~$19–39/mo** | Multi-exchange real-time, 24/7 hosted alerts, history depth, on-chain lite |
 | **Team / Pro+** | ~$99+/mo | Shared workspaces, seats, priority data |
@@ -204,7 +205,9 @@ based enterprise. Prosumer sweet spot is **sub-$50/mo**.
 - **Execution gravity** — analytics-only may cap prosumer wallet-share; mitigate via
   on-chain read layer (X3) then optional execution (L1).
 - **Self-host-as-moat unproven** — hosted tier de-risks; don't over-index on it.
-- **MIT fork risk** — moat must be **hosted service + brand + community**, not code.
+- **License adoption friction** — AGPL keeps hosted improvements available but can
+  narrow proprietary embedding; the moat must still be **hosted service + brand +
+  community**, not code alone.
 - **Liquidation-data unreliability** — surfaced naively it erodes trust; the honesty
   layer (N3) flips it into a strength.
 - **CoinGlass mindshare** — differentiate on keyboard UX + ownership + honesty, not
