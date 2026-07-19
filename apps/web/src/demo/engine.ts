@@ -198,8 +198,13 @@ const RANGE_MS: Record<string, number> = {
 export function historyFor(symbol: string, interval: string, range: string, now: number): HistoryResponse | null {
   const asset = assetFor(symbol);
   if (!asset) return null;
-  const step = INTERVAL_MS[interval] ?? 3_600_000;
-  const span = RANGE_MS[range] ?? 30 * 86_400_000;
+  // Resolve unknown interval/range to the server's defaults (1d / 6mo) rather
+  // than echoing an invalid string back — mirrors the server's isInterval/
+  // isRange validation.
+  const okInterval = (INTERVAL_MS[interval] ? interval : '1d') as Interval;
+  const okRange = (RANGE_MS[range] ? range : '6mo') as Range;
+  const step = INTERVAL_MS[okInterval];
+  const span = RANGE_MS[okRange];
   const count = Math.min(1500, Math.max(30, Math.floor(span / step)));
   const end = now - (now % step);
   const candles: Candle[] = [];
@@ -215,8 +220,8 @@ export function historyFor(symbol: string, interval: string, range: string, now:
   }
   return {
     symbol: `${asset.base}/${QUOTE_CCY}`,
-    interval: interval as Interval,
-    range: range as Range,
+    interval: okInterval,
+    range: okRange,
     currency: QUOTE_CCY,
     candles,
   };
@@ -227,7 +232,9 @@ export function orderBookFor(symbol: string, depth: number, now: number): OrderB
   if (!asset) return null;
   const mid = priceAt(asset, now);
   const spread = mid * 0.0004;
-  const levels = Math.min(50, Math.max(5, depth));
+  // Match the server's depth cap (100) — TICKET/SLIP/TWAP request depth=100 and
+  // would otherwise simulate against a half-depth book in the demo.
+  const levels = Math.min(100, Math.max(5, depth));
   const bids = [];
   const asks = [];
   for (let i = 0; i < levels; i++) {
@@ -352,8 +359,16 @@ export function screenerRows(quote: string, sort: string, limit: number, now: nu
       quoteVolume: q.volume != null ? q.volume * q.price : null,
     };
   });
-  const key = sort === 'gainers' || sort === 'change' ? 'changePercent' : 'quoteVolume';
-  rows.sort((a, b) => (key === 'changePercent' ? b.changePercent - a.changePercent : (b.quoteVolume ?? 0) - (a.quoteVolume ?? 0)));
+  // Mirror the server's sortScreener (providers/util.ts): price/change sort on
+  // their own field, everything else on quote volume. Without the price branch a
+  // PRICE sort (offered by the Screener panel) silently returned volume order.
+  const field = (r: { price: number; changePercent: number; quoteVolume: number | null }): number =>
+    sort === 'gainers' || sort === 'change'
+      ? r.changePercent
+      : sort === 'price'
+        ? r.price
+        : (r.quoteVolume ?? 0);
+  rows.sort((a, b) => field(b) - field(a));
   if (sort === 'losers') rows.reverse();
   return rows.slice(0, limit);
 }
@@ -820,7 +835,7 @@ export function positionsFor(now: number): AccountPositions {
   };
 }
 
-export function fillsFor(now: number): AccountFills {
+export function fillsFor(now: number, symbol?: string): AccountFills {
   const eth = priceAt(ASSETS[1], now);
   const sol = priceAt(ASSETS[2], now);
   const fills = [
@@ -840,5 +855,9 @@ export function fillsFor(now: number): AccountFills {
     takerOrMaker: f.mk,
     timestamp: now - f.ago * 3_600_000,
   }));
-  return { source: DEMO_SOURCE, provenance: 'synthetic', note: NOTE, fills, asOf: now };
+  // The server's /api/fills honours ?symbol= (getFills(symbol)); mirror it so a
+  // symbol-scoped FILLS/XQL panel doesn't show other symbols' fills in the demo.
+  const want = symbol?.trim().toUpperCase();
+  const scoped = want ? fills.filter((f) => f.symbol === want) : fills;
+  return { source: DEMO_SOURCE, provenance: 'synthetic', note: NOTE, fills: scoped, asOf: now };
 }

@@ -2,8 +2,10 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   DEMO_SYMBOLS,
   balancesFor,
+  fillsFor,
   historyFor,
   liquidationsFeed,
+  newsFor,
   orderBookFor,
   quoteFor,
   screenerRows,
@@ -74,6 +76,43 @@ describe('demo engine', () => {
       expect(rows[i].changePercent).toBeLessThanOrEqual(rows[i - 1].changePercent);
     }
     expect(DEMO_SYMBOLS.length).toBeGreaterThanOrEqual(30);
+  });
+
+  it('screener sorts by price when the PRICE column is chosen (not volume order)', () => {
+    // The Screener panel offers a PRICE sort; the engine must mirror the server's
+    // sortScreener price branch rather than silently falling back to volume order.
+    const rows = screenerRows('USDT', 'price', 30, NOW);
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].price).toBeLessThanOrEqual(rows[i - 1].price);
+    }
+  });
+
+  it('history resolves unknown interval/range to the server defaults (1d / 6mo)', () => {
+    const h = historyFor('BTC/USDT', 'bogus', 'nonsense', NOW)!;
+    expect(h.interval).toBe('1d');
+    expect(h.range).toBe('6mo');
+    // A valid pair is echoed back unchanged (isInterval/isRange parity).
+    const ok = historyFor('BTC/USDT', '1h', '5d', NOW)!;
+    expect(ok.interval).toBe('1h');
+    expect(ok.range).toBe('5d');
+  });
+
+  it('order book honours the server depth cap (100) and floor (5)', () => {
+    expect(orderBookFor('BTC/USDT', 200, NOW)!.bids).toHaveLength(100);
+    expect(orderBookFor('BTC/USDT', 1, NOW)!.bids).toHaveLength(5);
+  });
+
+  it('fills are symbol-scoped like the server, and unscoped returns everything', () => {
+    expect(fillsFor(NOW).fills.length).toBe(3);
+    const sol = fillsFor(NOW, 'SOL/USDT').fills;
+    expect(sol.length).toBe(2);
+    expect(sol.every((f) => f.symbol === 'SOL/USDT')).toBe(true);
+    expect(fillsFor(NOW, 'BTC/USDT').fills.length).toBe(0); // no BTC fill in the synthetic set
+  });
+
+  it('news is scoped to the requested symbol; an absent symbol defaults to BTC', () => {
+    expect(newsFor('ETH/USDT', NOW)[0].title).toContain('ETH');
+    expect(newsFor(undefined, NOW)[0].title).toContain('BTC');
   });
 
   it('Solana network is labeled synthetic with sane bounds', () => {
@@ -236,5 +275,42 @@ describe('demo shim', () => {
     const market = await (await fetch('/api/solana/market')).json();
     expect(market.provenance).toBe('synthetic');
     expect(market.tokens.length).toBeGreaterThan(0);
+  });
+
+  it('the AI copilot answers 503 NotConfigured on POST (not the generic demo 501)', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    const res = await fetch('/api/ai/chat', { method: 'POST', body: '{}' });
+    expect(res.status).toBe(503);
+    expect((await res.json()).error).toBe('NotConfigured');
+  });
+
+  it('non-numeric query params fall back to defaults instead of an empty response', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    // Number('xyz') is NaN → slice(0, NaN) / a NaN depth would have returned nothing;
+    // numParam guards both back to the default.
+    const rows = await (await fetch('/api/screener?sort=price&limit=xyz')).json();
+    expect(rows.length).toBeGreaterThan(0);
+    const book = await (await fetch('/api/orderbook/BTC%2FUSDT?depth=xyz')).json();
+    expect(book.bids.length).toBeGreaterThan(0);
+  });
+
+  it('fills and news honour the ?symbol= query the client actually sends', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    const fills = await (await fetch('/api/fills?symbol=SOL%2FUSDT')).json();
+    expect(fills.fills.length).toBe(2);
+    expect(fills.fills.every((f: { symbol: string }) => f.symbol === 'SOL/USDT')).toBe(true);
+    const news = await (await fetch('/api/news?symbol=ETH%2FUSDT')).json();
+    expect(news[0].title).toContain('ETH');
+  });
+
+  it('history without interval/range uses the server defaults (1d / 6mo)', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    const h = await (await fetch('/api/history/BTC%2FUSDT')).json();
+    expect(h.interval).toBe('1d');
+    expect(h.range).toBe('6mo');
   });
 });

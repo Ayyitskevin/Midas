@@ -69,6 +69,20 @@ const executionHeld = (): Response =>
 const notFound = (symbol: string): Response =>
   json({ error: 'NotFound', message: `Unknown demo symbol ${symbol} — try BTC/USDT, ETH/USDT, SOL/USDT…`, statusCode: 404 }, 404);
 
+/**
+ * A positive numeric query param, or the default when absent / empty / non-numeric.
+ * Mirrors the server's `Number.isFinite && > 0` guard — `Number('')` is 0 and
+ * `Number('x')` is NaN, either of which would otherwise yield an empty response.
+ */
+const numParam = (v: string | null, dflt: number): number => {
+  const n = Number(v);
+  return v != null && v !== '' && Number.isFinite(n) && n > 0 ? n : dflt;
+};
+
+/** The AI copilot needs a server API key — a 503 NotConfigured, not the demo's generic 501. */
+const aiUnavailable = (): Response =>
+  json({ error: 'NotConfigured', message: 'The AI copilot needs a server with an API key.', statusCode: 503 }, 503);
+
 function handle(method: string, url: URL): Response | null {
   const path = url.pathname.replace(/^.*?\/api\//, '/api/');
   const seg = (i: number): string => decodeURIComponent(path.split('/')[i] ?? '');
@@ -79,6 +93,9 @@ function handle(method: string, url: URL): Response | null {
     if (path.startsWith('/api/orders')) return executionHeld();
     if (path.startsWith('/api/auth')) return unavailable('Accounts');
     if (path.startsWith('/api/account/keys')) return unavailable('Per-user exchange keys');
+    // The AI copilot is a POST; without this it fell to the generic 501 below
+    // instead of the intended NotConfigured 503 (its GET case never runs).
+    if (path.startsWith('/api/ai/')) return aiUnavailable();
     return unavailable('This action');
   }
 
@@ -119,11 +136,11 @@ function handle(method: string, url: URL): Response | null {
       return json(symbols.map((s) => quoteFor(s, now)).filter(Boolean));
     }
     case path.startsWith('/api/history/'): {
-      const h = historyFor(seg(3), url.searchParams.get('interval') ?? '1h', url.searchParams.get('range') ?? '1mo', now);
+      const h = historyFor(seg(3), url.searchParams.get('interval') ?? '1d', url.searchParams.get('range') ?? '6mo', now);
       return h ? json(h) : notFound(seg(3));
     }
     case path.startsWith('/api/orderbook/'): {
-      const b = orderBookFor(seg(3), Number(url.searchParams.get('depth') ?? 20), now);
+      const b = orderBookFor(seg(3), numParam(url.searchParams.get('depth'), 20), now);
       return b ? json(b) : notFound(seg(3));
     }
     case path === '/api/search':
@@ -133,17 +150,17 @@ function handle(method: string, url: URL): Response | null {
       return d ? json(d) : notFound(seg(3));
     }
     case path === '/api/funding':
-      return json(fundingRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 30), now));
+      return json(fundingRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 30), now));
     case path === '/api/funding-dispersion':
-      return json(fundingDispersionRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 15), now));
+      return json(fundingDispersionRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
     case path.startsWith('/api/funding-history/'):
-      return json(fundingHistoryFor(seg(3), Number(url.searchParams.get('limit') ?? 90), now));
+      return json(fundingHistoryFor(seg(3), numParam(url.searchParams.get('limit'), 90), now));
     case path.startsWith('/api/exchange-quotes/'):
       return json(venueQuotes(seg(3), now));
     case path === '/api/venue-arb':
-      return json(venueArbRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 15), now));
+      return json(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
     case path === '/api/oi-concentration':
-      return json(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 15), now));
+      return json(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
     case path.startsWith('/api/venue-derivatives/'):
       return json(venueDerivatives(seg(3), now));
     case path === '/api/screener':
@@ -151,12 +168,12 @@ function handle(method: string, url: URL): Response | null {
         screenerRows(
           url.searchParams.get('quote') ?? 'USDT',
           url.searchParams.get('sort') ?? 'volume',
-          Number(url.searchParams.get('limit') ?? 50),
+          numParam(url.searchParams.get('limit'), 50),
           now,
         ),
       );
     case path === '/api/liquidations':
-      return json(liquidationsFeed(url.searchParams.get('quote') ?? 'USDT', Number(url.searchParams.get('limit') ?? 30), now));
+      return json(liquidationsFeed(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 30), now));
     case path.startsWith('/api/onchain/'):
       return json(dexPoolsFor(seg(3), now));
     // Solana endpoints carry an extra 'solana' segment, so the address is seg(4).
@@ -178,8 +195,12 @@ function handle(method: string, url: URL): Response | null {
       return json(solanaTokenFor(seg(4), now));
     case path.startsWith('/api/solana/quote/'):
       return json(solanaQuoteFor(seg(4), seg(5), Number(seg(6)), now));
-    case path === '/api/news' || path.startsWith('/api/news/'):
-      return json(newsFor(path === '/api/news' ? undefined : seg(3), now));
+    case path === '/api/news' || path.startsWith('/api/news/'): {
+      // The client sends the symbol as ?symbol= (see api.news); the /api/news/:symbol
+      // path form is a fallback. Server's /api/news reads req.query.symbol too.
+      const sym = url.searchParams.get('symbol') || (path === '/api/news' ? '' : seg(3));
+      return json(newsFor(sym || undefined, now));
+    }
     case path === '/api/balances':
       return json(balancesFor(now));
     case path === '/api/orders':
@@ -187,7 +208,9 @@ function handle(method: string, url: URL): Response | null {
     case path === '/api/positions':
       return json(positionsFor(now));
     case path === '/api/fills':
-      return json(fillsFor(now));
+      // The server's /api/fills honours ?symbol= (getFills(symbol)); pass it through
+      // so a symbol-scoped FILLS panel doesn't show other symbols' fills.
+      return json(fillsFor(now, url.searchParams.get('symbol') || undefined));
     case path.startsWith('/api/orders/'):
       return unavailable('Order lookup');
     case path === '/api/trading/status': {
@@ -216,7 +239,7 @@ function handle(method: string, url: URL): Response | null {
     case path.startsWith('/api/workspaces') || path.startsWith('/api/portfolio') || path.startsWith('/api/watchlists') || path.startsWith('/api/notes'):
       return unavailable('Server sync');
     case path.startsWith('/api/ai/'):
-      return json({ error: 'NotConfigured', message: 'The AI copilot needs a server with an API key.', statusCode: 503 }, 503);
+      return aiUnavailable();
     default:
       return unavailable('This endpoint');
   }
