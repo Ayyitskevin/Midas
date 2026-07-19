@@ -19,6 +19,12 @@ export interface ProExchange {
     limit?: number,
   ): Promise<{ bids: number[][]; asks: number[][]; timestamp?: number }>;
   watchTicker(symbol: string): Promise<{ last?: number; close?: number; percentage?: number }>;
+  // Unsubscribe a single (channel, symbol) so ccxt tears down the exchange-side
+  // subscription and its per-symbol cache. Optional: present on current ccxt pro
+  // builds, absent on the minimal test fakes — always feature-detected before use.
+  unWatchTrades?(symbol: string): Promise<unknown>;
+  unWatchOrderBook?(symbol: string): Promise<unknown>;
+  unWatchTicker?(symbol: string): Promise<unknown>;
   close?(): Promise<void>;
 }
 
@@ -27,7 +33,39 @@ function n(v: number | undefined | null): number {
 }
 
 export interface StreamSource {
-  start(channel: string, symbol: string, emit: Emit): () => void;
+  /**
+   * Begin streaming (channel, symbol); returns a stop function. `onFatal` is
+   * invoked when the source dies permanently (e.g. the exchange does not list
+   * the symbol) so the caller can tear its bookkeeping down rather than hold a
+   * silent dead source.
+   */
+  start(channel: string, symbol: string, emit: Emit, onFatal?: (message: string) => void): () => void;
+}
+
+/**
+ * Unsubscribe one (channel, symbol) from the shared exchange — but only if the
+ * installed ccxt build (and the injected test fake) exposes the matching unWatch
+ * method. Best-effort: a rejection (e.g. it was never subscribed) is swallowed.
+ * Never calls close(): the exchange instance multiplexes every stream over one
+ * connection, so closing it would kill unrelated symbols' feeds.
+ */
+function unwatch(ex: ProExchange, channel: string, symbol: string): void {
+  const fn =
+    channel === 'trades'
+      ? ex.unWatchTrades
+      : channel === 'orderbook'
+        ? ex.unWatchOrderBook
+        : channel === 'ticker'
+          ? ex.unWatchTicker
+          : undefined;
+  if (typeof fn === 'function') {
+    // Defer via .then so even a synchronously-throwing unWatch becomes a
+    // rejection the .catch swallows — stop() must never throw, whatever the
+    // exchange (or a test fake) does.
+    Promise.resolve()
+      .then(() => fn.call(ex, symbol))
+      .catch(() => {});
+  }
 }
 
 /**
@@ -57,7 +95,7 @@ export function createCcxtStreamSource(injected?: ProExchange | null): StreamSou
   const exchange: ProExchange | null = injected !== undefined ? injected : buildProExchange();
 
   return {
-    start(channel, symbol, emit) {
+    start(channel, symbol, emit, onFatal) {
       if (!exchange) return () => {};
       const ex = exchange;
       let running = true;
@@ -102,6 +140,10 @@ export function createCcxtStreamSource(injected?: ProExchange | null): StreamSou
             // temporary blip) still back off and retry.
             if (isUnknownSymbol(err)) {
               running = false;
+              // Permanent failure: tell the hub so it tears down this source
+              // (freeing the global slot) instead of leaving a silent dead
+              // entry that later subscribers would join and never hear from.
+              onFatal?.(`No live ${channel} for ${symbol} — the exchange does not list it.`);
               break;
             }
             await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -111,6 +153,11 @@ export function createCcxtStreamSource(injected?: ProExchange | null): StreamSou
 
       return () => {
         running = false;
+        // Tear the exchange-side subscription + its per-symbol cache down. The
+        // running=false above only exits our loop; without this ccxt keeps the
+        // upstream subscription alive and appends to its cache forever, so
+        // subscribe→unsubscribe over many symbols leaks connections and memory.
+        unwatch(ex, channel, symbol);
       };
     },
   };
