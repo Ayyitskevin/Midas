@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createLatestGate } from './latestGate';
 
 /** Wait this long after the last local change before pushing to the server. */
 const PUSH_DEBOUNCE_MS = 1500;
@@ -36,6 +37,9 @@ export function useServerSync(cfg: ServerSyncConfig): void {
   const lastSynced = useRef<string | null>(null);
   // True once the initial pull has baselined `lastSynced`.
   const ready = useRef(false);
+  // "Latest wins" gate so a slow earlier push can't advance the baseline past a
+  // newer push's snapshot when two pushes overlap.
+  const pushGate = useRef(createLatestGate());
 
   // Pull on login (and whenever the identity/token changes).
   useEffect(() => {
@@ -79,10 +83,22 @@ export function useServerSync(cfg: ServerSyncConfig): void {
       const blob = ref.current.snapshot();
       const serialized = JSON.stringify(blob);
       if (serialized === lastSynced.current) return; // nothing changed → no echo
-      lastSynced.current = serialized;
-      ref.current.push(blob).catch(() => {
-        /* best-effort; localStorage still holds the state */
-      });
+      // Advance the baseline ONLY once the push actually succeeds (and only if
+      // this is still the newest push). Marking it synced up-front — the old
+      // behaviour — meant a failed push (redeploy, network blip, a fetch killed
+      // by the pagehide flush) left `lastSynced` equal to the current snapshot,
+      // so the change was never re-pushed and the next login's pull silently
+      // reverted the edit. Leaving the baseline untouched on failure lets the
+      // next store change (or retry) push it again.
+      const pushId = pushGate.current.start();
+      ref.current
+        .push(blob)
+        .then(() => {
+          if (pushGate.current.isLatest(pushId)) lastSynced.current = serialized;
+        })
+        .catch(() => {
+          /* keep the old baseline so the next change (or a retry) re-pushes */
+        });
     };
 
     const unsub = ref.current.subscribe(() => {

@@ -78,8 +78,15 @@ export function SlippageModule({ panel }: ModuleProps) {
       const top = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${round(xAt(p.price))} ${round(yAt(p.cum))}`).join(' ');
       return `${top} L${round(xAt(pts[pts.length - 1].price))} ${H} L${round(xAt(pts[0].price))} ${H} Z`;
     };
-    const mid = (bidsAsc[bidsAsc.length - 1]?.price + asks[0]?.price) / 2;
-    return { W, H, bidPath: area(bidsAsc), askPath: area(asks), midX: round(xAt(mid)) };
+    // The mid line only exists when the book has both sides. A one-sided book
+    // (all bids or all asks — still ≥2 prices, so it passes the guard above)
+    // would leave one operand undefined → NaN → an invalid SVG x1="NaN". Emit
+    // midX only when both best levels are present.
+    const bestBid = bidsAsc[bidsAsc.length - 1]?.price;
+    const bestAsk = asks[0]?.price;
+    const midX =
+      bestBid != null && bestAsk != null ? round(xAt((bestBid + bestAsk) / 2)) : null;
+    return { W, H, bidPath: area(bidsAsc), askPath: area(asks), midX };
   }, [bidLevels, askLevels]);
 
   if (!symbol) {
@@ -139,7 +146,9 @@ export function SlippageModule({ panel }: ModuleProps) {
           <svg width="100%" height={depth.H} viewBox={`0 0 ${depth.W} ${depth.H}`} preserveAspectRatio="none" aria-hidden="true">
             <path d={depth.bidPath} className="text-term-up" fill="currentColor" fillOpacity={0.18} stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" />
             <path d={depth.askPath} className="text-term-down" fill="currentColor" fillOpacity={0.18} stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-            <line x1={depth.midX} y1={0} x2={depth.midX} y2={depth.H} className="text-term-dim" stroke="currentColor" strokeWidth={1} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+            {depth.midX != null && (
+              <line x1={depth.midX} y1={0} x2={depth.midX} y2={depth.H} className="text-term-dim" stroke="currentColor" strokeWidth={1} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+            )}
           </svg>
         </div>
       )}

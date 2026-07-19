@@ -52,7 +52,13 @@ export function OrderBookModule({ panel }: ModuleProps) {
     useCallback((d: unknown) => setLive(d as OrderBook), []),
   );
 
-  const data = live ?? fetched;
+  // After a symbol switch, `live` is reset to null (above) but useFetch still
+  // holds the PREVIOUS symbol's REST book until the refetch resolves — and its
+  // `loading` flag is true during that window. Showing that stale snapshot would
+  // render the old book under the new symbol and, on a level click, send the
+  // wrong symbol's price to the linked order ticket. Suppress it until the
+  // refetch lands.
+  const data = live ?? (loading ? null : fetched);
 
   const view = useMemo(() => {
     if (!data) return null;

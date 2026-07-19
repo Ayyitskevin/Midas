@@ -97,9 +97,18 @@ export function AlertsModule({ panel }: ModuleProps) {
     return true;
   }
 
+  // Server-mode mutations must surface failures. Swallowing the rejection (the
+  // old `.then(refreshServer, () => {})`) left the row showing its old state —
+  // so a "disable" that never reached the server looked done while the alert
+  // kept firing. Toast on failure, mirroring onAdd.
   async function onToggle(a: Alert) {
     if (mode === 'server') {
-      await api.updateAlert(a.id, { enabled: !a.enabled }).then(refreshServer, () => {});
+      try {
+        await api.updateAlert(a.id, { enabled: !a.enabled });
+        refreshServer();
+      } catch (e) {
+        pushToast({ title: 'Alert not updated', body: (e as Error).message, tone: 'down' });
+      }
     } else {
       toggleAlert(a.id);
     }
@@ -107,7 +116,12 @@ export function AlertsModule({ panel }: ModuleProps) {
 
   async function onRearm(a: Alert) {
     if (mode === 'server') {
-      await api.updateAlert(a.id, { rearm: true }).then(refreshServer, () => {});
+      try {
+        await api.updateAlert(a.id, { rearm: true });
+        refreshServer();
+      } catch (e) {
+        pushToast({ title: 'Alert not re-armed', body: (e as Error).message, tone: 'down' });
+      }
     } else {
       rearmAlert(a.id);
     }
@@ -115,7 +129,12 @@ export function AlertsModule({ panel }: ModuleProps) {
 
   async function onRemove(a: Alert) {
     if (mode === 'server') {
-      await api.deleteAlert(a.id).then(refreshServer, () => {});
+      try {
+        await api.deleteAlert(a.id);
+        refreshServer();
+      } catch (e) {
+        pushToast({ title: 'Alert not deleted', body: (e as Error).message, tone: 'down' });
+      }
     } else {
       removeAlert(a.id);
     }
@@ -123,10 +142,13 @@ export function AlertsModule({ panel }: ModuleProps) {
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    // Guard the empty field explicitly: Number('') === 0 is finite, so without
+    // this an empty threshold would create a value=0 alert (e.g. "price above 0")
+    // that fires on the very next reading.
     const v = Number(value);
     // Account equity has no pair — it keys on the ACCOUNT pseudo-symbol.
     const sym = metric === 'equity' ? ACCOUNT_SYMBOL : symbol.trim().toUpperCase();
-    if (!sym || !Number.isFinite(v)) return;
+    if (!sym || value.trim() === '' || !Number.isFinite(v)) return;
     void onAdd({ symbol: sym, metric, op, value: v, note, repeat });
     setValue('');
     setNote('');
