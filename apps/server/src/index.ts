@@ -125,6 +125,10 @@ async function main(): Promise<void> {
   const notifier = createNotifier({
     webhookUrl: config.alertWebhook,
     onError: (err) => app.log.error(err, 'alert webhook delivery failed'),
+    // On a non-live provider (mock/dev) price/change/funding alerts fire on
+    // synthetic data — mark deliveries so a webhook consumer never reads a
+    // mock-fired alert as a live-market signal.
+    synthetic: !provider.live,
   });
   if (config.alertWebhook) app.log.info('alert webhook delivery enabled');
 

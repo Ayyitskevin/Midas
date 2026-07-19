@@ -25,17 +25,29 @@ export function formatTrigger(t: AlertTrigger): { title: string; text: string } 
   return { title, text };
 }
 
+/** Prefix line marking a delivery as synthetic — kept in one place so the text
+ *  and any future consumer agree on the exact wording. */
+const SYNTHETIC_NOTICE = '⚠ SYNTHETIC — not live market data.';
+
 export interface WebhookPayload {
   /** Discord reads `content`; Slack reads `text`; both get the same summary. */
   content: string;
   text: string;
   /** Raw triggers for custom consumers. */
   triggers: AlertTrigger[];
+  /**
+   * True when the server's data provider is not live (e.g. the `mock` dev
+   * provider): price/change/funding alerts then fire on synthetic data, so the
+   * delivery is marked rather than passed off as a live-market signal. equity/
+   * upnl only ever fire on live data, so this never mislabels a real account fire.
+   */
+  synthetic: boolean;
 }
 
-export function buildWebhookPayload(fired: AlertTrigger[]): WebhookPayload {
-  const body = fired.map((t) => formatTrigger(t).text).join('\n');
-  return { content: body, text: body, triggers: fired };
+export function buildWebhookPayload(fired: AlertTrigger[], synthetic = false): WebhookPayload {
+  const lines = fired.map((t) => formatTrigger(t).text);
+  const body = (synthetic ? [SYNTHETIC_NOTICE, ...lines] : lines).join('\n');
+  return { content: body, text: body, triggers: fired, synthetic };
 }
 
 /** Delivers fired triggers somewhere out-of-band (no browser required). */
@@ -53,6 +65,9 @@ export class WebhookNotifier implements Notifier {
     private readonly url: string,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly onError?: (err: unknown) => void,
+    // Fixed per process from the provider's liveness — marks every delivery
+    // synthetic when the server runs on a non-live (mock/dev) provider.
+    private readonly synthetic = false,
   ) {}
 
   async deliver(fired: AlertTrigger[]): Promise<void> {
@@ -61,7 +76,7 @@ export class WebhookNotifier implements Notifier {
       await this.fetchImpl(this.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(buildWebhookPayload(fired)),
+        body: JSON.stringify(buildWebhookPayload(fired, this.synthetic)),
       });
     } catch (err) {
       this.onError?.(err);
@@ -78,6 +93,10 @@ class NoopNotifier implements Notifier {
 export function createNotifier(opts: {
   webhookUrl?: string;
   onError?: (err: unknown) => void;
+  /** Mark deliveries synthetic (server on a non-live data provider). */
+  synthetic?: boolean;
 }): Notifier {
-  return opts.webhookUrl ? new WebhookNotifier(opts.webhookUrl, fetch, opts.onError) : new NoopNotifier();
+  return opts.webhookUrl
+    ? new WebhookNotifier(opts.webhookUrl, fetch, opts.onError, opts.synthetic ?? false)
+    : new NoopNotifier();
 }

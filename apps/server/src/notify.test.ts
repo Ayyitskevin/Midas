@@ -56,6 +56,22 @@ describe('buildWebhookPayload', () => {
     const p = buildWebhookPayload([trg(), trg({ symbol: 'ETH/USDT' })]);
     expect(p.content.split('\n')).toHaveLength(2);
   });
+
+  it('is not marked synthetic by default', () => {
+    const p = buildWebhookPayload([trg()]);
+    expect(p.synthetic).toBe(false);
+    expect(p.content).not.toMatch(/SYNTHETIC/i);
+  });
+
+  it('prepends a synthetic notice and flags the payload when synthetic', () => {
+    // On a non-live provider (mock) price/change/funding alerts fire on synthetic
+    // data — the delivery must say so rather than read as a live-market signal.
+    const p = buildWebhookPayload([trg()], true);
+    expect(p.synthetic).toBe(true);
+    expect(p.content.split('\n')[0]).toMatch(/SYNTHETIC/i);
+    expect(p.content).toContain('BTC/USDT'); // the fire line is still present
+    expect(p.text).toBe(p.content);
+  });
 });
 
 describe('WebhookNotifier', () => {
@@ -92,6 +108,18 @@ describe('WebhookNotifier', () => {
     }).deliver([trg()]);
     expect((captured as Error).message).toBe('down');
   });
+
+  it('marks the posted payload synthetic when constructed synthetic', async () => {
+    const calls: Array<{ body: WebhookBody }> = [];
+    const stub = (async (_url: string | URL, init?: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init?.body)) });
+      return { ok: true } as Response;
+    }) as typeof fetch;
+    // 4th ctor arg = synthetic (server on a non-live provider).
+    await new WebhookNotifier('http://hook', stub, undefined, true).deliver([trg()]);
+    expect(calls[0].body.synthetic).toBe(true);
+    expect(calls[0].body.content).toMatch(/SYNTHETIC/i);
+  });
 });
 
 describe('createNotifier', () => {
@@ -102,4 +130,6 @@ describe('createNotifier', () => {
 
 interface WebhookBody {
   triggers: AlertTrigger[];
+  synthetic: boolean;
+  content: string;
 }
