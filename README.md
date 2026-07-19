@@ -7,12 +7,17 @@ on-chain/DEX, alerts and portfolio — across a dense, dark workspace. Your
 machine, your data, your keys. Inspired by [Gödel Terminal](https://godelterminal.com).
 
 [![CI](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml/badge.svg)](https://github.com/ayyitskevin/midas/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/License-AGPL--3.0--only-663399.svg)](./LICENSE)
 ![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
 **Free to self-host, forever.** A hosted tier (**$20/month flat** — we run it,
 you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
+
+> **Project status:** pre-release and read-only by design. The public demo uses
+> deterministic synthetic data in the browser; the hosted tier is a waitlist
+> concept, not a generally available service. Midas does not custody funds, and
+> live order placement/cancellation remains under an unconditional safety hold.
 
 <p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
@@ -20,6 +25,24 @@ you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
 > The demo is the real terminal running against a synthetic in-browser market:
 > no server, no signup, nothing real, everything honest. Or run it locally in
 > 60 seconds: `pnpm install && pnpm dev`.
+
+## Review Midas safely
+
+For a reproducible peer-review path that needs no exchange account, API key, or
+server state:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm reviewer:demo
+```
+
+Open <http://127.0.0.1:4173/Midas/demo/>. The launcher builds the static terminal
+with the deterministic in-browser provider, strips Midas and credential-bearing
+environment variables, binds only to loopback, and performs no network/API
+calls. Stop it with `Ctrl+C`; the build output is disposable and ignored by Git.
+
+Continue with the [reviewer guide](docs/REVIEWER-GUIDE.md), [architecture](docs/ARCHITECTURE.md),
+and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
 
 ## Why Midas
 
@@ -118,7 +141,7 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_WEB_PORT=9000 docker compose up -d --build   # li
 
 ```bash
 # 1. Install (Node 20+ and pnpm)
-pnpm install
+pnpm install --frozen-lockfile
 
 # 2. Run web + API together (mock data, no network needed)
 pnpm dev
@@ -609,4 +632,4 @@ is billed today; the waitlist is how we size the first cohort.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+AGPL-3.0-only — see [LICENSE](./LICENSE).

@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Reviewer launcher tests
+        run: pnpm test:reviewer
+
       - name: Typecheck
         run: pnpm typecheck
 

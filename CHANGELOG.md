@@ -7,6 +7,9 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Peer-review readiness layer:** AGPL-3.0-only metadata and license, explicit
+  agent/contributor policy, a credential-free loopback reviewer launcher for the
+  static synthetic demo, and a focused reviewer guide with reproducible gates.
 - **Solana tokens, swaps & market** (Solana Suite, slice 4): **`SPL`** is an SPL
   token (mint) explorer — supply, decimals, program and the mint/freeze
   authorities that decide token safety (an active mint authority can inflate
