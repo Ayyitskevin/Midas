@@ -11,13 +11,14 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 ![Node ≥ 20](https://img.shields.io/badge/node-%E2%89%A520-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
-**Free to self-host, forever.** A hosted tier (**$20/month flat** — we run it,
-you just log in) is coming: [join the waitlist](#hosted-midas--20month-flat).
+**Free and open source, forever.** Every panel, board, and alert — no accounts,
+no subscription, no paid tier. Self-host it, run the public demo, or fork it. A
+personal project, built in the open.
 
 > **Project status:** pre-release and read-only by design. The public demo uses
-> deterministic synthetic data in the browser; the hosted tier is a waitlist
-> concept, not a generally available service. Midas does not custody funds, and
-> live order placement/cancellation remains under an unconditional safety hold.
+> deterministic synthetic data in the browser; run your own instance to point it
+> at live markets. Midas does not custody funds, and live order
+> placement/cancellation remains under an unconditional safety hold.
 
 <p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
@@ -600,33 +601,29 @@ lives in [`docs/ROADMAP.md`](./docs/ROADMAP.md):
   never mislabeling provenance.
 - **Distribution & DX:** stay genuinely open and easy to adopt — strong docs, a
   one-command demo, contributor-friendly internals.
-- **Optional hosted tier:** a zero-setup instance for people who don't want to
-  self-host, funding the open core (the terminal stays free and open).
+- **Optional shared hosting:** the same terminal deployable as a multi-user
+  instance for a team or friends — still free, nothing gated; self-host stays
+  the default.
 
 Have an idea or want a board? Open an issue — see [CONTRIBUTING](./CONTRIBUTING.md).
 
 ---
 
-## Hosted Midas — $20/month flat
+## Free forever, open source
 
-Self-hosting is free forever — that never changes. For traders who'd rather not
-run a server, a **hosted tier is coming**: your own Midas instance, managed and
-updated for you, **$20/month flat** — no seat math, no per-panel pricing, no
-"pro" gating. The same open-source terminal, someone else on pager duty.
+Midas is free and open source under [AGPL-3.0](./LICENSE) — every panel, every
+board, unlimited alerts, no accounts and no paid tier. Self-host it on your own
+box, run the [public demo](https://ayyitskevin.github.io/Midas/demo/), or fork
+it and make it yours. This is a personal project built in the open; there is
+nothing to buy and nothing metered.
 
-Compare: a Bloomberg seat runs ~$2,400/month; mainstream charting platforms
-charge $30–60/month and still meter your indicators, alerts and layouts. Midas
-gives you every panel, every board, and unlimited alerts — self-hosted for $0,
-or hosted for less than most people's exchange
-fees in a week.
+For context: a Bloomberg seat runs ~$2,400/month, and mainstream charting
+platforms charge $30–60/month while still metering your indicators, alerts and
+layouts. Midas gives you all of it, self-hosted, for $0.
 
-Planned tiers (waitlist replies size the split): **$20/mo solo** — one venue,
-full terminal, alerts + digests; **$49/mo desk** — two venues and multi-user
-research workspaces. Self-hosting always includes everything.
-
-**[→ Join the waitlist](https://github.com/ayyitskevin/midas/issues/new?title=Hosted+Midas+waitlist&body=Add+me+to+the+hosted-tier+waitlist.+%28Optional%3A+which+exchange%28s%29+do+you+trade%3F%29&labels=hosted-waitlist)**
-— it's a GitHub issue; a 👍 on an existing waitlist issue counts too. Nothing
-is billed today; the waitlist is how we size the first cohort.
+Want to run it for a team? The same terminal deploys as a shared multi-user
+instance — login plus per-user read-only keys — and it stays free; you just run
+the box. See the [self-hosting guide](docs/HOSTED_BETA.md).
 
 ---
 

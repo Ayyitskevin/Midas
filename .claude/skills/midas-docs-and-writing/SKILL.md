@@ -95,7 +95,7 @@ code is always ground truth over them.
 | Doc | Is | Do not |
 |---|---|---|
 | `docs/ROADMAP.md` | The tactical, **completed** v0.2→v0.5 plan + retro | Treat unchecked future items as shipped |
-| `docs/research/2026-strategy-and-roadmap.md` | The strategic "beyond SOTA" thesis (open-core, honest derivatives) | Cite its counts/pricing as current fact; the code and ops docs win |
+| `docs/research/2026-strategy-and-roadmap.md` | The strategic "beyond SOTA" thesis (honest derivatives); its hosted-monetization thesis is **superseded** (2026-07-19) — Midas is free & open source | Cite its pricing/monetization as current — that's retired; the code and ops docs win |
 | `docs/research/godel-*.md` | Competitive teardown / live recon (positioning) | Copy Gödel's founder-grievance framing |
 | `VISION.md` | North-star positioning | Read it as a spec |
 
@@ -131,12 +131,13 @@ safety hold"). The drift is only the older `REFACTOR_PLAYBOOK.md` Part-1 framing
   research docs count up to ~180; code `commands/groups/boards.ts` has **128** `code:`
   entries. The exact number depends on whether you count commands, aliases, or modules —
   **cite the code and say which you counted.**
-- **Hosted pricing headline**: `README.md:14` markets "**$20/month flat**"; the operational
-  docs describe a two-tier plan ($20 solo / $49 desk). Marketing simplification, not a hard
-  conflict. In a runbook, match the operational doc; the numbers are owned by
-  `midas-config-and-flags` / the roadmap docs, not this skill. README models honesty by
-  pairing the headline with a "Project status: pre-release and read-only" disclaimer
-  (`README.md:17-20`) — imitate that pattern, don't strip it.
+- **Positioning is free & open source.** As of 2026-07-19 Midas has **no paid tier,
+  subscription, or hosted-SaaS pricing** — earlier "$20/month" / "$20 solo / $49 desk" copy
+  was removed from the README and docs. If you find pricing or "hosted tier"/"waitlist"
+  language anywhere, it is stale: Midas is free (`README.md` "Free forever, open source"),
+  and a shared multi-user instance is just self-hosting (`docs/HOSTED_BETA.md`). Keep the
+  README's honesty pattern — pair any claim with its "Project status: pre-release and
+  read-only" disclaimer (`README.md:17-20`).
 
 ### Re-verify the whole register in one pass
 
@@ -223,10 +224,11 @@ Midas docs are runbooks, not marketing. Match the voice already in the repo.
   call held execution "trading enabled", never present a paper/preview surface (e.g. the
   `TICKET` book preview) as real. `docs/ARCHITECTURE.md:104`: "When you add a surface that
   shows data, label its provenance." Mechanics → `midas-data-honesty-and-provenance`.
-- **No oversell.** State posture including its limits. The README pairs its "$20/month flat"
-  line with a "pre-release and read-only by design" status block (`README.md:17-20`) — keep
-  the caveat attached to the claim. When a marketing headline and an operational doc
-  disagree, the operational doc / code wins; do not propagate the headline into a runbook.
+- **No oversell.** State posture including its limits. The README pairs its "free forever,
+  open source" positioning with a "pre-release and read-only by design" status block
+  (`README.md:17-20`) — keep the caveat attached to the claim. When a marketing headline and
+  an operational doc disagree, the operational doc / code wins; do not propagate a headline
+  into a runbook.
 - **Cite code, not prose.** Every count/flag/path/threshold in a doc must be traceable to a
   `file:line`. If you can't trace it, don't write it as fact. "**Generated prose is not
   evidence**" (`docs/AI-DEVELOPMENT.md`) — a confident sentence never substitutes for a

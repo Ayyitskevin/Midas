@@ -1,18 +1,17 @@
 # Midas — 30-day roadmap (v2)
 
-The second 30 days: from "feature-complete terminal" to "MicroSaaS people
-pay for". The v1 roadmap (order lifecycle, data depth, closing-the-loop
+The second 30 days: from "feature-complete terminal" to "easy to adopt and
+share". The v1 roadmap (order lifecycle, data depth, closing-the-loop
 analytics, distribution) shipped in full across v0.2.0–v0.4.0 — see
-[CHANGELOG.md](https://github.com/Ayyitskevin/Midas/blob/main/CHANGELOG.md). This plan optimizes for four things at the
-$20–$49 price point: **conversion** (try → deploy → waitlist), **retention**
-(the terminal earns its keep weekly), **monetization groundwork** (hosted
-tier without breaking self-host), and **scalability** (one operator can run
-many users).
+[CHANGELOG.md](https://github.com/Ayyitskevin/Midas/blob/main/CHANGELOG.md). This plan optimizes for three
+things: **adoption** (try → deploy → keep it), **retention** (the terminal
+earns its keep weekly), and **scalability** (one operator can run a shared
+instance for many users) — all while Midas stays free and open source.
 
 ## Week 1 — launch essentials (conversion)
 
-- ✅ **Demo mode** (`MIDAS_DEMO_MODE`) — public try-before-you-buy instance,
-  safe by construction; banner carries the deploy + waitlist CTAs. *(Shipped)*
+- ✅ **Demo mode** (`MIDAS_DEMO_MODE`) — public try-it instance, safe by
+  construction; banner carries the deploy-your-own + source CTAs. *(Shipped)*
 - ✅ **First-run tour (`START`)** — teach the grammar by running it. *(Shipped)*
 - ✅ **System status (`SYS`)** — "is it on?" without server logs. *(Shipped)*
 - ✅ **v0.4.0 release readiness** — changelog, WN entry, version. *(Shipped;
@@ -21,14 +20,14 @@ many users).
   launch blockers; `scripts/deploy.sh` + demo mode make the VPS a 10-minute job.
 - **Launch**: X thread, Show HN, r/algotrading post.
 
-## Week 2 — monetization groundwork (hosted tier)
+## Week 2 — multi-user groundwork (shared hosting)
 
 - ✅ **Per-user exchange keys, PR 1–2.** *(Shipped)* Encrypted KeyRepo +
   write-only key routes, and the ProviderPool resolving account reads to the
   requesting user's own client. Self-host behavior unchanged; per-user
   background loops and trading remain PR 3 (Week 3).
-- **Waitlist → pipeline** — label + triage hosted-waitlist issues; first
-  cohort email (size the $20 solo vs $49 desk split from replies).
+- **Shared-hosting posture** — the hardened multi-user env (auth, per-user
+  keys, caps, rate limits) documented end to end in the self-hosting guide.
 - ✅ **Rate limiting on public surfaces.** *(Shipped)* Per-IP rpm ceiling
   (`MIDAS_RATE_LIMIT_RPM`), on by default for demo boxes, `/api/health`
   exempt.
@@ -47,13 +46,12 @@ many users).
   per-user watcher/equity loops under `MIDAS_MAX_KEYED_USERS`. The retired
   execution prototype is superseded by the fail-closed safety hold.
 
-## Week 4 — scale & polish (worth $49)
+## Week 4 — scale & polish
 
-- **Hosted tier private beta** — first 5 waitlist users on managed
-  instances; $20 solo (1 venue, read+alerts) / $49 desk (2 venues,
-  multi-user research) — billing via Stripe Payment Links first,
-  engineering later. ✅ *Engineering side shipped:* the `KEYS` panel makes
-  per-user keys usable without curl.
+- **Shared instance, harden & document** — the multi-user posture on a
+  managed box (auth, per-user read keys, caps). ✅ *Shipped:* the `KEYS`
+  panel makes per-user keys usable without curl. No billing code — Midas is
+  free and open source.
 - ✅ **Docs site.** *(Shipped)* mkdocs-material over /docs with a Pages
   workflow — enable Settings → Pages → Source: GitHub Actions once.
 - ✅ **Performance pass.** *(Shipped)* Bundle budgets enforced in CI
@@ -66,9 +64,9 @@ many users).
 
 ## Retro — the second 30 days
 
-**Shipped:** all four weeks, 100%. Conversion (demo mode, START, SYS),
-monetization groundwork (per-user keys PR 1–3 end to end, rate limiting,
-waitlist), retention (P&L recap, alert templates, share links), scale
+**Shipped:** all four weeks, 100%. Adoption (demo mode, START, SYS),
+multi-user groundwork (per-user keys PR 1–3 end to end, rate limiting),
+retention (P&L recap, alert templates, share links), scale
 (KEYS panel, docs site, budgets, load checks). Server tests 121→186; web
 1706→1774; four releases (0.2.0 → 0.5.0) in two days of calendar time.
 
@@ -78,19 +76,22 @@ merges); honesty-as-a-feature keeps writing itself into every panel.
 
 **What to watch:** the key store and per-user loops are young — treat the
 first hosted incidents as roadmap input, not surprises; the digest is
-operator-only until per-user webhooks exist; no billing code on purpose.
+operator-only until per-user webhooks exist; no billing code — and none
+planned, Midas stays free and open source.
 
-## Roadmap v3 (skeleton — filled from beta feedback)
+## Roadmap v3 (skeleton — filled from user feedback)
 
-1. **Beta feedback loop** — first 5 hosted users, weekly friction lists.
+1. **User feedback loop** — first handful of self-hosters, weekly friction lists.
 2. **Per-user webhooks + digests** — the recap, per user, to their Discord.
-3. **Billing** — Stripe Payment Links for $20/$49 once beta users say yes.
-4. **What the beta demands** — deliberately unplanned until they tell us.
+3. **Deeper data core** — more first-class live sources behind the honest
+   provider seam (never mislabeling provenance).
+4. **What users demand** — deliberately unplanned until they tell us.
 
 ## Standing invariants (unchanged, non-negotiable)
 
 1. Read-only by default; every write opt-in, capped, confirmed, audited.
 2. Data honesty: synthetic/delayed/unavailable is always labeled.
 3. Keys never leave the server they were given to; Midas never custodies funds.
-4. Self-hosting stays free and full-featured, forever.
+4. Free and open source, forever — no paid tier, no gated features;
+   self-hosting includes everything.
 5. Every slice lands with tests + the four gates green.

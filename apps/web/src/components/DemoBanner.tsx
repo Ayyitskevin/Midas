@@ -52,12 +52,12 @@ export function DemoBanner() {
           Deploy your own in 60s →
         </a>
         <a
-          href="https://github.com/ayyitskevin/midas#hosted-midas--20month-flat"
+          href="https://github.com/ayyitskevin/midas"
           target="_blank"
           rel="noreferrer"
           className="no-drag hidden text-term-amber hover:underline sm:inline"
         >
-          Hosted waitlist →
+          Free &amp; open source →
         </a>
         <button onClick={dismiss} title="Dismiss" aria-label="Dismiss demo banner" className="no-drag ml-auto text-term-amber hover:text-term-text">
           ✕

@@ -60,6 +60,14 @@ highlights; this file is the complete record. Versions follow semver;
   case-preserving base-58 edge check (never uppercased). Stablecoins price at
   $1 and SOL from the exchange; unknown SPL tokens are honestly left unpriced.
 
+### Changed
+- **Positioning: free and open source, forever.** Midas has no paid tier,
+  subscription, or hosted-SaaS plan. The README, docs, and in-app demo banner
+  drop the "$20/month" hosted-tier and waitlist framing; the multi-user hosting
+  runbooks are reframed as an optional, free self-hosting mode. Self-hosting
+  already included every panel, board, and alert — this makes the positioning
+  match. License is unchanged (AGPL-3.0-only).
+
 ## [0.5.0] — 2026-07-02
 
 The hosted-ready release: everything a multi-user Midas needs — per-user

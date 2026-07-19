@@ -1,13 +1,12 @@
-# Hosted beta runbook
+# Self-hosting for a team
 
-How to put the first waitlist users on managed Midas instances — hardened,
-per-user, and honest about what the beta is. Everything here uses stock
-Midas; there is no hosted-only code.
+How to run a shared, multi-user Midas instance — hardened, per-user, and honest
+about what it is. Everything here uses stock Midas; there is no hosted-only code.
 
-**Pricing honesty (unchanged):** self-hosting is free forever. The hosted
-tier is a *waitlist* — $20/mo solo and $49/mo desk are the intended prices,
-**nothing is billed during the beta**, and billing (Stripe Payment Links)
-only starts when beta users say it's worth paying for.
+**Midas is free and open source, forever.** Self-hosting — for yourself or for a
+team on one box — costs nothing and gates nothing. There is no paid tier and no
+billing code; this runbook is just the hardened posture for putting more than
+one person on an instance.
 
 ## 1. Provision a box
 
@@ -39,12 +38,12 @@ Put TLS in front (Caddy is two lines) and pin `MIDAS_CORS_ORIGIN` to the
 site origin. The full checklist lives in
 [SECURITY.md](https://github.com/Ayyitskevin/Midas/blob/main/SECURITY.md).
 
-**Tier shapes (product, not code):** solo = one instance, one user, keys +
-alerts + digest. Desk = one instance, `MIDAS_AUTH_ALLOW_SIGNUP` for the
-team and per-user read keys. Per-user account reads and feeds are isolated;
-execution is not part of the hosted beta.
+**Deployment shapes:** solo = one instance, one user, keys + alerts + digest.
+Team = one instance, `MIDAS_AUTH_ALLOW_SIGNUP` for the group and per-user read
+keys. Per-user account reads and feeds are isolated; execution is not part of a
+hosted instance.
 
-## 2. Onboard a beta user
+## 2. Onboard a user
 
 1. Create their login (or let them sign up while signups are open).
 2. Have them run `START` (tour), then `KEYS` — they paste their **own**
@@ -68,10 +67,9 @@ harder — that's it working, not breaking.
 
 ## 4. The invite email (copy, adjust, send)
 
-> **Subject: Your Midas beta instance is live**
+> **Subject: Your Midas instance is live**
 >
-> Hey {name} — thanks for joining the Midas waitlist. Your private beta
-> instance is ready:
+> Hey {name} — your Midas instance is ready:
 >
 > **URL:** https://{instance}.example.com
 > **Login:** {username} / {temporary password} (change it with `AUTH` →
@@ -85,14 +83,13 @@ harder — that's it working, not breaking.
 > 3. Run `ALERT` and hit the ⚡ templates — funding flip, ±5% move, equity
 >    drawdown.
 >
-> The honest part: the beta is **free**, and nothing gets billed unless you
-> later tell me it's worth $20/month ($49 for a multi-user desk) — self-
-> hosting stays free forever either way. In exchange, I'd love one reply a
-> week: what you used, what annoyed you, what's missing.
+> The honest part: Midas is **free and open source** — nothing is billed, ever,
+> whether you use this instance or self-host your own. If you're up for it, I'd
+> love one reply a week: what you used, what annoyed you, what's missing.
 >
 > Reply to this email with anything — it lands in my actual inbox.
 
-## 5. Weekly during the beta
+## 5. Weekly
 
 - Read the operator digest; if *you* don't want to read it, fix the digest.
 - `SYS` on each instance: loops green, version current.
