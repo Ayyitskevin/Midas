@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { DataProvider } from './providers';
 import { createIpQuota, createStreamHub, parseStreamRequest } from './streaming';
+import type { StreamSource } from './ccxt-stream';
 
 /** Counts how many sources the hub actually started (each seeds one quote). */
 function countingProvider(): { provider: DataProvider; starts: () => number } {
@@ -91,6 +92,37 @@ describe('createStreamHub resource bounds', () => {
     hub.removeSocket(b);
     expect(hub.subscribe(a, 'trades', 'CCC/USDT')).toBe(true);
     hub.removeSocket(a);
+  });
+});
+
+describe('createStreamHub fatal-source teardown', () => {
+  it('drops a source that reports a fatal error, error-frames subscribers, and rebuilds on re-subscribe', () => {
+    const { provider } = countingProvider();
+    let startCalls = 0;
+    let reportFatal: ((message: string) => void) | undefined;
+    // Injected source: capture onFatal so the test can trigger a permanent death.
+    const injected: StreamSource = {
+      start(_channel, _symbol, _emit, onFatal) {
+        startCalls += 1;
+        reportFatal = onFatal;
+        return () => {};
+      },
+    };
+    const hub = createStreamHub(provider, 500, injected);
+    const sent: string[] = [];
+    const sock = { readyState: 1, send: (m: string) => sent.push(m) } as unknown as WebSocket;
+
+    expect(hub.subscribe(sock, 'trades', 'JUNK/USDT')).toBe(true);
+    expect(startCalls).toBe(1);
+
+    // The upstream source dies permanently (e.g. the exchange does not list it).
+    reportFatal?.('the exchange does not list it');
+    // The subscriber is told which (channel, symbol) failed...
+    expect(sent.some((m) => m.includes('"type":"error"') && m.includes('JUNK/USDT'))).toBe(true);
+    // ...and the dead entry is gone, so a fresh subscribe rebuilds it (retries)
+    // instead of joining a silent dead source.
+    expect(hub.subscribe(sock, 'trades', 'JUNK/USDT')).toBe(true);
+    expect(startCalls).toBe(2);
   });
 });
 

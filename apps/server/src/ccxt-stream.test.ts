@@ -51,4 +51,38 @@ describe('createCcxtStreamSource retry policy', () => {
     stop();
     expect(emitted).toBe(0);
   });
+
+  it('unsubscribes the symbol on stop when the exchange exposes unWatch', () => {
+    const unWatchTrades = vi.fn(async () => {});
+    const fake = {
+      watchTrades: () => new Promise(() => {}), // pending forever — the loop parks on it
+      unWatchTrades,
+    } as unknown as ProExchange;
+    const stop = createCcxtStreamSource(fake).start('trades', 'BTC/USDT', () => {});
+    stop();
+    // Without this the exchange-side subscription + per-symbol cache leak for
+    // the process lifetime; close() must NOT be used (it kills the shared socket).
+    expect(unWatchTrades).toHaveBeenCalledWith('BTC/USDT');
+  });
+
+  it('does not throw on stop when the exchange lacks unWatch (older ccxt / test fakes)', () => {
+    const fake = { watchTrades: () => new Promise(() => {}) } as unknown as ProExchange;
+    const stop = createCcxtStreamSource(fake).start('trades', 'BTC/USDT', () => {});
+    expect(() => stop()).not.toThrow();
+  });
+
+  it('reports onFatal exactly once when the exchange does not list the symbol', async () => {
+    vi.useFakeTimers();
+    class BadSymbol extends Error {}
+    const fake = {
+      watchTrades: async () => {
+        throw new BadSymbol('binance does not have market symbol JUNK/USDT');
+      },
+    } as unknown as ProExchange;
+    const onFatal = vi.fn();
+    const stop = createCcxtStreamSource(fake).start('trades', 'JUNK/USDT', () => {}, onFatal);
+    await vi.advanceTimersByTimeAsync(100);
+    stop();
+    expect(onFatal).toHaveBeenCalledTimes(1);
+  });
 });
