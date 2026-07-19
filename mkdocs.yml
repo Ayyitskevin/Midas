@@ -33,5 +33,7 @@ nav:
   - Execution safety hold: EXECUTION_SAFETY_HOLD.md
   - Maintenance playbook: MAINTENANCE.md
   - Architecture: ARCHITECTURE.md
+  - Reviewer guide: REVIEWER-GUIDE.md
+  - AI-assisted development: AI-DEVELOPMENT.md
   - Per-user keys design: HOSTED_KEYS_DESIGN.md
   - Roadmap: ROADMAP.md

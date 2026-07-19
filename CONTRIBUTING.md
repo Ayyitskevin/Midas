@@ -5,14 +5,14 @@ terminal. Contributions of all sizes are welcome: new indicator boards, data
 providers, bug fixes, docs, and DX improvements.
 
 By contributing you agree that your contributions are licensed under the
-project's [MIT License](./LICENSE).
+project's [AGPL-3.0-only license](./LICENSE).
 
 ## Quick start
 
 Requirements: **Node ≥ 20** and **pnpm 10** (`corepack enable` will provide it).
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm dev          # web on :5173, API on :4000 — runs on synthetic data, zero config
 ```
 
@@ -79,6 +79,12 @@ If your change surfaces data, label its provenance. See the strategy notes in
 - Branch from `main`, keep the PR focused, and fill in the PR template.
 - Make sure all four gates pass.
 - Describe what changed and why; screenshots help for UI changes.
+- Run `pnpm test:reviewer` and keep the static reviewer demo deterministic.
+- Do not include credentials, real account data, or live model calls in tests,
+  fixtures, screenshots, or commits.
+- AI-assisted changes must state their evidence and limitations; the maintainer
+  makes the human merge decision. See [AGENTS.md](./AGENTS.md) and the
+  [AI-assisted development policy](./docs/AI-DEVELOPMENT.md).
 
 ## Reporting bugs / requesting features
 

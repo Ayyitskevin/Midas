@@ -35,6 +35,10 @@ own box for free, forever.
   model: encrypted storage, provider pool, the reads-account = writes-account
   rule, per-user loops.
 - **[Roadmap](ROADMAP.md)** — where this is going, honestly checkmarked.
+- **[Reviewer guide](REVIEWER-GUIDE.md)** — a disposable demo path, code-tour
+  seams, and questions worth challenging in review.
+- **[AI-assisted development policy](AI-DEVELOPMENT.md)** — evidence and data
+  boundaries for agent-authored changes and the optional copilot.
 
 ## Principles (the short version)
 
