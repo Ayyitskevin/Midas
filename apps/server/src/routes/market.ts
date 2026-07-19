@@ -38,16 +38,59 @@ const VENUE_ARB_TTL_MS = 20_000;
 const OI_CONCENTRATION_TTL_MS = 45_000;
 
 /**
+ * Register one cross-venue board route (funding dispersion, venue arb, OI
+ * concentration). All three share the same shape: for the top-N perps/symbols
+ * by volume, fan a per-symbol upstream read out (N×M), compute one row each
+ * (dropping any that throw), keep the rows that carry a real signal, and rank
+ * them descending. They differ only in the upstream call + row compute
+ * (`compute`) and the field that must be non-null and is the sort key (`rank`).
+ * A short single-flight TTL cache (per (quote, limit)) bounds the fan-out cost.
+ */
+function registerVenueBoard<Row>(
+  app: FastifyInstance,
+  provider: DataProvider,
+  opts: {
+    path: string;
+    ttlMs: number;
+    /** Per-symbol upstream read + row compute; a throw drops the symbol. */
+    compute: (symbol: string) => Promise<Row>;
+    /** The signal field: a row is kept only when this is non-null, ranked desc. */
+    rank: (row: Row) => number | null;
+  },
+): void {
+  const cache = createTtlCache<Row[]>(opts.ttlMs);
+  app.get<{ Querystring: { quote?: string; limit?: string } }>(opts.path, async (req) => {
+    const quote = normalizeQuote(req.query.quote);
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
+    return cache.get(`${quote}|${limit}`, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      // Cast the resolved array: for a generic Row, TS widens Promise.all's
+      // result to Awaited<Row>, which it can't prove equals Row. Every call
+      // site's Row is a plain row object (never a promise), so this is sound.
+      const board = (await Promise.all(
+        rows.map(async (r): Promise<Row | null> => {
+          try {
+            return await opts.compute(r.symbol);
+          } catch {
+            return null;
+          }
+        }),
+      )) as (Row | null)[];
+      return board
+        .filter((x): x is Row => x !== null && opts.rank(x) !== null)
+        .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0));
+    });
+  });
+}
+
+/**
  * Market-data + provider-status routes: health, quotes, history, order books,
  * venue compare, derivatives, on-chain pools, funding-rate history, screener,
  * funding board, market-wide liquidations, search and news. All read-only
  * against the active provider.
  */
 export function registerMarketRoutes(app: FastifyInstance, provider: DataProvider): void {
-  // Per-provider, per-server-lifetime caches for the fan-out venue boards.
-  const fundingDispersionCache = createTtlCache<FundingDispersionRow[]>(FUNDING_DISPERSION_TTL_MS);
-  const venueArbCache = createTtlCache<VenueArbRow[]>(VENUE_ARB_TTL_MS);
-  const oiConcentrationCache = createTtlCache<OiConcentrationRow[]>(OI_CONCENTRATION_TTL_MS);
 
   app.get('/api/health', async (): Promise<HealthResponse> => {
     return {
@@ -192,84 +235,29 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     return board.filter((x): x is FundingRow => x !== null);
   });
 
-  // Cross-venue funding-dispersion board: for the top-N perps by volume, the
-  // funding-rate spread across the compare set (the arb signal), ranked widest
-  // first. Composed from screen() + getVenueDerivatives() so every provider
-  // supports it; a short single-flight TTL cache bounds the N×M fan-out cost.
-  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding-dispersion', async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
-    return fundingDispersionCache.get(`${quote}|${limit}`, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
-      const board = await Promise.all(
-        rows.map(async (r): Promise<FundingDispersionRow | null> => {
-          try {
-            return computeFundingDispersion(r.symbol, await provider.getVenueDerivatives(r.symbol));
-          } catch {
-            return null;
-          }
-        }),
-      );
-      // Keep only perps with a real cross-venue spread (≥ 2 reporting venues),
-      // widest spread first — the funding-arb signal.
-      return board
-        .filter((x): x is FundingDispersionRow => x !== null && x.spreadBps !== null)
-        .sort((a, b) => (b.spreadBps ?? 0) - (a.spreadBps ?? 0));
-    });
+  // The three cross-venue boards share one fan-out-behind-a-TTL-cache shape
+  // (registerVenueBoard). Each keeps only rows whose signal field is non-null
+  // (funding spread ≥ 2 venues / price dispersion ≥ 2 venues / OI ≥ 1 venue) and
+  // ranks by it descending — supplied here as `compute` + `rank`.
+  registerVenueBoard<FundingDispersionRow>(app, provider, {
+    path: '/api/funding-dispersion',
+    ttlMs: FUNDING_DISPERSION_TTL_MS,
+    compute: async (symbol) => computeFundingDispersion(symbol, await provider.getVenueDerivatives(symbol)),
+    rank: (row) => row.spreadBps,
   });
 
-  // Cross-venue arb screener: for the top-N symbols by volume, how far the
-  // price disagrees across the compare set — the sell-here/buy-here legs, the
-  // spread (positive ⇒ a crossed, gross-of-fees arb), ranked by dispersion.
-  // Composed from screen() + getExchangeQuotes(); a short single-flight TTL
-  // cache bounds the N×M fan-out cost.
-  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/venue-arb', async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
-    return venueArbCache.get(`${quote}|${limit}`, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
-      const board = await Promise.all(
-        rows.map(async (r): Promise<VenueArbRow | null> => {
-          try {
-            return computeVenueArbRow(r.symbol, await provider.getExchangeQuotes(r.symbol));
-          } catch {
-            return null;
-          }
-        }),
-      );
-      // Keep only symbols quoted on ≥ 2 venues (a real dispersion), widest first.
-      return board
-        .filter((x): x is VenueArbRow => x !== null && x.dispersionBps !== null)
-        .sort((a, b) => (b.dispersionBps ?? 0) - (a.dispersionBps ?? 0));
-    });
+  registerVenueBoard<VenueArbRow>(app, provider, {
+    path: '/api/venue-arb',
+    ttlMs: VENUE_ARB_TTL_MS,
+    compute: async (symbol) => computeVenueArbRow(symbol, await provider.getExchangeQuotes(symbol)),
+    rank: (row) => row.dispersionBps,
   });
 
-  // Cross-venue OI / crowding board: for the top-N perps by volume, aggregate
-  // open interest across the compare set + how concentrated it is on one venue
-  // (top-venue share, Herfindahl). Reuses the getVenueDerivatives() fan-out (as
-  // the funding board does) with its own short single-flight TTL cache.
-  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/oi-concentration', async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
-    return oiConcentrationCache.get(`${quote}|${limit}`, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
-      const board = await Promise.all(
-        rows.map(async (r): Promise<OiConcentrationRow | null> => {
-          try {
-            return computeOiConcentration(r.symbol, await provider.getVenueDerivatives(r.symbol));
-          } catch {
-            return null;
-          }
-        }),
-      );
-      // Keep perps with OI reported on ≥ 1 venue, biggest total OI first.
-      return board
-        .filter((x): x is OiConcentrationRow => x !== null && x.totalOiValue !== null)
-        .sort((a, b) => (b.totalOiValue ?? 0) - (a.totalOiValue ?? 0));
-    });
+  registerVenueBoard<OiConcentrationRow>(app, provider, {
+    path: '/api/oi-concentration',
+    ttlMs: OI_CONCENTRATION_TTL_MS,
+    compute: async (symbol) => computeOiConcentration(symbol, await provider.getVenueDerivatives(symbol)),
+    rank: (row) => row.totalOiValue,
   });
 
   // Market-wide liquidations feed: the recent liquidations across the top-N
