@@ -25,6 +25,9 @@ describe('GET /api/health', () => {
     expect(body.provider).toBe('mock');
     expect(body.status).toBe('ok');
     expect(typeof body.version).toBe('string');
+    // The mock provider streams a synthetic random-walk, not a live feed — so the
+    // client can show SIM instead of LIVE over the socket. (Only ccxt streams live.)
+    expect(body.streamLive).toBe(false);
   });
 });
 

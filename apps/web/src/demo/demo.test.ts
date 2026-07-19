@@ -224,6 +224,7 @@ describe('demo shim', () => {
     const health = await (await fetch('/api/health')).json();
     expect(health.demo).toBe(true);
     expect(health.provider).toBe('demo');
+    expect(health.streamLive).toBe(false); // static demo never opens a live socket
 
     const quote = await (await fetch('/api/quote/BTC%2FUSDT')).json();
     expect(quote.symbol).toBe('BTC/USDT');

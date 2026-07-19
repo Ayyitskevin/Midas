@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DataProvider } from './providers';
-import { createIpQuota, createStreamHub, parseStreamRequest, registerStream } from './streaming';
+import {
+  createIpQuota,
+  createStreamHub,
+  parseStreamRequest,
+  providerStreamsLive,
+  registerStream,
+} from './streaming';
 import type { StreamSource } from './ccxt-stream';
 
 /** Counts how many sources the hub actually started (each seeds one quote). */
@@ -27,6 +33,17 @@ const frame = (msg: unknown): [{ toString(): string }, number] => {
   const s = JSON.stringify(msg);
   return [{ toString: () => s }, Buffer.byteLength(s)];
 };
+
+describe('providerStreamsLive', () => {
+  const withName = (name: string): DataProvider => ({ name }) as unknown as DataProvider;
+  it('is true only for ccxt providers (the sole live-stream source)', () => {
+    expect(providerStreamsLive(withName('ccxt:binance'))).toBe(true);
+    expect(providerStreamsLive(withName('ccxt:bybit'))).toBe(true);
+    // Non-ccxt providers stream a synthetic random-walk, so the badge shows SIM.
+    expect(providerStreamsLive(withName('mock'))).toBe(false);
+    expect(providerStreamsLive(withName('yahoo'))).toBe(false);
+  });
+});
 
 describe('parseStreamRequest', () => {
   it('accepts a real subscribe and normalizes channel/symbol', () => {

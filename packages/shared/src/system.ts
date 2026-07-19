@@ -47,6 +47,14 @@ export interface HealthResponse {
   provider: string;
   /** Whether the active provider reaches a live upstream or returns synthetic data. */
   live: boolean;
+  /**
+   * Whether the WebSocket stream delivers real upstream data (CCXT Pro) rather
+   * than the synthetic random-walk fallback used for non-ccxt providers. Kept
+   * separate from `live` because they diverge: yahoo has live REST quotes
+   * (`live: true`) but no live stream (`streamLive: false`), so the client can
+   * label a streaming panel honestly instead of showing "LIVE" over synthetic prints.
+   */
+  streamLive: boolean;
   time: number;
   version: string;
   /** True when the server runs in public-demo posture (mock data, no trading, no signup). */

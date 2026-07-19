@@ -42,13 +42,24 @@ interface SourceEntry {
  */
 const MAX_STREAM_SOURCES = 500;
 
+/**
+ * Whether this provider's stream delivers real upstream data (CCXT Pro
+ * websockets) rather than the synthetic random-walk fallback below. The single
+ * source of truth for BOTH the source selection in `createStreamHub` and the
+ * `/api/health` `streamLive` flag the UI badge reads — so the terminal never
+ * shows "LIVE" over a synthetic feed.
+ */
+export function providerStreamsLive(provider: DataProvider): boolean {
+  return provider.name.startsWith('ccxt');
+}
+
 export function createStreamHub(
   provider: DataProvider,
   maxSources: number = MAX_STREAM_SOURCES,
   // Live exchange websocket source on the ccxt provider, null otherwise (the
   // synthetic sources below handle non-ccxt). Injectable so a test can drive the
   // fatal-error teardown path without a real exchange.
-  source: StreamSource | null = provider.name.startsWith('ccxt') ? createCcxtStreamSource() : null,
+  source: StreamSource | null = providerStreamsLive(provider) ? createCcxtStreamSource() : null,
 ): StreamHub {
   const sources = new Map<string, SourceEntry>();
 
