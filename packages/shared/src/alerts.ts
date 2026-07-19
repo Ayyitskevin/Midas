@@ -90,14 +90,34 @@ export const MAX_ALERT_NOTE_LEN = 280;
 export function parseAlertInput(raw: unknown): AlertInput | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const symbol = typeof r.symbol === 'string' ? r.symbol.trim().toUpperCase() : '';
   const metric = r.metric as AlertMetric;
   const op = r.op as AlertOp;
-  const value = typeof r.value === 'number' ? r.value : Number(r.value);
-  if (!symbol || symbol.length > MAX_ALERT_SYMBOL_LEN) return null;
+  // Accept only a real number or a non-empty numeric string. Number(null),
+  // Number(''), Number([]) and Number(false) all === 0 (Number(true) === 1),
+  // which would sail past the Number.isFinite gate below and mint a value=0
+  // alert from an unusable body — e.g. JSON.stringify({ value: NaN }) serializes
+  // to {"value":null}, which must be rejected, not read as "threshold 0".
+  const value =
+    typeof r.value === 'number'
+      ? r.value
+      : typeof r.value === 'string' && r.value.trim() !== ''
+        ? Number(r.value)
+        : NaN;
   if (!ALERT_METRICS.includes(metric)) return null;
   if (!ALERT_OPS.includes(op)) return null;
   if (!Number.isFinite(value)) return null;
+  // Account-wide equity is only ever published under the ACCOUNT pseudo-symbol
+  // (server engine.ts / web AlertsEngine.tsx), and readingFor() looks an alert
+  // up by its own symbol — so an equity alert on any market pair would arm but
+  // never fire. Force it to ACCOUNT_SYMBOL. (upnl stays per-position: it is keyed
+  // by the position's symbol and can legitimately differ.)
+  const symbol =
+    metric === 'equity'
+      ? ACCOUNT_SYMBOL
+      : typeof r.symbol === 'string'
+        ? r.symbol.trim().toUpperCase()
+        : '';
+  if (!symbol || symbol.length > MAX_ALERT_SYMBOL_LEN) return null;
   // A note is optional, but an over-long one is rejected outright rather than
   // silently truncated — it never reaches the persisted store.
   if (typeof r.note === 'string' && r.note.trim().length > MAX_ALERT_NOTE_LEN) return null;

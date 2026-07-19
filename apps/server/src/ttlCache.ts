@@ -15,14 +15,27 @@ export interface TtlCache<T> {
   get(key: string, compute: () => Promise<T>): Promise<T>;
 }
 
-export function createTtlCache<T>(ttlMs: number, now: () => number = Date.now): TtlCache<T> {
+/**
+ * Default cap on distinct cached keys. Bounds the Map so a route keyed by
+ * user-controlled input can't grow it without limit (see {@link prune}).
+ */
+const DEFAULT_MAX_ENTRIES = 500;
+
+export function createTtlCache<T>(
+  ttlMs: number,
+  now: () => number = Date.now,
+  maxEntries: number = DEFAULT_MAX_ENTRIES,
+): TtlCache<T> {
   const fresh = new Map<string, { value: T; at: number }>();
   const inflight = new Map<string, Promise<T>>();
 
   return {
     get(key, compute) {
       const hit = fresh.get(key);
-      if (hit && now() - hit.at < ttlMs) return Promise.resolve(hit.value);
+      if (hit) {
+        if (now() - hit.at < ttlMs) return Promise.resolve(hit.value);
+        fresh.delete(key); // expired — drop it now rather than let it linger
+      }
 
       const pending = inflight.get(key);
       if (pending) return pending;
@@ -31,6 +44,7 @@ export function createTtlCache<T>(ttlMs: number, now: () => number = Date.now): 
         try {
           const value = await compute();
           fresh.set(key, { value, at: now() });
+          prune(fresh, ttlMs, now(), maxEntries);
           return value;
         } finally {
           inflight.delete(key);
@@ -40,4 +54,29 @@ export function createTtlCache<T>(ttlMs: number, now: () => number = Date.now): 
       return p;
     },
   };
+}
+
+/**
+ * Keep the cache bounded: sweep entries past their TTL, then, if still over the
+ * cap, evict oldest-first (a Map preserves insertion order). Without this an
+ * entry keyed by user input that is requested once and never again would stay
+ * forever — a junk-key spray is otherwise unbounded memory growth on a public
+ * route.
+ */
+function prune<T>(
+  fresh: Map<string, { value: T; at: number }>,
+  ttlMs: number,
+  t: number,
+  maxEntries: number,
+): void {
+  for (const [k, v] of fresh) {
+    if (t - v.at >= ttlMs) fresh.delete(k);
+  }
+  if (fresh.size > maxEntries) {
+    let excess = fresh.size - maxEntries;
+    for (const k of fresh.keys()) {
+      if (excess-- <= 0) break;
+      fresh.delete(k);
+    }
+  }
 }

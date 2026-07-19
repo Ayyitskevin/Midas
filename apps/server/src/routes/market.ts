@@ -21,7 +21,7 @@ import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
 import { config } from '../config';
 import { createTtlCache } from '../ttlCache';
-import { firstStr, normalizeSymbol } from './shared';
+import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
@@ -192,7 +192,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // first. Composed from screen() + getVenueDerivatives() so every provider
   // supports it; a short single-flight TTL cache bounds the N×M fan-out cost.
   app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding-dispersion', async (req) => {
-    const quote = (firstStr(req.query.quote) || 'USDT').toUpperCase();
+    const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
     return fundingDispersionCache.get(`${quote}|${limit}`, async () => {
@@ -220,7 +220,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // Composed from screen() + getExchangeQuotes(); a short single-flight TTL
   // cache bounds the N×M fan-out cost.
   app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/venue-arb', async (req) => {
-    const quote = (firstStr(req.query.quote) || 'USDT').toUpperCase();
+    const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
     return venueArbCache.get(`${quote}|${limit}`, async () => {
@@ -246,7 +246,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // (top-venue share, Herfindahl). Reuses the getVenueDerivatives() fan-out (as
   // the funding board does) with its own short single-flight TTL cache.
   app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/oi-concentration', async (req) => {
-    const quote = (firstStr(req.query.quote) || 'USDT').toUpperCase();
+    const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
     return oiConcentrationCache.get(`${quote}|${limit}`, async () => {
