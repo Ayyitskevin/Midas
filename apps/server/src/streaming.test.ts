@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { WebSocket } from 'ws';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DataProvider } from './providers';
-import { createIpQuota, createStreamHub, parseStreamRequest } from './streaming';
+import { createIpQuota, createStreamHub, parseStreamRequest, registerStream } from './streaming';
 import type { StreamSource } from './ccxt-stream';
 
 /** Counts how many sources the hub actually started (each seeds one quote). */
@@ -96,7 +97,7 @@ describe('createStreamHub resource bounds', () => {
 });
 
 describe('createStreamHub fatal-source teardown', () => {
-  it('drops a source that reports a fatal error, error-frames subscribers, and rebuilds on re-subscribe', () => {
+  it('on a fatal death: error-frames subscribers, runs each onDrop, and rebuilds on a fresh subscribe', () => {
     const { provider } = countingProvider();
     let startCalls = 0;
     let reportFatal: ((message: string) => void) | undefined;
@@ -111,17 +112,67 @@ describe('createStreamHub fatal-source teardown', () => {
     const hub = createStreamHub(provider, 500, injected);
     const sent: string[] = [];
     const sock = { readyState: 1, send: (m: string) => sent.push(m) } as unknown as WebSocket;
+    let dropped = 0;
 
-    expect(hub.subscribe(sock, 'trades', 'JUNK/USDT')).toBe(true);
+    expect(hub.subscribe(sock, 'trades', 'JUNK/USDT', () => (dropped += 1))).toBe(true);
     expect(startCalls).toBe(1);
 
     // The upstream source dies permanently (e.g. the exchange does not list it).
     reportFatal?.('the exchange does not list it');
-    // The subscriber is told which (channel, symbol) failed...
+    // The subscriber is told which (channel, symbol) failed and its onDrop ran...
     expect(sent.some((m) => m.includes('"type":"error"') && m.includes('JUNK/USDT'))).toBe(true);
-    // ...and the dead entry is gone, so a fresh subscribe rebuilds it (retries)
-    // instead of joining a silent dead source.
+    expect(dropped).toBe(1);
+    // ...and the dead entry is gone, so a fresh subscribe rebuilds it (retries).
     expect(hub.subscribe(sock, 'trades', 'JUNK/USDT')).toBe(true);
+    expect(startCalls).toBe(2);
+  });
+
+  it('through registerStream: a fatal death releases the socket ledger + IP quota so re-subscribe rebuilds', () => {
+    // The bug this guards: onFatal freeing only the hub slot left the WS route's
+    // per-socket `held` set + ipQuota charging for the dead source, and the
+    // held-idempotency guard then permanently blocked that connection from
+    // rebuilding. Drive the real /api/stream message handler across a fatal death.
+    const { provider } = countingProvider();
+    let startCalls = 0;
+    let reportFatal: ((message: string) => void) | undefined;
+    const injected: StreamSource = {
+      start(_channel, _symbol, _emit, onFatal) {
+        startCalls += 1;
+        reportFatal = onFatal;
+        return () => {};
+      },
+    };
+    const hub = createStreamHub(provider, 500, injected);
+
+    // Capture the ws handler registerStream installs, then drive it directly.
+    let wsHandler: ((s: WebSocket, r: FastifyRequest) => void) | undefined;
+    const app = {
+      get: (_path: string, _opts: unknown, h: (s: WebSocket, r: FastifyRequest) => void) => {
+        wsHandler = h;
+      },
+    } as unknown as FastifyInstance;
+    registerStream(app, hub);
+
+    const listeners: Record<string, (arg?: unknown) => void> = {};
+    const sock = {
+      readyState: 1,
+      send: () => {},
+      on: (ev: string, cb: (arg?: unknown) => void) => {
+        listeners[ev] = cb;
+      },
+    } as unknown as WebSocket;
+    wsHandler!(sock, { ip: '9.9.9.9' } as unknown as FastifyRequest);
+
+    const send = (msg: unknown) => listeners.message(Buffer.from(JSON.stringify(msg)));
+    send({ type: 'subscribe', channel: 'trades', symbol: 'JUNK/USDT' });
+    expect(startCalls).toBe(1);
+
+    // Source dies permanently → hub error-frames + runs the WS route's onDrop,
+    // which releases this socket's `held` slot and IP quota.
+    reportFatal?.('gone');
+
+    // A fresh subscribe is no longer swallowed by the held guard → rebuilds.
+    send({ type: 'subscribe', channel: 'trades', symbol: 'JUNK/USDT' });
     expect(startCalls).toBe(2);
   });
 });

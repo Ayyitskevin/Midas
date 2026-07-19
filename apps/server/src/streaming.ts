@@ -15,15 +15,22 @@ import { createCcxtStreamSource, type StreamSource } from './ccxt-stream';
  * websocket source lands in a later sub-phase behind this same interface.
  */
 export interface StreamHub {
-  /** False when the hub refused (global source ceiling) — the socket is NOT subscribed. */
-  subscribe(socket: WebSocket, channel: string, symbol: string): boolean;
+  /**
+   * Subscribe a socket to (channel, symbol). Returns false when the hub refused
+   * (global source ceiling) — the socket is NOT subscribed. `onDrop` is invoked
+   * for this socket if the hub force-drops the source (a permanent upstream
+   * failure), so the caller can release the ledger/quota it acquired for this
+   * subscription — the hub cannot reach that per-connection state itself.
+   */
+  subscribe(socket: WebSocket, channel: string, symbol: string, onDrop?: () => void): boolean;
   unsubscribe(socket: WebSocket, channel: string, symbol: string): void;
   removeSocket(socket: WebSocket): void;
 }
 
 interface SourceEntry {
   stop: () => void;
-  subscribers: Set<WebSocket>;
+  /** socket → its onDrop callback (run when the source dies permanently). */
+  subscribers: Map<WebSocket, () => void>;
 }
 
 /**
@@ -45,23 +52,30 @@ export function createStreamHub(
 ): StreamHub {
   const sources = new Map<string, SourceEntry>();
 
-  function start(channel: string, symbol: string, subscribers: Set<WebSocket>): () => void {
+  function start(
+    channel: string,
+    symbol: string,
+    subscribers: Map<WebSocket, () => void>,
+  ): () => void {
     const key = `${channel}\u0000${symbol}`;
     const emit = (data: unknown) => {
       const msg = JSON.stringify({ type: channel, symbol, data });
-      for (const socket of subscribers) {
+      for (const socket of subscribers.keys()) {
         if (socket.readyState === 1 /* OPEN */) socket.send(msg);
       }
     };
     // A source that dies permanently (e.g. the exchange does not list the
     // symbol) must not linger: it would hold one of the global source slots and
     // any later subscriber to the same (channel, symbol) would join the entry
-    // and hear nothing. Notify subscribers and drop the entry so a fresh
-    // subscribe rebuilds — and retries — instead.
+    // and hear nothing. Notify subscribers, run each one's onDrop so the WS
+    // route releases the per-connection ledger + IP quota it holds for this
+    // subscription (the hub can't reach that state itself), then drop the entry
+    // so a fresh subscribe rebuilds (and retries) instead.
     const onFatal = (message: string): void => {
       const frame = JSON.stringify({ type: 'error', channel, symbol, message });
-      for (const socket of subscribers) {
+      for (const [socket, onDrop] of subscribers) {
         if (socket.readyState === 1 /* OPEN */) socket.send(frame);
+        onDrop();
       }
       sources.delete(key);
     };
@@ -73,16 +87,17 @@ export function createStreamHub(
   }
 
   return {
-    subscribe(socket, channel, symbol) {
+    subscribe(socket, channel, symbol, onDrop) {
       const key = `${channel}\u0000${symbol}`;
       let entry = sources.get(key);
       if (!entry) {
         if (sources.size >= maxSources) return false;
-        const subscribers = new Set<WebSocket>();
+        const subscribers = new Map<WebSocket, () => void>();
         entry = { stop: start(channel, symbol, subscribers), subscribers };
         sources.set(key, entry);
       }
-      entry.subscribers.add(socket);
+      // Idempotent: re-subscribe just refreshes this socket's onDrop.
+      entry.subscribers.set(socket, onDrop ?? (() => {}));
       return true;
     },
 
@@ -356,7 +371,14 @@ export function registerStream(app: FastifyInstance, hub: StreamHub): void {
           sendError(socket, `Subscription limit reached (${MAX_SUBS_PER_IP} per client).`);
           return;
         }
-        if (hub.subscribe(socket, req.channel, req.symbol)) held.add(key);
+        const acquired = hub.subscribe(socket, req.channel, req.symbol, () => {
+          // The hub force-dropped this source (a permanent upstream failure,
+          // e.g. an unlisted symbol). Release our ledger slot + IP quota so this
+          // connection isn't charged for a dead stream and can re-subscribe to a
+          // valid symbol. Idempotent with the unsubscribe/close paths below.
+          if (held.delete(key)) ipQuota.release(ip);
+        });
+        if (acquired) held.add(key);
         else ipQuota.release(ip); // hub refused (global ceiling) — return the slot
       } else {
         // Only release what this socket actually held (unsubscribe is idempotent).

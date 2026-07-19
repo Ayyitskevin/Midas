@@ -52,7 +52,7 @@ describe('createCcxtStreamSource retry policy', () => {
     expect(emitted).toBe(0);
   });
 
-  it('unsubscribes the symbol on stop when the exchange exposes unWatch', () => {
+  it('unsubscribes the symbol on stop when the exchange exposes unWatch', async () => {
     const unWatchTrades = vi.fn(async () => {});
     const fake = {
       watchTrades: () => new Promise(() => {}), // pending forever — the loop parks on it
@@ -60,6 +60,7 @@ describe('createCcxtStreamSource retry policy', () => {
     } as unknown as ProExchange;
     const stop = createCcxtStreamSource(fake).start('trades', 'BTC/USDT', () => {});
     stop();
+    await Promise.resolve(); // unwatch is deferred one microtask (sync-throw safety)
     // Without this the exchange-side subscription + per-symbol cache leak for
     // the process lifetime; close() must NOT be used (it kills the shared socket).
     expect(unWatchTrades).toHaveBeenCalledWith('BTC/USDT');

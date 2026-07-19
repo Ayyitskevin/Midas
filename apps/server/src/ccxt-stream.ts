@@ -59,7 +59,12 @@ function unwatch(ex: ProExchange, channel: string, symbol: string): void {
           ? ex.unWatchTicker
           : undefined;
   if (typeof fn === 'function') {
-    Promise.resolve(fn.call(ex, symbol)).catch(() => {});
+    // Defer via .then so even a synchronously-throwing unWatch becomes a
+    // rejection the .catch swallows — stop() must never throw, whatever the
+    // exchange (or a test fake) does.
+    Promise.resolve()
+      .then(() => fn.call(ex, symbol))
+      .catch(() => {});
   }
 }
 
