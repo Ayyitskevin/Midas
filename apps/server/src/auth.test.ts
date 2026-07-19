@@ -3,6 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { createProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
+import { KeyRepo } from './keys/repo';
+import type { UserLoops } from './keys/loops';
 import { UserRepo } from './auth/users';
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './auth/password';
 import { signToken, verifyToken } from './auth/token';
@@ -290,6 +292,96 @@ describe('account management', () => {
 
     const list = await app.inject({ method: 'GET', url: '/api/auth/users', headers: auth(aliceToken) });
     expect(list.json().map((u: { username: string }) => u.username)).toEqual(['alice']);
+  });
+});
+
+describe('admin user deletion purges per-user state', () => {
+  // Deleting an account must not leave the user's encrypted exchange keys on
+  // disk or a background watcher polling their exchange account. The DELETE
+  // route fires deps.onUserRemoved, which app.ts wires to purge the key store
+  // and drop the user's loops.
+  const KMS = 'test-kms-secret-that-is-plenty-long-enough';
+  const loopStub = () => {
+    const dropped: string[] = [];
+    const loops: UserLoops = {
+      ensure: () => {},
+      drop: (id) => dropped.push(id),
+      watcherFor: () => null,
+      equityRepoFor: () => null,
+      size: () => 0,
+      stopAll: () => {},
+    };
+    return { loops, dropped };
+  };
+
+  it('removes the deleted user’s keys and drops their loops; leaves others intact', async () => {
+    process.env.LOG_LEVEL = 'silent';
+    const keyRepo = new KeyRepo(KMS);
+    const { loops, dropped } = loopStub();
+    const app = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+      keyRepo,
+      userLoops: loops,
+    });
+    await app.ready();
+
+    const admin = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'root', password: 'hunter2' } })).json();
+    const victim = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'mallory', password: 'hunter2' } })).json();
+    const keeper = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'trent', password: 'hunter2' } })).json();
+
+    // Both non-admins have keys on file; only the deleted one should be purged.
+    const keys = { exchange: 'binance', apiKey: 'AKIA-victim-1234', secret: 's', canTrade: false };
+    keyRepo.set(victim.user.id, keys, 1_700_000_000_000);
+    keyRepo.set(keeper.user.id, { ...keys, apiKey: 'AKIA-keeper-9876' }, 1_700_000_000_000);
+    expect(keyRepo.metaFor(victim.user.id)).not.toBeNull();
+
+    const del = await app.inject({
+      method: 'DELETE',
+      url: `/api/auth/users/${victim.user.id}`,
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+    expect(del.statusCode).toBe(200);
+
+    // Secrets purged + loop dropped for the deleted user...
+    expect(keyRepo.metaFor(victim.user.id)).toBeNull();
+    expect(dropped).toContain(victim.user.id);
+    // ...and the surviving user is untouched.
+    expect(keyRepo.metaFor(keeper.user.id)).not.toBeNull();
+    expect(dropped).not.toContain(keeper.user.id);
+
+    await app.close();
+  });
+
+  it('does not purge keys when the delete is rejected (non-admin caller)', async () => {
+    process.env.LOG_LEVEL = 'silent';
+    const keyRepo = new KeyRepo(KMS);
+    const { loops, dropped } = loopStub();
+    const app = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+      keyRepo,
+      userLoops: loops,
+    });
+    await app.ready();
+
+    await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'root', password: 'hunter2' } });
+    const bob = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'bob', password: 'hunter2' } })).json();
+    keyRepo.set(bob.user.id, { exchange: 'binance', apiKey: 'AKIA-bob-0001', secret: 's', canTrade: false }, 1_700_000_000_000);
+
+    // A non-admin cannot delete anyone — the cleanup hook must NOT fire.
+    const forbidden = await app.inject({
+      method: 'DELETE',
+      url: `/api/auth/users/${bob.user.id}`,
+      headers: { authorization: `Bearer ${bob.token}` },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(keyRepo.metaFor(bob.user.id)).not.toBeNull();
+    expect(dropped).toHaveLength(0);
+
+    await app.close();
   });
 });
 
