@@ -75,8 +75,8 @@ trading safety beyond the paths covered by the tests.
 
 ## Current boundaries
 
-- Midas is pre-1.0. The hosted tier is a waitlist concept, not a public
-  availability claim.
+- Midas is pre-1.0 and free/open-source. Optional shared hosting is a
+  self-host deployment mode, not a paid service.
 - The public/static demo is synthetic and browser-only. It is not evidence of
   live market quality or exchange connectivity.
 - Account features are read-only and require operator- or user-supplied

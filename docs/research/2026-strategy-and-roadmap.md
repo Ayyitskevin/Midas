@@ -8,6 +8,15 @@
 > targeting **prosumer crypto traders**. Confidence is labelled throughout;
 > pricing is time-sensitive (re-verify before acting).
 
+> **⚠ SUPERSEDED — direction change (2026-07-19).** Midas is now a
+> **free-forever, open-source** personal project: no hosted business, no paid
+> tier, no billing. The monetization thesis in this document — the "hosted tier &
+> premium features" posture, §6B "make hosted the default on-ramp", the §7
+> premium levers, and §8 Pricing — is **retired** and kept only as historical
+> competitive analysis. The market/competitor research below remains useful; the
+> revenue strategy does not reflect the project's direction. Current positioning
+> lives in `README.md` and `VISION.md`.
+
 ---
 
 ## 1. Executive summary

@@ -5,15 +5,16 @@ description: >-
   positioned externally. Load this when the question is STRATEGIC or POSITIONING, not a code
   change: "what should Midas build next", "where can we beat the incumbents / advance SOTA",
   "what are the open problems / research frontier", "is this actually novel", "can we claim X
-  yet", "what's provable vs marketing", "why AGPL / open-core", "self-host vs hosted", "how is
-  the hosted tier / $20 solo / $49 desk positioned", "is the honest cross-exchange derivatives
-  angle real", "24/7 hosted alerts as the premium lever", "the hosted micro-SaaS transition
-  (entitlements -> Stripe -> DB)", "trust wedge", "competitive moat", "what must we PROVE before
-  saying it". This skill FRAMES the #1 frontier problem as an open problem and hands execution to
+  yet", "what's provable vs marketing", "why AGPL / free and open source", "self-host vs a
+  shared instance", "is the honest cross-exchange derivatives angle real", "reliable per-user
+  alerts from a shared instance", "durable multi-user self-hosting (the DB-adapter seam)",
+  "trust wedge", "competitive moat", "what must we PROVE before saying it". This skill FRAMES
+  the #1 frontier problem as an open problem and hands execution to
   midas-honest-derivatives-campaign. It does NOT own the executable campaign, the domain math
   (crypto-market-reference), doc style (midas-docs-and-writing), or the change gate
   (midas-change-control). Every strategic claim here is cited to the roadmap docs; anything not
-  yet built or measured is labeled OPEN or CANDIDATE, never stated as fact.
+  yet built or measured is labeled OPEN or CANDIDATE, never stated as fact. Midas is free and
+  open source — there is no paid tier or hosted business.
 ---
 
 # Midas — research frontier & external positioning
@@ -35,9 +36,10 @@ fact. If you catch yourself writing a number Midas has not measured, stop: measu
 label it CANDIDATE. "Generated prose is not evidence" (`docs/AI-DEVELOPMENT.md:28-31`).
 
 Vocabulary (define-on-first-use): **SOTA** = state of the art. **Trust wedge** = a place where
-being *honest* about data everyone else fudges becomes the differentiator. **Open-core** = a free
-OSS core plus a paid hosted/premium tier. **Prosumer** = a serious individual trader below an
-institutional desk (the target user, `2026-strategy §header`).
+being *honest* about data everyone else fudges becomes the differentiator. **Free and open
+source** = the whole terminal is AGPL-3.0 and costs nothing; there is no paid tier, and an
+optional shared multi-user instance is just another way to self-host. **Prosumer** = a serious
+individual trader below an institutional desk (the target user, `2026-strategy §header`).
 
 ---
 
@@ -68,27 +70,27 @@ owned by `crypto-market-reference` — do not re-derive it here.
 
 | Field | Content |
 |---|---|
-| **The open problem** | Deliver alerts reliably, per-user, from a hosted instance — so a trader gets the fire without keeping their own machine running. This is named the **natural premium lever** (à la Glassnode gating), `2026-strategy §7 X2:169-171`. |
+| **The open problem** | Deliver alerts reliably, per-user, from a shared self-hosted instance — so a trader gets the fire without keeping their own machine running. A reliability feature, not a paywall: Midas has no paid tier. |
 | **Why current SOTA fails** | Self-hosted alerting dies when the user's box sleeps; the hosted incumbents gate always-on alerting behind steep tiers (Glassnode's API is $999/mo, `§3:88`). The gap prosumers actually feel is reliability + no-babysitting, not more alert types. |
 | **Midas's specific asset** | The alerting spine is already wired: `apps/server/src/alerts/engine.ts` (evaluation loop), `alerts/notify.ts` `WebhookNotifier` (delivery), plus one-click alert templates already shipped (`ROADMAP.md` week 3). Delivery is honesty-aware — fires carry a `synthetic` flag so a mock-fed alert is never dressed as live (`alerts/notify.ts:47`). |
-| **The honest gap** | It is **not per-user yet**. Delivery today is a single operator-scoped webhook (`MIDAS_ALERT_WEBHOOK`); "the digest is operator-only until per-user webhooks exist" (`ROADMAP.md:81`), and per-user webhooks/digests are an explicit roadmap-v3 item (`ROADMAP.md:86`). Under multi-user auth no loop evaluates account-metric alerts yet — "per-user account-alert evaluation is a planned follow-up" (`alerts/engine.ts`, ~line 57). So the premium lever is *scaffolded, not delivered*. |
+| **The honest gap** | It is **not per-user yet**. Delivery today is a single operator-scoped webhook (`MIDAS_ALERT_WEBHOOK`); "the digest is operator-only until per-user webhooks exist" (`ROADMAP.md:81`), and per-user webhooks/digests are an explicit roadmap-v3 item (`ROADMAP.md:86`). Under multi-user auth no loop evaluates account-metric alerts yet — "per-user account-alert evaluation is a planned follow-up" (`alerts/engine.ts`, ~line 57). So this capability is *scaffolded, not delivered*. |
 | **First 3 steps IN THIS REPO** | 1. Read `alerts/engine.ts` + `alerts/notify.ts` to see how the global loop evaluates and delivers today, and confirm delivery is single-webhook, not per-user. 2. **Define "reliable" as a measurable SLA before building anything**: fire-to-deliver latency, missed-fire rate, duplicate-fire rate over a measured window on the `mock` provider (never a live exchange, never a real webhook — `midas-change-control`). Establish that baseline first; do not assume it works. 3. Take any per-user-webhook or reliability change through `midas-change-control` as a single-concern PR with a failing→passing test (evidence bar in `midas-validation-and-qa`). |
 | **You have a result when…** | on the `mock` provider over a measured window, alerts fire and deliver **per-user** within a stated latency bound with **zero missed and zero duplicate** deliveries, and that number is reproduced by a test — asserted by measurement, not by confidence. |
 
-### Problem 3 — The hosted micro-SaaS transition (entitlements → Stripe → DB)
+### Problem 3 — Durable multi-user self-hosting (the DB-adapter seam)
 
 | Field | Content |
 |---|---|
-| **The open problem** | Turn a single-tenant, file-backed, self-hosted terminal into a metered multi-user hosted business **without breaking self-host-free-forever**. |
-| **Why it is hard / SOTA gap** | Midas is "**not SaaS-grade — single-tenant, first-user-only signup, no metering**" (`2026-strategy §2:64`). The hard behavioral signal of the era (Axiom: ~$200M revenue in 202 days) says prosumers pick hosted convenience (`§3:92-95`), yet the OSS invariant forbids gating the self-hosted core. The frontier is a billing/entitlement layer that is invisible to self-hosters. |
-| **Midas's specific asset** | A **phased plan already exists** and stays deliberately code-light: Phase 0 = charge manually via Stripe Payment Links, **no billing code** (`HOSTED_GO_LIVE.md:64-70`, §4); Phase 1 = flip a payer to a `pro` plan via an **admin action / entitlement** (`HOSTED_GO_LIVE.md:69`); Phase 2 = self-serve Stripe Checkout when volume justifies it (`HOSTED_GO_LIVE.md:10-11`). Every repo is file-backed JSON with a documented **DB-adapter seam** — "a hosted deployment swaps the file for its DB adapter later" (`HOSTED_KEYS_DESIGN.md:40-41`, `keys/repo.ts:7`). A pre-invite **smoke gate** (`scripts/smoke-hosted.mjs`) already asserts auth-enforced, secrets-never-returned, execution-held (`HOSTED_GO_LIVE.md:47-61`). |
-| **First 3 steps IN THIS REPO** | 1. Read `HOSTED_GO_LIVE.md §4` — the next *engineering* step is the Phase-1 entitlement/`pro`-plan flag, **not** billing code (billing stays manual). 2. Locate the persistence seam (`HOSTED_KEYS_DESIGN.md:40-41`, `keys/repo.ts:7`); design the entitlement so it **defaults to full features on self-host** (`ROADMAP.md:95` invariant #4). 3. Route through `midas-change-control`; **humans own the money/billing boundary** — an agent may propose the entitlement flag and its test, never own a payment or an exchange/billing decision. |
-| **You have a result when…** | an admin can flip a paying user to `pro`, that entitlement gates **exactly one** premium capability (e.g., Problem 2's 24/7 hosted alerts), a **self-hosted instance still gets every feature free**, and all three facts are covered by a passing test. |
+| **The open problem** | Let one operator run a **shared multi-user instance** durably — surviving restarts, concurrent writers, and more than a handful of users — **without breaking self-host-free-forever or adding any paid tier**. |
+| **Why it is hard / SOTA gap** | Today Midas leans single-tenant: first-user-only admin signup and file-backed JSON stores (`2026-strategy §2:64`). The per-user machinery already exists (encrypted keys, isolated provider clients, per-user loops), but each repo is a single-writer JSON file, so a busy shared box risks write contention and a large blast radius on the store. The frontier is a persistence layer that scales past one small box while staying invisible — and free — to a solo self-hoster. |
+| **Midas's specific asset** | Every repo is file-backed JSON behind a documented **DB-adapter seam** — the docs state a deployment "swaps the file for its DB adapter later" (`HOSTED_KEYS_DESIGN.md:40-41`, `keys/repo.ts:7`) — so the swap point is already isolated behind one interface. `writeFileAtomic` (temp→fsync→rename) is the current durability primitive (`apps/server/src/persist.ts`). A pre-invite **smoke gate** (`scripts/smoke-hosted.mjs`) already asserts auth-enforced, secrets-never-returned, execution-held (`HOSTED_GO_LIVE.md §3`). |
+| **First 3 steps IN THIS REPO** | 1. Read `HOSTED_KEYS_DESIGN.md:40-41` + `keys/repo.ts:7` to see the exact repo interface a DB adapter must satisfy. 2. Establish the baseline: on the `mock` provider, load-test a shared box (`scripts/loadtest.mjs`, `HOSTED_BETA.md §3`) and measure where the file-backed stores start to hurt — do not assume a number. 3. Route any persistence change through `midas-change-control` as a single-concern PR that keeps file-backed as the default for self-hosters and adds the DB adapter behind the same interface. |
+| **You have a result when…** | a shared instance runs on a durable store behind the **same repo interface**, a solo self-hoster still gets the file-backed default with **every feature free**, and both paths are covered by passing tests — proven by measurement, never by eye. |
 
-> **CANDIDATE — the "Postgres" in "entitlements → Stripe → Postgres".** The committed docs name
-> only "its DB adapter later" (`HOSTED_KEYS_DESIGN.md:40-41`); **"Postgres" appears nowhere in the
-> repo** (verified 2026-07-19). Treat a specific database engine as a CANDIDATE target, not a
-> committed decision — the seam is real, the engine choice is not yet made in the repo.
+> **CANDIDATE — the database engine.** The committed docs name only "its DB adapter later"
+> (`HOSTED_KEYS_DESIGN.md:40-41`); **no specific engine (e.g. Postgres) appears anywhere in the
+> repo** (verified 2026-07-19). Treat a specific database as a CANDIDATE target, not a committed
+> decision — the seam is real, the engine choice is not yet made in the repo.
 
 ---
 
@@ -96,19 +98,15 @@ owned by `crypto-market-reference` — do not re-derive it here.
 
 ### The thesis in one paragraph (all cited)
 
-Midas is **open-core under AGPL-3.0-only**: the self-hostable core is **free and full-featured
-forever** — the brand and trust anchor — while a **hosted tier becomes the default on-ramp** for
-prosumers who won't self-host, with premium features (24/7 alerts) as the paid lever
-(`2026-strategy §6B:146-148`, `§7 X1-X2`, `ROADMAP.md:95`). Pricing is **$20/mo solo, $49/mo
-desk** (`HOSTED_BETA.md:8-9`, `HOSTED_GO_LIVE.md:9`, `ROADMAP.md` week 4). Precedent that the
-model works: **OpenBB** (AGPLv3, ~70k stars, free core + paid enterprise Workspace) proves
-open-core; **Axiom** (hosted convenience won at scale) proves prosumers pick hosted
-(`2026-strategy §3:74-95`). The defensible corner is **command-driven × crypto-native ×
-self-hosted** — "no incumbent occupies all three" (`VISION.md:31`).
-
-> **Pricing drift to know:** `README.md:14` markets a simplified "**$20/month flat**" hosted
-> tier; the operational docs are the two-tier **$20 solo / $49 desk**. Cite the two-tier plan as
-> the operational truth; the README line is marketing shorthand, not a conflict.
+Midas is **free and open source under AGPL-3.0-only** — the whole terminal, every panel and
+board and alert, self-hostable and full-featured with **no paid tier, subscription, or hosted
+business** (`README.md`, `VISION.md`, `ROADMAP.md:95` invariant #4). It is a personal project
+built in the open; an optional **shared multi-user instance** is just another way to self-host,
+still free. The differentiator is **trust, not revenue**: honest data labeling and non-custody
+are a reputation, not a lever to gate. Precedent that free-and-open works at scale: **OpenBB**
+(AGPLv3, ~70k stars) shows an open-source data terminal can win real mindshare. The defensible
+corner is **command-driven × crypto-native × self-hosted** — "no incumbent occupies all three"
+(`VISION.md:31`).
 
 ### Why AGPL-3.0-only (the license is the strategy)
 
@@ -192,13 +190,13 @@ command from the repo root.
 |---|---|
 | License is AGPL-3.0-only across LICENSE + all 4 manifests | `head -2 LICENSE; grep -rl '"license": "AGPL-3.0-only"' --include=package.json .` (expect 4 files) |
 | Forward "beyond SOTA" thesis, white space, roadmap, pricing ladder, killed claims | `sed -n '105,223p' docs/research/2026-strategy-and-roadmap.md` |
-| Self-host-free-forever standing invariant; per-user-webhooks gap; $20/$49 week-4 plan | `sed -n '80,96p' docs/ROADMAP.md` |
+| Free-and-open-source standing invariant (#4); per-user-webhooks gap | `sed -n '83,96p' docs/ROADMAP.md` |
 | Liquidations honesty note + single-exchange no-op already in code | `sed -n '405,420p' apps/server/src/providers/ccxt.ts` |
 | Cross-venue fan-out seam (the aggregation the frontier extends) | `grep -n 'registerVenueBoard\|getVenueDerivatives' apps/server/src/routes/market.ts` |
 | Alert engine + webhook delivery spine; per-user is a planned follow-up | `ls apps/server/src/alerts/; grep -n 'planned follow-up\|per-user' apps/server/src/alerts/engine.ts` |
-| Hosted SaaS phases (0 manual → 1 entitlement/`pro` → 2 Checkout) | `sed -n '60,71p' docs/HOSTED_GO_LIVE.md` |
+| DB-adapter seam (the persistence swap point); pre-invite smoke gate | `grep -n 'DB adapter' docs/HOSTED_KEYS_DESIGN.md; grep -n 'smoke-hosted' docs/HOSTED_GO_LIVE.md` |
 | DB-adapter seam is the ONLY committed persistence-swap statement; **"Postgres" is nowhere** | `grep -n 'DB adapter' docs/HOSTED_KEYS_DESIGN.md; grep -rin 'postgres' apps docs packages \|\| echo 'NONE — Postgres is CANDIDATE'` |
-| "$20/month flat" README shorthand vs two-tier operational plan | `grep -n '20/month flat' README.md; grep -n '20/mo solo\|49/mo desk\|20 solo\|49 desk' docs/HOSTED_BETA.md docs/HOSTED_GO_LIVE.md` |
+| No paid-tier/pricing language remains in the product docs | `grep -rn '\$20\|\$49\|waitlist\|Stripe' README.md docs/*.md \|\| echo 'clean'` |
 | OpenBB / Axiom / competitor precedents & the "nobody is honest" wedge | `sed -n '70,131p' docs/research/2026-strategy-and-roadmap.md` |
 
 **Counts caveat:** figures like "56% of 207 commands are indicator boards" or "~115 boards" come

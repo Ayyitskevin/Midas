@@ -13,8 +13,8 @@ first so the implementation PRs could be judged against an agreed shape.
 Today exchange keys live in the **process environment** (`MIDAS_CCXT_API_KEY`
 etc.) and every authenticated user of an instance shares them. That is the
 right model for self-hosting (one operator, one account, keys never in the
-DB) and the wrong model for a hosted tier (many users, each with their own
-exchange account, on shared infrastructure).
+DB) and the wrong model for a shared multi-user instance (many users, each with
+their own exchange account, on shared infrastructure).
 
 ## Goals
 

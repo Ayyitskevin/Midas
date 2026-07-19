@@ -1,10 +1,10 @@
 # Midas — Vision & Positioning
 
-> **North Star:** Midas is a **self-hosted, command-driven, crypto-native market
-> terminal** — Bloomberg-style keyboard muscle memory, pointed at digital assets,
-> that you run and own yourself.
+> **North Star:** Midas is a **free, open-source, self-hosted, command-driven,
+> crypto-native market terminal** — Bloomberg-style keyboard muscle memory,
+> pointed at digital assets, that you run and own yourself.
 >
-> **One line:** *The keyboard-first terminal for crypto — own your stack, own your keys.*
+> **One line:** *The free, keyboard-first terminal for crypto — own your stack, own your keys.*
 
 This document is the strategic anchor for the project. It is informed by a
 verified competitive teardown (see [`docs/research/godel-competitive-teardown.md`](docs/research/godel-competitive-teardown.md)).
@@ -95,7 +95,8 @@ See [`docs/research/godel-live-recon.md`](docs/research/godel-live-recon.md).
 - Order **execution** / being a trading venue. (Data terminal first; execution is a
   later, opt-in, keys-required module.)
 - Full **equities / Bloomberg parity**.
-- **Cloud multi-tenant SaaS.** Self-host is the model; a hosted option can come later.
+- **Cloud multi-tenant SaaS / paid tiers.** Self-host is the model; Midas is free
+  and stays that way. A shared multi-user instance is just another way to self-host.
 
 ---
 

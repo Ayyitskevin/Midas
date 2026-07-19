@@ -1,14 +1,13 @@
-# Hosted go-live checklist
+# Shared-instance go-live checklist
 
-Taking the hosted tier from "a box is running" to "a paying user is on it" —
-revenue-first, no hosted-only code. This complements
-[`HOSTED_BETA.md`](./HOSTED_BETA.md) (which covers provisioning and the invite
-email); here we add the **pre-invite smoke gate** and the **charging** step.
+Taking a box from "it's running" to "other people can safely be on it." This
+complements [`HOSTED_BETA.md`](./HOSTED_BETA.md) (which covers provisioning and
+the invite email); here we add the **pre-invite smoke gate** that proves the
+security posture before anyone else logs in.
 
-**Pricing honesty stays intact:** self-hosting is free forever. The hosted tier
-is "we run it for you." Intended prices are **$20/mo solo, $49/mo desk**. Billing
-is manual (Stripe Payment Links) until the volume justifies self-serve Checkout —
-see the SaaS plan's Phase 2.
+**Midas is free and open source, forever** — there is no paid tier and no
+billing code. This checklist is purely about hardening a multi-user instance;
+"go-live" means "safe to invite people," not "charging them."
 
 ## 1. Deploy the box
 
@@ -46,8 +45,8 @@ curl -sX POST https://your-host.example.com/api/auth/signup \
 
 ## 3. Smoke-gate — MUST be green before you invite anyone
 
-`scripts/smoke-hosted.mjs` verifies the three things a paying, key-storing user
-has to be able to trust: auth is enforced, stored exchange secrets are **never**
+`scripts/smoke-hosted.mjs` verifies the three things any key-storing user has to
+be able to trust: auth is enforced, stored exchange secrets are **never**
 returned by the API, and order execution is **safety-held** (503). Run it against
 the live box with your operator login:
 
@@ -56,25 +55,15 @@ node scripts/smoke-hosted.mjs https://your-host.example.com --user you --pass '<
 ```
 
 Expect `All green`. **If anything fails, do not invite users** — a failure means
-something a paying user must not see (e.g. a secret leak or execution not held).
+something a user must not see (e.g. a secret leak or execution not held).
 Re-run this after every upgrade. Then load-check per `HOSTED_BETA.md §3`
 (`node scripts/loadtest.mjs …`).
 
-## 4. Charge (Phase 0 — no code)
+## 4. Invite
 
-1. In Stripe, create two **Payment Links**: $20/mo (solo) and $49/mo (desk).
-2. Send the relevant link when you invite a user (or gate the invite on payment —
-   your call). Collect payment out-of-band; there is no in-app billing yet.
-3. Record who paid. Access today = having an account on the box; when the SaaS
-   plan's **Phase 1** lands, you'll flip a payer to the `pro` plan via an admin
-   action instead of tracking it in a spreadsheet.
-
-## 5. Invite
-
-Use the invite email in [`HOSTED_BETA.md §4`](./HOSTED_BETA.md) (adjust the
-"free beta" wording to your paid framing). Have the user run `START` (tour), then
-`KEYS` to paste a **read-only** exchange key — their `BAL/ORD/POSN/FILLS/AEQ` and
-alerts go live and stay isolated to them.
+Use the invite email in [`HOSTED_BETA.md §4`](./HOSTED_BETA.md). Have the user
+run `START` (tour), then `KEYS` to paste a **read-only** exchange key — their
+`BAL/ORD/POSN/FILLS/AEQ` and alerts go live and stay isolated to them.
 
 Once your invitees are in, set `MIDAS_AUTH_ALLOW_SIGNUP=false` and restart to
 close public signup.
@@ -87,7 +76,6 @@ close public signup.
 - [ ] You own the admin account; `MIDAS_AUTH_ALLOW_SIGNUP=false` after invites.
 - [ ] `MIDAS_KEYS_KMS_SECRET` set (per-user keys on) and backed up — losing it
       makes stored keys unrecoverable.
-- [ ] Stripe Payment Links created; you know who has paid.
 
 ## Weekly
 

@@ -24,9 +24,9 @@ own box for free, forever.
 
 ## Guides in this site
 
-- **[Hosted beta runbook](HOSTED_BETA.md)** — provision a managed instance
-  for beta users: hardened env, per-user keys, caps, load-testing, and the
-  invite email.
+- **[Self-hosting for a team](HOSTED_BETA.md)** — run a shared multi-user
+  instance: hardened env, per-user keys, caps, load-testing, and the invite
+  email.
 - **[Architecture](ARCHITECTURE.md)** — the monorepo, the provider seam,
   the data-honesty rules, and how a panel comes to exist.
 - **[Execution safety hold](EXECUTION_SAFETY_HOLD.md)** — current posture,
@@ -47,5 +47,6 @@ own box for free, forever.
 2. **Non-custodial.** Midas never holds funds and has no withdrawal code path.
    Account access is read-only; placement and in-app cancellation fail closed
    under the execution safety hold.
-3. **Self-hosting stays free.** The hosted tier (waitlist) pays for the
-   convenience, not the software.
+3. **Free and open source.** Every panel and board, no accounts and no paid
+   tier — self-host it or run the public demo. Optional shared hosting for a
+   team stays free too.

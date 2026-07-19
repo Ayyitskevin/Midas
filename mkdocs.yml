@@ -28,7 +28,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Hosted beta runbook: HOSTED_BETA.md
+  - Self-hosting for a team: HOSTED_BETA.md
   - Security hardening: SECURITY_HARDENING.md
   - Execution safety hold: EXECUTION_SAFETY_HOLD.md
   - Maintenance playbook: MAINTENANCE.md

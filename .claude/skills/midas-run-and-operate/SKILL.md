@@ -320,20 +320,19 @@ When `MIDAS_RATE_LIMIT_RPM > 0`, a per-IP window limiter runs on **every path ex
 The AI copilot has its own tighter per-caller cap on top (see midas-config-and-flags). Uptime
 monitors should hit `/api/health` so they never trip the limiter.
 
-### 6.6 Charge, weekly ops, go/no-go
+### 6.6 Weekly ops & go/no-go
 
-- **Charge (Phase 0, no code):** two Stripe **Payment Links** — $20/mo solo, $49/mo desk. Manual,
-  out-of-band; nothing is billed during the beta. Self-hosting is free forever.
+- **Cost:** nothing. Midas is free and open source; a shared instance is just multi-user
+  self-hosting — no billing code, no paid tier.
 - **Weekly:** `SYS` panel on each box (loops green, version current); re-run the smoke gate after
   any `docker compose … --build` upgrade; read the operator digest (`MIDAS_DIGEST_HOURS`); collect
   the friction list.
-- **Go / no-go before a paying user** (`HOSTED_GO_LIVE.md`):
+- **Go / no-go before inviting anyone** (`HOSTED_GO_LIVE.md`):
   - [ ] `docker compose ps` — `server` + `web` up; `SYS` shows loops green.
   - [ ] `smoke-hosted.mjs … --user … --pass …` → **All green**.
   - [ ] TLS terminates in front; `MIDAS_CORS_ORIGIN` pinned to your origin.
   - [ ] You own the admin account; `MIDAS_AUTH_ALLOW_SIGNUP=false` after invites.
   - [ ] `MIDAS_KEYS_KMS_SECRET` set **and backed up**.
-  - [ ] Stripe Payment Links created; you know who has paid.
 
 ---
 
@@ -391,7 +390,7 @@ volatile facts with the paired command before relying on them.
 | `users.json` corrupt → aborts startup (fail closed); `user-keys.json` corrupt → silent reset (fail open) | `sed -n '49,61p' apps/server/src/auth/users.ts`; `sed -n '53,61p' apps/server/src/keys/repo.ts` |
 | KMS-without-auth throws at boot | `sed -n '150,160p' apps/server/src/app.ts` |
 | Rate limiter exempts `/api/health` (segment boundary), 429+retry-after; `MIDAS_RATE_LIMIT_RPM` gate | `sed -n '104,125p' apps/server/src/app.ts` |
-| Hosted posture env block; first-user admin; smoke/load gates; $20/$49 | `sed -n '12,45p' docs/HOSTED_BETA.md`; `sed -n '14,96p' docs/HOSTED_GO_LIVE.md` |
+| Hosted posture env block; first-user admin; smoke/load gates | `sed -n '12,45p' docs/HOSTED_BETA.md`; `sed -n '14,90p' docs/HOSTED_GO_LIVE.md` |
 | Smoke test checks auth/secret-secrecy/503-hold; exit 0=green, non-zero=do-not-invite | `sed -n '1,25p;132,158p' scripts/smoke-hosted.mjs` |
 | Loadtest defaults 30s/25-concurrency; fails only on 5xx/network errors | `sed -n '1,22p;66,72p' scripts/loadtest.mjs` |
 | Release version `0.5.0` (single source; reported at `/api/health`) | `sed -n '12p' packages/shared/src/system.ts` |
