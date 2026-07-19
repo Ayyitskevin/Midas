@@ -144,9 +144,22 @@ export class AlertRepo {
     return removed;
   }
 
-  /** Replace the rule set (post-evaluation) and record any fires. */
+  /**
+   * Fold an evaluation pass back in and record any fires. `next` was derived
+   * from a snapshot taken BEFORE this pass's awaited provider reads, so it must
+   * not replace the live list wholesale — a create/delete/enable/rearm that
+   * landed during those reads would be silently reverted. Merge by id instead:
+   * apply ONLY the evaluation-owned fields (status, lastValue, triggeredAt) onto
+   * the CURRENT alert, keep alerts created since the snapshot, and let alerts
+   * deleted since the snapshot stay gone.
+   */
   commit(next: Alert[], fired: AlertTrigger[]): void {
-    this.alerts = next;
+    const evaluated = new Map(next.map((a) => [a.id, a]));
+    this.alerts = this.alerts.map((current) => {
+      const ev = evaluated.get(current.id);
+      if (!ev) return current; // created after the snapshot — leave untouched
+      return { ...current, status: ev.status, lastValue: ev.lastValue, triggeredAt: ev.triggeredAt };
+    });
     if (fired.length > 0) this.triggers = capTriggersPerOwner([...fired, ...this.triggers]);
     this.persist();
   }

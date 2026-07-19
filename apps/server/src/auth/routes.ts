@@ -15,6 +15,13 @@ export interface AuthDeps {
   throttle?: LoginThrottle;
   /** Per-IP signup limiter; a default is created when omitted (tests inject). */
   signupLimiter?: RateLimiter;
+  /**
+   * Called after an admin removes a user, so per-user state elsewhere can be
+   * torn down: their encrypted exchange keys purged, cached provider
+   * invalidated, and background loops stopped. Late-bound by the app wiring
+   * (the key store / pool / loops are constructed after these routes register).
+   */
+  onUserRemoved?: (userId: string) => void;
 }
 
 const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -277,6 +284,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(404);
         return err(404, 'NotFound', 'No such user');
       }
+      // Purge the deleted user's secrets + stop their per-user loops. Without
+      // this, encrypted exchange keys linger on disk and a watcher keeps polling
+      // a deleted user's exchange account.
+      deps.onUserRemoved?.(req.params.id);
       return { ok: true };
     },
   );

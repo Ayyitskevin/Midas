@@ -200,6 +200,15 @@ export async function buildApp(
       userLoops?.ensure(userId);
     },
   });
+  // Late-bound now that the key store / pool / loops exist: when an admin deletes
+  // a user, purge that user's encrypted exchange keys and tear down their cached
+  // provider + background loops. Without this, secrets linger on disk and a
+  // watcher keeps polling a deleted user's exchange account.
+  authDeps.onUserRemoved = (userId) => {
+    keyRepo?.remove(userId);
+    pool.invalidate(userId);
+    userLoops?.drop(userId);
+  };
   // The keyed-user resolvers exist whenever the key store does — even with
   // loops off — so a keyed user gets an honest "not running" answer rather
   // than falling through to the operator's feed/curve.
