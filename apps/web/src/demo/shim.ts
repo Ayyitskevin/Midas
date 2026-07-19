@@ -3,6 +3,7 @@ import type { HealthResponse, SystemStatus, TradingStatus } from '@midas/shared'
 import {
   DEMO_SOURCE,
   balancesFor,
+  coinUniverseFor,
   derivativesFor,
   dexPoolsFor,
   fillsFor,
@@ -173,6 +174,8 @@ function handle(method: string, url: URL): Response | null {
           now,
         ),
       );
+    case path === '/api/coins':
+      return json(coinUniverseFor(numParam(url.searchParams.get('limit'), 100), now));
     case path === '/api/liquidations':
       return json(liquidationsFeed(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 30), now));
     case path.startsWith('/api/onchain/'):

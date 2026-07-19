@@ -14,6 +14,7 @@ import type {
   AuthStatus,
   Balances,
   CancelResult,
+  CoinUniverse,
   DerivativesInfo,
   DexPools,
   OpenOrders,
@@ -242,6 +243,10 @@ export const api = {
       `/api/screener?quote=${encodeURIComponent(quote)}&sort=${sort}&limit=${limit}`,
       signal,
     ),
+
+  // Top coins by market cap (TOP board) — the market-cap reference universe.
+  coins: (limit = 100, signal?: AbortSignal) =>
+    apiGet<CoinUniverse>(`/api/coins?limit=${limit}`, signal),
 
   aiChat: (
     messages: Array<{ role: string; content: string }>,

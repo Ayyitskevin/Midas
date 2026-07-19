@@ -2,6 +2,7 @@ import type {
   AccountFills,
   AccountPositions,
   Balances,
+  CoinUniverse,
   DerivativesInfo,
   DexPools,
   FundingHistoryPoint,
@@ -54,6 +55,7 @@ import {
   mockSolanaWallet,
 } from './mock/solana';
 import { mockBalances, mockFills, mockOpenOrders, mockPositions } from './mock/account';
+import { mockCoinUniverse } from './mock/coins';
 
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
@@ -145,5 +147,8 @@ export class MockProvider implements DataProvider {
   }
   getNews(symbol?: string): Promise<NewsItem[]> {
     return mockNews(symbol);
+  }
+  getCoinUniverse(limit: number): Promise<CoinUniverse> {
+    return mockCoinUniverse(limit);
   }
 }

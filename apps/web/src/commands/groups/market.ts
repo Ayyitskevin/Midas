@@ -283,4 +283,13 @@ export const MARKET_COMMANDS: CommandDef[] = [
     requiresSymbol: false,
     description: 'Market dashboard — top gainers, losers, most active and breadth.',
   },
+  {
+    code: 'MCAP',
+    aliases: ['TOPCOINS', 'MARKETCAP', 'COINS'],
+    title: 'Top Coins',
+    module: 'TOP',
+    requiresSymbol: false,
+    description:
+      'Top coins by market cap — rank, price, 24h change, market cap, fully-diluted valuation, circulating supply and category. Reference data an exchange feed cannot produce alone (a CEX ticker has no circulating supply, so no honest market cap), with a live/synthetic data-honesty badge (synthetic until a live reference source is configured).',
+  },
 ];

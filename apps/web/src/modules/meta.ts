@@ -39,6 +39,7 @@ export type ModuleCode =
   | 'SCR'
   | 'HEAT'
   | 'MOV'
+  | 'TOP'
   | 'CORR'
   | 'AVGCORR'
   | 'BREADTH'
@@ -283,6 +284,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   SCR: { code: 'SCR', title: 'Screener', w: 4, h: 11, minW: 3, minH: 6 },
   HEAT: { code: 'HEAT', title: 'Heatmap', w: 6, h: 9, minW: 4, minH: 5 },
   MOV: { code: 'MOV', title: 'Market Overview', w: 6, h: 9, minW: 4, minH: 6 },
+  TOP: { code: 'TOP', title: 'Top Coins', w: 6, h: 12, minW: 5, minH: 6 },
   CORR: { code: 'CORR', title: 'Correlation', w: 5, h: 8, minW: 4, minH: 5 },
   AVGCORR: { code: 'AVGCORR', title: 'Correlation Regime', w: 6, h: 10, minW: 4, minH: 6 },
   BREADTH: { code: 'BREADTH', title: 'Breadth Oscillator', w: 6, h: 10, minW: 4, minH: 6 },
