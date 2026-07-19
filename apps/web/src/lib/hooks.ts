@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createLatestGate } from './latestGate';
 
 export interface AsyncState<T> {
   data: T | null;
@@ -26,20 +27,29 @@ export function useFetch<T>(
   const fnRef = useRef(fn);
   fnRef.current = fn;
 
+  // One "latest wins" gate shared by every run of this hook instance — the
+  // initial load, each interval tick, and manual refresh. When an interval laps
+  // a slow earlier request, the stale earlier response is no longer the latest,
+  // so it is discarded instead of overwriting the fresher data (out-of-order
+  // response race). `signal.aborted` still guards effect teardown on its own.
+  const gateRef = useRef(createLatestGate());
+
   const run = useCallback(async (signal: AbortSignal, isInitial: boolean) => {
+    const runId = gateRef.current.start();
+    const isCurrent = () => gateRef.current.isLatest(runId) && !signal.aborted;
     if (isInitial) setLoading(true);
     try {
       const result = await fnRef.current(signal);
-      if (!signal.aborted) {
+      if (isCurrent()) {
         setData(result);
         setError(null);
       }
     } catch (err) {
-      if (!signal.aborted && (err as Error).name !== 'AbortError') {
+      if (isCurrent() && (err as Error).name !== 'AbortError') {
         setError((err as Error).message || 'Request failed');
       }
     } finally {
-      if (!signal.aborted) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, []);
 

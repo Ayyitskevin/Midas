@@ -385,10 +385,17 @@ export function ChartModule({ panel }: ModuleProps) {
     }, []),
   );
 
-  // Clear drawings when the symbol changes.
+  // Clear drawings when the symbol changes — and drop the forming-candle ref the
+  // live trades stream folds into. The trades stream resubscribes to the new
+  // symbol before its history reloads; without nulling this, the new symbol's
+  // prints would fold into the PREVIOUS symbol's last candle (ballooning its
+  // range at a stale price) until the history push re-seeds lastBarRef. With it
+  // null, the stream callback early-returns until the new candles land.
   useEffect(() => {
     clearDrawings();
     setTool('none');
+    lastBarRef.current = null;
+    setLivePrice(null);
   }, [symbol, clearDrawings]);
 
   // Push new data into the series whenever it changes.
