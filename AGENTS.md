@@ -6,8 +6,8 @@ and the execution hold is the authority for order placement and cancellation.
 
 ## Review and branch discipline
 
-- `main` is the review base and merge gate. It is also the GitHub default
-  branch — branch from `origin/main` and open PRs against `main`. Historical
+- `main` is the review base and merge gate. It is also the GitHub default branch —
+  branch from `origin/main` and open PRs against `main`. Historical
   feature-session branches (`claude/modest-ride-sclvg3`, `claude/phase*`) are
   not merge bases — see [`docs/BRANCH_GOVERNANCE.md`](docs/BRANCH_GOVERNANCE.md).
 - Keep changes narrow and leave agent-authored work in a draft pull request for
