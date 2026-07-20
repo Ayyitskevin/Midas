@@ -5,6 +5,9 @@ complements [`HOSTED_BETA.md`](./HOSTED_BETA.md) (which covers provisioning and
 the invite email); here we add the **pre-invite smoke gate** that proves the
 security posture before anyone else logs in.
 
+**Operator entry / env flag map:** [`SHARED_HOSTING.md`](./SHARED_HOSTING.md)
+(canonical multi-user flags + fail-closed table; verified against `config.ts`).
+
 **Midas is free and open source, forever** — there is no paid tier and no
 billing code. This checklist is purely about hardening a multi-user instance;
 "go-live" means "safe to invite people," not "charging them."
