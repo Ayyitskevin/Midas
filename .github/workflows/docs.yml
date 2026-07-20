@@ -9,15 +9,20 @@ on:
       - '.github/workflows/docs.yml'
       - 'apps/web/**'
       - 'packages/shared/**'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+      - 'apps/web/**'
+      - 'packages/shared/**'
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: docs-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -28,7 +33,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install mkdocs-material
+      - run: pip install -r docs/requirements.txt
       - run: mkdocs build --strict
       # The static demo: the full terminal against an in-browser data engine,
       # served at /demo/ beside the docs. No server anywhere.
@@ -42,14 +47,19 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @midas/web build:demo
       - run: mkdir -p site/demo && cp -r apps/web/dist-demo/* site/demo/
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - name: Upload Pages artifact
+        if: ${{ github.ref == 'refs/heads/main' && vars.MIDAS_PAGES_ENABLED == 'true' }}
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
   deploy:
+    if: ${{ github.ref == 'refs/heads/main' && vars.MIDAS_PAGES_ENABLED == 'true' }}
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

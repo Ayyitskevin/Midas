@@ -91,6 +91,7 @@ trading safety beyond the paths covered by the tests.
 ## Review hygiene
 
 - Use disposable local state only.
-- Report vulnerabilities privately through [`SECURITY.md`](../SECURITY.md).
+- Report vulnerabilities privately through
+  [`SECURITY.md`](https://github.com/Ayyitskevin/Midas/blob/main/SECURITY.md).
 - Separate correctness, safety, product-scope, and style feedback.
 - Include a reproducible command or invariant with each material finding.
