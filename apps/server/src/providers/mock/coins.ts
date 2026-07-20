@@ -1,4 +1,5 @@
 import type { CoinRef, CoinUniverse } from '@midas/shared';
+import { withHonestNote } from '@midas/shared';
 import { clamp, gaussian, seeded } from '../util';
 import { MOCK_SOURCE } from './fixtures';
 
@@ -103,11 +104,14 @@ export async function mockCoinUniverse(limit: number): Promise<CoinUniverse> {
 
   const n = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : COIN_UNIVERSE.length;
 
-  return {
-    coins: coins.slice(0, n),
-    provenance: 'synthetic',
-    source: MOCK_SOURCE,
-    note: 'Synthetic reference universe — approximate supplies with a synthetic price wiggle, not live market cap. Configure a live reference source for real figures.',
-    asOf: now,
-  };
+  return withHonestNote(
+    {
+      coins: coins.slice(0, n),
+      provenance: 'synthetic' as const,
+      source: MOCK_SOURCE,
+      note: 'Synthetic reference universe — approximate supplies with a synthetic price wiggle, not live market cap. Configure a live reference source for real figures.',
+      asOf: now,
+    },
+    'Synthetic market-cap reference — not live.',
+  );
 }

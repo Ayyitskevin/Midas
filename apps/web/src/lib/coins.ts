@@ -1,4 +1,5 @@
 import type { CoinRef, CoinUniverseProvenance } from '@midas/shared';
+import { provenanceBadge } from '@midas/shared';
 
 /** Sortable columns of the TOP (market-cap reference) board. */
 export type CoinSortKey = 'rank' | 'price' | 'change' | 'marketCap' | 'fdv' | 'supply';
@@ -33,7 +34,6 @@ export function sortCoins(coins: CoinRef[], key: CoinSortKey, dir: 'asc' | 'desc
 
 /** Data-honesty badge label + tone for a coin universe's provenance. */
 export function coinBadge(p: CoinUniverseProvenance): { label: string; tone: 'live' | 'demo' | 'off' } {
-  if (p === 'live') return { label: 'LIVE', tone: 'live' };
-  if (p === 'synthetic') return { label: 'DEMO', tone: 'demo' };
-  return { label: 'UNAVAILABLE', tone: 'off' };
+  // Shared helper — synthetic never maps to LIVE.
+  return provenanceBadge(p);
 }

@@ -1,73 +1,98 @@
-# Midas game plan — post–`main` restore
+# Midas game plan — principal engineer (≈6h autonomous day)
 
 **Date:** 2026-07-20  
-**Production tip:** `main` @ `bb63e19` (PR #337 product history + OpenCode workflow)  
-**Default branch:** `main` (restored; was `claude/modest-ride-sclvg3`)  
-**Protection:** PR required (1 approval), required check **Typecheck & build**, force-push/delete blocked  
+**Production tip:** `main` @ `bb63e19` (re-verify before each session)  
+**Default branch:** `main` (protected: PR + **Typecheck & build**, no force-push/delete)  
+**Open PR this stream:** [#338](https://github.com/Ayyitskevin/Midas/pull/338) (`grok/main-restore-gameplan`)
 
-This plan is the ordered path after restoring `main` as the protected merge gate.
-It does **not** authorize live order placement or invent billing policy.
-
----
-
-## Current state (verified)
-
-| Fact | Value |
-|---|---|
-| Repo | `Ayyitskevin/Midas` |
-| Default | `main` |
-| Tip | Includes merge PR #337 (MCAP/TOP board) + OpenCode workflow |
-| CI | `.github/workflows/ci.yml` job name `Typecheck & build` |
-| Execution | Fail-closed `TradingSafetyHold` on `POST/DELETE /api/orders` |
-| Open issues | #278 feedback, #277 billing (deferred), #276 webhooks, #266 waitlist |
-
-## Standing non-goals
-
-1. **No live order placement** — do not remove or bypass `TradingSafetyHold` until the re-enable gate in `docs/EXECUTION_SAFETY_HOLD.md` is fully met and maintainer-approved.
-2. **No invented billing** — issue #277 is a future discussion; product remains free/open source per ROADMAP.
-3. **No App Store / privacy-label invention** — not a mobile App Store product.
-4. **No mass agent-branch deletion** unless explicitly scheduled and safe.
-5. **No silent self-merge of red-light money/custody/auth changes.**
+Budget: **~6 hours of autonomous principal-engineer work per day**. Prefer one
+cohesive green-light vertical per day over many partial starts. Protected
+`main` requires review — open PRs; do not self-merge when approval is required.
 
 ---
 
-## Ordered next slices
+## Standing non-goals (every day)
 
-### Done this session
+1. **No live order placement** — do not remove or bypass `TradingSafetyHold`.
+2. **No invented billing** (#277 deferred; product free/open source).
+3. **No force-push of `main`**; no using agent branches as review base.
+4. **No self-merge of red-light** money / custody / auth changes.
+5. **No mass `claude/phase*` branch deletion** unless explicitly scheduled.
 
-0. **Restore `main` as default + protect it** — verify diverged history; cherry-pick OpenCode onto `main`; set default; branch protection with PR + CI.
-1. **Repo-policy honesty gate** — automated check that AGENTS/CONTRIBUTING/safety-hold docs still encode merge base + execution hold (this PR).
+---
 
-### Next (green-light, pick one per PR)
+## Daily cadence (6h template)
 
-2. **Docs CI / Pages operator checklist** — Docs workflow failures on `main` are often Pages environment config; document enablement without claiming deploy succeeded.
-3. **Roadmap v3 friction list (#278)** — wire issue template / weekly triage note only; no product invention.
-4. **Honesty regression hunt** — extend provenance labels on any surface still missing `live|synthetic|unavailable` (data-honesty skill).
-5. **Shared-hosting guide polish** — multi-user env end-to-end in self-host docs (ROADMAP Week 2 remainder).
+| Block | Hours | Work |
+|---|---:|---|
+| A · Re-verify | 0.5 | `gh` default + protection + `main` tip; read open PRs/issues |
+| B · Plan slice | 0.5 | Pick **one** green-light slice from the ordered list; write acceptance |
+| C · Build | 3.5 | Implement + focused tests; keep `TradingSafetyHold` untouched |
+| D · Gates | 1.0 | `pnpm test:reviewer`, typecheck, package tests for touched code |
+| E · PR + handoff | 0.5 | Push `grok/*`, open/update PR vs `main`, update this file’s “Done” |
+
+If blocked on install/CI env, record the limit; still land pure-logic tests.
+
+---
+
+## Ordered slices
+
+### Done
+
+| # | Slice | Evidence |
+|---|---|---|
+| 0 | Restore `main` default + protection | Admin applied 2026-07-20 |
+| 1 | Repo-policy honesty gate | `scripts/check-repo-policy.mjs` + `pnpm test:reviewer` |
+| 2 | **Provenance note invariant (shared)** | `@midas/shared` `withHonestNote` / `provenanceNoteConsistent`; coin universe route + mock; tests |
+
+### Next days (pick one per day)
+
+| Day focus | Slice | Why |
+|---|---|---|
+| D+1 | Shared-hosting operator checklist | ROADMAP Week 2 remainder — document multi-user env end-to-end without inventing product |
+| D+2 | Honesty regression: liquidations / stream badges | Ensure no synthetic feed can show LIVE |
+| D+3 | Docs CI / Pages operator note | Docs workflow fails without Pages env — document honestly |
+| D+4 | Minor Dependabot group (only if gates green) | PR #319 minor/patch — not majors (Vite 8 / charts 5) |
+| D+5 | #278 friction template | Issue/process only — no product invention |
 
 ### Later / human-gated
 
-6. **Public demo VPS + hero GIF** — operator launch blockers (ROADMAP Week 1).
-7. **Per-user webhooks + digests (#276)** — design first, durable store.
-8. **Execution re-enable** — only after `EXECUTION_SAFETY_HOLD.md` re-enable gate; red-light PR.
-9. **Billing (#277)** — only after beta validation; do not implement as settled product.
+- Public demo VPS + hero GIF (operator)
+- #276 per-user webhooks (design first)
+- Execution re-enable only after `docs/EXECUTION_SAFETY_HOLD.md` gate
+- #277 billing only after beta validation
 
 ---
 
-## Ship / do-not-ship (hosted execution)
+## Open issues disposition
+
+| Issue | Disposition |
+|---|---|
+| #278 beta feedback | Process/tracker — green-light docs only |
+| #276 per-user webhooks | Design hold |
+| #266 waitlist | Social — no code |
+| #277 billing | **Do not implement** as settled product |
+| Dependabot majors | Review separately; do not auto-merge |
+
+---
+
+## Ship / do-not-ship
 
 | Surface | Verdict |
 |---|---|
-| Merging green-light PRs to `main` | **Ship** via PR + CI + review |
-| Hosted instance deploy | Operator choice; keep demo mode for public |
-| Live order placement | **Do not ship** until safety-hold re-enable gate |
+| Green PRs → `main` after CI + review | **Ship** |
+| Hosted live order placement | **Do not ship** until safety-hold re-enable gate |
+| Billing / paid tier | **Do not ship** |
 
 ---
 
-## How to re-verify branch health
+## Session re-verify commands
 
 ```bash
 gh repo view Ayyitskevin/Midas --json defaultBranchRef
-gh api repos/Ayyitskevin/Midas/branches/main/protection --jq '.required_status_checks.contexts,.required_pull_request_reviews.required_approving_review_count,.allow_force_pushes,.allow_deletions'
-pnpm test:reviewer   # includes repo-policy checks after this slice
+gh api repos/Ayyitskevin/Midas/branches/main/protection --jq \
+  '{contexts:.required_status_checks.contexts,reviews:.required_pull_request_reviews.required_approving_review_count,force:.allow_force_pushes.enabled}'
+pnpm test:reviewer
+pnpm --filter @midas/server test -- provenance
+pnpm -r typecheck
 ```
