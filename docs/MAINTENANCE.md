@@ -70,11 +70,20 @@ Green gates are the definition of "done". A red gate is never merged around.
 `docs/HOSTED_BETA.md` is the runbook: env posture, onboarding via the KEYS
 panel, `scripts/loadtest.mjs` before inviting anyone.
 
+## Branch governance
+
+`main` is the default branch and merge gate. Historical feature-session
+branches are not ship bases. Recorded state, residual divergence, and a
+reversible operator plan live in [`BRANCH_GOVERNANCE.md`](./BRANCH_GOVERNANCE.md).
+
 ## Dependency hygiene
 
-Dependabot (`.github/dependabot.yml`) opens weekly PRs; the four gates are
-the merge bar. ccxt moves fast — expect its bumps to be routine, but read
-its changelog when account reads or order placement change behavior.
+Dependabot (`.github/dependabot.yml`) opens weekly PRs; the gates are the
+merge bar. Prefer the grouped minor/patch wave; major framework bumps
+(Vite 8, lightweight-charts 5, `@fastify/cors` 11, Actions major pins) are
+sequenced in [`DEPENDENCY_MIGRATION.md`](./DEPENDENCY_MIGRATION.md). ccxt
+moves fast — expect its bumps to be routine, but read its changelog when
+account reads or order placement change behavior.
 
 ## Security
 

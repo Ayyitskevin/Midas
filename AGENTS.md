@@ -6,8 +6,10 @@ and the execution hold is the authority for order placement and cancellation.
 
 ## Review and branch discipline
 
-- `main` is the review base and merge gate. Branch from `main`; do not use the
-  current GitHub default branch as a substitute for the review base.
+- `main` is the review base and merge gate. It is also the GitHub default
+  branch — branch from `origin/main` and open PRs against `main`. Historical
+  feature-session branches (`claude/modest-ride-sclvg3`, `claude/phase*`) are
+  not merge bases — see [`docs/BRANCH_GOVERNANCE.md`](docs/BRANCH_GOVERNANCE.md).
 - Keep changes narrow and leave agent-authored work in a draft pull request for
   the maintainer. Do not merge, deploy, restart a hosted instance, or change
   exchange configuration as part of a code change.

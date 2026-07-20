@@ -39,6 +39,12 @@ own box for free, forever.
   seams, and questions worth challenging in review.
 - **[AI-assisted development policy](AI-DEVELOPMENT.md)** — evidence and data
   boundaries for agent-authored changes and the optional copilot.
+- **[Branch governance](BRANCH_GOVERNANCE.md)** — `main` is authoritative;
+  residual session-branch history and a reversible operator plan.
+- **[Workflow security](WORKFLOW_SECURITY.md)** — GitHub Actions / OpenCode
+  audit findings, pins, residual risk.
+- **[Dependency migration](DEPENDENCY_MIGRATION.md)** — Dependabot backlog
+  classification, the tested upgrade wave, deferred majors.
 
 ## Principles (the short version)
 

@@ -78,7 +78,9 @@ If your change surfaces data, label its provenance. See the strategy notes in
 
 - Branch from `main`, keep the PR focused, and fill in the PR template.
   `main` is the repository default and the only merge gate (see
-  [AGENTS.md](./AGENTS.md)). Do not open PRs against agent working branches.
+  [AGENTS.md](./AGENTS.md) and
+  [`docs/BRANCH_GOVERNANCE.md`](./docs/BRANCH_GOVERNANCE.md)). Do not open PRs
+  against agent working branches.
 - Make sure all four gates pass. GitHub branch protection requires the CI job
   **Typecheck & build**, one approving review, and blocks force-pushes/deletes
   on `main`.

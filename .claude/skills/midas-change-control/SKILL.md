@@ -29,8 +29,9 @@ style preferences, they are what keeps it honest and keeps funds untouched.
 **Terms used here** (defined once):
 - **The maintainer** — the human repo owner and sole decision-maker. An agent may
   propose/implement/test/review; only the maintainer merges.
-- **`main`** — the review base and merge gate. NOT the GitHub default branch (that
-  setting has historically pointed at an active work branch; it is not a substitute).
+- **`main`** — the GitHub default branch, review base, and merge gate. Branch from
+  `origin/main`. Historical feature-session branches are never a substitute
+  (see `docs/BRANCH_GOVERNANCE.md`).
 - **Draft PR** — a GitHub pull request opened in *draft* state. It is the coordination
   and approval boundary for agent-authored work.
 - **The six gates** — the six local checks that define "done" (see [The merge bar](#3-the-merge-bar--six-gates--testreviewer)).
@@ -70,7 +71,8 @@ regressions ship.
    design doc, and the invariant your change touches. Inspecting repository
    instructions and the affected boundary comes *before* writing code
    (`docs/AI-DEVELOPMENT.md` evidence standard, step 2).
-2. **Branch from `main`.** Never branch from the GitHub default branch.
+2. **Branch from `main`.** Always start from `origin/main` (the default branch).
+   Do not base work on historical feature-session branches.
    ```bash
    git fetch origin main && git checkout -B <branch> origin/main
    ```
@@ -285,7 +287,7 @@ architecture docs > README.**
 | CI runs, in order: install → `test:reviewer` → `typecheck` → `build` → `check-bundle` → `test` (exact order owned by `midas-build-and-env`) | `sed -n '24,41p' .github/workflows/ci.yml` |
 | Execution hold enforced unconditionally in `routes/account.ts` (503 `TradingSafetyHold`, both order routes) | `sed -n '95,110p' apps/server/src/routes/account.ts` |
 | The 9-item re-enable gate + the 5 "why" reasons | `sed -n '19,49p' docs/EXECUTION_SAFETY_HOLD.md` |
-| `main` is the review base; branch from it, not the GitHub default | `sed -n '7,13p' AGENTS.md` |
+| `main` is the default branch, review base, and merge gate | `sed -n '7,13p' AGENTS.md`; `docs/BRANCH_GOVERNANCE.md` |
 | One task = one commit = one small single-concern **draft** PR; fill template from the diff | `sed -n '89,94p' REFACTOR_PLAYBOOK.md`; `sed -n '1,4p' .github/PULL_REQUEST_TEMPLATE.md` |
 | Every behavioral fix ships a failing→passing test | `sed -n '111,114p' REFACTOR_PLAYBOOK.md` |
 | Humans own legal/security/money/merge; **generated prose is not evidence** | `sed -n '7,16p' docs/AI-DEVELOPMENT.md`; `sed -n '28,31p' docs/AI-DEVELOPMENT.md` |
