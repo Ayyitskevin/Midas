@@ -77,14 +77,21 @@ If your change surfaces data, label its provenance. See the strategy notes in
 ## Pull requests
 
 - Branch from `main`, keep the PR focused, and fill in the PR template.
-- Make sure all four gates pass.
+  `main` is the repository default and the only merge gate (see
+  [AGENTS.md](./AGENTS.md)). Do not open PRs against agent working branches.
+- Make sure all four gates pass. GitHub branch protection requires the CI job
+  **Typecheck & build**, one approving review, and blocks force-pushes/deletes
+  on `main`.
 - Describe what changed and why; screenshots help for UI changes.
-- Run `pnpm test:reviewer` and keep the static reviewer demo deterministic.
+- Run `pnpm test:reviewer` (includes the static reviewer demo checks **and**
+  `scripts/check-repo-policy.mjs`) and keep the static reviewer demo
+  deterministic. Or run `pnpm check:repo-policy` alone.
 - Do not include credentials, real account data, or live model calls in tests,
   fixtures, screenshots, or commits.
 - AI-assisted changes must state their evidence and limitations; the maintainer
   makes the human merge decision. See [AGENTS.md](./AGENTS.md) and the
   [AI-assisted development policy](./docs/AI-DEVELOPMENT.md).
+- Post–default-branch restore game plan: [docs/GAMEPLAN.md](./docs/GAMEPLAN.md).
 
 ## Reporting bugs / requesting features
 

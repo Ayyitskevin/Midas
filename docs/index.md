@@ -50,3 +50,5 @@ own box for free, forever.
 3. **Free and open source.** Every panel and board, no accounts and no paid
    tier — self-host it or run the public demo. Optional shared hosting for a
    team stays free too.
+
+- [Game plan (post-main restore)](GAMEPLAN.md)
