@@ -24,9 +24,10 @@ own box for free, forever.
 
 ## Guides in this site
 
-- **[Self-hosting for a team](HOSTED_BETA.md)** — run a shared multi-user
-  instance: hardened env, per-user keys, caps, load-testing, and the invite
-  email.
+- **[Shared hosting (operator entry)](SHARED_HOSTING.md)** — multi-user env
+  checklist, fail-closed table, links to go-live + security matrix.
+- **[Self-hosting for a team](HOSTED_BETA.md)** — provision, load-test, invite
+  email (see also [go-live smoke gate](HOSTED_GO_LIVE.md)).
 - **[Architecture](ARCHITECTURE.md)** — the monorepo, the provider seam,
   the data-honesty rules, and how a panel comes to exist.
 - **[Execution safety hold](EXECUTION_SAFETY_HOLD.md)** — current posture,

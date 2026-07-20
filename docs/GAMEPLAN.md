@@ -43,14 +43,14 @@ If blocked on install/CI env, record the limit; still land pure-logic tests.
 |---|---|---|
 | 0 | Restore `main` default + protection | Admin applied 2026-07-20 |
 | 1 | Repo-policy honesty gate | `scripts/check-repo-policy.mjs` + `pnpm test:reviewer` |
-| 2 | **Provenance note invariant (shared)** | `@midas/shared` `withHonestNote` / `provenanceNoteConsistent`; coin universe route + mock; tests |
+| 2 | Provenance note invariant (shared) | PR #338 — `@midas/shared` `withHonestNote` |
+| 3 | **D+1 Shared-hosting operator checklist** | `docs/SHARED_HOSTING.md` + `scripts/check-shared-hosting.mjs` (doc flags ⊆ `config.ts`; hold fail-closed) |
 
 ### Next days (pick one per day)
 
 | Day focus | Slice | Why |
 |---|---|---|
-| D+1 | Shared-hosting operator checklist | ROADMAP Week 2 remainder — document multi-user env end-to-end without inventing product |
-| D+2 | Honesty regression: liquidations / stream badges | Ensure no synthetic feed can show LIVE |
+| **D+2 (next)** | Honesty regression: liquidations / stream badges | Ensure no synthetic feed can show LIVE |
 | D+3 | Docs CI / Pages operator note | Docs workflow fails without Pages env — document honestly |
 | D+4 | Minor Dependabot group (only if gates green) | PR #319 minor/patch — not majors (Vite 8 / charts 5) |
 | D+5 | #278 friction template | Issue/process only — no product invention |
