@@ -16,24 +16,32 @@ export interface StreamStatusView {
  * "reconnecting" (we want data but the socket dropped) from a benign "idle"
  * (nothing is streaming, so being disconnected is expected).
  *
- * `streamLive` (from /api/health) is the data-honesty guard: when the socket is
- * open but the provider streams a synthetic random-walk (any non-ccxt provider),
- * we show "SIM" instead of "LIVE" so the terminal never passes fake prints off
- * as a live feed. Defaults to `true` so a not-yet-loaded health poll doesn't
- * flash "SIM" over a genuinely live ccxt feed.
+ * `streamLive` (from /api/health) is the data-honesty guard:
+ * - `true` → open socket may show LIVE
+ * - `false` → SIM (synthetic random-walk / non-live stream provider)
+ * - `null` / omitted → OPEN without LIVE (health not loaded yet) so a mock
+ *   session never flashes LIVE before health arrives
  */
 export function streamStatusView(
   status: StreamStatus,
   subCount: number,
-  streamLive = true,
+  streamLive: boolean | null = null,
 ): StreamStatusView {
   if (status === 'open') {
-    if (!streamLive) {
+    if (streamLive === false) {
       return {
         tone: 'simulated',
         label: 'SIM',
         dotClass: 'text-term-amber',
         title: 'Streaming synthetic data — this provider has no live feed (set MIDAS_DATA_PROVIDER=ccxt for live)',
+      };
+    }
+    if (streamLive !== true) {
+      return {
+        tone: 'connecting',
+        label: 'OPEN',
+        dotClass: 'text-term-amber',
+        title: 'Socket open — confirming whether the feed is live',
       };
     }
     return { tone: 'live', label: 'LIVE', dotClass: 'text-term-up', title: 'Streaming live' };

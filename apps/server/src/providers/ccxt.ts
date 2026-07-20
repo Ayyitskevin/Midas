@@ -417,7 +417,8 @@ export class CcxtProvider implements DataProvider {
     const note = available
       ? 'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.'
       : `${this.name} exposes no public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE at a venue that publishes liquidations, or use cross-exchange aggregation.`;
-    return { source: this.name, available, note };
+    // Explicit synthetic:false so UI badges never treat omitted synthetic as demo.
+    return { source: this.name, available, synthetic: false, note };
   }
 
   async getDexPools(symbol: string): Promise<DexPools> {

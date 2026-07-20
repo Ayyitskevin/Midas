@@ -24,6 +24,7 @@ import { ProviderError } from '../providers';
 import { config } from '../config';
 import { createTtlCache } from '../ttlCache';
 import { providerStreamsLive } from '../streaming';
+import { honestLiquidationsMeta } from '../liquidationsHonesty';
 import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
 
 const DEFAULT_INTERVAL: Interval = '1d';
@@ -322,7 +323,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     const events = perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
     const feed: LiquidationsFeed = {
       events,
-      meta: { ...provider.liquidationsProvenance(), asOf: Date.now() },
+      meta: honestLiquidationsMeta(provider.liquidationsProvenance(), Date.now()),
     };
     return feed;
   });

@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice, fmtTimeAgo } from '@/lib/format';
 import { navigate } from '@/commands/execute';
-import { summarizeLiquidations } from '@/lib/liquidations';
+import { liquidationsFeedBadge, summarizeLiquidations } from '@/lib/liquidations';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -16,6 +16,7 @@ export function LiquidationsModule({ panel }: ModuleProps) {
 
   const events = useMemo(() => data?.events ?? [], [data]);
   const meta = data?.meta;
+  const badge = meta ? liquidationsFeedBadge(meta) : null;
   const summary = useMemo(() => summarizeLiquidations(events), [events]);
   const longPct = summary.total > 0 ? (summary.longValue / summary.total) * 100 : 0;
 
@@ -23,38 +24,34 @@ export function LiquidationsModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">LIQUIDATIONS</span>
-        {meta && (
+        {meta && badge && (
           <span className="flex items-center gap-1 text-term-dim">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
-                meta.available && !meta.synthetic ? 'bg-term-up' : 'bg-term-amber'
+                badge.liveTone ? 'bg-term-up' : 'bg-term-amber'
               }`}
-              title={
-                meta.synthetic
-                  ? 'Synthetic demo data — not a live feed'
-                  : meta.available
-                    ? 'Source publishes liquidations'
-                    : 'Source has no public liquidation feed'
-              }
+              title={badge.title}
             />
             <span className="text-term-muted">{meta.source}</span>
-            <span>· {meta.synthetic ? 'demo' : meta.available ? 'live' : 'no feed'}</span>
+            <span>
+              ·{' '}
+              {badge.label === 'demo' ? 'demo' : badge.label === 'live' ? 'live' : 'no feed'}
+            </span>
             <span>· {fmtTimeAgo(meta.asOf)}</span>
           </span>
         )}
       </div>
 
       {/* Honesty banner — why the feed may be empty/partial or under-reported. */}
-      {meta?.note && (
+      {meta?.note && badge && (
         <div
           className={`border-b px-2 py-1 text-2xs leading-snug ${
-            meta.available && !meta.synthetic
+            badge.liveTone
               ? 'border-term-border text-term-dim'
               : 'border-term-amber/40 bg-term-amber/10 text-term-amber'
           }`}
         >
-          {meta.available ? '⚠ ' : '⚠ '}
-          {meta.note}
+          ⚠ {meta.note}
         </div>
       )}
 
