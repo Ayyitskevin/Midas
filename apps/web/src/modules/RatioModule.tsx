@@ -5,7 +5,6 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
-  type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
@@ -13,6 +12,7 @@ import { useFetch } from '@/lib/hooks';
 import { usePanels } from '@/store/usePanels';
 import { changeClass, fmtSignedPercent } from '@/lib/format';
 import { combineSeries, type RatioMode } from '@/lib/ratio';
+import { replaceRatioChartSeries } from '@/lib/chartSeries';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -109,21 +109,14 @@ export function RatioModule({ panel }: ModuleProps) {
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    if (seriesRef.current) {
-      chart.removeSeries(seriesRef.current);
-      seriesRef.current = null;
-    }
-    if (points.length === 0) return;
-    const series = chart.addLineSeries({
-      color: '#ffb000',
-      lineWidth: 2,
-      priceLineVisible: false,
-      lastValueVisible: true,
-      priceFormat: { type: 'price', precision, minMove: Math.pow(10, -precision) },
-    });
-    series.setData(points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
-    seriesRef.current = series;
-    chart.timeScale().fitContent();
+    const current = seriesRef.current;
+    seriesRef.current = null;
+    seriesRef.current = replaceRatioChartSeries(
+      chart,
+      current,
+      points,
+      precision,
+    );
   }, [points, precision]);
 
   const stats = useMemo(() => {
