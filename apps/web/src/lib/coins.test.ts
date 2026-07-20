@@ -59,6 +59,9 @@ describe('sortCoins', () => {
 describe('coinBadge', () => {
   it('maps every provenance to a label and tone', () => {
     expect(coinBadge('live')).toEqual({ label: 'LIVE', tone: 'live' });
+    // synthetic must never present as LIVE (shared provenanceBadge contract)
+    expect(coinBadge('synthetic').label).not.toBe('LIVE');
+    expect(coinBadge('synthetic').tone).toBe('demo');
     expect(coinBadge('synthetic')).toEqual({ label: 'DEMO', tone: 'demo' });
     expect(coinBadge('unavailable')).toEqual({ label: 'UNAVAILABLE', tone: 'off' });
   });

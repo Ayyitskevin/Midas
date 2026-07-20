@@ -5,6 +5,7 @@ import {
   computeVenueArbRow,
   isInterval,
   isRange,
+  withHonestNote,
 } from '@midas/shared';
 import type {
   CoinUniverse,
@@ -225,15 +226,21 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 250) : 100;
     if (!getCoinUniverse) {
-      return {
-        coins: [],
-        provenance: 'unavailable',
-        source: provider.name,
-        note: 'No market-cap reference source is configured for this provider.',
-        asOf: null,
-      } satisfies CoinUniverse;
+      // withHonestNote enforces the shared invariant: unavailable requires a note.
+      return withHonestNote(
+        {
+          coins: [],
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: 'No market-cap reference source is configured for this provider.',
+          asOf: null,
+        },
+        'No market-cap reference source is configured for this provider.',
+      ) satisfies CoinUniverse;
     }
-    return coinsCache.get(String(limit), () => getCoinUniverse(limit));
+    return coinsCache.get(String(limit), async () =>
+      withHonestNote(await getCoinUniverse(limit), 'Market-cap reference is not live.'),
+    );
   });
 
   // Funding-rates board: the top-N perps by volume with their funding + OI.
