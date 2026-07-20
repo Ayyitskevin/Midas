@@ -1,4 +1,4 @@
-import type { LiquidationEvent } from '@midas/shared';
+import type { LiquidationEvent, LiquidationsMeta, LiquidationsProvenance } from '@midas/shared';
 
 export interface LiqSummary {
   /** Notional of liquidated longs (order side 'sell'). */
@@ -9,6 +9,50 @@ export interface LiqSummary {
   count: number;
   longCount: number;
   shortCount: number;
+}
+
+/**
+ * User-facing honesty label for a liquidations feed meta.
+ *
+ * Contract: synthetic or mock-sourced feeds are never labeled live — even when
+ * `available` is true (demo events exist, but they are not real liquidations).
+ */
+export type LiquidationsFeedLabel = 'live' | 'demo' | 'no-feed';
+
+export function liquidationsFeedLabel(
+  meta: Pick<LiquidationsProvenance, 'available' | 'synthetic' | 'source'>,
+): LiquidationsFeedLabel {
+  if (meta.synthetic) return 'demo';
+  // Defense in depth: a mock provider that forgot `synthetic: true` still
+  // must not paint a green "live" badge.
+  if (meta.source.trim().toLowerCase() === 'mock') return 'demo';
+  if (!meta.available) return 'no-feed';
+  return 'live';
+}
+
+export function liquidationsFeedBadge(
+  meta: Pick<LiquidationsMeta, 'available' | 'synthetic' | 'source' | 'note'>,
+): { label: LiquidationsFeedLabel; title: string; liveTone: boolean } {
+  const label = liquidationsFeedLabel(meta);
+  if (label === 'demo') {
+    return {
+      label,
+      title: meta.note?.trim() || 'Synthetic demo data — not a live feed',
+      liveTone: false,
+    };
+  }
+  if (label === 'no-feed') {
+    return {
+      label,
+      title: meta.note?.trim() || 'Source has no public liquidation feed',
+      liveTone: false,
+    };
+  }
+  return {
+    label,
+    title: meta.note?.trim() || 'Source publishes liquidations',
+    liveTone: true,
+  };
 }
 
 /** Aggregate a liquidation feed into long/short notional + counts. */
