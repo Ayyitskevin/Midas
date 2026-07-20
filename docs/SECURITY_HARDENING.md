@@ -58,6 +58,15 @@ Before a Midas box is reachable by anyone but you:
 | `MIDAS_MAX_KEYED_USERS` | `25` | Bounds per-user background loops. |
 | `ANTHROPIC_API_KEY` | empty | AI copilot key. Requests are bounded (12 messages, 32k chars). |
 
+## GitHub Actions and the OpenCode agent
+
+CI, docs deploy, and the optional OpenCode comment agent live under
+`.github/workflows/`. Supply-chain posture (pinned third-party agent action,
+least-privilege tokens, no `pull_request_target`, concurrency caps) is audited
+in [`WORKFLOW_SECURITY.md`](./WORKFLOW_SECURITY.md). The policy script
+`scripts/check-release-governance.mjs` fails when the OpenCode action floats on
+`@latest` or ship-path docs reintroduce a feature-session default branch.
+
 ## The execution safety hold
 
 Order placement and in-app cancellation stop at the route boundary:

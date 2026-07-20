@@ -29,8 +29,8 @@ style preferences, they are what keeps it honest and keeps funds untouched.
 **Terms used here** (defined once):
 - **The maintainer** — the human repo owner and sole decision-maker. An agent may
   propose/implement/test/review; only the maintainer merges.
-- **`main`** — the GitHub default branch, review base, and merge gate. Branch from
-  `origin/main`. Historical feature-session branches are never a substitute
+- **`main`** — the review base and merge gate (and the GitHub default branch).
+  Branch from `origin/main`. Historical feature-session branches are never a substitute
   (see `docs/BRANCH_GOVERNANCE.md`).
 - **Draft PR** — a GitHub pull request opened in *draft* state. It is the coordination
   and approval boundary for agent-authored work.
