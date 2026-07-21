@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { LiquidationEvent } from '@midas/shared';
-import { summarizeLiquidations } from '@/lib/liquidations';
+import {
+  liquidationsFeedBadge,
+  liquidationsFeedLabel,
+  summarizeLiquidations,
+} from '@/lib/liquidations';
 
 const ev = (side: 'buy' | 'sell', value: number): LiquidationEvent => ({
   symbol: 'BTC/USDT',
@@ -31,5 +35,57 @@ describe('summarizeLiquidations', () => {
       longCount: 0,
       shortCount: 0,
     });
+  });
+});
+
+describe('liquidationsFeedLabel — never LIVE for synthetic/mock', () => {
+  it('labels synthetic demo even when available', () => {
+    expect(
+      liquidationsFeedLabel({ source: 'mock', available: true, synthetic: true }),
+    ).toBe('demo');
+  });
+
+  it('treats source=mock without synthetic flag as demo (defense in depth)', () => {
+    expect(liquidationsFeedLabel({ source: 'mock', available: true })).toBe('demo');
+  });
+
+  it('labels unavailable sources as no-feed, not live', () => {
+    expect(
+      liquidationsFeedLabel({
+        source: 'ccxt:binance',
+        available: false,
+        synthetic: false,
+      }),
+    ).toBe('no-feed');
+  });
+
+  it('labels real available non-synthetic feeds as live', () => {
+    expect(
+      liquidationsFeedLabel({
+        source: 'ccxt:okx',
+        available: true,
+        synthetic: false,
+      }),
+    ).toBe('live');
+  });
+
+  it('badge never uses liveTone for demo or no-feed', () => {
+    const demo = liquidationsFeedBadge({
+      source: 'mock',
+      available: true,
+      synthetic: true,
+      note: 'Synthetic liquidations',
+    });
+    expect(demo.label).toBe('demo');
+    expect(demo.liveTone).toBe(false);
+    expect(demo.title).toMatch(/synthetic/i);
+
+    const none = liquidationsFeedBadge({
+      source: 'yahoo',
+      available: false,
+      note: 'No feed',
+    });
+    expect(none.label).toBe('no-feed');
+    expect(none.liveTone).toBe(false);
   });
 });

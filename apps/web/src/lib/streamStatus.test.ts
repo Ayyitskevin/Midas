@@ -16,10 +16,19 @@ describe('streamStatusView', () => {
     expect(v.title).toMatch(/synthetic/i);
   });
 
-  it('defaults to LIVE when stream liveness is unknown (health not yet loaded)', () => {
-    // No 3rd arg → streamLive defaults true, so a not-yet-loaded health poll
-    // does not flash SIM over a genuinely live ccxt feed.
-    expect(streamStatusView('open', 0).label).toBe('LIVE');
+  it('open + unknown streamLive never claims LIVE (avoids mock flash)', () => {
+    // Health not loaded yet: socket may be open on mock/yahoo — must not say LIVE.
+    const v = streamStatusView('open', 0);
+    expect(v.label).not.toBe('LIVE');
+    expect(v.label).toBe('OPEN');
+    expect(v.tone).not.toBe('live');
+    expect(v.dotClass).not.toBe('text-term-up');
+    expect(streamStatusView('open', 1, null).label).not.toBe('LIVE');
+  });
+
+  it('only explicit streamLive=true yields LIVE', () => {
+    expect(streamStatusView('open', 0, true).label).toBe('LIVE');
+    expect(streamStatusView('open', 0, false).label).toBe('SIM');
   });
 
   it('connecting → CONNECTING', () => {

@@ -152,6 +152,32 @@ describe('GET /api/liquidations', () => {
     expect(typeof feed.meta.available).toBe('boolean');
     expect(typeof feed.meta.asOf).toBe('number');
   });
+
+  it('repairs ambiguous mock provenance at the API boundary', async () => {
+    const ambiguousMock = createProvider('mock');
+    ambiguousMock.liquidationsProvenance = () => ({
+      source: 'mock',
+      available: true,
+    });
+    const boundaryApp = await buildApp(ambiguousMock);
+    await boundaryApp.ready();
+
+    try {
+      const res = await boundaryApp.inject({
+        method: 'GET',
+        url: '/api/liquidations?quote=USDT&limit=1',
+      });
+      expect(res.statusCode).toBe(200);
+      const meta = res.json().meta;
+      expect(meta.source).toBe('mock');
+      expect(meta.available).toBe(true);
+      expect(meta.synthetic).toBe(true);
+      expect(meta.note).toMatch(/synthetic|demo|not real/i);
+      expect(typeof meta.asOf).toBe('number');
+    } finally {
+      await boundaryApp.close();
+    }
+  });
 });
 
 describe('GET /api/venue-arb', () => {
