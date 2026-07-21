@@ -12,20 +12,20 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
 
 **Free and open source, forever.** Every panel, board, and alert — no accounts,
-no subscription, no paid tier. Self-host it, run the public demo, or fork it. A
-personal project, built in the open.
+no subscription, no paid tier. Self-host it, run the static demo locally, or
+fork it. A personal project, built in the open.
 
-> **Project status:** pre-release and read-only by design. The public demo uses
+> **Project status:** pre-release and read-only by design. The static demo uses
 > deterministic synthetic data in the browser; run your own instance to point it
 > at live markets. Midas does not custody funds, and live order
 > placement/cancellation remains under an unconditional safety hold.
 
 <p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
-> **▶ [Try the live demo](https://ayyitskevin.github.io/Midas/demo/) — right now, in your browser.**
-> The demo is the real terminal running against a synthetic in-browser market:
-> no server, no signup, nothing real, everything honest. Or run it locally in
-> 60 seconds: `pnpm install && pnpm dev`.
+> **Public Pages status:** deployment is not enabled yet. The same static demo
+> can be reviewed locally with `pnpm reviewer:demo`: no server, no signup,
+> nothing real, everything honestly labeled. Maintainer setup is documented in
+> [the maintenance playbook](docs/MAINTENANCE.md).
 
 ## Review Midas safely
 
@@ -613,9 +613,9 @@ Have an idea or want a board? Open an issue — see [CONTRIBUTING](./CONTRIBUTIN
 
 Midas is free and open source under [AGPL-3.0](./LICENSE) — every panel, every
 board, unlimited alerts, no accounts and no paid tier. Self-host it on your own
-box, run the [public demo](https://ayyitskevin.github.io/Midas/demo/), or fork
-it and make it yours. This is a personal project built in the open; there is
-nothing to buy and nothing metered.
+box, run the static demo locally, or fork it and make it yours. This is a
+personal project built in the open; there is nothing to buy and nothing
+metered.
 
 For context: a Bloomberg seat runs ~$2,400/month, and mainstream charting
 platforms charge $30–60/month while still metering your indicators, alerts and

@@ -30,7 +30,8 @@ MIDAS_CORS_ORIGIN=https://your-host.example.com  # pin to your origin (not *)
 MIDAS_TRADING_ENABLED=false
 ```
 
-Put TLS in front (Caddy is two lines). Full posture: [`SECURITY.md`](../SECURITY.md).
+Put TLS in front (Caddy is two lines). Full posture:
+[`SECURITY.md`](https://github.com/Ayyitskevin/Midas/blob/main/SECURITY.md).
 
 ## 2. Create your operator admin
 

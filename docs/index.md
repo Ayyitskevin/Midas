@@ -9,9 +9,11 @@ own box for free, forever.
 
 ## Start here
 
-- **[Open the live demo](https://ayyitskevin.github.io/Midas/demo/)** — the
-  real terminal against a synthetic in-browser market. No server, no signup;
-  everything labeled honestly.
+- **Review the static demo locally** — run `pnpm reviewer:demo` from the
+  repository for the real terminal against a synthetic in-browser market. No
+  server, no signup; everything labeled honestly. Public Pages deployment is
+  still awaiting the one-time maintainer setup in the
+  [maintenance playbook](MAINTENANCE.md).
 - **Run it in 2 minutes** — [README quickstart](https://github.com/Ayyitskevin/Midas#quickstart):
   `docker compose up -d`, open `http://localhost:8080`. The default `mock`
   provider works offline; flip `MIDAS_DATA_PROVIDER=ccxt` for live markets.
@@ -48,7 +50,7 @@ own box for free, forever.
    Account access is read-only; placement and in-app cancellation fail closed
    under the execution safety hold.
 3. **Free and open source.** Every panel and board, no accounts and no paid
-   tier — self-host it or run the public demo. Optional shared hosting for a
-   team stays free too.
+   tier — self-host it or run the static demo locally. Optional shared hosting
+   for a team stays free too.
 
 - [Game plan (post-main restore)](GAMEPLAN.md)
