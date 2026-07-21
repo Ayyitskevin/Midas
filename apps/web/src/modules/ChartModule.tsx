@@ -18,6 +18,14 @@ import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { INTERVAL_SECONDS, candleBucketStart } from '@/lib/candleBucket';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
+import {
+  CHART_DOWN as DOWN,
+  CHART_UP as UP,
+  FIXED_SERIES_ORDER_OPTIONS,
+  addHistogramChartSeries,
+  addLineChartSeries,
+  createPrimaryChartSeries,
+} from '@/lib/chartSeries';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { bollinger, ema, fibLevels, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
@@ -44,6 +52,7 @@ function linkTimeScale(main: IChartApi, sub: IChartApi): () => void {
 /** Shared layout options for the oscillator sub-panes (RSI, MACD). */
 const SUBPANE_OPTIONS = {
   autoSize: true,
+  ...FIXED_SERIES_ORDER_OPTIONS,
   layout: {
     background: { type: ColorType.Solid, color: 'transparent' },
     textColor: '#7a7f87',
@@ -80,9 +89,6 @@ const PRESETS: Preset[] = [
   { label: '1Y', interval: '1d', range: '1y' },
   { label: '5Y', interval: '1wk', range: '5y' },
 ];
-
-const UP = '#26c281';
-const DOWN = '#ef4d56';
 
 export function ChartModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
@@ -171,6 +177,7 @@ export function ChartModule({ panel }: ModuleProps) {
 
     const chart = createChart(el, {
       autoSize: true,
+      ...FIXED_SERIES_ORDER_OPTIONS,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#7a7f87',
@@ -186,19 +193,7 @@ export function ChartModule({ panel }: ModuleProps) {
       crosshair: { mode: CrosshairMode.Normal },
     });
 
-    const candle = chart.addCandlestickSeries({
-      upColor: UP,
-      downColor: DOWN,
-      borderVisible: false,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
-    });
-
-    const volume = chart.addHistogramSeries({
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-    });
-    volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+    const { candle, volume } = createPrimaryChartSeries(chart);
 
     chartRef.current = chart;
     candleRef.current = candle;
@@ -248,7 +243,7 @@ export function ChartModule({ panel }: ModuleProps) {
       if (anchor.time !== time) {
         if (active === 'trend') {
           const [a, b] = anchor.time < time ? [anchor, { time, price }] : [{ time, price }, anchor];
-          const series = chart.addLineSeries({
+          const series = addLineChartSeries(chart, {
             color: '#4cc2ff',
             lineWidth: 2,
             priceLineVisible: false,
@@ -439,7 +434,7 @@ export function ChartModule({ panel }: ModuleProps) {
     indicatorSeriesRef.current = [];
 
     const addLine = (points: LinePoint[], color: string) => {
-      const series = chart.addLineSeries({
+      const series = addLineChartSeries(chart, {
         color,
         lineWidth: 1,
         priceLineVisible: false,
@@ -509,7 +504,7 @@ export function ChartModule({ panel }: ModuleProps) {
     const main = chartRef.current;
 
     const chart = createChart(el, SUBPANE_OPTIONS);
-    const series = chart.addLineSeries({
+    const series = addLineChartSeries(chart, {
       color: '#c08cff',
       lineWidth: 1,
       priceLineVisible: false,
@@ -557,15 +552,15 @@ export function ChartModule({ panel }: ModuleProps) {
     const main = chartRef.current;
 
     const chart = createChart(el, SUBPANE_OPTIONS);
-    const hist = chart.addHistogramSeries({ priceLineVisible: false, lastValueVisible: false });
-    const macdLine = chart.addLineSeries({
+    const hist = addHistogramChartSeries(chart, { priceLineVisible: false, lastValueVisible: false });
+    const macdLine = addLineChartSeries(chart, {
       color: '#4cc2ff',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: true,
       crosshairMarkerVisible: false,
     });
-    const signalLine = chart.addLineSeries({
+    const signalLine = addLineChartSeries(chart, {
       color: '#ffb000',
       lineWidth: 1,
       priceLineVisible: false,
