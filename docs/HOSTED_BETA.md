@@ -85,12 +85,16 @@ harder — that's it working, not breaking.
 >
 > The honest part: Midas is **free and open source** — nothing is billed, ever,
 > whether you use this instance or self-host your own. If you're up for it, I'd
-> love one reply a week: what you used, what annoyed you, what's missing.
+> love one note a week: what you used, what annoyed you, what's missing.
 >
-> Reply to this email with anything — it lands in my actual inbox.
+> Send feedback as a new email — do not reply to or quote this credential
+> message. Describe the workflow only; never send credentials, login/host
+> details, account data, or raw screenshots/logs.
 
 ## 5. Weekly
 
 - Read the operator digest; if *you* don't want to read it, fix the digest.
 - `SYS` on each instance: loops green, version current.
-- Collect the friction list → it becomes roadmap v3.
+- Treat email as intake only; sanitize one report per comment into
+  [issue #278](https://github.com/Ayyitskevin/Midas/issues/278) using its
+  comment template. Do not maintain a separate friction list.

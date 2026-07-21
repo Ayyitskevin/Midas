@@ -81,4 +81,5 @@ close public signup.
 
 - `SYS` on the instance: loops green, version current.
 - Re-run the smoke gate after any `docker compose … --build` upgrade.
-- Read the operator digest (`MIDAS_DIGEST_HOURS`); collect the friction list.
+- Follow [`HOSTED_BETA.md §5`](./HOSTED_BETA.md#5-weekly) for the sanitized
+  issue #278 feedback process.
