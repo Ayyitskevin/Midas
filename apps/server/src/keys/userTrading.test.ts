@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { OpenOrder, OrderRequest, PlacedOrder } from '@midas/shared';
+import { createDataReceipt } from '@midas/shared';
+import type {
+  OpenOrder,
+  OrderRequest,
+  PlacedOrder,
+  ProviderCapabilityManifest,
+} from '@midas/shared';
 import {
   computeTradingStatus,
   createScopedDailyLedgers,
@@ -12,6 +18,7 @@ import { createUserLoops, userEquityFileName } from './loops';
 import { buildApp } from '../app';
 import { config } from '../config';
 import { createProvider, ProviderError, type DataProvider } from '../providers';
+import { buildProviderCapabilities } from '../providers/receipts';
 import type { AccountWatchHandle } from '../accountWatch';
 
 const KMS = 'test-kms-secret';
@@ -202,6 +209,7 @@ describe('per-user loops', () => {
 interface TradeStub {
   name: string;
   live: boolean;
+  capabilities: ProviderCapabilityManifest;
   placeOrder: ReturnType<typeof vi.fn>;
   cancelOrder: ReturnType<typeof vi.fn>;
   getQuote: ReturnType<typeof vi.fn>;
@@ -226,9 +234,30 @@ const makeOpenOrder = (id: string, symbol = 'BTC/USDT'): OpenOrder => ({
 const makeTradeStub = (name: string, tag: string): TradeStub => {
   let n = 0;
   let orders: OpenOrder[] = [];
+  const capabilities = buildProviderCapabilities({
+    providerId: name,
+    providerVersion: 'test-1.0',
+    source: name,
+    capabilities: {
+      'account-orders': {
+        method: 'getOpenOrders',
+        support: 'supported',
+        auth: 'credentials-required',
+        mode: 'live',
+        venue: 'kraken',
+        coverage: 'injected caller account',
+        expectedCadenceMs: 60_000,
+        maxAgeMs: 120_000,
+        cacheTtlMs: null,
+        methodology: null,
+        caveats: ['Route-test provider.'],
+      },
+    },
+  });
   return {
     name,
     live: true,
+    capabilities,
     placeOrder: vi.fn(async (req: OrderRequest): Promise<PlacedOrder> => {
       n += 1;
       return {
@@ -246,7 +275,30 @@ const makeTradeStub = (name: string, tag: string): TradeStub => {
     }),
     cancelOrder: vi.fn(async (id: string, symbol: string) => ({ id, symbol, status: 'canceled' })),
     getQuote: vi.fn(async () => ({ price: 100 })),
-    getOpenOrders: vi.fn(async () => ({ source: name, provenance: 'live', note: null, orders, asOf: 0 })),
+    getOpenOrders: vi.fn(async () => {
+      const asOf = Date.now();
+      return {
+        source: name,
+        provenance: 'live',
+        note: null,
+        orders,
+        asOf,
+        receipt: createDataReceipt({
+          providerId: capabilities.providerId,
+          providerVersion: capabilities.providerVersion,
+          source: capabilities.source,
+          datasetFamily: 'account-orders',
+          coverage: 'injected caller account',
+          provenance: 'live',
+          sourceAsOf: null,
+          observedAt: asOf,
+          expectedCadenceMs: 60_000,
+          maxAgeMs: 120_000,
+          units: {},
+          limitations: ['Route-test provider.'],
+        }, asOf),
+      };
+    }),
     setOrders: (next: OpenOrder[]) => {
       orders = next;
     },
@@ -511,6 +563,9 @@ describe('execution posture routes (placement hold + cancel-only)', () => {
           'Cancel outcome UNKNOWN for order alice-ord-4 on BTC/USDT — the exchange did not confirm (RequestTimeout). ' +
             'Check the exchange for the true order state before assuming it is open or canceled.',
           502,
+          undefined,
+          'upstream-unavailable',
+          'cancel-outcome-unknown',
         ),
       );
 

@@ -3,12 +3,13 @@ import { MockProvider } from './mock';
 import { YahooProvider } from './yahoo';
 import { CcxtProvider } from './ccxt';
 
-export type { DataProvider, HistoryOptions } from './types';
+export type { DataProvider, HistoryOptions, ProviderPublicErrorCode } from './types';
 export { ProviderError } from './types';
 
 /**
  * Construct the data provider selected by configuration.
- * Unknown ids fall back to the always-available mock provider.
+ * Unknown ids fail closed so a misspelling can never silently switch live
+ * deployments onto synthetic market data.
  */
 export function createProvider(name: string): DataProvider {
   switch (name) {
@@ -19,8 +20,6 @@ export function createProvider(name: string): DataProvider {
     case 'mock':
       return new MockProvider();
     default:
-      // eslint-disable-next-line no-console
-      console.warn(`[midas] unknown provider "${name}", falling back to "mock"`);
-      return new MockProvider();
+      throw new Error(`Unknown data provider "${name}". Expected yahoo, ccxt, or mock.`);
   }
 }

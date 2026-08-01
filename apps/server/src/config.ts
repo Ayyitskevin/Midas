@@ -90,6 +90,14 @@ export function authAllowSignupEnv(): boolean {
 }
 
 /**
+ * Provider selection is explicit. An unset value remains empty so startup
+ * fails closed in createProvider(); only explicit demo mode may force mock.
+ */
+export function dataProviderEnv(): string {
+  return env('MIDAS_DATA_PROVIDER', '').trim().toLowerCase();
+}
+
+/**
  * Numeric env parsing that fails SAFE. `Number('1o00')` is NaN, and NaN
  * poisons every downstream comparison in the quiet direction: `notional >
  * NaN` is false, so a typo in MIDAS_MAX_ORDER_USD would silently disable a
@@ -102,9 +110,7 @@ export function numEnv(key: string, fallback: number): number {
   if (raw === undefined || raw === '') return fallback;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) {
-    console.warn(
-      `[midas] ${key}="${raw}" is not a non-negative number — using the default (${fallback}).`,
-    );
+    console.warn(`[midas] ${key} is not a non-negative number — using the default (${fallback}).`);
     return fallback;
   }
   return value;
@@ -132,7 +138,7 @@ const baseConfig: Config = {
   host: env('HOST', '0.0.0.0'),
   port: numEnv('PORT', 4000),
   trustProxy: numEnv('MIDAS_TRUST_PROXY', 0),
-  provider: env('MIDAS_DATA_PROVIDER', 'mock').toLowerCase(),
+  provider: dataProviderEnv(),
   corsOrigin: env('MIDAS_CORS_ORIGIN', '*'),
   aiModel: env('MIDAS_AI_MODEL', 'claude-sonnet-4-6'),
   alertsFile: env('MIDAS_ALERTS_FILE', `${env('MIDAS_DATA_DIR', './data')}/alerts.json`),

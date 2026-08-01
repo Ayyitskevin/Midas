@@ -8,6 +8,7 @@ import type {
   DexPools,
   DvolSnapshot,
   DvolSymbol,
+  DataHealthErrorCategory,
   FundingHistoryPoint,
   OpenOrders,
   OptionsChain,
@@ -35,6 +36,7 @@ import type {
   TermStructure,
   VenueDerivatives,
   VenueQuote,
+  ProviderCapabilityManifest,
 } from '@midas/shared';
 
 export interface ScreenerOptions {
@@ -60,6 +62,8 @@ export interface DataProvider {
   readonly name: string;
   /** True if this provider reaches a real upstream; false for synthetic data. */
   readonly live: boolean;
+  /** Exhaustive, runtime-inspectable support contract for trust-plane datasets. */
+  readonly capabilities: ProviderCapabilityManifest;
 
   getQuote(symbol: string): Promise<Quote>;
   getQuotes(symbols: string[]): Promise<Quote[]>;
@@ -187,14 +191,29 @@ export interface DataProvider {
 }
 
 /** Error raised by a provider when an upstream lookup fails. */
+export type ProviderPublicErrorCode = 'cancel-outcome-unknown';
+
 export class ProviderError extends Error {
   readonly statusCode: number;
   readonly symbol?: string;
+  /** Fixed trust-plane category; consumers never infer data health from HTTP status alone. */
+  readonly dataHealthCategory: DataHealthErrorCategory;
+  /** Narrow allowlisted code for route-owned fixed public copy; never raw provider text. */
+  readonly publicErrorCode: ProviderPublicErrorCode | null;
 
-  constructor(message: string, statusCode = 502, symbol?: string) {
+  constructor(
+    message: string,
+    statusCode = 502,
+    symbol?: string,
+    dataHealthCategory: DataHealthErrorCategory =
+      statusCode === 501 ? 'unsupported' : statusCode === 503 ? 'not-configured' : 'upstream-unavailable',
+    publicErrorCode: ProviderPublicErrorCode | null = null,
+  ) {
     super(message);
     this.name = 'ProviderError';
     this.statusCode = statusCode;
     this.symbol = symbol;
+    this.dataHealthCategory = dataHealthCategory;
+    this.publicErrorCode = publicErrorCode;
   }
 }

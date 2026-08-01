@@ -14,51 +14,85 @@ const toNum = (v: unknown): number | null => {
 };
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+export interface AccountRowMapping<T> {
+  rows: T[];
+  inputValid: boolean;
+  attempted: number;
+  omitted: number;
+}
+
 /**
  * Map a ccxt `fetchOpenOrders()` array to OpenOrder[]: newest first, with a
  * quote-notional value (price × amount). Pure and defensive — unknown/missing
- * fields degrade to sensible defaults rather than throwing.
+ * required numeric evidence is omitted rather than fabricated as zero.
  */
-export function mapOpenOrders(raw: unknown): OpenOrder[] {
-  if (!Array.isArray(raw)) return [];
+export function mapOpenOrdersWithDiagnostics(raw: unknown): AccountRowMapping<OpenOrder> {
+  if (!Array.isArray(raw)) return { rows: [], inputValid: false, attempted: 0, omitted: 0 };
   const out: OpenOrder[] = [];
+  let omitted = 0;
   for (const o of raw) {
     const ord = o as Record<string, unknown>;
-    const amount = toNum(ord.amount) ?? 0;
+    const id = str(ord.id) || str(ord.clientOrderId);
+    const symbol = str(ord.symbol);
+    const side = ord.side === 'buy' || ord.side === 'sell' ? ord.side : null;
+    const type = str(ord.type);
+    const status = str(ord.status);
+    const amount = toNum(ord.amount);
     const price = toNum(ord.price);
-    const filled = toNum(ord.filled) ?? 0;
+    const filled = toNum(ord.filled);
+    if (
+      !id || !symbol || side === null || !type || !status ||
+      amount == null || amount <= 0 || filled == null || filled < 0 || filled > amount
+    ) {
+      omitted += 1;
+      continue;
+    }
     out.push({
-      id: str(ord.id) || str(ord.clientOrderId) || '—',
-      symbol: str(ord.symbol),
-      side: ord.side === 'sell' ? 'sell' : 'buy',
-      type: str(ord.type) || 'limit',
+      id,
+      symbol,
+      side,
+      type,
       price,
       amount,
       filled,
       remaining: toNum(ord.remaining) ?? Math.max(0, amount - filled),
       value: price != null ? price * amount : null,
       timestamp: toNum(ord.timestamp),
-      status: str(ord.status) || 'open',
+      status,
     });
   }
-  out.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
-  return out;
+  out.sort(
+    (a, b) =>
+      (b.timestamp ?? Number.NEGATIVE_INFINITY) - (a.timestamp ?? Number.NEGATIVE_INFINITY),
+  );
+  return { rows: out, inputValid: true, attempted: raw.length, omitted };
+}
+
+export function mapOpenOrders(raw: unknown): OpenOrder[] {
+  return mapOpenOrdersWithDiagnostics(raw).rows;
 }
 
 /**
  * Map a ccxt `fetchPositions()` array to AccountPosition[]: drops flat (zero-size)
  * entries, sorts by notional, normalizes side. Pure and defensive.
  */
-export function mapPositions(raw: unknown): AccountPosition[] {
-  if (!Array.isArray(raw)) return [];
+export function mapPositionsWithDiagnostics(raw: unknown): AccountRowMapping<AccountPosition> {
+  if (!Array.isArray(raw)) return { rows: [], inputValid: false, attempted: 0, omitted: 0 };
   const out: AccountPosition[] = [];
+  let omitted = 0;
   for (const p of raw) {
     const pos = p as Record<string, unknown>;
+    const symbol = str(pos.symbol);
+    const side = pos.side === 'long' || pos.side === 'short' ? pos.side : null;
     const contracts = toNum(pos.contracts);
-    if (contracts == null || contracts === 0) continue; // skip flat positions
+    if (contracts === 0) continue; // valid flat position, intentionally excluded
+    if (!symbol || side === null || contracts == null) {
+      omitted += 1;
+      continue;
+    }
     out.push({
-      symbol: str(pos.symbol),
-      side: pos.side === 'short' ? 'short' : 'long',
+      symbol,
+      side,
       contracts: Math.abs(contracts),
       notionalUsd: toNum(pos.notional),
       entryPrice: toNum(pos.entryPrice),
@@ -69,28 +103,43 @@ export function mapPositions(raw: unknown): AccountPosition[] {
       leverage: toNum(pos.leverage),
     });
   }
-  out.sort((a, b) => Math.abs(b.notionalUsd ?? 0) - Math.abs(a.notionalUsd ?? 0));
-  return out;
+  out.sort((a, b) => {
+    const bNotional = b.notionalUsd == null ? Number.NEGATIVE_INFINITY : Math.abs(b.notionalUsd);
+    const aNotional = a.notionalUsd == null ? Number.NEGATIVE_INFINITY : Math.abs(a.notionalUsd);
+    return bNotional - aNotional;
+  });
+  return { rows: out, inputValid: true, attempted: raw.length, omitted };
+}
+
+export function mapPositions(raw: unknown): AccountPosition[] {
+  return mapPositionsWithDiagnostics(raw).rows;
 }
 
 /**
  * Map a ccxt `fetchMyTrades()` array to AccountFill[]: newest first, cost
  * derived from price × amount when the exchange omits it. Pure and defensive.
  */
-export function mapMyTrades(raw: unknown): AccountFill[] {
-  if (!Array.isArray(raw)) return [];
+export function mapMyTradesWithDiagnostics(raw: unknown): AccountRowMapping<AccountFill> {
+  if (!Array.isArray(raw)) return { rows: [], inputValid: false, attempted: 0, omitted: 0 };
   const out: AccountFill[] = [];
+  let omitted = 0;
   for (const t of raw) {
     const fill = t as Record<string, unknown>;
+    const id = str(fill.id);
+    const symbol = str(fill.symbol);
+    const side = fill.side === 'buy' || fill.side === 'sell' ? fill.side : null;
     const price = toNum(fill.price);
     const amount = toNum(fill.amount);
-    if (price == null || amount == null || amount <= 0) continue;
+    if (!id || !symbol || side === null || price == null || price <= 0 || amount == null || amount <= 0) {
+      omitted += 1;
+      continue;
+    }
     const fee = fill.fee as { cost?: unknown; currency?: unknown } | undefined;
     out.push({
-      id: str(fill.id) || '—',
+      id,
       orderId: str(fill.order) || null,
-      symbol: str(fill.symbol),
-      side: fill.side === 'sell' ? 'sell' : 'buy',
+      symbol,
+      side,
       price,
       amount,
       cost: toNum(fill.cost) ?? price * amount,
@@ -100,8 +149,15 @@ export function mapMyTrades(raw: unknown): AccountFill[] {
       timestamp: toNum(fill.timestamp),
     });
   }
-  out.sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
-  return out;
+  out.sort(
+    (a, b) =>
+      (b.timestamp ?? Number.NEGATIVE_INFINITY) - (a.timestamp ?? Number.NEGATIVE_INFINITY),
+  );
+  return { rows: out, inputValid: true, attempted: raw.length, omitted };
+}
+
+export function mapMyTrades(raw: unknown): AccountFill[] {
+  return mapMyTradesWithDiagnostics(raw).rows;
 }
 
 /** Sum unrealized P&L across positions; null when none report a P&L. */

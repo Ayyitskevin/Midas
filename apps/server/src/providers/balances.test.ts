@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mapCcxtBalance, sumValueUsd, unpricedCaveat, ccxtKeysConfigured, STABLES } from './balances';
+import { mapCcxtBalance, mapCcxtBalanceWithDiagnostics, sumValueUsd, unpricedCaveat, ccxtKeysConfigured, STABLES } from './balances';
 
 // A representative slice of a ccxt fetchBalance() result. ccxt stamps `free`,
 // `used` and `total` dicts plus per-asset objects and an `info` blob; the mapper
@@ -25,15 +25,36 @@ describe('mapCcxtBalance', () => {
   });
 
   it('leaves an unpriced asset with a null value and sinks it to the bottom', () => {
-    const rows = mapCcxtBalance({ total: { BTC: 1, WIF: 100 }, free: { BTC: 1, WIF: 100 } }, priceUsd);
+    const rows = mapCcxtBalance({
+      total: { BTC: 1, WIF: 100 }, free: { BTC: 1, WIF: 100 }, used: { BTC: 0, WIF: 0 },
+    }, priceUsd);
     expect(rows.map((r) => r.asset)).toEqual(['BTC', 'WIF']);
     expect(rows[1].valueUsd).toBeNull();
   });
 
-  it('falls back to used = total − free when the used dict is missing', () => {
-    const rows = mapCcxtBalance({ total: { BTC: 1 }, free: { BTC: 0.4 } }, priceUsd);
-    expect(rows[0].free).toBe(0.4);
-    expect(rows[0].used).toBeCloseTo(0.6);
+  it('drops a balance row when required free/used evidence is missing instead of zero-filling it', () => {
+    expect(mapCcxtBalance({ total: { BTC: 1 }, free: { BTC: 0.4 } }, priceUsd)).toEqual([]);
+    expect(mapCcxtBalance({ total: { BTC: 1 }, used: { BTC: 0.6 } }, priceUsd)).toEqual([]);
+  });
+
+  it('does not turn malformed balance or valuation fields into zero', () => {
+    expect(mapCcxtBalance({
+      total: { BTC: 1 }, free: { BTC: Number.NaN }, used: { BTC: 0 },
+    }, priceUsd)).toEqual([]);
+    expect(mapCcxtBalance({
+      total: { BTC: 1 }, free: { BTC: 1 }, used: { BTC: 0 },
+    }, () => 0)[0]?.valueUsd).toBeNull();
+  });
+
+  it('reports malformed held-row omissions without counting valid zero balances', () => {
+    const diagnostics = mapCcxtBalanceWithDiagnostics({
+      total: { BTC: 1, USDT: 10, ZRX: 0 },
+      free: { BTC: 1, USDT: 10, ZRX: 0 },
+      used: { USDT: 0, ZRX: 0 },
+    }, priceUsd);
+    expect(diagnostics).toMatchObject({ inputValid: true, attempted: 2, omitted: 1 });
+    expect(diagnostics.rows.map((row) => row.asset)).toEqual(['USDT']);
+    expect(mapCcxtBalanceWithDiagnostics(null, priceUsd).inputValid).toBe(false);
   });
 
   it('returns [] for malformed/empty payloads (defensive)', () => {
@@ -63,9 +84,13 @@ describe('unpricedCaveat', () => {
       { asset: 'BTC', free: 1, used: 0, total: 1, valueUsd: 60_000 },
       { asset: 'WIF', free: 100, used: 0, total: 100, valueUsd: null },
     ];
-    expect(unpricedCaveat(one)).toBe('1 asset could not be priced (no USDT market); the USD total is a floor.');
+    expect(unpricedCaveat(one)).toBe(
+      'Partial evidence: 1 asset could not be priced (no USDT market); the USD total is a floor.',
+    );
     const two = [...one, { asset: 'POPCAT', free: 5, used: 0, total: 5, valueUsd: null }];
-    expect(unpricedCaveat(two)).toBe('2 assets could not be priced (no USDT market); the USD total is a floor.');
+    expect(unpricedCaveat(two)).toBe(
+      'Partial evidence: 2 assets could not be priced (no USDT market); the USD total is a floor.',
+    );
   });
 });
 

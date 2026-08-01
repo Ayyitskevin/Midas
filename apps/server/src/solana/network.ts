@@ -111,7 +111,7 @@ export async function fetchSolanaNetwork(solPriceUsd: number | null = null): Pro
       jsonRpc('getVoteAccounts', []).catch(() => null),
     ]);
     return mapNetwork({ epochInfo, supply, perfSamples, voteAccounts, solPriceUsd, now: Date.now() });
-  } catch (err) {
-    return unavailable(`Live Solana RPC unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return unavailable('Live Solana RPC unavailable because the upstream request failed.');
   }
 }

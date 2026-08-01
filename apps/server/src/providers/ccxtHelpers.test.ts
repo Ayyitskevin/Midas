@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fundingIntervalHours, readFunding, timeframeSeconds, tickerPrice } from './ccxt/helpers';
+import { fundingIntervalHours, readFunding, readOpenInterest, timeframeSeconds, tickerPrice } from './ccxt/helpers';
 import type { Exchange } from 'ccxt';
 
 describe('timeframeSeconds', () => {
@@ -75,6 +75,7 @@ describe('readFunding', () => {
     expect(f.fundingRate).toBe(0.0001);
     expect(f.fundingIntervalHours).toBe(1);
     expect(f.nextFundingTime).toBe(1_000);
+    expect(f.state).toBe('ok');
   });
 
   it('falls back to a millisecond `fundingInterval` when `interval` is absent', async () => {
@@ -91,14 +92,57 @@ describe('readFunding', () => {
     expect(f.fundingIntervalHours).toBeNull(); // honest — not fabricated as 8
   });
 
-  it('returns an all-null snapshot when the venue lacks fetchFundingRate', async () => {
+  it('distinguishes unsupported from upstream failure and never fabricates numerics', async () => {
     const f = await readFunding({ has: {} } as unknown as Exchange, 'BTC/USDT:USDT');
     expect(f).toEqual({
+      state: 'unsupported',
+      sourceAsOf: null,
       fundingRate: null,
       fundingIntervalHours: null,
       nextFundingTime: null,
       markPrice: null,
       indexPrice: null,
+    });
+    const failed = await readFunding({
+      has: { fetchFundingRate: true },
+      fetchFundingRate: async () => { throw new Error('network'); },
+    } as unknown as Exchange, 'BTC/USDT:USDT');
+    expect(failed.state).toBe('error');
+    expect(failed.fundingRate).toBeNull();
+  });
+
+  it('maps malformed funding/mark/index values to null, preserving a real zero funding rate', async () => {
+    const f = await readFunding(fakeExchange({
+      fundingRate: 0,
+      markPrice: 0,
+      indexPrice: Number.NaN,
+      timestamp: 1_700_000_000_000,
+    }), 'BTC/USDT:USDT');
+    expect(f).toMatchObject({
+      state: 'ok',
+      sourceAsOf: 1_700_000_000_000,
+      fundingRate: 0,
+      markPrice: null,
+      indexPrice: null,
+    });
+  });
+});
+
+describe('readOpenInterest', () => {
+  it('keeps missing/malformed OI null rather than zero and carries source time', async () => {
+    const ex = {
+      has: { fetchOpenInterest: true },
+      fetchOpenInterest: async () => ({
+        timestamp: 1_700_000_000_000,
+        openInterestAmount: undefined,
+        openInterestValue: Number.NaN,
+      }),
+    } as unknown as Exchange;
+    await expect(readOpenInterest(ex, 'BTC/USDT:USDT')).resolves.toMatchObject({
+      state: 'ok',
+      sourceAsOf: 1_700_000_000_000,
+      openInterest: null,
+      openInterestValue: null,
     });
   });
 });

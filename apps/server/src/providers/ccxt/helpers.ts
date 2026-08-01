@@ -16,13 +16,49 @@ import { ProviderError } from '../types';
  * A ccxt error can carry raw upstream detail — a signed request URL (including the
  * HMAC `signature=` and the API key), the raw response body, internal hostnames.
  * None of that may reach a client. This returns a bounded, safe label — the error's
- * class name (e.g. `AuthenticationError`, `NetworkError`) — for use in a
- * client-facing message or an `unavailable` snapshot `note`. An explicit
+ * allowlisted class category (e.g. `AuthenticationError`, `NetworkError`) —
+ * for use in a client-facing message or an `unavailable` snapshot `note`. An explicit
  * ProviderError is ours and already safe, so its message is preserved.
  */
+const SAFE_CCXT_ERROR_LABELS = new Set([
+  'ArgumentsRequired',
+  'AuthenticationError',
+  'BadRequest',
+  'BadResponse',
+  'BadSymbol',
+  'DDoSProtection',
+  'ExchangeError',
+  'ExchangeNotAvailable',
+  'InsufficientFunds',
+  'InvalidAddress',
+  'InvalidNonce',
+  'InvalidOrder',
+  'NetworkError',
+  'NotSupported',
+  'OperationFailed',
+  'OrderNotFound',
+  'PermissionDenied',
+  'RateLimitExceeded',
+  'RequestTimeout',
+]);
+
 export function safeErrorLabel(err: unknown): string {
   if (err instanceof ProviderError) return err.message;
-  return err instanceof Error && err.name ? err.name : 'error';
+  return err instanceof Error && SAFE_CCXT_ERROR_LABELS.has(err.name) ? err.name : 'error';
+}
+
+const DEFAULT_COMPARE_EXCHANGES = 'binance,coinbase,kraken,bitfinex,okx,kucoin';
+
+/** Normalize and deduplicate the configured public compare-venue set. */
+export function compareExchangeIds(configured: string | undefined): string[] {
+  return Array.from(
+    new Set(
+      (configured ?? DEFAULT_COMPARE_EXCHANGES)
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
 }
 
 export const TIMEFRAME_MAP: Record<Interval, string> = {
@@ -143,7 +179,12 @@ export function fundingIntervalHours(raw: unknown): number | null {
 }
 
 /** A perp's funding snapshot; every field null when unavailable. */
+export type ProviderReadState = 'ok' | 'unsupported' | 'error';
+
 export interface FundingSnapshot {
+  state: ProviderReadState;
+  /** Timestamp attached by the upstream response, not local receipt time. */
+  sourceAsOf: number | null;
   fundingRate: number | null;
   /** Settlement interval in hours; null when the venue does not report it. */
   fundingIntervalHours: number | null;
@@ -159,6 +200,8 @@ export interface FundingSnapshot {
  */
 export async function readFunding(ex: Exchange, perp: string): Promise<FundingSnapshot> {
   const empty: FundingSnapshot = {
+    state: 'unsupported',
+    sourceAsOf: null,
     fundingRate: null,
     fundingIntervalHours: null,
     nextFundingTime: null,
@@ -173,14 +216,16 @@ export async function readFunding(ex: Exchange, perp: string): Promise<FundingSn
     const rawInterval =
       f.interval ?? (f as unknown as { fundingInterval?: unknown }).fundingInterval ?? null;
     return {
-      fundingRate: f.fundingRate ?? null,
+      state: 'ok',
+      sourceAsOf: finiteNonNegativeOrNull(f.timestamp),
+      fundingRate: finiteOrNull(f.fundingRate),
       fundingIntervalHours: fundingIntervalHours(rawInterval),
-      nextFundingTime: f.fundingTimestamp ?? f.nextFundingTimestamp ?? null,
-      markPrice: f.markPrice ?? null,
-      indexPrice: f.indexPrice ?? null,
+      nextFundingTime: finiteNonNegativeOrNull(f.fundingTimestamp ?? f.nextFundingTimestamp),
+      markPrice: finitePositiveOrNull(f.markPrice),
+      indexPrice: finitePositiveOrNull(f.indexPrice),
     };
   } catch {
-    return empty;
+    return { ...empty, state: 'error' };
   }
 }
 
@@ -191,13 +236,35 @@ export async function readFunding(ex: Exchange, perp: string): Promise<FundingSn
 export async function readOpenInterest(
   ex: Exchange,
   perp: string,
-): Promise<{ openInterest: number | null; openInterestValue: number | null }> {
-  const empty = { openInterest: null, openInterestValue: null };
+): Promise<{
+  state: ProviderReadState;
+  sourceAsOf: number | null;
+  openInterest: number | null;
+  openInterestValue: number | null;
+}> {
+  const empty = { state: 'unsupported' as const, sourceAsOf: null, openInterest: null, openInterestValue: null };
   if (!ex.has['fetchOpenInterest']) return empty;
   try {
     const oi = await ex.fetchOpenInterest(perp);
-    return { openInterest: oi.openInterestAmount ?? null, openInterestValue: oi.openInterestValue ?? null };
+    return {
+      state: 'ok',
+      sourceAsOf: finiteNonNegativeOrNull(oi.timestamp),
+      openInterest: finiteNonNegativeOrNull(oi.openInterestAmount),
+      openInterestValue: finiteNonNegativeOrNull(oi.openInterestValue),
+    };
   } catch {
-    return empty;
+    return { ...empty, state: 'error' as const };
   }
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function finiteNonNegativeOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function finitePositiveOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }

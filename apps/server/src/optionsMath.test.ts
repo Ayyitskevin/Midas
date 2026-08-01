@@ -58,12 +58,9 @@ describe('computeMaxPainStrike', () => {
     expect(computeMaxPainStrike(entries)).toBe(100);
   });
 
-  it('uses only strikes that carry OI and ignores null OI', () => {
+  it('returns null when any contributing strike has missing OI', () => {
     const entries = [strike(90, null, null), strike(100, 400, null), strike(110, null, 400)];
-    // Candidate strikes are only 100 and 110 (90 carries no OI).
-    // pain(100) = puts: 400·10 = 4000; pain(110) = calls: 400·10 = 4000 — tie,
-    // the first minimizer wins (deterministic).
-    expect(computeMaxPainStrike(entries)).toBe(100);
+    expect(computeMaxPainStrike(entries)).toBeNull();
   });
 
   it('is null when no strike carries any OI — never a strike off empty evidence', () => {
@@ -77,8 +74,8 @@ describe('computePutCallOiRatio', () => {
     expect(computePutCallOiRatio([strike(100, 200, 300), strike(110, 100, 100)])).toBeCloseTo(400 / 300, 12);
   });
 
-  it('treats null OI as no evidence (not as a real zero reading)', () => {
-    expect(computePutCallOiRatio([strike(100, 100, null), strike(110, null, 50)])).toBeCloseTo(0.5, 12);
+  it('returns null rather than coercing missing OI to zero', () => {
+    expect(computePutCallOiRatio([strike(100, 100, null), strike(110, null, 50)])).toBeNull();
   });
 
   it('is null when call OI is zero or absent — the ratio is undefined, not 0', () => {

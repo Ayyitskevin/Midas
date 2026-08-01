@@ -164,7 +164,7 @@ export async function fetchSolanaQuote(
       return unavailable(inSym, outSym, `No route returned for ${inSym}→${outSym} at this size.`);
     }
     return quote;
-  } catch (err) {
-    return unavailable(inSym, outSym, `Live Jupiter quote unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return unavailable(inSym, outSym, 'Live Jupiter quote unavailable because the upstream request failed.');
   }
 }

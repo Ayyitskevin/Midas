@@ -1,4 +1,4 @@
-import type { AccountBalance } from '@midas/shared';
+import { partialEvidenceLimitation, type AccountBalance } from '@midas/shared';
 
 /**
  * Read-only balances seam helpers. Midas is non-custodial: balances are read
@@ -33,35 +33,64 @@ const toNum = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+export interface BalanceMappingResult {
+  rows: AccountBalance[];
+  inputValid: boolean;
+  attempted: number;
+  omitted: number;
+}
+
 /**
  * Map a ccxt `fetchBalance()` result to our AccountBalance[]: one row per asset
  * with a positive total, priced via the supplied lookup. Drops zero/empty
  * balances and sorts by USD value (unpriced assets sink to the bottom). Pure and
- * defensive — unknown/missing fields degrade to 0/null rather than throwing.
+ * defensive — malformed required balance evidence is omitted rather than
+ * fabricated as zero; optional valuation remains null when unavailable.
  */
-export function mapCcxtBalance(
+export function mapCcxtBalanceWithDiagnostics(
   raw: unknown,
   priceUsd: (asset: string) => number | null,
-): AccountBalance[] {
+): BalanceMappingResult {
   const r = raw as
     | { total?: Record<string, unknown>; free?: Record<string, unknown>; used?: Record<string, unknown> }
     | null
     | undefined;
   const totals = r?.total;
-  if (!totals || typeof totals !== 'object') return [];
+  if (!totals || typeof totals !== 'object' || Array.isArray(totals)) {
+    return { rows: [], inputValid: false, attempted: 0, omitted: 0 };
+  }
 
   const out: AccountBalance[] = [];
+  let attempted = 0;
+  let omitted = 0;
   for (const [rawAsset, totalRaw] of Object.entries(totals)) {
     const total = toNum(totalRaw);
-    if (total == null || total <= 0) continue; // drop empty balances
+    if (total !== null && total <= 0) continue; // valid empty balance
+    attempted += 1;
+    if (total == null) {
+      omitted += 1;
+      continue;
+    }
     const asset = rawAsset.toUpperCase();
-    const free = toNum(r?.free?.[rawAsset]) ?? 0;
-    const used = toNum(r?.used?.[rawAsset]) ?? Math.max(0, total - free);
-    const px = priceUsd(asset);
+    const free = toNum(r?.free?.[rawAsset]);
+    const used = toNum(r?.used?.[rawAsset]);
+    if (!asset || free == null || free < 0 || used == null || used < 0) {
+      omitted += 1;
+      continue;
+    }
+    const rawPrice = priceUsd(asset);
+    const px = rawPrice != null && Number.isFinite(rawPrice) && rawPrice > 0 ? rawPrice : null;
     out.push({ asset, free, used, total, valueUsd: px != null ? px * total : null });
   }
   out.sort((a, b) => (b.valueUsd ?? -Infinity) - (a.valueUsd ?? -Infinity));
-  return out;
+  return { rows: out, inputValid: true, attempted, omitted };
+}
+
+export function mapCcxtBalance(
+  raw: unknown,
+  priceUsd: (asset: string) => number | null,
+): AccountBalance[] {
+  return mapCcxtBalanceWithDiagnostics(raw, priceUsd).rows;
 }
 
 /** Sum the USD value across priced balances; null when nothing could be priced. */
@@ -88,5 +117,7 @@ export function unpricedCaveat(balances: AccountBalance[]): string | null {
     if (b.valueUsd == null) n++;
   }
   if (n === 0) return null;
-  return `${n} asset${n === 1 ? '' : 's'} could not be priced (no USDT market); the USD total is a floor.`;
+  return partialEvidenceLimitation(
+    `${n} asset${n === 1 ? '' : 's'} could not be priced (no USDT market); the USD total is a floor.`,
+  );
 }

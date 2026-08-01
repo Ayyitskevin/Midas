@@ -91,7 +91,7 @@ export function registerKeyRoutes(app: FastifyInstance, deps: KeyRouteDeps): voi
       Date.now(),
     );
     // Audit the event, never the material.
-    app.log.warn({ userId: req.userId, exchange, keyLast4: meta.keyLast4 }, 'user exchange keys set');
+    app.log.warn('user exchange keys set');
     deps.onChanged?.(req.userId);
     return meta;
   });
@@ -107,7 +107,7 @@ export function registerKeyRoutes(app: FastifyInstance, deps: KeyRouteDeps): voi
     if (!req.userId) return reply.status(400).send(needsAuth);
     const removed = deps.repo.remove(req.userId);
     if (removed) {
-      app.log.warn({ userId: req.userId }, 'user exchange keys removed');
+      app.log.warn('user exchange keys removed');
       deps.onChanged?.(req.userId);
     }
     return { ok: removed };

@@ -19,6 +19,7 @@ export * from './solana';
 export * from './account';
 export * from './system';
 export * from './provenance';
+export * from './dataTrust';
 
 // Alert data contract + pure evaluator, shared by client and server.
 export * from './alerts';

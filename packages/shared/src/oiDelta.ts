@@ -19,6 +19,7 @@
  */
 
 import type { DataProvenance } from './provenance';
+import type { DataReceipt } from './dataTrust';
 
 /** The windows the /api/oi-delta edge accepts — anything else is a 400. */
 export type OiDeltaWindow = '1h' | '4h' | '24h' | '7d';
@@ -91,6 +92,7 @@ export interface OiDelta {
   /** Source label, e.g. 'ccxt:binance' or 'mock'. */
   source: string;
   note: string | null;
+  receipt?: DataReceipt;
 }
 
 /**
@@ -144,10 +146,9 @@ export function pctChange(now: number | null, then: number | null): number | nul
  * OI endpoints, both percent changes, the classification, and the freshness
  * (`asOf` = the newest observation). Pure; every provider and the demo engine
  * assemble their payloads through this one path so the quadrants agree
- * everywhere. OI endpoints come from the first and last point; the price
- * change uses the first and last PRICED points (a trailing unalignable price
- * does not erase the change). Fewer than two points, or fewer than two priced
- * points, leaves the matching change null — never a delta off one observation.
+ * everywhere. OI and price use the exact same first/last timestamps. If either
+ * endpoint lacks a price, price change and classification stay null rather than
+ * silently shortening the claimed window to inner priced points.
  */
 export function summarizeOiDelta(points: OiDeltaPoint[]): Pick<
   OiDelta,
@@ -155,14 +156,10 @@ export function summarizeOiDelta(points: OiDeltaPoint[]): Pick<
 > {
   const first = points.length > 0 ? points[0] : null;
   const last = points.length > 1 ? points[points.length - 1] : null;
-  const priced = points.filter((p) => p.price != null && p.price > 0);
-  const firstPriced = priced.length > 0 ? priced[0] : null;
-  const lastPriced = priced.length > 1 ? priced[priced.length - 1] : null;
-
   const oiThen = first?.openInterestValue ?? null;
   const oiNow = last?.openInterestValue ?? null;
   const oiChangePct = pctChange(oiNow, oiThen);
-  const priceChangePct = pctChange(lastPriced?.price ?? null, firstPriced?.price ?? null);
+  const priceChangePct = pctChange(last?.price ?? null, first?.price ?? null);
 
   return {
     oiNow,

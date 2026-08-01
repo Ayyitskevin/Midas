@@ -129,7 +129,7 @@ export async function fetchSolanaWallet(address: string, priceUsd: PriceUsd): Pr
       priceUsd,
       now: Date.now(),
     });
-  } catch (err) {
-    return unavailable(address, `Live Solana RPC unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return unavailable(address, 'Live Solana RPC unavailable because the upstream request failed.');
   }
 }

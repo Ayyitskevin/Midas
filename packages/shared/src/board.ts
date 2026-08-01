@@ -10,6 +10,8 @@
  * this envelope; missing evidence is surfaced, never smoothed over.
  */
 
+import type { DataReceipt } from './dataTrust';
+
 /** Whether the rows are real exchange data, synthetic, or unavailable. */
 export type BoardProvenance = 'live' | 'synthetic' | 'unavailable';
 
@@ -26,6 +28,8 @@ export interface BoardMeta {
   partial: boolean;
   /** Honest caveat: why data is synthetic/unavailable/partial; null when fully live. */
   note: string | null;
+  /** Receipt for the board assembly; row receipts retain source lineage. */
+  receipt?: DataReceipt;
 }
 
 /** A fan-out board: rows plus the metadata needed to judge them. */

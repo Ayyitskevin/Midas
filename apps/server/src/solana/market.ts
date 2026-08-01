@@ -89,7 +89,7 @@ export async function fetchSolanaMarket(solPriceUsd: number | null = null): Prom
       return unavailable('No Solana market data returned.', solPriceUsd);
     }
     return market;
-  } catch (err) {
-    return unavailable(`Live Solana market source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`, solPriceUsd);
+  } catch {
+    return unavailable('Live Solana market source (GeckoTerminal) unavailable because the upstream request failed.', solPriceUsd);
   }
 }

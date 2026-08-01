@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
+import {
+  mapMyTrades,
+  mapMyTradesWithDiagnostics,
+  mapOpenOrders,
+  mapOpenOrdersWithDiagnostics,
+  mapPositions,
+  mapPositionsWithDiagnostics,
+  mergeVenueRows,
+  sumUnrealizedPnl,
+} from './accountReads';
 
 describe('mapOpenOrders', () => {
   // A representative slice of a ccxt fetchOpenOrders() result.
@@ -59,6 +68,22 @@ describe('mapOpenOrders', () => {
     expect(mapOpenOrders({})).toEqual([]);
     expect(mapOpenOrders('nope')).toEqual([]);
   });
+
+  it('drops rows with missing identity, side, or required numeric evidence', () => {
+    const base = { id: 'o1', symbol: 'BTC/USDT', side: 'buy', type: 'limit', status: 'open', amount: 1, filled: 0 };
+    expect(mapOpenOrders([{ ...base, id: undefined }])).toEqual([]);
+    expect(mapOpenOrders([{ ...base, side: undefined }])).toEqual([]);
+    expect(mapOpenOrders([{ ...base, amount: undefined }])).toEqual([]);
+    expect(mapOpenOrders([{ ...base, filled: undefined }])).toEqual([]);
+  });
+
+  it('reports malformed omissions separately from a valid empty payload', () => {
+    expect(mapOpenOrdersWithDiagnostics([])).toEqual({ rows: [], inputValid: true, attempted: 0, omitted: 0 });
+    expect(mapOpenOrdersWithDiagnostics([FIXTURE[0], {}])).toMatchObject({
+      inputValid: true, attempted: 2, omitted: 1, rows: [expect.objectContaining({ id: '101' })],
+    });
+    expect(mapOpenOrdersWithDiagnostics({})).toEqual({ rows: [], inputValid: false, attempted: 0, omitted: 0 });
+  });
 });
 
 describe('mapPositions', () => {
@@ -111,6 +136,20 @@ describe('mapPositions', () => {
   it('returns [] for malformed payloads (defensive)', () => {
     expect(mapPositions(null)).toEqual([]);
     expect(mapPositions({})).toEqual([]);
+  });
+
+  it('drops positions with unknown identity, direction, or size rather than inventing them', () => {
+    expect(mapPositions([{ symbol: 'BTC/USDT:USDT', contracts: 1 }])).toEqual([]);
+    expect(mapPositions([{ side: 'long', contracts: 1 }])).toEqual([]);
+    expect(mapPositions([{ symbol: 'BTC/USDT:USDT', side: 'long' }])).toEqual([]);
+  });
+
+  it('counts malformed positions but not valid flat positions as omissions', () => {
+    const diagnostics = mapPositionsWithDiagnostics([
+      { symbol: 'SOL/USDT:USDT', side: 'long', contracts: 0 },
+      { symbol: 'BTC/USDT:USDT', contracts: 1 },
+    ]);
+    expect(diagnostics).toEqual({ rows: [], inputValid: true, attempted: 2, omitted: 1 });
   });
 });
 
@@ -167,6 +206,21 @@ describe('mapMyTrades', () => {
   it('returns [] for malformed payloads (defensive)', () => {
     expect(mapMyTrades(null)).toEqual([]);
     expect(mapMyTrades({})).toEqual([]);
+  });
+
+  it('drops fills with unknown identity or side instead of defaulting to a buy', () => {
+    const base = { id: 't1', symbol: 'BTC/USDT', side: 'buy', price: 60_000, amount: 0.1 };
+    expect(mapMyTrades([{ ...base, id: undefined }])).toEqual([]);
+    expect(mapMyTrades([{ ...base, side: undefined }])).toEqual([]);
+    expect(mapMyTrades([{ ...base, symbol: undefined }])).toEqual([]);
+  });
+
+  it('reports malformed fill omissions and invalid payload shape', () => {
+    const valid = { id: 't1', symbol: 'BTC/USDT', side: 'buy', price: 60_000, amount: 0.1 };
+    expect(mapMyTradesWithDiagnostics([valid, {}])).toMatchObject({
+      inputValid: true, attempted: 2, omitted: 1, rows: [expect.objectContaining({ id: 't1' })],
+    });
+    expect(mapMyTradesWithDiagnostics(null).inputValid).toBe(false);
   });
 });
 
