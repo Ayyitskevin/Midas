@@ -58,9 +58,16 @@ Green gates are the definition of "done". A red gate is never merged around.
 
 ## The static demo & docs site
 
-- `https://ayyitskevin.github.io/Midas/` (docs) and `/demo/` (the terminal
-  against an in-browser synthetic market) deploy from `.github/workflows/docs.yml`
-  on pushes to main. One-time setup: Settings → Pages → Source: GitHub Actions.
+- `.github/workflows/docs.yml` validates the strict MkDocs build and static demo
+  on matching pull requests and pushes to `main`.
+- Public deployment is intentionally dormant until a maintainer completes the
+  one-time setup: Settings → Pages → Source: **GitHub Actions**, then create the
+  repository variable `MIDAS_PAGES_ENABLED=true` and manually run the **Docs**
+  workflow once. After that, matching pushes to `main` publish the docs at
+  `https://ayyitskevin.github.io/Midas/` and the synthetic terminal at `/demo/`.
+- Until both settings are present, deployment is skipped and those public URLs
+  may return 404. Do not advertise them as live; use `pnpm reviewer:demo` for a
+  deterministic local review.
 - The demo's data engine lives in `apps/web/src/demo/` and is excluded from
   normal builds by a compile-time flag (`VITE_MIDAS_STATIC_DEMO`); tests in
   `src/demo/demo.test.ts`.

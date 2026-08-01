@@ -30,7 +30,8 @@ MIDAS_CORS_ORIGIN=https://your-host.example.com  # pin to your origin (not *)
 MIDAS_TRADING_ENABLED=false
 ```
 
-Put TLS in front (Caddy is two lines). Full posture: [`SECURITY.md`](../SECURITY.md).
+Put TLS in front (Caddy is two lines). Full posture:
+[`SECURITY.md`](https://github.com/Ayyitskevin/Midas/blob/main/SECURITY.md).
 
 ## 2. Create your operator admin
 
@@ -81,4 +82,5 @@ close public signup.
 
 - `SYS` on the instance: loops green, version current.
 - Re-run the smoke gate after any `docker compose … --build` upgrade.
-- Read the operator digest (`MIDAS_DIGEST_HOURS`); collect the friction list.
+- Follow [`HOSTED_BETA.md §5`](./HOSTED_BETA.md#5-weekly) for the sanitized
+  issue #278 feedback process.

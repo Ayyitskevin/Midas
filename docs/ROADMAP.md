@@ -52,8 +52,10 @@ instance for many users) — all while Midas stays free and open source.
   managed box (auth, per-user read keys, caps). ✅ *Shipped:* the `KEYS`
   panel makes per-user keys usable without curl. No billing code — Midas is
   free and open source.
-- ✅ **Docs site.** *(Shipped)* mkdocs-material over /docs with a Pages
-  workflow — enable Settings → Pages → Source: GitHub Actions once.
+- 🟡 **Docs site.** The strict MkDocs build and static-demo workflow are
+  shipped. Public Pages deployment remains an operator step: enable Settings →
+  Pages → Source: GitHub Actions and set `MIDAS_PAGES_ENABLED=true` as described
+  in the maintenance playbook.
 - ✅ **Performance pass.** *(Shipped)* Bundle budgets enforced in CI
   (main ≤155 KB gzip, total JS ≤700 KB; at 136/598 today) and a
   dependency-free load-test script (`scripts/loadtest.mjs`) for pre-invite
@@ -64,10 +66,11 @@ instance for many users) — all while Midas stays free and open source.
 
 ## Retro — the second 30 days
 
-**Shipped:** all four weeks, 100%. Adoption (demo mode, START, SYS),
+**Code shipped:** all four weeks. Public Pages activation remains an explicit
+operator step. Adoption (demo mode, START, SYS),
 multi-user groundwork (per-user keys PR 1–3 end to end, rate limiting),
 retention (P&L recap, alert templates, share links), scale
-(KEYS panel, docs site, budgets, load checks). Server tests 121→186; web
+(KEYS panel, docs build, budgets, load checks). Server tests 121→186; web
 1706→1774; four releases (0.2.0 → 0.5.0) in two days of calendar time.
 
 **What worked:** design-doc-first for the security-sensitive slice (PR 3

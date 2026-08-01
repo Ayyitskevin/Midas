@@ -8,7 +8,8 @@ the provenance of code changes from the optional product AI copilot.
 The repository owner is the maintainer and decision-maker. An AI agent may
 propose, implement, test, review, or document a change; it cannot accept legal
 risk, own a credential, approve an exchange or billing boundary, or replace the
-human merge decision required by [`AGENTS.md`](../AGENTS.md).
+human merge decision required by
+[`AGENTS.md`](https://github.com/Ayyitskevin/Midas/blob/main/AGENTS.md).
 
 Material AI participation should be visible in the pull request description,
 commit trailers, or both. Disclosure must never include a private conversation,

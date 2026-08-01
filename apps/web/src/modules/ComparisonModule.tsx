@@ -5,7 +5,6 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
-  type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Candle, Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
@@ -13,6 +12,10 @@ import { useFetch } from '@/lib/hooks';
 import { usePanels } from '@/store/usePanels';
 import { changeClass, fmtSignedPercent } from '@/lib/format';
 import { rebasePercent, totalReturnPct } from '@/lib/compare';
+import {
+  FIXED_SERIES_ORDER_OPTIONS,
+  rebuildComparisonChartSeries,
+} from '@/lib/chartSeries';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -84,6 +87,7 @@ export function ComparisonModule({ panel }: ModuleProps) {
     if (!el) return;
     const chart = createChart(el, {
       autoSize: true,
+      ...FIXED_SERIES_ORDER_OPTIONS,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: '#7a7f87',
@@ -110,36 +114,16 @@ export function ComparisonModule({ panel }: ModuleProps) {
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !data) return;
-    for (const s of seriesRef.current) chart.removeSeries(s);
+    const current = seriesRef.current;
     seriesRef.current = [];
-
-    let zeroLineDrawn = false;
-    data.forEach((d, i) => {
-      const points = rebasePercent(d.candles);
-      if (points.length === 0) return;
-      const series = chart.addLineSeries({
+    seriesRef.current = rebuildComparisonChartSeries(
+      chart,
+      current,
+      data.map((d, i) => ({
         color: PALETTE[i % PALETTE.length],
-        lineWidth: 2,
-        priceLineVisible: false,
-        lastValueVisible: true,
-        crosshairMarkerVisible: true,
-        priceFormat: { type: 'percent' },
-      });
-      series.setData(points.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
-      if (!zeroLineDrawn) {
-        series.createPriceLine({
-          price: 0,
-          color: 'rgba(122,127,135,0.4)',
-          lineWidth: 1,
-          lineStyle: 2,
-          axisLabelVisible: false,
-          title: '',
-        });
-        zeroLineDrawn = true;
-      }
-      seriesRef.current.push(series);
-    });
-    chart.timeScale().fitContent();
+        points: rebasePercent(d.candles),
+      })),
+    );
   }, [data]);
 
   const legend = useMemo(

@@ -45,10 +45,9 @@ export function StatusBar() {
     { intervalMs: 30000 },
   );
   const src = health ? sourceView(health.provider, health.live) : null;
-  // streamLive (from health) downgrades the socket badge from LIVE to SIM when the
-  // provider streams synthetic data — so an open socket over a mock/yahoo feed is
-  // never labeled "LIVE". Default true until health loads (avoids a SIM flash on ccxt).
-  const conn = streamStatusView(status, stream.subscriberCount(), health?.streamLive ?? true);
+  // streamLive (from health): false → SIM; true → LIVE; unknown (health not
+  // loaded) → OPEN without LIVE so a mock/yahoo session never flashes LIVE.
+  const conn = streamStatusView(status, stream.subscriberCount(), health?.streamLive ?? null);
   const trading = useTradingStatus();
 
   return (
