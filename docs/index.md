@@ -15,8 +15,9 @@ own box for free, forever.
   still awaiting the one-time maintainer setup in the
   [maintenance playbook](MAINTENANCE.md).
 - **Run it in 2 minutes** — [README quickstart](https://github.com/Ayyitskevin/Midas#quickstart):
-  `docker compose up -d`, open `http://localhost:8080`. The default `mock`
-  provider works offline; flip `MIDAS_DATA_PROVIDER=ccxt` for live markets.
+  copy `.env.example` to `.env` (this explicitly selects `mock`), then run
+  `docker compose up -d` and open `http://localhost:8080`. An unset/unknown
+  provider fails closed; select `MIDAS_DATA_PROVIDER=ccxt` for live markets.
 - **Every configuration flag** — the [README environment reference](https://github.com/Ayyitskevin/Midas#configuration)
   is the single source of truth for env vars (provider, auth, alerts,
   account keys, execution hold, and demo mode).
@@ -31,6 +32,9 @@ own box for free, forever.
   email.
 - **[Architecture](ARCHITECTURE.md)** — the monorepo, the provider seam,
   the data-honesty rules, and how a panel comes to exist.
+- **[Data Trust Plane](DATA_TRUST_PLANE.md)** — receipt vocabulary, freshness
+  and lineage policy, provider capabilities, status diagnostics, privacy, and
+  the provider-extension checklist.
 - **[Execution safety hold](EXECUTION_SAFETY_HOLD.md)** — current posture,
   root causes, and the complete re-enable gate.
 - **[Per-user keys design](HOSTED_KEYS_DESIGN.md)** — the multi-tenant key

@@ -5,9 +5,10 @@ Operator-facing companion to [SECURITY.md](https://github.com/Ayyitskevin/Midas/
 is the concrete pre-exposure checklist and the environment-variable security
 matrix for anyone putting Midas on a network other people can reach.
 
-Midas is a read-only research terminal at the HTTP boundary: an empty `.env`
-runs the offline mock feed, and the execution safety hold cannot be disabled by
-environment flags or stored key metadata.
+Midas is a read-only research terminal at the HTTP boundary. Provider selection
+is fail-closed: `.env.example` explicitly selects the offline mock feed, while
+an empty/unset or unknown `MIDAS_DATA_PROVIDER` refuses startup. The execution
+safety hold cannot be disabled by environment flags or stored key metadata.
 
 ## Pre-exposure checklist
 
@@ -43,6 +44,7 @@ Before a Midas box is reachable by anyone but you:
 
 | Variable | Default | Security role |
 |---|---|---|
+| `MIDAS_DATA_PROVIDER` | required / unset | Explicit `mock`, `yahoo`, or `ccxt`; unset/unknown refuses startup rather than silently substituting synthetic data. |
 | `MIDAS_AUTH_ENABLED` | `false` | Require login for the whole API. **On** for any shared/exposed box. |
 | `MIDAS_AUTH_SECRET` | random/boot | HMAC key for session tokens. Set a fixed ≥16-char value; warned if weak. |
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Ongoing open registration. Default closed once your first account exists; set `true` only for deliberate open registration. |

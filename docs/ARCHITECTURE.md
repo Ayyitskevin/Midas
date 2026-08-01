@@ -38,11 +38,12 @@ Fastify app (`src/app.ts`) mounts routes (`src/routes.ts`, plus `auth/`,
 **`DataProvider`** interface (`src/providers/types.ts`): every market-data
 capability the UI needs is a method on it.
 
-Three implementations, selected by `MIDAS_DATA_PROVIDER`:
+Three implementations, selected explicitly by `MIDAS_DATA_PROVIDER`. Unset or
+unknown values fail startup; synthetic data is never an implicit fallback:
 
 | Provider | `live` | What it is |
 | --- | --- | --- |
-| `mock` (default) | `false` | Deterministic synthetic market — fully offline, reproducible (seeded RNG in `providers/util.ts`). |
+| `mock` (explicit) | `false` | Deterministic synthetic market — fully offline, reproducible (seeded RNG in `providers/util.ts`). |
 | `ccxt` | `true` | Live multi-exchange crypto via [CCXT](https://github.com/ccxt/ccxt). |
 | `yahoo` | `true` | Live equities via Yahoo's public endpoints. |
 
@@ -100,8 +101,14 @@ Midas never presents synthetic, delayed, or unavailable data as if it were live:
 - Where a source can't serve a feature it returns an honest **provenance** in the
   data itself (`LiquidationsProvenance`, `DexPools.provenance`:
   `live` / `synthetic` / `unavailable`) rather than guessing — the UI surfaces it.
+- Selected high-risk responses carry an additive `DataReceipt`. Provenance
+  remains the source mode; a separate derivation dimension and freshness state
+  preserve source time, cache facts, methodology, limitations, and input
+  receipt lineage. Provider capabilities and current sanitized family health
+  are inspectable at `GET /api/data/status`.
 
-When you add a surface that shows data, label its provenance.
+When you add a surface that shows data, label its provenance and follow the
+[Data Trust Plane contributor checklist](./DATA_TRUST_PLANE.md#contributor-checklist).
 
 ## Execution safety boundary
 
