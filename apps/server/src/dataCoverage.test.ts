@@ -3,6 +3,8 @@ import { validateDataReceipt } from '@midas/shared';
 import type { OiDeltaWindow } from '@midas/shared';
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app';
+import { registerAccountEventsRoute } from './accountWatch';
+import { registerEquityRoute } from './equity';
 import { MockProvider } from './providers/mock';
 import type { HistoryOptions } from './providers/types';
 import {
@@ -56,6 +58,8 @@ describe('data receipt route coverage', () => {
     const pool = { accountFor: () => provider, userFor: () => null };
     registerAccountRoutes(app, pool, tracker, PER_USER_ACCOUNT_STATUS_SOURCE);
     registerDataStatusRoute(app, provider, pool, tracker);
+    registerAccountEventsRoute(app, null);
+    registerEquityRoute(app, null);
 
     const declared = DATA_ROUTE_COVERAGE.map((entry) => entry.path);
     expect(new Set(declared).size).toBe(declared.length);

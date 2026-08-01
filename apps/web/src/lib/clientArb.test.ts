@@ -74,6 +74,21 @@ describe('computeInspectedVenueArb', () => {
     expect(result.row.netLimitations.join(' ')).toMatch(/source receipts/i);
   });
 
+  it('marks missing execution evidence as partial even when source receipts are live and fresh', () => {
+    const incomplete = quote('Binance', 102, 103);
+    incomplete.bidSize = null;
+    const result = computeInspectedVenueArb(
+      'BTC/USDT',
+      [incomplete, quote('OKX', 99, 100)],
+      NOW,
+    );
+    expect(result.receipt).toMatchObject({ provenance: 'live', freshness: { state: 'fresh' } });
+    expect(result.receipt?.limitations).toContain(
+      'Partial evidence: Executable bid/ask size is unknown.',
+    );
+    expect(result.actionable).toBe(false);
+  });
+
   it('keeps a synthetic net spread illustrative and non-actionable', () => {
     const result = computeInspectedVenueArb(
       'BTC/USDT',

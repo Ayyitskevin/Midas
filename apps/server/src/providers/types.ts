@@ -185,7 +185,8 @@ export interface DataProvider {
    * Top-N coins by circulating market cap (optional) — reference data an
    * exchange cannot produce alone (no circulating supply → no honest market
    * cap). Providers that omit it get an honest 'unavailable' universe from the
-   * route. The mock implements it synthetically; a live source is env-gated.
+   * route. The mock implements it synthetically; no current live provider
+   * implements this reference family.
    */
   getCoinUniverse?(limit: number): Promise<CoinUniverse>;
 }

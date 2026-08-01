@@ -83,8 +83,9 @@ evaluation time minus `sourceAsOf`. Creation initially evaluates at receipt
 time; cache transport and `/api/data/status` advance the age at serve/read
 time without changing the source identity. Values younger than or exactly at
 `maxAgeMs` are fresh; values beyond it are stale. A future source time is
-reported as clock skew, never clamped to reassuring zero. Missing or invalid
-source time is an unknown freshness state with an explicit limitation.
+reported as clock skew, never clamped to reassuring zero. A missing source time
+is an unknown freshness state with an explicit limitation; a malformed timestamp
+is rejected by the constructor/validator rather than admitted as evidence.
 
 A derived result inherits the least trustworthy freshness of every required
 input. One stale input makes the result stale. Clock skew or unknown required
@@ -157,12 +158,15 @@ The bounded v1 slice covers:
 | Options analytics | DVOL, term structure, and chain where provider capability allows |
 | Read-only accounts | Balances, open orders, positions, and fills; no secret or value data in status |
 
-The structural route registry records every market/account GET as covered,
-not-applicable, or a temporary exemption. Funding-history remains a legacy bare
-array for compatibility, but each point carries an additive receipt. V1 leaves
-order-book, on-chain, screener, coin-universe, and single-order lookup as
-explicit follow-up work. Those exemptions carry a reason and concrete removal
-condition. They are not permission to claim live evidence without a receipt.
+The structural route registry records every numeric market/read-only-account
+observation GET in the trust boundary as covered, not-applicable, or a temporary
+exemption. Funding-history remains a legacy bare array for compatibility, but
+each point carries an additive receipt. V1 leaves order-book, on-chain, screener,
+coin-universe, persisted account-event/equity projections, and single-order
+lookup as explicit follow-up work. Those exemptions carry a reason and concrete
+removal condition. They are not permission to claim live evidence without a
+receipt. Account-key configuration metadata is outside the numeric evidence
+boundary and remains protected by its existing authentication/privacy contract.
 
 `FILLS` and `XQL` may show a browser-local slippage comparison when a locally
 stored preview is available. That estimate is explicitly labeled

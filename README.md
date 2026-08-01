@@ -228,7 +228,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW` | no    | Market overview — top gainers, losers, most active + breadth.|
-| `MCAP`  | `TOPCOINS`, `MARKETCAP`, `COINS` | no | Top coins by market cap — rank, price, 24h change, market cap, fully-diluted valuation, circulating supply and category. Explicit `mock` is synthetic; a configured reference source is live; other provider/source combinations are unavailable. |
+| `MCAP`  | `TOPCOINS`, `MARKETCAP`, `COINS` | no | Top coins by market cap — rank, price, 24h change, market cap, fully-diluted valuation, circulating supply and category. Explicit `mock` is synthetic; current live providers return unavailable until a reference provider is implemented. |
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `AVGCORR` | `AVGCOR`, `CORRREGIME`, `MEANCORR` | no | Average-correlation regime — mean pairwise correlation across your watchlist over time; high = risk-off, low = dispersion. |
 | `BREADTH` | `ADLINE`, `PARTICIPATION`, `ABOVEMA` | no | Market-breadth oscillator — the % of your watchlist above its N-day moving average over time; high = broad strength, low = weakness. |

@@ -1,6 +1,7 @@
 import {
   computeVenueArbRow,
   deriveDataReceipt,
+  partialEvidenceLimitation,
   type DataProvenance,
   type DataReceipt,
   type VenueArbRow,
@@ -83,7 +84,7 @@ export function computeInspectedVenueArb(
         },
         inputReceipts,
         limitations: [
-          ...computed.netLimitations,
+          ...computed.netLimitations.map(partialEvidenceLimitation),
           'Reference taker fees exclude withdrawal, transfer, slippage, and account-specific fee tiers.',
         ],
         note: provenance === 'live' ? null : `Derived from ${provenance} venue-quote evidence.`,

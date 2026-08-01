@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Exchange } from 'ccxt';
+import type { TrustDatasetFamily } from '@midas/shared';
 import { CcxtProvider } from './ccxt';
-import { runProviderConformanceKit, type ProviderConformanceProbe } from './conformanceKit';
+import {
+  runProviderConformanceKit,
+  type ProviderConformanceProbe,
+  type RouteDerivedFamilyEvidence,
+} from './conformanceKit';
 import { createProvider } from './index';
 import { MockProvider } from './mock';
 import { YahooProvider } from './yahoo';
@@ -10,11 +15,27 @@ const NOW = Date.parse('2026-08-01T12:00:00.000Z');
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const ROUTE_DERIVED_FAMILY_EVIDENCE = {
-  funding: 'Projected from a derivatives receipt and checked by dataCoverage.test and boardEnvelopes.test.',
-  'open-interest': 'Projected from a derivatives receipt and checked by dataCoverage.test and boardEnvelopes.test.',
-  'open-interest-history': 'Consumed inside the OI-delta derivation checked by oiDelta.test and dataCoverage.test.',
-  'venue-arbitrage': 'Derived from venue-quote receipts and checked by venueArb.test and boardEnvelopes.test.',
-} as const;
+  funding: {
+    testFile: 'apps/server/src/dataCoverage.test.ts',
+    routePath: '/api/funding',
+    assertion: 'Asserts a schema-valid funding receipt on the derived board response.',
+  },
+  'open-interest': {
+    testFile: 'apps/server/src/dataCoverage.test.ts',
+    routePath: '/api/oi-concentration',
+    assertion: 'Asserts a schema-valid open-interest receipt on the derived board response.',
+  },
+  'open-interest-history': {
+    testFile: 'apps/server/src/dataCoverage.test.ts',
+    routePath: '/api/oi-delta',
+    assertion: 'Asserts the OI-history input is represented by the OI-delta derived receipt lineage.',
+  },
+  'venue-arbitrage': {
+    testFile: 'apps/server/src/dataCoverage.test.ts',
+    routePath: '/api/venue-arb',
+    assertion: 'Asserts schema-valid venue-arbitrage receipts on board metadata and rows.',
+  },
+} as const satisfies Partial<Record<TrustDatasetFamily, RouteDerivedFamilyEvidence>>;
 
 afterEach(() => {
   vi.useRealTimers();
@@ -240,6 +261,19 @@ describe('provider capability conformance', () => {
     expect(report.issues).toContain(
       'active capability family was neither probed nor explicitly route-derived: funding',
     );
+  });
+
+  it('rejects opaque approval text as route-derived family evidence', async () => {
+    const provider = new MockProvider(() => NOW);
+    const report = await runProviderConformanceKit({
+      provider,
+      nowMs: NOW,
+      probes: [],
+      routeDerivedFamilyEvidence: {
+        funding: 'ok' as unknown as RouteDerivedFamilyEvidence,
+      },
+    });
+    expect(report.issues).toContain('funding: invalid route-derived family evidence');
   });
 
   it('runs live, unavailable, and malformed Yahoo scenarios without network access', async () => {

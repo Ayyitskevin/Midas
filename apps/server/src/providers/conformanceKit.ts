@@ -20,6 +20,15 @@ export interface ProviderConformanceProbe {
   run: () => unknown | Promise<unknown>;
 }
 
+export interface RouteDerivedFamilyEvidence {
+  /** Repository-relative hermetic test file that exercises the route. */
+  testFile: string;
+  /** Concrete HTTP route whose response derives the family receipt. */
+  routePath: string;
+  /** Specific assertion made by that test, not a generic approval token. */
+  assertion: string;
+}
+
 export interface ProviderConformanceScenario {
   provider: DataProvider;
   /** Injected provider clock expected on every accepted observation. */
@@ -30,7 +39,7 @@ export interface ProviderConformanceScenario {
    * family-specific receipt is therefore exercised at the HTTP derivation
    * boundary. Every exemption must name the concrete hermetic evidence.
    */
-  routeDerivedFamilyEvidence?: Partial<Record<TrustDatasetFamily, string>>;
+  routeDerivedFamilyEvidence?: Partial<Record<TrustDatasetFamily, RouteDerivedFamilyEvidence>>;
 }
 
 export interface ProviderConformanceReport {
@@ -78,6 +87,21 @@ function privateText(value: unknown): boolean {
     text = String(value);
   }
   return containsSensitiveReceiptText(text);
+}
+
+function isRouteDerivedFamilyEvidence(value: unknown): value is RouteDerivedFamilyEvidence {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const evidence = value as Record<string, unknown>;
+  if (Object.keys(evidence).sort().join(',') !== 'assertion,routePath,testFile') return false;
+  const { assertion, routePath, testFile } = evidence;
+  if (typeof assertion !== 'string' || assertion.trim().length < 20) return false;
+  if (typeof routePath !== 'string' || !/^\/api\/[a-z0-9][a-z0-9_/:.-]*$/i.test(routePath)) return false;
+  if (
+    typeof testFile !== 'string' ||
+    !/^apps\/server\/src\/[a-z0-9_./-]+\.test\.ts$/i.test(testFile) ||
+    testFile.split('/').includes('..')
+  ) return false;
+  return true;
 }
 
 function inspectReceipt(
@@ -197,10 +221,15 @@ export async function runProviderConformanceKit(
   for (const family of TRUST_DATASET_FAMILIES) {
     const capability = manifest.capabilities[family];
     if (capability.support === 'unsupported' || probedFamilies.has(family)) continue;
-    const evidence = routeDerivedFamilyEvidence[family]?.trim();
-    if (!evidence) {
+    const evidence = routeDerivedFamilyEvidence[family];
+    if (evidence === undefined) {
       issues.push(`active capability family was neither probed nor explicitly route-derived: ${family}`);
-    } else if (privateText(evidence)) {
+    } else if (!isRouteDerivedFamilyEvidence(evidence)) {
+      issues.push(`${family}: invalid route-derived family evidence`);
+    } else if (privateText({ testFile: evidence.testFile, assertion: evidence.assertion })) {
+      // routePath is a validated public `/api/...` identifier; the general
+      // secret/path detector intentionally treats any absolute path as
+      // machine-local, so only the free-text fields go through that detector.
       issues.push(`${family}: route-derived family evidence contains private or machine-local text`);
     }
   }
