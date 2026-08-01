@@ -48,5 +48,8 @@ jobs:
       - name: Bundle budget
         run: node scripts/check-bundle.mjs
 
+      - name: Static demo build
+        run: pnpm --filter @midas/web build:demo
+
       - name: Test
         run: pnpm test
