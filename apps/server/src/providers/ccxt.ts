@@ -8,12 +8,19 @@ import type {
   Candle,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
+  DvolSymbol,
   LiquidationsProvenance,
   FundingHistoryPoint,
   HistoryResponse,
   Interval,
   NewsItem,
+  OiDelta,
+  OiDeltaPoint,
+  OiDeltaWindow,
   OpenOrders,
+  OptionsChain,
+  OptionsChainEntry,
   OrderBook,
   OrderRequest,
   PlacedOrder,
@@ -28,9 +35,12 @@ import type {
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
+  TermStructure,
+  TermStructurePoint,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
+import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
@@ -96,13 +106,57 @@ function intervalForSeconds(sec: number): Interval | null {
 
 /**
  * The provider-level execution safety hold, in the exact shape the route layer
- * returns for POST/DELETE /api/orders (error name TradingSafetyHold, the shared
- * reason constant, 503) so clients cannot tell the two layers apart.
+ * returns for POST /api/orders (error name TradingSafetyHold, the shared
+ * reason constant, 503) so clients cannot tell the two layers apart. Placement
+ * only — cancellation is live under the cancel-only posture.
  */
 function tradingSafetyHold(): ProviderError {
   const err = new ProviderError(EXECUTION_SAFETY_HOLD_REASON, 503);
   err.name = 'TradingSafetyHold';
   return err;
+}
+
+/**
+ * Map a failed cancel attempt to an honest outcome. The raw ccxt error message
+ * is inspected ONLY for classification — it can embed the signed request URL
+ * (HMAC signature / API key), so client-facing text is always rebuilt.
+ *
+ * - no exchange verdict (timeout/network) → 502 "outcome unknown": the cancel
+ *   may or may not have landed; never claim canceled when unknown.
+ * - order no longer open (filled / already canceled) → 409.
+ * - any other rejection → 502: the cancel did NOT happen, order still open.
+ */
+function classifyCancelError(err: unknown, id: string, symbol: string): ProviderError {
+  if (err instanceof ProviderError) return err;
+  const name = err instanceof Error ? err.name : '';
+  const rawMsg = err instanceof Error ? err.message : '';
+  if (
+    err instanceof ccxt.NetworkError ||
+    ['RequestTimeout', 'ExchangeNotAvailable', 'DDoSProtection', 'NetworkError'].includes(name)
+  ) {
+    return new ProviderError(
+      `Cancel outcome UNKNOWN for order ${id} on ${symbol} — the exchange did not confirm (${safeErrorLabel(err)}). ` +
+        'Check the exchange for the true order state before assuming it is open or canceled.',
+      502,
+      symbol,
+    );
+  }
+  if (
+    name === 'OrderNotFound' ||
+    name === 'InvalidOrder' ||
+    /already (filled|cancelled|canceled|closed)|order does not exist|unknown order/i.test(rawMsg)
+  ) {
+    return new ProviderError(
+      `Order ${id} on ${symbol} is no longer open — already filled or canceled (it may also rest on another venue of this account).`,
+      409,
+      symbol,
+    );
+  }
+  return new ProviderError(
+    `Cancel rejected by the exchange for order ${id} on ${symbol} (${safeErrorLabel(err)}) — the order should still be open.`,
+    502,
+    symbol,
+  );
 }
 
 /** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
@@ -111,6 +165,14 @@ export interface CcxtUserCreds {
   apiKey: string;
   secret: string;
   password?: string;
+}
+
+/** The fields the options surface reads off a ccxt option-chain entry. */
+interface DeribitOptionQuote {
+  openInterest?: number;
+  markPrice?: number;
+  underlyingPrice?: number;
+  info?: { mark_iv?: number };
 }
 
 /**
@@ -833,14 +895,33 @@ export class CcxtProvider implements DataProvider {
   }
 
   /**
-   * Cancel a resting order. FAIL-CLOSED under the execution safety hold:
-   * throws the same TradingSafetyHold shape the route layer returns
-   * (routes/account.ts) so the hold cannot be bypassed by a future caller that
-   * reaches the provider directly. Resting orders must be managed directly at
-   * the exchange until the write path is repaired.
+   * Cancel a resting order. LIVE under the cancel-only posture: the route
+   * (routes/account.ts) proves the id sits in the caller's OWN open-orders
+   * list before this is ever called, so this write can only reduce the
+   * caller's exposure — it moves no funds, needs no notional cap.
+   *
+   * Outcomes are honest: exchange confirmation → CancelResult; already
+   * filled/canceled → 409; timeout/network → 502 "outcome unknown" (never a
+   * claimed cancel); other rejections → 502 with the order still open.
+   * Errors are classified WITHOUT leaking the raw ccxt message (signed URLs).
    */
-  async cancelOrder(_id: string, _symbol: string): Promise<CancelResult> {
-    throw tradingSafetyHold();
+  async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
+    if (!this.exchange.has['cancelOrder']) {
+      throw new ProviderError(`${this.name} does not support order cancellation.`, 501);
+    }
+    const sym = this.normalize(symbol);
+    try {
+      const raw = (await this.exchange.cancelOrder(id, sym)) as unknown as Record<string, unknown> | null;
+      const o = raw ?? {};
+      const strField = (v: unknown): string => (typeof v === 'string' ? v : '');
+      return {
+        id: strField(o.id) || id,
+        symbol: strField(o.symbol) || sym,
+        status: strField(o.status) || 'canceled',
+      };
+    } catch (err) {
+      throw classifyCancelError(err, id, sym);
+    }
   }
 
   /**
@@ -869,6 +950,377 @@ export class CcxtProvider implements DataProvider {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * OI-delta positioning for a perp over a lookback window: the venue's OI
+   * history (fetchOpenInterestHistory, where the venue publishes one — Binance,
+   * Bybit, OKX, Gate do; Deribit and Kraken Futures do not) paired with OHLCV
+   * closes over the same window, then reduced to the ΔOI × Δprice quadrant by
+   * the shared summarizeOiDelta helper.
+   *
+   * Alignment: each OI observation is paired with the close of the price bar
+   * whose floor-aligned bucket it falls into — bucket width = the OI timeframe
+   * (5m/15m/1h/4h per window). Some venues timestamp OI at the PERIOD END while
+   * OHLCV bars are stamped at the period start, so an observation one bucket
+   * ahead of its bar is paired back one bucket; anything further off is left
+   * price-null (the change is computed off priced points only — never an
+   * interpolated price).
+   *
+   * A venue without an OI-history read, an empty history, or a failed read is
+   * an honest 'unavailable' — a delta is NEVER synthesized from two
+   * point-in-time snapshots and presented as history.
+   */
+  async getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
+    const perp = toPerpSymbol(this.normalize(symbol));
+    const source = `ccxt:${this.exchange.id ?? 'unknown'}`;
+    const unavailable = (note: string): OiDelta => ({
+      symbol: perp,
+      window,
+      oiNow: null,
+      oiThen: null,
+      oiChangePct: null,
+      priceChangePct: null,
+      classification: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source,
+      note,
+    });
+    if (!this.exchange.has['fetchOpenInterestHistory']) {
+      return unavailable(
+        `${source} publishes no open-interest history (fetchOpenInterestHistory unsupported) — an OI delta needs real history, not two snapshots.`,
+      );
+    }
+    // OI granularity per window: fine enough for a sparkline, coarse enough to
+    // stay within the venues' published OI-history timeframes.
+    const oiTimeframe = ({ '1h': '5m', '4h': '15m', '24h': '1h', '7d': '4h' } as Record<OiDeltaWindow, string>)[window];
+    const bucketMs = timeframeSeconds(oiTimeframe) * 1000;
+    const since = Date.now() - OI_DELTA_WINDOW_MS[window];
+    let rows: Array<{ timestamp?: number; openInterestValue?: number }>;
+    try {
+      rows = (await this.exchange.fetchOpenInterestHistory(perp, oiTimeframe, since, 500)) as unknown as Array<{
+        timestamp?: number;
+        openInterestValue?: number;
+      }>;
+    } catch (err) {
+      return unavailable(`OI-history read failed — ${safeErrorLabel(err)}.`);
+    }
+    const oiRows = rows.filter(
+      (r) => r.timestamp != null && r.openInterestValue != null && Number.isFinite(r.openInterestValue) && r.openInterestValue > 0,
+    );
+    if (oiRows.length === 0) {
+      return unavailable(`${source} returned no open-interest history for ${perp} — nothing to delta.`);
+    }
+
+    // Price leg: OHLCV closes over the same window, perp first, the spot pair
+    // as fallback (a venue may not candle its perp on the same symbol form).
+    // A failed price leg degrades the price points to null — the OI change and
+    // history stay live, the price change honestly null.
+    let candles: Array<[number, number, number, number, number, number]> = [];
+    for (const cand of [perp, this.normalize(symbol)]) {
+      try {
+        const got = (await this.exchange.fetchOHLCV(cand, oiTimeframe, since, 500)) as unknown as Array<
+          [number, number, number, number, number, number]
+        >;
+        if (got.length > 0) {
+          candles = got;
+          break;
+        }
+      } catch {
+        // try the next symbol form
+      }
+    }
+    const closeByBucket = new Map<number, number>();
+    for (const c of candles) {
+      if (Number.isFinite(c[0]) && Number.isFinite(c[4]) && c[4] > 0) {
+        closeByBucket.set(Math.floor(c[0] / bucketMs) * bucketMs, c[4]);
+      }
+    }
+
+    const points: OiDeltaPoint[] = oiRows.map((r) => {
+      const ts = r.timestamp as number;
+      const b = Math.floor(ts / bucketMs) * bucketMs;
+      // Period-end vs period-start convention: fall back one bucket (see the
+      // method doc for the alignment tolerance).
+      const price = closeByBucket.get(b) ?? closeByBucket.get(b - bucketMs) ?? null;
+      return { timestamp: ts, openInterestValue: r.openInterestValue as number, price };
+    });
+    points.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      symbol: perp,
+      window,
+      ...summarizeOiDelta(points),
+      points,
+      provenance: 'live',
+      source,
+      note: null,
+    };
+  }
+
+  // -- Deribit options / DVOL / term structure ------------------------------
+  //
+  // Options and dated-futures boards are read from DERIBIT regardless of
+  // MIDAS_CCXT_EXCHANGE: Deribit is where BTC/ETH options and the DVOL index
+  // actually trade (the configured venue — e.g. binance — lists no European
+  // options and no volatility index). A dedicated, public (keyless) client is
+  // used, built lazily so a non-crypto deployment never constructs it. Every
+  // read is READ-ONLY market data; failures degrade to an honest 'unavailable'
+  // snapshot with a sanitized note — never a fabricated level, basis or OI.
+
+  private deribitClient: Exchange | null = null;
+
+  /** The lazy, public Deribit client for the options surface. */
+  private deribit(): Exchange {
+    if (!this.deribitClient) {
+      this.deribitClient = new (ccxtRegistry()['deribit'])({ enableRateLimit: true });
+    }
+    return this.deribitClient;
+  }
+
+  /** Base asset of any symbol form — BTC/USDT, BTC-USD or BTC all give BTC. */
+  private baseAsset(symbol: string): string {
+    return this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
+  }
+
+  private async dvolUnavailable(symbol: DvolSymbol, note: string): Promise<DvolSnapshot> {
+    return { symbol, value: null, history: [], asOf: null, provenance: 'unavailable', source: 'ccxt:deribit', note };
+  }
+
+  /**
+   * The Deribit DVOL volatility index (30-day forward-looking implied vol).
+   * ccxt exposes no unified method for it, so this uses the deribit client's
+   * implicit get_volatility_index_data endpoint — guarded by a typeof check,
+   * and any failure is an honest 'unavailable', never a synthesized level.
+   */
+  async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
+    const ex = this.deribit() as Exchange & {
+      publicGetGetVolatilityIndexData?: (params: Record<string, unknown>) => Promise<unknown>;
+    };
+    if (typeof ex.publicGetGetVolatilityIndexData !== 'function') {
+      return this.dvolUnavailable(symbol, 'The installed ccxt build exposes no Deribit volatility-index endpoint — DVOL is unavailable.');
+    }
+    try {
+      const end = Date.now();
+      const res = (await ex.publicGetGetVolatilityIndexData({
+        currency: symbol,
+        start_timestamp: end - 40 * 86_400_000,
+        end_timestamp: end,
+        resolution: '1D',
+      })) as { result?: { data?: unknown } };
+      // Rows are [timestamp_ms, open, high, low, close] — the daily index fixes.
+      const rows = Array.isArray(res?.result?.data) ? (res.result.data as number[][]) : [];
+      const history = rows
+        .filter((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[4]) && r[4] > 0)
+        .map((r) => ({ time: r[0], value: r[4] }));
+      const last = history[history.length - 1];
+      if (!last) {
+        return this.dvolUnavailable(symbol, `Deribit returned no DVOL fixes for ${symbol} — nothing to show.`);
+      }
+      return {
+        symbol,
+        value: last.value,
+        history,
+        asOf: last.time,
+        provenance: 'live',
+        source: 'ccxt:deribit',
+        note: null,
+      };
+    } catch (err) {
+      return this.dvolUnavailable(symbol, `Deribit DVOL read failed — ${safeErrorLabel(err)}.`);
+    }
+  }
+
+  /**
+   * Dated-futures term structure for an underlying from Deribit: the listed
+   * futures (swap:false, future:true) priced from their tickers, with the
+   * annualized basis vs the perpetual mark. Futures with no usable price are
+   * dropped rather than shown with a fabricated basis; an underlying with no
+   * dated futures is an honest 'unavailable'.
+   */
+  async getFuturesTermStructure(symbol: string): Promise<TermStructure> {
+    const base = this.baseAsset(symbol);
+    const now = Date.now();
+    const unavailable = (note: string): TermStructure => ({
+      underlying: base,
+      referencePrice: null,
+      perpPrice: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source: 'ccxt:deribit',
+      note,
+    });
+    const ex = this.deribit();
+    try {
+      await ex.loadMarkets();
+    } catch (err) {
+      return unavailable(`Deribit markets unreadable — ${safeErrorLabel(err)}.`);
+    }
+    const markets = Object.values(ex.markets ?? {}) as Array<{
+      symbol: string;
+      base?: string;
+      active?: boolean;
+      swap?: boolean;
+      future?: boolean;
+      expiry?: number;
+    }>;
+    const futures = markets.filter(
+      (m) => m.future === true && m.swap !== true && m.base === base && m.active !== false && typeof m.expiry === 'number' && m.expiry > now,
+    );
+    if (futures.length === 0) {
+      return unavailable(`Deribit lists no active dated ${base} futures — no term structure to show.`);
+    }
+    const perp = markets.find((m) => m.swap === true && m.base === base);
+    const wanted = [...futures.map((f) => f.symbol), ...(perp ? [perp.symbol] : [])];
+    // One batched read; a venue that rejects the batch falls back per-symbol so
+    // one bad instrument doesn't sink the board (same pattern as priceAssetsUsd).
+    const tickers: Record<string, Ticker> = {};
+    try {
+      Object.assign(tickers, await ex.fetchTickers(wanted));
+    } catch {
+      await Promise.all(
+        wanted.map(async (s) => {
+          try {
+            tickers[s] = await ex.fetchTicker(s);
+          } catch {
+            // leave this instrument unpriced — its point is dropped below
+          }
+        }),
+      );
+    }
+    const perpPrice = perp ? tickerPrice(tickers[perp.symbol] ?? {}) : null;
+    const points: TermStructurePoint[] = [];
+    for (const f of futures) {
+      const price = tickerPrice(tickers[f.symbol] ?? {});
+      const days = (f.expiry! - now) / 86_400_000;
+      const basis = annualizedBasisPct(price, perpPrice, days);
+      // No price or no basis → the point is dropped, never zeroed in.
+      if (price == null || basis == null) continue;
+      points.push({ expiry: f.expiry!, futureSymbol: f.symbol, price, annualizedBasisPct: basis, daysToExpiry: days });
+    }
+    points.sort((a, b) => a.expiry - b.expiry);
+    return {
+      underlying: base,
+      referencePrice: perpPrice,
+      perpPrice,
+      points: points.slice(0, 12),
+      asOf: now,
+      provenance: 'live',
+      source: 'ccxt:deribit',
+      note: perpPrice == null ? 'No Deribit perpetual price — basis could not be referenced to the perp.' : null,
+    };
+  }
+
+  /**
+   * Options chain for an underlying at one expiry (nearest by default), from
+   * Deribit's single book-summary-by-currency read: strikes around the money
+   * with call/put OI and marks, plus max pain and the put/call OI ratio from
+   * the shared helpers. Marks convert from the inverse (base-currency) quote
+   * to USD via the underlying price. IV is passed through only when the venue
+   * reports it (mark_iv) — never implied from the mark.
+   */
+  async getOptionsChain(symbol: string, expiry: number | 'nearest' = 'nearest'): Promise<OptionsChain> {
+    const base = this.baseAsset(symbol);
+    const now = Date.now();
+    const unavailable = (note: string): OptionsChain => ({
+      underlying: base,
+      expiry: typeof expiry === 'number' ? expiry : 0,
+      underlyingPrice: null,
+      entries: [],
+      maxPainStrike: null,
+      putCallOiRatio: null,
+      asOf: null,
+      provenance: 'unavailable',
+      source: 'ccxt:deribit',
+      note,
+    });
+    const ex = this.deribit();
+    if (!ex.has['fetchOptionChain']) {
+      return unavailable('The installed ccxt build exposes no Deribit option-chain read.');
+    }
+    try {
+      await ex.loadMarkets();
+    } catch (err) {
+      return unavailable(`Deribit markets unreadable — ${safeErrorLabel(err)}.`);
+    }
+    const markets = Object.values(ex.markets ?? {}) as Array<{
+      symbol: string;
+      base?: string;
+      active?: boolean;
+      option?: boolean;
+      expiry?: number;
+      strike?: number;
+      optionType?: string;
+    }>;
+    const options = markets.filter(
+      (m) => m.option === true && m.base === base && m.active !== false && typeof m.expiry === 'number' && m.expiry > now && typeof m.strike === 'number',
+    );
+    if (options.length === 0) {
+      return unavailable(`Deribit lists no active ${base} options — no chain to show.`);
+    }
+    const target = expiry === 'nearest' ? Math.min(...options.map((m) => m.expiry!)) : expiry;
+    const chainMarkets = options.filter((m) => m.expiry === target);
+    if (chainMarkets.length === 0) {
+      return unavailable(`Deribit lists no ${base} options for the requested expiry.`);
+    }
+    let chain: Record<string, DeribitOptionQuote>;
+    try {
+      chain = (await ex.fetchOptionChain(base)) as unknown as Record<string, DeribitOptionQuote>;
+    } catch (err) {
+      return unavailable(`Deribit option-chain read failed — ${safeErrorLabel(err)}.`);
+    }
+    // The venue's own underlying price, from any entry that reports it.
+    let underlyingPrice: number | null = null;
+    for (const m of chainMarkets) {
+      const p = chain[m.symbol]?.underlyingPrice;
+      if (typeof p === 'number' && Number.isFinite(p) && p > 0) {
+        underlyingPrice = p;
+        break;
+      }
+    }
+    const byStrike = new Map<number, OptionsChainEntry>();
+    for (const m of chainMarkets) {
+      const q = chain[m.symbol];
+      const entry = byStrike.get(m.strike!) ?? { strike: m.strike!, expiry: target, callOi: null, putOi: null, callMark: null, putMark: null, iv: null };
+      const oi = q && Number.isFinite(q.openInterest) ? q.openInterest! : null;
+      // Deribit inverse options quote marks in the base currency → USD via the
+      // underlying price; without it the mark stays null, never a raw BTC number.
+      const markUsd = q && Number.isFinite(q.markPrice) && underlyingPrice != null ? q.markPrice! * underlyingPrice : null;
+      const iv = q && Number.isFinite(q.info?.mark_iv) ? q.info!.mark_iv! : null;
+      if (m.optionType === 'call') {
+        entry.callOi = oi;
+        entry.callMark = markUsd;
+      } else {
+        entry.putOi = oi;
+        entry.putMark = markUsd;
+      }
+      if (iv != null) entry.iv = iv;
+      byStrike.set(m.strike!, entry);
+    }
+    // Bound to the strikes around the money: sort by distance from the
+    // underlying (or by OI when no underlying price) and keep the closest 24.
+    const all = [...byStrike.values()];
+    const kept = (
+      underlyingPrice != null
+        ? all.sort((a, b) => Math.abs(a.strike - underlyingPrice) - Math.abs(b.strike - underlyingPrice))
+        : all.sort((a, b) => (b.callOi ?? 0) + (b.putOi ?? 0) - ((a.callOi ?? 0) + (a.putOi ?? 0)))
+    ).slice(0, 24);
+    kept.sort((a, b) => a.strike - b.strike);
+    return {
+      underlying: base,
+      expiry: target,
+      underlyingPrice,
+      entries: kept,
+      maxPainStrike: computeMaxPainStrike(kept),
+      putCallOiRatio: computePutCallOiRatio(kept),
+      asOf: now,
+      provenance: 'live',
+      source: 'ccxt:deribit',
+      note: underlyingPrice == null ? 'No underlying price reported — USD marks are unavailable.' : null,
+    };
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {

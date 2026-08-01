@@ -6,14 +6,19 @@ import type {
   CoinUniverse,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
+  DvolSymbol,
   FundingHistoryPoint,
   OpenOrders,
+  OptionsChain,
   OrderRequest,
   PlacedOrder,
   HistoryResponse,
   Interval,
   LiquidationsProvenance,
   NewsItem,
+  OiDelta,
+  OiDeltaWindow,
   OrderBook,
   Quote,
   Range,
@@ -27,6 +32,7 @@ import type {
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
+  TermStructure,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -128,15 +134,44 @@ export interface DataProvider {
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
   /**
+   * OI-delta positioning for a perp over a lookback window (optional): the
+   * open-interest change vs the price change, classified into the four
+   * positioning quadrants (long buildup / short buildup / long unwind / short
+   * covering). Needs a real OI-history read — venues without one (e.g. Deribit)
+   * get an honest 'unavailable' snapshot, never a delta synthesized from two
+   * snapshots. Honestly labeled, nulls over fabrication.
+   */
+  getOiDelta?(symbol: string, window: OiDeltaWindow): Promise<OiDelta>;
+  /**
+   * DVOL volatility-index snapshot for BTC/ETH (optional). Deribit-native —
+   * the ccxt provider reads it from Deribit regardless of the configured
+   * exchange; providers that omit it get an honest 'unavailable' snapshot from
+   * the route. Read-only, honestly labeled.
+   */
+  getDvol?(symbol: DvolSymbol): Promise<DvolSnapshot>;
+  /**
+   * Dated-futures term structure for an underlying (optional) — the calendar
+   * curve of annualized basis vs the perp/spot reference. Deribit-native for
+   * the same reason as getDvol; honestly labeled, nulls over fabrication.
+   */
+  getFuturesTermStructure?(symbol: string): Promise<TermStructure>;
+  /**
+   * Options chain for an underlying at one expiry (optional): strikes around
+   * the money with call/put OI and marks, max pain and the put/call OI ratio.
+   * `expiry` is 'nearest' (default) or an epoch-millis expiry. Deribit-native;
+   * honestly labeled, nulls over fabrication.
+   */
+  getOptionsChain?(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain>;
+  /**
    * Place a LIVE order (optional — ccxt only). The single write in the data layer.
    * Reached only when live trading is explicitly enabled, validated and capped by
    * the route; providers that omit it cannot trade.
    */
   placeOrder?(req: OrderRequest): Promise<PlacedOrder>;
   /**
-   * Cancel a resting order (optional — ccxt only). Risk-REDUCING write, gated
-   * by the same trading switches as placement: a trader who can place a limit
-   * order must be able to pull it.
+   * Cancel a resting order (optional). Risk-REDUCING write — live under the
+   * cancel-only posture. The route proves the order belongs to the caller
+   * before calling this; providers that omit it cannot cancel.
    */
   cancelOrder?(id: string, symbol: string): Promise<CancelResult>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

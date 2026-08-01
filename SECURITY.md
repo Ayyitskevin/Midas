@@ -16,9 +16,11 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
 
 - **Your funds never touch Midas.** The terminal reads market data and (when you
   configure a provider) reads from your exchange — it does not custody assets.
-- **Execution is held.** Account access is read-only (balances, orders,
-  positions, and fills). Order placement and in-app cancellation return
+- **Placement is held; cancellation is cancel-only.** Account access is
+  read-only (balances, orders, positions, and fills). Order placement returns
   `503 TradingSafetyHold` regardless of environment flags or key metadata.
+  Canceling your OWN resting order is live, ownership-gated (the order must
+  appear in your key's open-orders list first — no operator-account fallback).
   Midas never moves, withdraws, or custodies funds.
 - **Bring-your-own data source.** With the default `mock` provider, nothing
   leaves your machine. Live providers (`ccxt`, `yahoo`) talk to public market
@@ -82,14 +84,19 @@ AI boundaries.
 
 ## Execution safety hold
 
-Live order placement is currently **NO-GO**. `POST /api/orders` and
-`DELETE /api/orders/:id` fail with `503 TradingSafetyHold` before resolving a
-provider mutation. `GET /api/trading/status` reports the same hold reason to the
-terminal, which keeps `TICKET` in preview-only mode and `ORD` read-only.
+Live order placement is currently **NO-GO**. `POST /api/orders` fails with
+`503 TradingSafetyHold` before resolving a provider mutation. Cancellation is
+**cancel-only**: `DELETE /api/orders/:id` is live, but only after the route
+proves the order sits in the caller's OWN open-orders list (no operator-account
+fallback), and its outcomes are honest (`409` already filled/canceled, `502`
+outcome unknown). `GET /api/trading/status` reports the cancel-only posture to
+the terminal, which keeps `TICKET` in preview-only mode and offers the
+two-step cancel in `ORD`.
 
 No value of `MIDAS_TRADING_ENABLED`, `MIDAS_TRADING_ALLOW_NO_AUTH`, the notional
 cap variables, operator credentials, stored user credentials, or `canTrade`
-metadata bypasses the hold. Manage existing resting orders at the exchange.
+metadata bypasses the placement hold. New orders must be placed at the
+exchange; resting orders can be pulled from `ORD` or the API.
 
 The re-enable criteria are documented in
 [docs/EXECUTION_SAFETY_HOLD.md](docs/EXECUTION_SAFETY_HOLD.md). Until every item

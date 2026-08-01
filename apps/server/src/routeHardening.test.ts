@@ -68,6 +68,7 @@ describe('repeated query params no longer 500 the API', () => {
     ['/api/funding-dispersion', '/api/funding-dispersion?quote=USDT&quote=ETH&limit=3'],
     ['/api/venue-arb', '/api/venue-arb?quote=USDT&quote=ETH&limit=3'],
     ['/api/oi-concentration', '/api/oi-concentration?quote=USDT&quote=ETH&limit=3'],
+    ['/api/oi-delta', '/api/oi-delta?symbol=BTC%2FUSDT&symbol=ETH%2FUSDT&window=24h&window=4h'],
     ['/api/liquidations', '/api/liquidations?quote=USDT&quote=ETH&limit=3'],
     ['/api/search', '/api/search?q=BTC&q=ETH'],
     ['/api/news', '/api/news?symbol=BTC%2FUSDT&symbol=ETH%2FUSDT'],

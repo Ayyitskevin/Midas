@@ -1,8 +1,10 @@
 # Midas repository instructions
 
 Midas is a pre-release, self-hosted market-research terminal. Treat the
-repository as a safety-sensitive read-only system: it does not custody funds,
-and the execution hold is the authority for order placement and cancellation.
+repository as a safety-sensitive, non-custodial system: it does not custody
+funds, and the execution hold is the authority for order placement. The posture
+is **cancel-only**: placement is fail-closed; canceling the caller's own
+resting orders is live.
 
 ## Review and branch discipline
 
@@ -26,9 +28,13 @@ and the execution hold is the authority for order placement and cancellation.
   fixtures.
 - Every surface labels data as live, synthetic/demo, or unavailable. Missing
   evidence is not permission to fabricate a value.
-- `POST /api/orders` and `DELETE /api/orders/:id` remain fail-closed with
-  `503 TradingSafetyHold`. Do not weaken this boundary through an environment
-  flag, a test helper, or UI copy.
+- `POST /api/orders` remains fail-closed with `503 TradingSafetyHold`. Do not
+  weaken this boundary through an environment flag, a test helper, or UI copy.
+- `DELETE /api/orders/:id` is cancel-only: live, but ownership-gated — the
+  order must sit in the caller's OWN open-orders list (no operator-account
+  fallback) before any cancel call, and ambiguous outcomes are reported
+  honestly (409 already filled/canceled, 502 outcome unknown). Do not extend
+  this to placement or to orders the caller does not own.
 
 ## Required verification
 

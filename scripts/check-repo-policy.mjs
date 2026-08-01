@@ -4,7 +4,9 @@
  *
  * Fails if load-bearing policy docs drift away from:
  * - `main` as the review base / merge gate
- * - fail-closed TradingSafetyHold on order routes
+ * - fail-closed TradingSafetyHold on order placement (POST /api/orders)
+ * - the cancel-only posture (live, ownership-gated cancellation) being
+ *   documented with its carve-out controls
  *
  * Pure filesystem reads; no network, no exchange, no secrets.
  */
@@ -46,6 +48,7 @@ export function checkRepoPolicy(root = REPO_ROOT) {
     '`main` is the review base and merge gate',
     'TradingSafetyHold',
     'POST /api/orders',
+    'cancel-only',
   ]);
 
   mustContain('contributing-branch', 'CONTRIBUTING.md', [
@@ -56,6 +59,8 @@ export function checkRepoPolicy(root = REPO_ROOT) {
     'TradingSafetyHold',
     'POST /api/orders',
     'Re-enable gate',
+    'Cancellation carve-out',
+    'cancel-only',
   ]);
 
   mustContain('ci-workflow', '.github/workflows/ci.yml', [

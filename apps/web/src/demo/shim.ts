@@ -1,4 +1,4 @@
-import { MIDAS_VERSION } from '@midas/shared';
+import { isOiDeltaWindow, MIDAS_VERSION } from '@midas/shared';
 import type { HealthResponse, SystemStatus, TradingStatus } from '@midas/shared';
 import {
   DEMO_SOURCE,
@@ -7,6 +7,7 @@ import {
   coinUniverseFor,
   derivativesFor,
   dexPoolsFor,
+  dvolFor,
   fillsFor,
   fundingDispersionRows,
   fundingHistoryFor,
@@ -15,7 +16,9 @@ import {
   liquidationsFeed,
   newsFor,
   oiConcentrationRows,
+  oiDeltaFor,
   openOrdersFor,
+  optionsChainFor,
   orderBookFor,
   positionsFor,
   quoteFor,
@@ -30,6 +33,7 @@ import {
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
+  termStructureFor,
   venueArbRows,
   venueDerivatives,
   venueQuotes,
@@ -62,7 +66,7 @@ const executionHeld = (): Response =>
   json(
     {
       error: 'TradingSafetyHold',
-      message: 'Execution safety hold: order placement and in-app cancellation are disabled. Order preview remains available.',
+      message: 'Execution safety hold: order placement is disabled. Order preview remains available; canceling your own resting orders works on a real server (cancel-only mode).',
       statusCode: 503,
     },
     503,
@@ -92,7 +96,11 @@ function handle(method: string, url: URL): Response | null {
 
   if (method !== 'GET') {
     if (path.startsWith('/api/alerts')) return unavailable('The server-side alert engine');
-    if (path.startsWith('/api/orders')) return executionHeld();
+    // Placement mirrors the server's fail-closed hold exactly. Cancellation is
+    // live on a real server, but the in-browser demo has no account to cancel
+    // against — it answers like the demo's other unavailable mutations.
+    if (method === 'POST' && path === '/api/orders') return executionHeld();
+    if (path.startsWith('/api/orders')) return unavailable('In-browser order cancellation');
     if (path.startsWith('/api/auth')) return unavailable('Accounts');
     if (path.startsWith('/api/account/keys')) return unavailable('Per-user exchange keys');
     // The AI copilot is a POST; without this it fell to the generic 501 below
@@ -166,6 +174,41 @@ function handle(method: string, url: URL): Response | null {
       return json(boardEnvelope(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path === '/api/oi-concentration':
       return json(boardEnvelope(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
+    // OI-delta positioning — synthetic parity with the server, same edge rules.
+    case path === '/api/oi-delta': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      const window = url.searchParams.get('window') ?? '24h';
+      // Mirror the server's edge: the window whitelist is 1h/4h/24h/7d.
+      if (!isOiDeltaWindow(window)) {
+        return json({ error: 'ProviderError', message: 'Invalid window — expected one of: 1h, 4h, 24h, 7d', statusCode: 400 }, 400);
+      }
+      return json(oiDeltaFor(sym, window, now));
+    }
+    // Options / DVOL / term structure — synthetic parity with the server.
+    case path === '/api/options/dvol': {
+      const raw = (url.searchParams.get('symbol') ?? '').toUpperCase().split('/')[0];
+      // Mirror the server's edge: DVOL is published for BTC and ETH only.
+      if (raw !== 'BTC' && raw !== 'ETH') {
+        return json({ error: 'ProviderError', message: 'DVOL is published for BTC and ETH only', statusCode: 400 }, 400);
+      }
+      return json(dvolFor(raw as 'BTC' | 'ETH', now));
+    }
+    case path === '/api/options/chain': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      const rawExpiry = url.searchParams.get('expiry') ?? 'nearest';
+      const expiry = rawExpiry === 'nearest' ? ('nearest' as const) : Number(rawExpiry);
+      if (expiry !== 'nearest' && (!Number.isFinite(expiry) || expiry <= 0)) {
+        return json({ error: 'ProviderError', message: 'Invalid expiry — expected "nearest" or an epoch-millis expiry', statusCode: 400 }, 400);
+      }
+      return json(optionsChainFor(sym, expiry, now));
+    }
+    case path === '/api/futures/term-structure': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      return json(termStructureFor(sym, now));
+    }
     case path.startsWith('/api/venue-derivatives/'):
       return json(venueDerivatives(seg(3), now));
     case path === '/api/screener': {
@@ -233,7 +276,11 @@ function handle(method: string, url: URL): Response | null {
     case path === '/api/trading/status': {
       const body: TradingStatus = {
         enabled: false,
-        reason: 'This is the public static demo. Midas execution is under a server safety hold; order preview remains available.',
+        // The static demo has no account at all, so even the server's
+        // cancel-only surface is honestly unavailable here.
+        cancelEnabled: false,
+        mode: 'off',
+        reason: 'This is the public static demo. On a real server Midas runs cancel-only: order placement is held, canceling your own resting orders is live. Order preview remains available.',
         maxOrderUsd: null,
         dailyCapUsd: null,
         dailyUsedUsd: 0,

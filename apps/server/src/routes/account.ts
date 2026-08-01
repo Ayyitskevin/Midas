@@ -12,11 +12,13 @@ const PER_USER_ACCOUNT_UNAVAILABLE_NOTE =
 
 /**
  * Read-only account routes (balances, orders, positions, fills, single-order
- * lookup) plus the execution safety hold. Auth-guarded when auth is enabled
+ * lookup) plus the execution posture. Auth-guarded when auth is enabled
  * (these are not public prefixes). With the per-user store enabled, every
  * authenticated caller resolves to their OWN exchange client or an honest
- * unavailable snapshot — never the operator's env-keyed account. The two
- * mutation endpoints fail closed regardless of keys or environment flags.
+ * unavailable snapshot — never the operator's env-keyed account. Placement
+ * fails closed regardless of keys or environment flags; cancellation is live
+ * but ownership-gated (the order must sit in the caller's own open-orders
+ * list before any cancel call is made).
  */
 export function registerAccountRoutes(app: FastifyInstance, pool: ProviderResolver): void {
   const unavailableBalances = (): Balances => ({
@@ -81,14 +83,18 @@ export function registerAccountRoutes(app: FastifyInstance, pool: ProviderResolv
     },
   );
 
-  // --- Execution safety hold -------------------------------------------------
-  // Market, account-read, paper, and preview routes stay available. The two
-  // mutation endpoints fail closed regardless of keys or environment flags.
-  // Existing resting orders must be managed directly at the exchange.
+  // --- Execution posture: cancel-only ---------------------------------------
+  // Market, account-read, paper, and preview routes stay available. Order
+  // PLACEMENT fails closed regardless of keys or environment flags. Order
+  // CANCELLATION is live for the authenticated owner of the order: it is
+  // risk-reducing (moves no funds, needs no notional caps), and forcing a
+  // trader to context-switch to the exchange UI to pull a resting order in a
+  // fast market is itself a safety hazard.
   app.get('/api/trading/status', async (req) => {
-    // Keep the hold unconditional, but report the same account-data source
-    // this caller's reads resolve to. A keyed user must not be told "mock"
-    // while BAL/ORD/POSN/FILLS are served by their isolated ccxt provider.
+    // Keep the placement hold unconditional, but report the same account-data
+    // source this caller's reads resolve to. A keyed user must not be told
+    // "mock" while BAL/ORD/POSN/FILLS are served by their isolated ccxt
+    // provider.
     return executionSafetyHoldStatus(pool.accountFor(req.userId)?.name ?? PER_USER_ACCOUNT_SOURCE);
   });
 
@@ -103,8 +109,36 @@ export function registerAccountRoutes(app: FastifyInstance, pool: ProviderResolv
     return safetyHoldResponse();
   });
 
-  app.delete('/api/orders/:id', async (_req, reply) => {
-    reply.status(503);
-    return safetyHoldResponse();
-  });
+  app.delete<{ Params: { id: string }; Querystring: { symbol?: string } }>(
+    '/api/orders/:id',
+    async (req) => {
+      const id = req.params.id.trim();
+      if (!id || id.length > 128) throw new ProviderError('Missing or malformed order id', 400);
+      // Resolve exactly like the account reads do: the operator session's base
+      // provider, or the caller's own per-user key — NEVER an operator-account
+      // fallback for a keyed deployment (pool.accountFor enforces this).
+      const account = pool.accountFor(req.userId);
+      if (!account) throw new ProviderError(PER_USER_ACCOUNT_UNAVAILABLE_NOTE, 503);
+      // Ownership proof BEFORE touching the exchange: the id must appear in
+      // THIS caller's open-orders list. An id that isn't there gets a 404 —
+      // never a blind cancel call.
+      const open = await account.getOpenOrders();
+      const mine = open.orders.find((o) => o.id === id);
+      if (!mine) {
+        throw new ProviderError(
+          `Order ${id} is not among this account's open orders — it may already be filled or canceled, or belong to a different account.`,
+          404,
+        );
+      }
+      if (!account.cancelOrder) {
+        throw new ProviderError('This provider cannot cancel orders.', 501);
+      }
+      // The exchange needs the symbol for most venues; trust the caller's own
+      // open-orders entry, with the query param as an override.
+      const symbol = normalizeSymbol(req.query.symbol) || mine.symbol;
+      // Provider outcomes are already honest: confirmed → 200 CancelResult,
+      // already filled/canceled → 409, timeout/unknown → 502 "outcome unknown".
+      return account.cancelOrder(id, symbol);
+    },
+  );
 }

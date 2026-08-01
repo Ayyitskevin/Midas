@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeOiConcentration, computeVenueArbRow } from '@midas/shared';
+import { computeFundingDispersion, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import type {
   AccountFills,
   AccountPositions,
@@ -9,6 +9,8 @@ import type {
   CoinUniverse,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
+  DvolSymbol,
   FundingDispersionRow,
   FundingHistoryPoint,
   FundingRow,
@@ -17,7 +19,12 @@ import type {
   Interval,
   LiquidationsFeed,
   NewsItem,
+  OiDelta,
+  OiDeltaPoint,
+  OiDeltaWindow,
   OpenOrders,
+  OptionsChain,
+  OptionsChainEntry,
   OrderBook,
   Quote,
   Range,
@@ -35,6 +42,8 @@ import type {
   SolanaValidator,
   SolanaValidators,
   SolanaWallet,
+  TermStructure,
+  TermStructurePoint,
   VenueArbRow,
   VenueDerivatives,
   VenueQuote,
@@ -444,6 +453,219 @@ export function oiConcentrationRows(quote: string, limit: number, now: number): 
     .map((a) => computeOiConcentration(`${a.base}/${quote}`, venueDerivatives(`${a.base}/${quote}`, now)))
     .filter((r) => r.totalOiValue !== null)
     .sort((a, b) => (b.totalOiValue ?? 0) - (a.totalOiValue ?? 0));
+}
+
+/**
+ * Synthetic OI-delta positioning — parity with the server mock (apps/server/
+ * src/providers/mock/oiDelta.ts). The price leg samples the demo's own
+ * time-anchored walk (priceAt), so the last point is the price every other
+ * panel shows; the OI walk is correlated with the price returns by a
+ * per-asset regime, so the four ΔOI × Δprice quadrants emerge from the series
+ * rather than being pasted on. Always labeled synthetic.
+ */
+export function oiDeltaFor(symbol: string, window: OiDeltaWindow, now: number): OiDelta {
+  const asset = assetFor(symbol);
+  const base = symbol.toUpperCase().split(/[/:]/)[0];
+  const perp = `${base}/USDT:USDT`;
+  if (!asset) {
+    return {
+      symbol: perp,
+      window,
+      oiNow: null,
+      oiThen: null,
+      oiChangePct: null,
+      priceChangePct: null,
+      classification: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source: DEMO_SOURCE,
+      note: 'Unknown demo asset.',
+    };
+  }
+  const N = 48;
+  const bucketMs = OI_DELTA_WINDOW_MS[window] / N;
+  const corr = u(`${asset.base}:oidregime`) * 2 - 1;
+  const amp = 0.5 + u(`${asset.base}:oidamp`) * 2; // OI % response per 1% of price
+  const mid = priceAt(asset, now);
+  const oiBase = Math.floor((1_000 + u(`${asset.base}:oidbase`) * 249_000) * (asset.price > 1000 ? 1 : 1000)) * mid;
+
+  const prices = Array.from({ length: N }, (_, i) => priceAt(asset, now - (N - 1 - i) * bucketMs));
+  const oiCum: number[] = [0];
+  for (let i = 1; i < N; i++) {
+    const priceRet = prices[i - 1] > 0 ? prices[i] / prices[i - 1] - 1 : 0;
+    const noise = (u(`${asset.base}:oidnoise${window}:${Math.floor((now - (N - 1 - i) * bucketMs) / bucketMs)}`) - 0.5) * 0.008;
+    oiCum.push(oiCum[i - 1] + corr * amp * priceRet + noise);
+  }
+  const points: OiDeltaPoint[] = prices.map((price, i) => ({
+    timestamp: now - (N - 1 - i) * bucketMs,
+    openInterestValue: Math.round(oiBase * Math.exp(oiCum[i])),
+    price: Math.round(price * 1e6) / 1e6,
+  }));
+
+  return {
+    symbol: perp,
+    window,
+    ...summarizeOiDelta(points),
+    points,
+    provenance: 'synthetic',
+    source: DEMO_SOURCE,
+    note: NOTE,
+  };
+}
+
+// --- Options / DVOL / futures term structure -------------------------------
+// Synthetic parity with the server mock (apps/server/src/providers/mock/
+// options.ts): a contango term structure, an IV smile, max pain near round
+// strikes, always labeled synthetic. Deribit-style Friday 08:00 UTC expiries
+// and instrument date codes, so the demo renders like the live surface.
+
+const OPTION_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** Deribit-style instrument date code: 27SEP24. */
+function optionDateCode(expiryMs: number): string {
+  const d = new Date(expiryMs);
+  return `${d.getUTCDate()}${OPTION_MONTHS[d.getUTCMonth()]}${String(d.getUTCFullYear()).slice(2)}`;
+}
+
+/** Next Friday 08:00 UTC (the Deribit expiry convention), `weeksOut` weeks later. */
+function fridayExpiry(now: number, weeksOut: number): number {
+  const d = new Date(now);
+  let delta = (5 - d.getUTCDay() + 7) % 7;
+  if (delta === 0 && d.getUTCHours() >= 8) delta = 7;
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + delta + weeksOut * 7, 8);
+}
+
+/** Strike step for an underlying of this price: round, Deribit-like increments. */
+function optionStrikeStep(mid: number): number {
+  if (mid >= 20_000) return 1_000;
+  if (mid >= 2_000) return 100;
+  if (mid >= 200) return 10;
+  if (mid >= 20) return 1;
+  return 0.5;
+}
+
+/** Synthetic DVOL snapshot — the same shape as the server mock's. */
+export function dvolFor(symbol: DvolSymbol, now: number): DvolSnapshot {
+  const day = Math.floor(now / 86_400_000);
+  const base = symbol === 'BTC' ? 52 : 63;
+  const history = Array.from({ length: 30 }, (_, i) => {
+    const d = day - (29 - i);
+    return {
+      time: d * 86_400_000,
+      value: Math.round((base + Math.sin(d / 4) * 6 + (u(`${symbol}:dvol${d}`) - 0.5) * 8) * 100) / 100,
+    };
+  });
+  const hour = Math.floor(now / 3_600_000);
+  const value = Math.round((history[history.length - 1].value + (u(`${symbol}:dvolh${hour}`) - 0.5) * 1.6) * 100) / 100;
+  return { symbol, value, history, asOf: now, provenance: 'synthetic', source: DEMO_SOURCE, note: NOTE };
+}
+
+/** Synthetic dated-futures term structure — gentle contango, nearest-first. */
+export function termStructureFor(symbol: string, now: number): TermStructure {
+  const asset = assetFor(symbol);
+  const base = symbol.toUpperCase().split(/[/:]/)[0];
+  if (!asset) {
+    return {
+      underlying: base,
+      referencePrice: null,
+      perpPrice: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source: DEMO_SOURCE,
+      note: 'Unknown demo asset.',
+    };
+  }
+  const mid = priceAt(asset, now);
+  const hour = Math.floor(now / 3_600_000);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const points: TermStructurePoint[] = [0, 1, 2, 4, 13].map((w) => {
+    const expiry = fridayExpiry(now, w);
+    const daysToExpiry = (expiry - now) / 86_400_000;
+    const basisPct = round2(3 + 6 * Math.sqrt(daysToExpiry / 365) + (u(`${asset.base}:term${w}:${hour}`) - 0.5) * 0.8);
+    return {
+      expiry,
+      futureSymbol: `${asset.base}-${optionDateCode(expiry)}`,
+      price: round2(mid * (1 + (basisPct / 100) * (daysToExpiry / 365))),
+      annualizedBasisPct: basisPct,
+      daysToExpiry: Math.round(daysToExpiry * 10) / 10,
+    };
+  });
+  return {
+    underlying: asset.base,
+    referencePrice: mid,
+    perpPrice: round2(mid * (1 + (u(`${asset.base}:termperp${hour}`) - 0.5) * 0.001)),
+    points,
+    asOf: now,
+    provenance: 'synthetic',
+    source: DEMO_SOURCE,
+    note: NOTE,
+  };
+}
+
+/** Synthetic options chain — OI hump near the money, IV smile, derived max pain/PCR. */
+export function optionsChainFor(symbol: string, expiry: number | 'nearest', now: number): OptionsChain {
+  const asset = assetFor(symbol);
+  const base = symbol.toUpperCase().split(/[/:]/)[0];
+  if (!asset) {
+    return {
+      underlying: base,
+      expiry: typeof expiry === 'number' ? expiry : 0,
+      underlyingPrice: null,
+      entries: [],
+      maxPainStrike: null,
+      putCallOiRatio: null,
+      asOf: null,
+      provenance: 'unavailable',
+      source: DEMO_SOURCE,
+      note: 'Unknown demo asset.',
+    };
+  }
+  const mid = priceAt(asset, now);
+  const target = expiry === 'nearest' ? fridayExpiry(now, 0) : expiry;
+  const daysToExpiry = Math.max((target - now) / 86_400_000, 0.5);
+  const day = Math.floor(now / 86_400_000);
+  const step = optionStrikeStep(mid);
+  const atm = Math.round(mid / step) * step;
+  const ivBase = asset.base === 'BTC' ? 52 : asset.base === 'ETH' ? 63 : 70;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  const entries: OptionsChainEntry[] = [];
+  for (let i = -10; i <= 10; i++) {
+    const k = atm + i * step;
+    if (k <= 0) continue;
+    const moneyness = (k - mid) / mid;
+    const hump = Math.exp(-Math.pow(i / 6, 2));
+    const roundBoost = k % (step * 5) === 0 ? 1.5 : 1;
+    const callOi = Math.floor((300 + u(`${asset.base}:coi${k}:${day}`) * 600) * hump * roundBoost * (1 + Math.max(moneyness, 0) * 3));
+    const putOi = Math.floor((300 + u(`${asset.base}:poi${k}:${day}`) * 600) * hump * roundBoost * (1 + Math.max(-moneyness, 0) * 3));
+    const iv = round1(ivBase + moneyness * moneyness * 220 + (u(`${asset.base}:iv${k}:${day}`) - 0.5) * 3);
+    const timeValue = mid * (iv / 100) * Math.sqrt(daysToExpiry / 365) * 0.4 * hump;
+    entries.push({
+      strike: k,
+      expiry: target,
+      callOi,
+      putOi,
+      callMark: round2(Math.max(mid - k, 0) + timeValue),
+      putMark: round2(Math.max(k - mid, 0) + timeValue),
+      iv,
+    });
+  }
+  const pcr = computePutCallOiRatio(entries);
+  return {
+    underlying: asset.base,
+    expiry: target,
+    underlyingPrice: mid,
+    entries,
+    maxPainStrike: computeMaxPainStrike(entries),
+    putCallOiRatio: pcr == null ? null : Math.round(pcr * 1000) / 1000,
+    asOf: now,
+    provenance: 'synthetic',
+    source: DEMO_SOURCE,
+    note: NOTE,
+  };
 }
 
 export function screenerRows(quote: string, sort: string, limit: number, now: number): ScreenerRow[] {

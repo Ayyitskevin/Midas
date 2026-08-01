@@ -106,20 +106,29 @@ When you add a surface that shows data, label its provenance.
 ## Execution safety boundary
 
 Everything above is read-only market, account, research, or paper state. The two
-legacy execution endpoints are registered as fail-closed compatibility routes:
+legacy execution endpoints are cancel-only: placement is a fail-closed
+compatibility route, cancellation is live but ownership-gated:
 
 ```
 POST /api/orders            DELETE /api/orders/:id
       │                            │
       ▼                            ▼
-503 TradingSafetyHold      503 TradingSafetyHold
+503 TradingSafetyHold      caller's open-orders list
+                           contains the id?
+                             │           │
+                            no ▼           ▼ yes
+                           404 NotFound   provider.cancelOrder
+                                           │           │
+                              confirmed ▼  ▼ 409 gone  ▼ 502 unknown
+                              200 CancelResult
 ```
 
-No request path from these endpoints resolves or invokes `provider.placeOrder`
-or `provider.cancelOrder`. `GET /api/trading/status` returns the same hold reason
-regardless of runtime flags or key metadata, and the UI remains in preview-only
-mode. Read-only open-order lookup remains available. Existing orders must be
-managed directly at the exchange.
+No request path from `POST /api/orders` resolves or invokes
+`provider.placeOrder`. `DELETE /api/orders/:id` never fires a blind cancel: the
+id must appear in the caller's OWN open-orders list first (no operator-account
+fallback). `GET /api/trading/status` reports the cancel-only posture regardless
+of runtime flags or key metadata, and the ticket UI remains in preview-only
+mode. Read-only open-order lookup remains available.
 
 The legacy pure gate helpers remain in `apps/server/src/trading.ts` only as repair
 scaffolding. They are not execution authority. Re-enable criteria are documented

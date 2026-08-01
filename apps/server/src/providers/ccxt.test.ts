@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import * as ccxt from 'ccxt';
 import { CcxtProvider, safeErrorLabel, toPerpSymbol } from './ccxt';
 import { ProviderError } from './types';
 import { EXECUTION_SAFETY_HOLD_REASON } from '../trading';
@@ -190,16 +191,61 @@ describe('CcxtProvider execution safety hold (defense in depth)', () => {
     });
     expect(createOrder).not.toHaveBeenCalled();
   });
+});
 
-  it('cancelOrder throws TradingSafetyHold and never touches the exchange', async () => {
-    const cancelOrder = vi.fn();
+describe('CcxtProvider.cancelOrder (cancel-only posture)', () => {
+  it('maps an exchange-confirmed cancel to a CancelResult', async () => {
+    const cancelOrder = vi.fn(async () => ({ id: 'ord-1', symbol: 'BTC/USDT', status: 'canceled' }));
+    const p = makeProvider({ id: 'binance', name: 'Binance', has: { cancelOrder: true }, cancelOrder });
+    await expect(p.cancelOrder('ord-1', 'BTC/USDT')).resolves.toEqual({
+      id: 'ord-1',
+      symbol: 'BTC/USDT',
+      status: 'canceled',
+    });
+    expect(cancelOrder).toHaveBeenCalledWith('ord-1', 'BTC/USDT');
+  });
+
+  it('honestly answers 501 when the venue cannot cancel', async () => {
+    const p = makeProvider({ id: 'binance', name: 'Binance', has: {} });
+    await expect(p.cancelOrder('ord-1', 'BTC/USDT')).rejects.toMatchObject({ statusCode: 501 });
+  });
+
+  it('maps an already-filled/canceled order to a 409, without leaking the raw message', async () => {
+    const cancelOrder = vi.fn(async () => {
+      throw new ccxt.OrderNotFound('binance {"code":-2011,"msg":"Unknown order sent."} signature=deadbeef');
+    });
     const p = makeProvider({ id: 'binance', name: 'Binance', has: { cancelOrder: true }, cancelOrder });
     await expect(p.cancelOrder('ord-1', 'BTC/USDT')).rejects.toMatchObject({
-      name: 'TradingSafetyHold',
-      statusCode: 503,
-      message: EXECUTION_SAFETY_HOLD_REASON,
+      statusCode: 409,
+      message: expect.stringMatching(/already filled or canceled/),
     });
-    expect(cancelOrder).not.toHaveBeenCalled();
+    const err = await p.cancelOrder('ord-1', 'BTC/USDT').catch((e: unknown) => e);
+    expect((err as Error).message).not.toContain('signature=');
+    expect((err as Error).message).not.toContain('-2011');
+  });
+
+  it('maps a timeout to a 502 outcome-unknown — never a claimed cancel', async () => {
+    const cancelOrder = vi.fn(async () => {
+      throw new ccxt.RequestTimeout('binance GET https://api.binance.com/api/v3/order?signature=deadbeef timed out');
+    });
+    const p = makeProvider({ id: 'binance', name: 'Binance', has: { cancelOrder: true }, cancelOrder });
+    const err = await p.cancelOrder('ord-1', 'BTC/USDT').catch((e: unknown) => e);
+    expect(err).toMatchObject({ statusCode: 502 });
+    expect((err as Error).message).toMatch(/outcome UNKNOWN/i);
+    expect((err as Error).message).toMatch(/Check the exchange/);
+    expect((err as Error).message).not.toContain('signature=');
+    expect((err as Error).message).not.toContain('canceled"');
+  });
+
+  it('maps any other exchange rejection to a 502 with the order still open', async () => {
+    const cancelOrder = vi.fn(async () => {
+      throw new ccxt.ExchangeError('binance cancel rejected signature=deadbeef');
+    });
+    const p = makeProvider({ id: 'binance', name: 'Binance', has: { cancelOrder: true }, cancelOrder });
+    const err = await p.cancelOrder('ord-1', 'BTC/USDT').catch((e: unknown) => e);
+    expect(err).toMatchObject({ statusCode: 502 });
+    expect((err as Error).message).toMatch(/still be open/);
+    expect((err as Error).message).not.toContain('signature=');
   });
 });
 

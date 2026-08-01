@@ -81,9 +81,11 @@ trading safety beyond the paths covered by the tests.
   live market quality or exchange connectivity.
 - Account features are read-only and require operator- or user-supplied
   credentials. Never use real credentials in a review environment.
-- Live order placement and in-app cancellation are `NO-GO` until every criterion
+- Live order placement is `NO-GO` until every criterion
   in [`EXECUTION_SAFETY_HOLD.md`](EXECUTION_SAFETY_HOLD.md) is independently
-  reviewed and certified.
+  reviewed and certified. In-app cancellation of the caller's own resting
+  orders is live (cancel-only) — its carve-out controls are listed in the
+  same document.
 - Review changes against `main`. The repository's GitHub default branch has
   previously pointed at an active work branch; that setting is not a substitute
   for the `main` review gate.

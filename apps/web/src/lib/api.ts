@@ -18,6 +18,7 @@ import type {
   CoinUniverse,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
   OpenOrders,
   FundingDispersionRow,
   FundingHistoryPoint,
@@ -28,8 +29,11 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OiDelta,
+  OiDeltaWindow,
   OrderBook,
   OrderRequest,
+  OptionsChain,
   PlacedOrder,
   Quote,
   Range,
@@ -44,6 +48,7 @@ import type {
   SolanaValidators,
   SolanaWallet,
   SystemStatus,
+  TermStructure,
   TradingStatus,
   User,
   VenueArbRow,
@@ -203,8 +208,9 @@ export const api = {
       signal,
     ),
 
-  // Execution compatibility surface. The server currently reports a safety hold
-  // and rejects both mutation calls; the ticket remains a read-only preview.
+  // Execution surface. The server runs cancel-only: placement is rejected with
+  // 503 TradingSafetyHold, while canceling one of the caller's OWN open orders
+  // is live (honest 409 already-filled / 502 outcome-unknown failures).
   tradingStatus: (signal?: AbortSignal) => apiGet<TradingStatus>('/api/trading/status', signal),
   placeOrder: (req: OrderRequest, signal?: AbortSignal) => apiPost<PlacedOrder>('/api/orders', req, signal),
   cancelOrder: (id: string, symbol: string, signal?: AbortSignal) =>
@@ -241,6 +247,23 @@ export const api = {
       `/api/liquidations?quote=${encodeURIComponent(quote)}&limit=${limit}`,
       signal,
     ),
+
+  // Options / DVOL / futures term structure (Deribit-native; honestly labeled).
+  dvol: (symbol: 'BTC' | 'ETH' = 'BTC', signal?: AbortSignal) =>
+    apiGet<DvolSnapshot>(`/api/options/dvol?symbol=${encodeURIComponent(symbol)}`, signal),
+
+  optionsChain: (symbol: string, expiry?: number, signal?: AbortSignal) =>
+    apiGet<OptionsChain>(
+      `/api/options/chain?symbol=${encodeURIComponent(symbol)}&expiry=${expiry ?? 'nearest'}`,
+      signal,
+    ),
+
+  termStructure: (symbol: string, signal?: AbortSignal) =>
+    apiGet<TermStructure>(`/api/futures/term-structure?symbol=${encodeURIComponent(symbol)}`, signal),
+
+  // OI-delta positioning (ΔOI vs Δprice quadrant; honestly labeled).
+  oiDelta: (symbol: string, window: OiDeltaWindow = '24h', signal?: AbortSignal) =>
+    apiGet<OiDelta>(`/api/oi-delta?symbol=${encodeURIComponent(symbol)}&window=${window}`, signal),
 
   screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
     apiGet<ScreenerRow[]>(

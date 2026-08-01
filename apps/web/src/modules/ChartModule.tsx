@@ -15,6 +15,7 @@ import { useFetch } from '@/lib/hooks';
 import { useStream, useStreamStatus } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
 import { useAlerts } from '@/store/useAlerts';
+import { useDrawings, type Drawing } from '@/store/useDrawings';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { INTERVAL_SECONDS, candleBucketStart } from '@/lib/candleBucket';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
@@ -76,6 +77,68 @@ interface VpBar {
   poc: boolean;
 }
 
+/** The chart objects realising one persisted drawing (price lines / a series). */
+interface RenderedDrawing {
+  priceLines: IPriceLine[];
+  series: ISeriesApi<'Line'>[];
+}
+
+/**
+ * Realise a stored drawing on the chart and return the created objects so it
+ * can be torn down later. Drawings outside the loaded data range still render
+ * (the chart clips / reveals them when scrolled into view), which is what lets
+ * long-term levels persist across ranges.
+ */
+function renderDrawing(
+  chart: IChartApi,
+  candle: ISeriesApi<'Candlestick'>,
+  d: Drawing,
+): RenderedDrawing {
+  const out: RenderedDrawing = { priceLines: [], series: [] };
+  if (d.type === 'hline') {
+    out.priceLines.push(
+      candle.createPriceLine({ price: d.price, color: '#ffb000', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }),
+    );
+  } else if (d.type === 'trend') {
+    const series = addLineChartSeries(chart, {
+      color: '#4cc2ff',
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    series.setData([
+      { time: d.a.time as UTCTimestamp, value: d.a.price },
+      { time: d.b.time as UTCTimestamp, value: d.b.price },
+    ]);
+    out.series.push(series);
+  } else {
+    for (const lvl of fibLevels(d.a.price, d.b.price)) {
+      out.priceLines.push(
+        candle.createPriceLine({
+          price: lvl.price,
+          color: 'rgba(255,176,0,0.5)',
+          lineWidth: 1,
+          lineStyle: 2,
+          axisLabelVisible: true,
+          title: lvl.ratio.toFixed(3),
+        }),
+      );
+    }
+  }
+  return out;
+}
+
+/** Tear down the chart objects of one rendered drawing. */
+function removeRendered(
+  chart: IChartApi | null,
+  candle: ISeriesApi<'Candlestick'> | null,
+  r: RenderedDrawing,
+): void {
+  if (candle) for (const l of r.priceLines) candle.removePriceLine(l);
+  if (chart) for (const s of r.series) chart.removeSeries(s);
+}
+
 interface Preset {
   label: string;
   interval: Interval;
@@ -134,8 +197,9 @@ export function ChartModule({ panel }: ModuleProps) {
     low: number;
     close: number;
   } | null>(null);
-  const priceLinesRef = useRef<IPriceLine[]>([]);
-  const trendSeriesRef = useRef<ISeriesApi<'Line'>[]>([]);
+  // Rendered drawings keyed by drawing id — the on-chart mirror of this
+  // symbol's entries in useDrawings, so they can be torn down individually.
+  const drawingsRef = useRef<Map<string, RenderedDrawing>>(new Map());
   // Pending first anchor for the two-click tools (trendline, fib).
   const anchorRef = useRef<{ time: number; price: number } | null>(null);
   const toolRef = useRef<Tool>('none');
@@ -166,16 +230,24 @@ export function ChartModule({ panel }: ModuleProps) {
   const [vpBars, setVpBars] = useState<VpBar[]>([]);
   const [vpTick, setVpTick] = useState(0);
 
+  // Tear down every rendered drawing. Chart-only: the persisted store is
+  // untouched, so this is safe to run on symbol switch before restoring the
+  // new symbol's set. The toolbar "clear" button also clears the store.
   const clearDrawings = useCallback(() => {
     const candle = candleRef.current;
     const chart = chartRef.current;
-    if (candle) for (const l of priceLinesRef.current) candle.removePriceLine(l);
-    priceLinesRef.current = [];
-    if (chart) for (const s of trendSeriesRef.current) chart.removeSeries(s);
-    trendSeriesRef.current = [];
+    for (const r of drawingsRef.current.values()) removeRendered(chart, candle, r);
+    drawingsRef.current.clear();
     anchorRef.current = null;
     setPending(false);
   }, []);
+
+  // Toolbar "clear": wipe this symbol's drawings from the chart AND the store.
+  const clearAllDrawings = useCallback(() => {
+    clearDrawings();
+    const sym = symbolRef.current;
+    if (sym) useDrawings.getState().clearSymbol(sym);
+  }, [clearDrawings]);
 
   // Create the chart once, on mount.
   useEffect(() => {
@@ -231,9 +303,11 @@ export function ChartModule({ panel }: ModuleProps) {
       }
 
       if (active === 'hline') {
-        priceLinesRef.current.push(
-          candle.createPriceLine({ price, color: '#ffb000', lineWidth: 1, lineStyle: 0, axisLabelVisible: true, title: '' }),
-        );
+        const sym = symbolRef.current;
+        if (sym) {
+          const d = useDrawings.getState().addDrawing(sym, { type: 'hline', price });
+          drawingsRef.current.set(d.id, renderDrawing(chart, candle, d));
+        }
         setTool('none');
         return;
       }
@@ -248,32 +322,17 @@ export function ChartModule({ panel }: ModuleProps) {
         return;
       }
       if (anchor.time !== time) {
-        if (active === 'trend') {
-          const [a, b] = anchor.time < time ? [anchor, { time, price }] : [{ time, price }, anchor];
-          const series = addLineChartSeries(chart, {
-            color: '#4cc2ff',
-            lineWidth: 2,
-            priceLineVisible: false,
-            lastValueVisible: false,
-            crosshairMarkerVisible: false,
-          });
-          series.setData([
-            { time: a.time as UTCTimestamp, value: a.price },
-            { time: b.time as UTCTimestamp, value: b.price },
-          ]);
-          trendSeriesRef.current.push(series);
-        } else if (active === 'fib') {
-          for (const lvl of fibLevels(anchor.price, price)) {
-            priceLinesRef.current.push(
-              candle.createPriceLine({
-                price: lvl.price,
-                color: 'rgba(255,176,0,0.5)',
-                lineWidth: 1,
-                lineStyle: 2,
-                axisLabelVisible: true,
-                title: lvl.ratio.toFixed(3),
-              }),
-            );
+        const sym = symbolRef.current;
+        if (sym) {
+          if (active === 'trend') {
+            const [a, b] = anchor.time < time ? [anchor, { time, price }] : [{ time, price }, anchor];
+            const d = useDrawings.getState().addDrawing(sym, { type: 'trend', a, b });
+            drawingsRef.current.set(d.id, renderDrawing(chart, candle, d));
+          } else if (active === 'fib') {
+            const d = useDrawings
+              .getState()
+              .addDrawing(sym, { type: 'fib', a: anchor, b: { time, price } });
+            drawingsRef.current.set(d.id, renderDrawing(chart, candle, d));
           }
         }
       }
@@ -388,14 +447,25 @@ export function ChartModule({ panel }: ModuleProps) {
     }, []),
   );
 
-  // Clear drawings when the symbol changes — and drop the forming-candle ref the
-  // live trades stream folds into. The trades stream resubscribes to the new
-  // symbol before its history reloads; without nulling this, the new symbol's
-  // prints would fold into the PREVIOUS symbol's last candle (ballooning its
-  // range at a stale price) until the history push re-seeds lastBarRef. With it
-  // null, the stream callback early-returns until the new candles land.
+  // On mount and every symbol change: tear down the old chart's drawings and
+  // render the NEW symbol's persisted set, so one symbol's levels never leak
+  // onto another's chart. Off-screen drawings (outside the loaded range) are
+  // restored too — the chart clips them until they scroll into view. Also drop
+  // the forming-candle ref the live trades stream folds into. The trades
+  // stream resubscribes to the new symbol before its history reloads; without
+  // nulling this, the new symbol's prints would fold into the PREVIOUS
+  // symbol's last candle (ballooning its range at a stale price) until the
+  // history push re-seeds lastBarRef. With it null, the stream callback
+  // early-returns until the new candles land.
   useEffect(() => {
     clearDrawings();
+    const chart = chartRef.current;
+    const candle = candleRef.current;
+    if (chart && candle && symbol) {
+      for (const d of useDrawings.getState().drawings[symbol] ?? []) {
+        drawingsRef.current.set(d.id, renderDrawing(chart, candle, d));
+      }
+    }
     setTool('none');
     lastBarRef.current = null;
     setLivePrice(null);
@@ -711,7 +781,7 @@ export function ChartModule({ panel }: ModuleProps) {
           </button>
         ))}
         <button
-          onClick={clearDrawings}
+          onClick={clearAllDrawings}
           title="Clear all drawings"
           className="rounded-sm px-1.5 py-0.5 text-term-muted hover:text-term-down"
         >

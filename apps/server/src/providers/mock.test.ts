@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { MockProvider } from './mock';
 import { mockDerivatives, mockVenueDerivatives } from './mock/derivatives';
 
 // The mock is fully synthetic (labeled 'mock' upstream), but its funding
@@ -31,5 +32,42 @@ describe('mock derivatives funding intervals', () => {
     expect(a.fundingRate).toBe(b.fundingRate);
     expect(a.fundingIntervalHours).toBe(b.fundingIntervalHours);
     expect(a.openInterest).toBe(b.openInterest);
+  });
+});
+
+// The demo book must behave like a real account under the cancel-only
+// posture: a cancel removes the order from the open-orders fixture, and an
+// unknown or already-canceled id is an honest error — never a claimed cancel.
+describe('MockProvider.cancelOrder (hermetic demo cancel)', () => {
+  it('cancels a fixture order and removes it from the open-orders list', async () => {
+    const p = new MockProvider();
+    const before = await p.getOpenOrders();
+    const target = before.orders[0];
+    expect(target).toBeDefined();
+
+    await expect(p.cancelOrder(target.id, target.symbol)).resolves.toEqual({
+      id: target.id,
+      symbol: target.symbol,
+      status: 'canceled',
+    });
+
+    const after = await p.getOpenOrders();
+    expect(after.orders.map((o) => o.id)).not.toContain(target.id);
+    expect(after.orders.length).toBe(before.orders.length - 1);
+  });
+
+  it('rejects an unknown id honestly (409, no claimed cancel)', async () => {
+    const p = new MockProvider();
+    await expect(p.cancelOrder('not-a-demo-order', 'BTC/USDT')).rejects.toMatchObject({
+      statusCode: 409,
+      message: expect.stringMatching(/no longer open/),
+    });
+  });
+
+  it('a repeated cancel of the same id is an honest 409', async () => {
+    const p = new MockProvider();
+    const target = (await p.getOpenOrders()).orders[0];
+    await p.cancelOrder(target.id, target.symbol);
+    await expect(p.cancelOrder(target.id, target.symbol)).rejects.toMatchObject({ statusCode: 409 });
   });
 });

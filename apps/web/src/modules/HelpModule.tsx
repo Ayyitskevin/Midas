@@ -40,8 +40,8 @@ HELP              this panel`}
           </li>
           <li>
             <span className="text-term-text">Preview</span> — <span className="text-term-amber">TICKET</span> models a
-            market or limit order against the live book without submitting it. Server placement and in-app cancellation
-            remain under the execution safety hold.
+            market or limit order against the live book without submitting it. Server placement remains under the
+            execution safety hold; canceling your own resting orders is live from <span className="text-term-text">ORD</span> (cancel-only).
           </li>
         </ul>
         <p className="mt-1 text-term-muted">

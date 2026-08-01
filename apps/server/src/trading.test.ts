@@ -25,18 +25,21 @@ const onCfg: TradingConfig = {
   corsOrigin: '*',
 };
 
-describe('execution safety hold', () => {
+describe('execution safety hold (cancel-only posture)', () => {
   it('cannot be enabled by runtime trading configuration', () => {
     const status = executionSafetyHoldStatus('ccxt:binance');
     expect(status).toEqual({
       enabled: false,
+      cancelEnabled: true,
+      mode: 'cancel-only',
       reason: EXECUTION_SAFETY_HOLD_REASON,
       maxOrderUsd: null,
       dailyCapUsd: null,
       dailyUsedUsd: 0,
       source: 'ccxt:binance',
     });
-    expect(status.reason).toMatch(/directly at the exchange/);
+    expect(status.reason).toMatch(/placement is disabled/);
+    expect(status.reason).toMatch(/cancel-only/);
   });
 });
 

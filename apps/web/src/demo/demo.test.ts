@@ -4,12 +4,15 @@ import {
   balancesFor,
   boardEnvelope,
   derivativesFor,
+  dvolFor,
   fillsFor,
   fundingDispersionRows,
   fundingRows,
   historyFor,
   liquidationsFeed,
   newsFor,
+  oiDeltaFor,
+  optionsChainFor,
   orderBookFor,
   quoteFor,
   screenerRows,
@@ -22,6 +25,7 @@ import {
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
+  termStructureFor,
   venueArbRows,
   venueDerivatives,
 } from './engine';
@@ -247,6 +251,81 @@ describe('demo engine', () => {
       expect(m.tokens[i].volume24hUsd!).toBeLessThanOrEqual(m.tokens[i - 1].volume24hUsd!);
     }
   });
+
+  it('DVOL is deterministic, synthetic and carries a 30-day history', () => {
+    const a = dvolFor('BTC', NOW);
+    expect({ ...a, asOf: 0 }).toEqual({ ...dvolFor('BTC', NOW), asOf: 0 });
+    expect(a.provenance).toBe('synthetic');
+    expect(a.source).toBe('demo');
+    expect(typeof a.note).toBe('string');
+    expect(a.value!).toBeGreaterThan(10);
+    expect(a.value!).toBeLessThan(150);
+    expect(a.history).toHaveLength(30);
+    // ETH vols sit above BTC's in the fixture, like the server mock.
+    expect(dvolFor('ETH', NOW).value!).toBeGreaterThan(a.value! - 25);
+  });
+
+  it('term structure is a synthetic contango curve, nearest-first, priced off the walk', () => {
+    const ts = termStructureFor('BTC/USDT', NOW);
+    expect(ts.provenance).toBe('synthetic');
+    expect(ts.underlying).toBe('BTC');
+    expect(ts.points.length).toBeGreaterThanOrEqual(4);
+    for (let i = 1; i < ts.points.length; i++) {
+      expect(ts.points[i].expiry).toBeGreaterThan(ts.points[i - 1].expiry);
+    }
+    for (const p of ts.points) {
+      expect(p.annualizedBasisPct).toBeGreaterThan(0); // contango
+      expect(p.price).toBeGreaterThan(ts.referencePrice!);
+    }
+    expect(ts.perpPrice!).toBeGreaterThan(0);
+    // An unknown asset is honestly unavailable, never a zero curve.
+    const none = termStructureFor('NOPE/USDT', NOW);
+    expect(none.provenance).toBe('unavailable');
+    expect(none.points).toEqual([]);
+  });
+
+  it('OI delta is deterministic, synthetic, price-coherent and honestly unavailable for unknown assets', () => {
+    const a = oiDeltaFor('BTC/USDT', '24h', NOW);
+    expect({ ...a, asOf: 0, points: [] }).toEqual({ ...oiDeltaFor('BTC/USDT', '24h', NOW), asOf: 0, points: [] });
+    expect(a.points.map((p) => [p.openInterestValue, p.price])).toEqual(
+      oiDeltaFor('BTC/USDT', '24h', NOW).points.map((p) => [p.openInterestValue, p.price]),
+    );
+    expect(a.provenance).toBe('synthetic');
+    expect(a.source).toBe('demo');
+    expect(typeof a.note).toBe('string');
+    expect(a.points.length).toBeGreaterThan(1);
+    // Coherent with the demo walk: the last price point is the current quote.
+    expect(a.points[a.points.length - 1].price!).toBeCloseTo(quoteFor('BTC/USDT', NOW)!.price, 2);
+    expect(a.oiNow).toBe(a.points[a.points.length - 1].openInterestValue);
+    // The classification is a true quadrant of the returned series.
+    expect(a.classification).not.toBeNull();
+    expect(Math.sign(a.oiChangePct!)).not.toBe(0);
+    expect(Math.sign(a.priceChangePct!)).not.toBe(0);
+    // An unknown asset is honestly unavailable, never a fabricated delta.
+    const none = oiDeltaFor('NOPE/USDT', '24h', NOW);
+    expect(none.provenance).toBe('unavailable');
+    expect(none.points).toEqual([]);
+    expect(none.classification).toBeNull();
+  });
+
+  it('options chain is synthetic with OI both sides, derived max pain/PCR, honest unavailable for unknown assets', () => {
+    const chain = optionsChainFor('ETH/USDT', 'nearest', NOW);
+    expect(chain.provenance).toBe('synthetic');
+    expect(chain.expiry).toBeGreaterThan(NOW);
+    expect(chain.entries.length).toBeGreaterThanOrEqual(15);
+    expect(chain.entries.some((e) => (e.callOi ?? 0) > 0)).toBe(true);
+    expect(chain.entries.some((e) => (e.putOi ?? 0) > 0)).toBe(true);
+    expect(chain.entries.some((e) => e.strike === chain.maxPainStrike)).toBe(true);
+    expect(chain.putCallOiRatio!).toBeGreaterThan(0);
+    // An explicit expiry flows through to every entry.
+    const later = optionsChainFor('ETH/USDT', NOW + 14 * 86_400_000, NOW);
+    expect(later.expiry).toBe(NOW + 14 * 86_400_000);
+    expect(later.entries.every((e) => e.expiry === later.expiry)).toBe(true);
+    const none = optionsChainFor('NOPE/USDT', 'nearest', NOW);
+    expect(none.provenance).toBe('unavailable');
+    expect(none.entries).toEqual([]);
+    expect(none.maxPainStrike).toBeNull();
+  });
 });
 
 describe('demo shim', () => {
@@ -275,17 +354,61 @@ describe('demo shim', () => {
     expect(passthrough).toHaveBeenCalledTimes(1); // only the non-API request
   });
 
-  it('refuses execution with the safety hold and unsupported surfaces with honest 501s', async () => {
+  it('refuses placement with the safety hold and unsupported surfaces with honest 501s', async () => {
     window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
     installDemoShim();
     const order = await fetch('/api/orders', { method: 'POST', body: '{}' });
     expect(order.status).toBe(503);
     expect((await order.json()).error).toBe('TradingSafetyHold');
+    // The demo has no account to cancel against — an honest 501 like the
+    // demo's other unavailable mutations, not a fake cancel.
+    const cancel = await fetch('/api/orders/demo-1?symbol=BTC/USDT', { method: 'DELETE' });
+    expect(cancel.status).toBe(501);
     const keys = await fetch('/api/account/keys');
     expect(keys.status).toBe(501);
     const trading = await (await fetch('/api/trading/status')).json();
     expect(trading.enabled).toBe(false);
+    expect(trading.cancelEnabled).toBe(false);
+    expect(trading.mode).toBe('off');
     expect(trading.reason).toMatch(/static demo/i);
+  });
+
+  it('serves the options surface in-browser with the same edge rules as the server', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+
+    const dvol = await fetch('/api/options/dvol?symbol=BTC');
+    expect(dvol.status).toBe(200);
+    const dvolBody = await dvol.json();
+    expect(dvolBody.provenance).toBe('synthetic');
+    expect(dvolBody.value).toBeGreaterThan(0);
+    expect((await fetch('/api/options/dvol?symbol=DOGE')).status).toBe(400);
+
+    const chain = await fetch('/api/options/chain?symbol=BTC');
+    expect(chain.status).toBe(200);
+    const chainBody = await chain.json();
+    expect(chainBody.provenance).toBe('synthetic');
+    expect(chainBody.entries.length).toBeGreaterThan(0);
+    expect(chainBody.maxPainStrike).not.toBeNull();
+    expect((await fetch('/api/options/chain')).status).toBe(400);
+    expect((await fetch('/api/options/chain?symbol=BTC&expiry=tomorrow')).status).toBe(400);
+
+    const term = await fetch('/api/futures/term-structure?symbol=BTC/USDT');
+    expect(term.status).toBe(200);
+    const termBody = await term.json();
+    expect(termBody.provenance).toBe('synthetic');
+    expect(termBody.points.length).toBeGreaterThan(0);
+    expect((await fetch('/api/futures/term-structure')).status).toBe(400);
+
+    const oid = await fetch('/api/oi-delta?symbol=BTC/USDT&window=24h');
+    expect(oid.status).toBe(200);
+    const oidBody = await oid.json();
+    expect(oidBody.provenance).toBe('synthetic');
+    expect(oidBody.window).toBe('24h');
+    expect(oidBody.points.length).toBeGreaterThan(1);
+    expect(oidBody.classification).not.toBeNull();
+    expect((await fetch('/api/oi-delta')).status).toBe(400);
+    expect((await fetch('/api/oi-delta?symbol=BTC/USDT&window=2h')).status).toBe(400);
   });
 
   it('sets the flag stream.ts uses to stay offline', () => {

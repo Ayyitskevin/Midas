@@ -4,6 +4,7 @@ import {
   computeOiConcentration,
   computeVenueArbRow,
   isInterval,
+  isOiDeltaWindow,
   isRange,
   withHonestNote,
 } from '@midas/shared';
@@ -11,6 +12,8 @@ import type {
   BoardEnvelope,
   BoardProvenance,
   CoinUniverse,
+  DvolSnapshot,
+  DvolSymbol,
   FundingDispersionRow,
   FundingRow,
   HealthResponse,
@@ -18,8 +21,12 @@ import type {
   LiquidationEvent,
   LiquidationsFeed,
   OiConcentrationRow,
+  OiDelta,
+  OiDeltaWindow,
+  OptionsChain,
   Range,
   ScreenerRow,
+  TermStructure,
   VenueArbRow,
 } from '@midas/shared';
 import type { DataProvider } from '../providers';
@@ -59,6 +66,18 @@ const SCREENER_SORTS = new Set(['volume', 'change', 'price']);
 // and only the price wiggles — so a 60s window is plenty and shares one build
 // across concurrent users and client polling.
 const COINS_TTL_MS = 60_000;
+// Deribit option-chain / DVOL reads fan out over a whole chain or a 40-day
+// index history; 60s collapses client polling into one upstream read. Dated
+// futures tick faster, so the term structure gets a 30s window.
+const OPTIONS_TTL_MS = 60_000;
+const TERM_STRUCTURE_TTL_MS = 30_000;
+// OI-delta reads an OI history + an OHLCV series per (symbol, window); 60s
+// collapses client polling into one upstream pair of reads.
+const OI_DELTA_TTL_MS = 60_000;
+// DVOL is published for BTC and ETH only — anything else is a 400 at the edge.
+const DVOL_SYMBOLS = new Set(['BTC', 'ETH']);
+// An explicit expiry must be a plausible epoch-millis (bounded below year 2100).
+const MAX_EXPIRY_MS = 4_102_444_800_000;
 
 /**
  * What a board TTL cache stores: the rows plus the build-time facts the
@@ -339,6 +358,142 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     }
     return coinsCache.get(String(limit), async () =>
       withHonestNote(await getCoinUniverse(limit), 'Market-cap reference is not live.'),
+    );
+  });
+
+  // Options / DVOL / futures term structure (Deribit-native reads). These are
+  // single-underlying payloads, not fan-out boards, so they carry their
+  // provenance inside the payload (no BoardEnvelope) — withHonestNote
+  // guarantees a synthetic/unavailable snapshot never ships without a caveat.
+  // Providers without the reads degrade to an honest 'unavailable' snapshot.
+  const dvolCache = createTtlCache<DvolSnapshot>(OPTIONS_TTL_MS);
+  const chainCache = createTtlCache<OptionsChain>(OPTIONS_TTL_MS);
+  const termStructureCache = createTtlCache<TermStructure>(TERM_STRUCTURE_TTL_MS);
+  const oiDeltaCache = createTtlCache<OiDelta>(OI_DELTA_TTL_MS);
+  const getDvol = provider.getDvol?.bind(provider);
+  const getOptionsChain = provider.getOptionsChain?.bind(provider);
+  const getTermStructure = provider.getFuturesTermStructure?.bind(provider);
+  const getOiDelta = provider.getOiDelta?.bind(provider);
+
+  app.get<{ Querystring: { symbol?: string } }>('/api/options/dvol', async (req) => {
+    const raw = normalizeSymbol(req.query.symbol);
+    if (!raw) throw new ProviderError('Missing or invalid symbol', 400);
+    const base = raw.split('/')[0].replace(/:.*$/, '');
+    if (!DVOL_SYMBOLS.has(base)) {
+      throw new ProviderError('DVOL is published for BTC and ETH only', 400, base);
+    }
+    const symbol = base as DvolSymbol;
+    if (!getDvol) {
+      return withHonestNote(
+        {
+          symbol,
+          value: null,
+          history: [],
+          asOf: null,
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: `${provider.name} has no DVOL read — the volatility index comes from Deribit (ccxt provider).`,
+        },
+        'DVOL is not available from this provider.',
+      ) satisfies DvolSnapshot;
+    }
+    return dvolCache.get(symbol, async () =>
+      withHonestNote(await getDvol(symbol), 'DVOL is not live.'),
+    );
+  });
+
+  app.get<{ Querystring: { symbol?: string; expiry?: string } }>('/api/options/chain', async (req) => {
+    const symbol = normalizeSymbol(req.query.symbol);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
+    const expiryRaw = firstStr(req.query.expiry).trim().toLowerCase();
+    let expiry: number | 'nearest' = 'nearest';
+    if (expiryRaw && expiryRaw !== 'nearest') {
+      const n = Number(expiryRaw);
+      if (!Number.isFinite(n) || n <= 0 || n > MAX_EXPIRY_MS) {
+        throw new ProviderError('Invalid expiry — expected "nearest" or an epoch-millis expiry', 400, symbol);
+      }
+      expiry = Math.floor(n);
+    }
+    if (!getOptionsChain) {
+      return withHonestNote(
+        {
+          underlying: symbol.split('/')[0].replace(/:.*$/, ''),
+          expiry: expiry === 'nearest' ? 0 : expiry,
+          underlyingPrice: null,
+          entries: [],
+          maxPainStrike: null,
+          putCallOiRatio: null,
+          asOf: null,
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: `${provider.name} has no options-chain read — options come from Deribit (ccxt provider).`,
+        },
+        'Options chain is not available from this provider.',
+      ) satisfies OptionsChain;
+    }
+    return chainCache.get(`${symbol}|${expiry}`, async () =>
+      withHonestNote(await getOptionsChain(symbol, expiry), 'Options chain is not live.'),
+    );
+  });
+
+  app.get<{ Querystring: { symbol?: string } }>('/api/futures/term-structure', async (req) => {
+    const symbol = normalizeSymbol(req.query.symbol);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
+    if (!getTermStructure) {
+      return withHonestNote(
+        {
+          underlying: symbol.split('/')[0].replace(/:.*$/, ''),
+          referencePrice: null,
+          perpPrice: null,
+          points: [],
+          asOf: null,
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: `${provider.name} has no dated-futures read — the term structure comes from Deribit (ccxt provider).`,
+        },
+        'Futures term structure is not available from this provider.',
+      ) satisfies TermStructure;
+    }
+    return termStructureCache.get(symbol, async () =>
+      withHonestNote(await getTermStructure(symbol), 'Futures term structure is not live.'),
+    );
+  });
+
+  // OI-delta positioning: OI CHANGE vs price CHANGE over a window — the
+  // trader's four-quadrant read (long buildup / short buildup / long unwind /
+  // short covering) that a static OI snapshot cannot give. Single-symbol
+  // payload with its own provenance, like the options surface; providers
+  // without an OI-history read degrade to an honest 'unavailable', never a
+  // delta synthesized from two snapshots.
+  app.get<{ Querystring: { symbol?: string; window?: string } }>('/api/oi-delta', async (req) => {
+    const symbol = normalizeSymbol(req.query.symbol);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
+    const windowRaw = firstStr(req.query.window) || '24h';
+    if (!isOiDeltaWindow(windowRaw)) {
+      throw new ProviderError('Invalid window — expected one of: 1h, 4h, 24h, 7d', 400, symbol);
+    }
+    const window: OiDeltaWindow = windowRaw;
+    if (!getOiDelta) {
+      return withHonestNote(
+        {
+          symbol,
+          window,
+          oiNow: null,
+          oiThen: null,
+          oiChangePct: null,
+          priceChangePct: null,
+          classification: null,
+          points: [],
+          asOf: null,
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: `${provider.name} has no OI-history read — an OI delta comes from venues that publish open-interest history (ccxt provider).`,
+        },
+        'OI-delta is not available from this provider.',
+      ) satisfies OiDelta;
+    }
+    return oiDeltaCache.get(`${symbol}|${window}`, async () =>
+      withHonestNote(await getOiDelta(symbol, window), 'OI-delta is not live.'),
     );
   });
 
