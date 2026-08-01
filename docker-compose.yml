@@ -1,6 +1,6 @@
 # Midas — one-command self-hosted deploy.
 #
-#   cp .env.example .env     # optional: set provider / API keys
+#   cp .env.example .env     # required unless MIDAS_DATA_PROVIDER is exported
 #   docker compose up -d     # build + run
 #   open http://localhost:8080
 #
@@ -13,8 +13,8 @@ services:
       context: .
       target: server
     environment:
-      # mock (default, offline) | yahoo | ccxt
-      MIDAS_DATA_PROVIDER: ${MIDAS_DATA_PROVIDER:-mock}
+      # Explicit selection: mock (offline synthetic) | yahoo | ccxt. Unset fails closed.
+      MIDAS_DATA_PROVIDER: ${MIDAS_DATA_PROVIDER:?Set MIDAS_DATA_PROVIDER to mock, yahoo, or ccxt}
       # ccxt: which exchange to pull market data from
       MIDAS_CCXT_EXCHANGE: ${MIDAS_CCXT_EXCHANGE:-binance}
       # ccxt: venues compared in the ALLQ multi-exchange module

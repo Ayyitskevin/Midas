@@ -13,11 +13,12 @@ Requirements: **Node ≥ 20** and **pnpm 10** (`corepack enable` will provide it
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm dev          # web on :5173, API on :4000 — runs on synthetic data, zero config
+MIDAS_DATA_PROVIDER=mock pnpm dev  # web :5173 + API :4000, explicit offline synthetic data
 ```
 
-The default `mock` data provider is fully synthetic and deterministic, so the
-terminal works offline with no API keys. For live crypto data:
+The `mock` provider is fully synthetic and deterministic, so the terminal works
+offline with no API keys when it is selected explicitly. Unset or unknown
+provider values fail startup; they never fall back to mock. For live crypto data:
 
 ```bash
 MIDAS_DATA_PROVIDER=ccxt MIDAS_CCXT_EXCHANGE=binance pnpm dev
@@ -72,7 +73,10 @@ Midas's core principle is that the UI must **never present synthetic, delayed, o
 unavailable data as if it were live**. Mock data is labeled synthetic; sources
 that can't serve a feature return an honest `unavailable` rather than guessing.
 If your change surfaces data, label its provenance. See the strategy notes in
-[`docs/research/`](./docs/research/) for the rationale.
+[`docs/research/`](./docs/research/) for the rationale. High-risk datasets must
+also declare a provider capability, attach a receipt (or record an explicit
+temporary route exemption), and exercise the network-free conformance kit; use
+the [Data Trust Plane checklist](./docs/DATA_TRUST_PLANE.md#contributor-checklist).
 
 ## Pull requests
 

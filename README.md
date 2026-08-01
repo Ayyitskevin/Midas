@@ -53,7 +53,9 @@ and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
   `BASE/QUOTE` (e.g. `BTC/USDT`).
 - **Honest about its data.** Every surface labels whether it's **live**,
   **synthetic**, or **unavailable** — Midas never passes mock or delayed data off
-  as real. It's a first-class principle, not an afterthought.
+  as real. High-risk market and read-only account values also carry an
+  inspectable receipt for source time, freshness, derivation, cache state, and
+  limitations. See the [Data Trust Plane guide](docs/DATA_TRUST_PLANE.md).
 - **Self-hosted & non-custodial.** Runs on your machine; it *reads* markets and
   never custodies funds or places orders.
 - **Deep, fast, keyboard-first.** ~115 indicator/analytics boards, a ⌘K palette,
@@ -84,7 +86,8 @@ and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
 - **Screening & alerts.** A signal `SCAN` with saveable criteria and scan-watch
   alerts; price/funding/%-change alerts that can open a panel when they fire.
 - **On-chain / DEX.** DEX pools, CEX↔DEX basis and a swap price-impact estimate
-  (`DEX`) — synthetic by default, live via Dexscreener when configured.
+  (`DEX`) — synthetic with the explicit `mock` provider, live via Dexscreener
+  when configured, and otherwise honestly unavailable.
 - **Solana (read-only, non-custodial).** A full native dimension: network health
   (`SOLNET`), a wallet inspector (`SWAL`), a validator leaderboard (`SVAL`),
   native-staking economics (`SSTAKE` — the real, compounded APY from inflation ÷
@@ -92,8 +95,9 @@ and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
   authorities that decide token safety), read-only Jupiter swap quotes (`SJUP` —
   best-route price + impact, **quote only, never a swap**) and an ecosystem market
   overview (`SOLMKT`). Public-RPC / DEX-aggregator reads only (no key, no signing,
-  no transaction); synthetic by default, live via `MIDAS_SOLANA_RPC`,
-  `MIDAS_SOLANA_JUPITER` and `MIDAS_DEX_SOURCE`.
+  no transaction); synthetic with the explicit `mock` provider, live via
+  `MIDAS_SOLANA_RPC`, `MIDAS_SOLANA_JUPITER` and `MIDAS_DEX_SOURCE`, and
+  otherwise honestly unavailable.
 - **Portfolio.** Positions with live P&L, realized P&L, import/export.
 - **Account research (non-custodial).** Read-only keys light up your
   real balances (`BAL`), open orders (`ORD`), positions (`POSN`) and fills
@@ -121,7 +125,7 @@ Self-host the whole stack with [Docker](https://docs.docker.com/get-docker/):
 …or by hand, which is the same two steps:
 
 ```bash
-cp .env.example .env     # optional — defaults run the offline mock feed
+cp .env.example .env     # required for Compose; explicitly selects the offline mock feed
 docker compose up -d     # build + run web + API
 ```
 
@@ -145,8 +149,8 @@ MIDAS_DATA_PROVIDER=ccxt MIDAS_WEB_PORT=9000 docker compose up -d --build   # li
 # 1. Install (Node 20+ and pnpm)
 pnpm install --frozen-lockfile
 
-# 2. Run web + API together (mock data, no network needed)
-pnpm dev
+# 2. Run web + API together with an explicit synthetic provider
+MIDAS_DATA_PROVIDER=mock pnpm dev
 #   → web:  http://localhost:5173
 #   → api:  http://localhost:4000
 ```
@@ -155,7 +159,8 @@ Open <http://localhost:5173> and start typing: `BTC/USDT`, then `BTC/USDT GP`, t
 
 ### Use live market data
 
-The API defaults to the offline `mock` provider. To pull **live** quotes,
+The API has no implicit provider: an unset or unknown `MIDAS_DATA_PROVIDER`
+fails startup instead of silently substituting synthetic data. To pull **live** quotes,
 charts and news from Yahoo Finance (no key required, needs internet):
 
 ```bash
@@ -194,10 +199,10 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `PAIR`  | `PAIRS`, `ZSCORE`, `STATARB` | no | Pairs / stat-arb monitor — ratio with rolling mean ±σ bands, a z-score oscillator and mean-reversion half-life. |
 | `BOOK`  | `DOM`, `OB`    | yes          | Live Level-2 order book / depth of market.     |
 | `DEPTH` | `DHEAT`, `OBHEAT` | yes       | Order-book depth heatmap — resting liquidity over time as a price × time grid, with the mid track. |
-| `DEX`   | `ONCHAIN`, `POOLS` | yes      | On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume, fee tier & an estimated swap price-impact per pool, plus the CEX↔DEX basis (premium/discount), with a live/synthetic data-honesty badge (synthetic until an on-chain source is configured). |
-| `SOLNET` | `SOLANA`, `SNET` | no       | Solana network health — current slot, epoch progress, TPS, active validators, total stake, and circulating/total SOL supply with a live market cap. Read-only public-RPC reads (non-custodial), with a live/synthetic badge (synthetic until `MIDAS_SOLANA_RPC` is set). |
+| `DEX`   | `ONCHAIN`, `POOLS` | yes      | On-chain / DEX liquidity pools for an asset — price, TVL, 24h volume, fee tier & an estimated swap price-impact per pool, plus the CEX↔DEX basis (premium/discount). Explicit `mock` is synthetic; a configured on-chain source is live; other provider/source combinations are unavailable. |
+| `SOLNET` | `SOLANA`, `SNET` | no       | Solana network health — current slot, epoch progress, TPS, active validators, total stake, and circulating/total SOL supply with a live market cap. Read-only public-RPC reads (non-custodial). Explicit `mock` is synthetic; a configured `MIDAS_SOLANA_RPC` is live; other provider/source combinations are unavailable. |
 | `SWAL`  | `SOLWALLET`, `SWALLET` | no  | Read-only Solana wallet inspector — paste a public base-58 address to see its SOL balance and SPL token holdings priced to USD. Non-custodial by construction: no key, no signing, no transaction ever. |
-| `STREND` | `SOLTREND`, `SOLTRENDING` | no | Trending Solana tokens ranked by 24h DEX volume — price, 24h change, volume, pool liquidity and the top venue (Raydium/Orca/Meteora) per token. Read-only market discovery, with a live/synthetic badge (synthetic until `MIDAS_DEX_SOURCE=geckoterminal`). |
+| `STREND` | `SOLTREND`, `SOLTRENDING` | no | Trending Solana tokens ranked by 24h DEX volume — price, 24h change, volume, pool liquidity and the top venue (Raydium/Orca/Meteora) per token. Read-only market discovery: explicit `mock` is synthetic, `MIDAS_DEX_SOURCE=geckoterminal` is live, and other provider/source combinations are unavailable. |
 | `SOLDEX` | `SOLPOOLS`, `SPOOLS` | yes | A base asset's liquidity across Solana DEXes (Raydium, Orca, Meteora, Phoenix, Lifinity) — price, TVL, 24h volume and fee tier per pool, with a VWAP/TVL roll-up. Read-only, non-custodial, live via `MIDAS_DEX_SOURCE=geckoterminal`. |
 | `SVAL`  | `SOLVAL`, `VALIDATORS` | no | Solana validator leaderboard — the top validators ranked by activated stake, with each one's stake share, commission and delinquency status, plus network totals (total stake, validator count, delinquent count). Read-only public-RPC reads (non-custodial), live via `MIDAS_SOLANA_RPC`. |
 | `SSTAKE` | `SOLSTAKE`, `STAKEYIELD` | no | Solana native-staking economics — the current staking yield (real, compounded APY and its nominal rate), derived from network inflation ÷ the staked-supply ratio, with the inflation rate and staked ratio shown. Read-only public-RPC reads (non-custodial), live via `MIDAS_SOLANA_RPC`. |
@@ -223,7 +228,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `SCR`   | `EQS`, `MOVERS`| no           | Screen crypto by volume / 24h change / price.  |
 | `HEAT`  | `MAP`, `HM`    | no           | Market heatmap — treemap sized by volume, colored by 24h %. |
 | `MOV`   | `OVERVIEW` | no    | Market overview — top gainers, losers, most active + breadth.|
-| `MCAP`  | `TOPCOINS`, `MARKETCAP`, `COINS` | no | Top coins by market cap — rank, price, 24h change, market cap, fully-diluted valuation, circulating supply and category, with a live/synthetic data-honesty badge (synthetic until a live reference source is configured). |
+| `MCAP`  | `TOPCOINS`, `MARKETCAP`, `COINS` | no | Top coins by market cap — rank, price, 24h change, market cap, fully-diluted valuation, circulating supply and category. Explicit `mock` is synthetic; a configured reference source is live; other provider/source combinations are unavailable. |
 | `CORR`  | `COR`, `CORREL`| no           | Return-correlation matrix across your watchlist.|
 | `AVGCORR` | `AVGCOR`, `CORRREGIME`, `MEANCORR` | no | Average-correlation regime — mean pairwise correlation across your watchlist over time; high = risk-off, low = dispersion. |
 | `BREADTH` | `ADLINE`, `PARTICIPATION`, `ABOVEMA` | no | Market-breadth oscillator — the % of your watchlist above its N-day moving average over time; high = broad strength, low = weakness. |
@@ -265,10 +270,10 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `W`     | `WATCH`, `WL`  | no           | Your personal watchlist — last, % change with heat, and a 24h sparkline per symbol. |
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
-| `BAL`   | `BALANCE`, `BALANCES`, `ACCTBAL` | no | Read-only exchange account balances — per-asset free/used/total, USD value & allocation %, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server env (`ccxt` provider); Midas never places orders or holds funds. Synthetic demo book until keys are set. |
-| `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial, cancel-only: Midas never places orders, but you can cancel your OWN resting orders here (two-step confirm) — the server proves ownership against your key's open-orders list first. Synthetic demo set until keys are set. |
-| `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
-| `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
+| `BAL`   | `BALANCE`, `BALANCES`, `ACCTBAL` | no | Read-only exchange account balances — per-asset free/used/total, USD value & allocation %, with an inspectable data-honesty badge. Non-custodial: explicit `mock` is synthetic; `ccxt` plus usable read-only keys is live; `ccxt` without usable keys is unavailable. Midas never places orders or holds funds. |
+| `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with an inspectable data-honesty badge. Explicit `mock` is synthetic; `ccxt` plus usable read-only keys is live; `ccxt` without usable keys is unavailable. Non-custodial, cancel-only: Midas never places orders, but you can cancel your OWN resting orders here (two-step confirm) — the server proves ownership against your key's open-orders list first. |
+| `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and an inspectable data-honesty badge. Explicit `mock` is synthetic; `ccxt` plus usable read-only keys is live; `ccxt` without usable keys is unavailable. Reads only (`fetchPositions`) — never opens or closes positions. |
+| `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with an inspectable data-honesty badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Explicit `mock` is synthetic; `ccxt` plus usable read-only keys is live; `ccxt` without usable keys is unavailable. |
 | `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build and validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, and book-exhausted warning. **Preview only:** the server execution safety hold rejects placement; canceling your own resting orders is live from `ORD` (cancel-only). |
 | `START` | `TOUR`, `GETSTART`, `INTRO` | no | First-run tour — six one-click rows that each **run** a real command, teaching the grammar by doing. Opens automatically on the very first visit. |
 | `SYS`   | `STATUS`, `SYSTEM` | no | System status — provider, version, uptime, and which background loops are actually running (watcher, stream nudge, digest, equity snapshots, trading gate). |
@@ -457,14 +462,16 @@ midas/
 
 **Data flow:** the web client calls `/api/*` → Fastify routes → the active
 `DataProvider`. In dev, Vite proxies `/api` to the server. Adding a data source
-means implementing one interface (`apps/server/src/providers/types.ts`); adding
-a panel type means writing a module component and registering it.
+means implementing one interface and its capability manifest
+(`apps/server/src/providers/types.ts`); adding a panel type means writing a
+module component and registering it.
 
 ### API
 
 | Route                              | Returns                          |
 | ---------------------------------- | -------------------------------- |
 | `GET /api/health`                  | provider id, live flag, version  |
+| `GET /api/data/status`             | provider capabilities and sanitized per-family data health |
 | `GET /api/quote/:symbol`           | `Quote`                          |
 | `GET /api/quotes?symbols=A,B,C`    | `Quote[]`                        |
 | `GET /api/history/:symbol`         | `HistoryResponse` (OHLCV candles)|
@@ -523,9 +530,9 @@ Server (environment variables):
 
 | Variable              | Default     | Description                          |
 | --------------------- | ----------- | ------------------------------------ |
-| `MIDAS_DATA_PROVIDER` | `mock`      | `mock`, `yahoo`, or `ccxt`.          |
+| `MIDAS_DATA_PROVIDER` | _(required / unset)_ | Explicitly select `mock`, `yahoo`, or `ccxt`; unset/unknown fails closed. `MIDAS_DEMO_MODE=true` is the separate explicit demo posture. |
 | `MIDAS_CCXT_EXCHANGE` | `binance`   | Exchange id when provider is `ccxt`. |
-| `MIDAS_CCXT_API_KEY`  | _(unset)_   | **Read-only** exchange API key for live account balances (`BAL`). Non-custodial: Midas only ever reads (`fetchBalance`) — it never places orders or moves funds. Leave unset to keep balances in synthetic demo mode. |
+| `MIDAS_CCXT_API_KEY`  | _(unset)_   | **Read-only** exchange API key for live account balances (`BAL`) when `MIDAS_DATA_PROVIDER=ccxt`. Non-custodial: Midas only ever reads (`fetchBalance`) — it never places orders or moves funds. With `ccxt`, missing/unusable keys make account data unavailable; explicit `mock`/demo mode is the synthetic posture. |
 | `MIDAS_CCXT_SECRET`   | _(unset)_   | Secret paired with `MIDAS_CCXT_API_KEY`. Both must be set to enable live balances. |
 | `MIDAS_CCXT_PASSWORD` | _(unset)_   | API passphrase, only for venues that require one (e.g. OKX, KuCoin). |
 | `MIDAS_CCXT_EXCHANGE_2` (+ `_API_KEY_2`, `_SECRET_2`, `_PASSWORD_2`) | _(unset)_ | Optional **second keyed venue**: `BAL`/`ORD`/`POSN`/`FILLS` merge both accounts, tagging each row with its venue. Read-only. |
@@ -586,9 +593,9 @@ Web (build-time): `VITE_API_TARGET` (dev proxy target),
 ## Scripts
 
 ```bash
-pnpm dev          # run web + API in parallel
+MIDAS_DATA_PROVIDER=mock pnpm dev  # run web + API with explicit offline synthetic data
 pnpm dev:web      # web only
-pnpm dev:server   # API only
+MIDAS_DATA_PROVIDER=mock pnpm dev:server  # API only, explicit provider
 pnpm build        # build all packages
 pnpm typecheck    # typecheck all packages
 pnpm test         # run the unit + API test suite (Vitest)
