@@ -4,6 +4,8 @@ import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { VenueOiPoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -69,10 +71,13 @@ export function OiConcentrationModule({ panel }: ModuleProps) {
                 <th className="px-2 py-1 text-right font-normal" title="Herfindahl concentration index (0–100)">
                   CONC
                 </th>
+                <th className="px-2 py-1 text-right font-normal">SOURCE</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const actionable = isReceiptActionable(r.receipt);
+                return (
                 <tr
                   key={r.symbol}
                   className="border-b border-term-border/30 hover:bg-term-header/60"
@@ -91,12 +96,16 @@ export function OiConcentrationModule({ panel }: ModuleProps) {
                     ${fmtCompact(r.totalOiValue)}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">
-                    <span className={shareClass(r.topVenueShare)}>{fmtShare(r.topVenueShare)}</span>
+                    <span className={actionable ? shareClass(r.topVenueShare) : 'text-term-muted'}>{fmtShare(r.topVenueShare)}</span>
                     <span className="ml-1 text-term-dim">{r.topVenue ?? ''}</span>
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtConc(r.herfindahl)}</td>
+                  <td className="px-2 py-1 text-right">
+                    {r.receipt ? <SourceBadge receipt={r.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

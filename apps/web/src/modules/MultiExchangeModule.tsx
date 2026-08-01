@@ -3,6 +3,9 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { computeInspectedVenueArb } from '@/lib/clientArb';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 function fmtP(p: number | null): string {
@@ -20,17 +23,19 @@ export function MultiExchangeModule({ panel }: ModuleProps) {
     { intervalMs: 5000, enabled: Boolean(symbol) },
   );
 
+  const inspected = useMemo(
+    () => computeInspectedVenueArb(symbol ?? 'unknown', data ?? []),
+    [data, symbol],
+  );
   const stats = useMemo(() => {
-    if (!data || data.length === 0) return null;
-    const bids = data.map((v) => v.bid).filter((b): b is number => b != null);
-    const asks = data.map((v) => v.ask).filter((a): a is number => a != null);
-    const bestBid = bids.length ? Math.max(...bids) : null;
-    const bestAsk = asks.length ? Math.min(...asks) : null;
+    const bestBid = inspected.row.bestBid?.value ?? null;
+    const bestAsk = inspected.row.bestAsk?.value ?? null;
+    if (bestBid === null && bestAsk === null) return null;
     const mid = bestBid != null && bestAsk != null ? (bestBid + bestAsk) / 2 : null;
     const spread = bestBid != null && bestAsk != null ? bestAsk - bestBid : null;
     const spreadPct = spread != null && mid ? (spread / mid) * 100 : null;
     return { bestBid, bestAsk, spreadPct };
-  }, [data]);
+  }, [inspected]);
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} venues`} />;
@@ -42,12 +47,13 @@ export function MultiExchangeModule({ panel }: ModuleProps) {
       {stats && (
         <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
           <span className="text-term-muted">{data.length} venues</span>
+          {inspected.receipt && <SourceBadge receipt={inspected.receipt} compact />}
           <span className="tabular-nums">
-            <span className="text-term-up">{fmtP(stats.bestBid)}</span>
+            <span className={inspected.actionable ? 'text-term-up' : 'text-term-muted'}>{fmtP(stats.bestBid)}</span>
             <span className="text-term-dim"> / </span>
-            <span className="text-term-down">{fmtP(stats.bestAsk)}</span>
+            <span className={inspected.actionable ? 'text-term-down' : 'text-term-muted'}>{fmtP(stats.bestAsk)}</span>
             {stats.spreadPct != null && (
-              <span className="ml-2 text-term-muted">arb {stats.spreadPct.toFixed(3)}%</span>
+              <span className="ml-2 text-term-muted">quote gap {stats.spreadPct.toFixed(3)}%</span>
             )}
           </span>
         </div>
@@ -62,33 +68,40 @@ export function MultiExchangeModule({ panel }: ModuleProps) {
               <th className="px-2 py-1 text-right font-normal">BID</th>
               <th className="px-2 py-1 text-right font-normal">ASK</th>
               <th className="px-2 py-1 text-right font-normal">VOL</th>
+              <th className="px-2 py-1 text-right font-normal">SOURCE</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((v) => (
+            {data.map((v) => {
+              const rowActionable = isReceiptActionable(v.receipt);
+              return (
               <tr key={v.exchange} className="border-b border-term-border/30 hover:bg-term-header/60">
                 <td className="px-2 py-1 font-medium text-term-text">{v.exchange}</td>
                 <td className="px-2 py-1 text-right tabular-nums">{fmtP(v.price)}</td>
-                <td className={`px-2 py-1 text-right tabular-nums ${changeClass(v.changePercent)}`}>
+                <td className={`px-2 py-1 text-right tabular-nums ${rowActionable ? changeClass(v.changePercent) : 'text-term-muted'}`}>
                   {fmtSignedPercent(v.changePercent)}
                 </td>
                 <td
                   className={`px-2 py-1 text-right tabular-nums ${
-                    stats && v.bid === stats.bestBid ? 'font-semibold text-term-up' : 'text-term-muted'
+                    inspected.actionable && stats && v.bid === stats.bestBid ? 'font-semibold text-term-up' : 'text-term-muted'
                   }`}
                 >
                   {fmtP(v.bid)}
                 </td>
                 <td
                   className={`px-2 py-1 text-right tabular-nums ${
-                    stats && v.ask === stats.bestAsk ? 'font-semibold text-term-down' : 'text-term-muted'
+                    inspected.actionable && stats && v.ask === stats.bestAsk ? 'font-semibold text-term-down' : 'text-term-muted'
                   }`}
                 >
                   {fmtP(v.ask)}
                 </td>
                 <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtCompact(v.volume)}</td>
+                <td className="px-2 py-1 text-right">
+                  {v.receipt ? <SourceBadge receipt={v.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

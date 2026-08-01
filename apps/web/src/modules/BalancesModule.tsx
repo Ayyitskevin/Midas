@@ -3,12 +3,18 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useAccountRefresh } from '@/lib/accountBus';
 import { fmtCompact } from '@/lib/format';
-import { allocations, balancesBadge, type BalancesTone } from '@/lib/balancesView';
+import {
+  balancesBadge,
+  inspectAccountEquity,
+  inspectAllocations,
+  type BalancesTone,
+} from '@/lib/balancesView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const TONE: Record<BalancesTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -35,14 +41,18 @@ export function BalancesModule(_props: ModuleProps) {
   useAccountRefresh(refresh);
   // Positions feed the equity read-out: equity ≈ balance value + unrealized P&L.
   const positions = useFetch((signal) => api.positions(signal), [], { intervalMs: 30_000 });
-  const uPnl = positions.data?.totalUnrealizedPnlUsd ?? null;
+  const inspectedEquity = useMemo(
+    () => inspectAccountEquity(data, positions.data),
+    [data, positions.data],
+  );
 
   const badge = data ? balancesBadge(data) : null;
+  const inspectedAllocations = useMemo(() => inspectAllocations(data), [data]);
   const allocByAsset = useMemo(() => {
     const m = new Map<string, number>();
-    if (data) for (const a of allocations(data)) m.set(a.asset, a.pct);
+    for (const allocation of inspectedAllocations.rows) m.set(allocation.asset, allocation.pct);
     return m;
-  }, [data]);
+  }, [inspectedAllocations]);
 
   return (
     <div className="flex h-full flex-col">
@@ -54,22 +64,37 @@ export function BalancesModule(_props: ModuleProps) {
             total <span className="text-term-text">${fmtCompact(data.totalValueUsd)}</span>
           </span>
         )}
-        {data?.totalValueUsd != null && uPnl != null && (
+        {data && (
           <span className="text-term-dim" title="Balance value + unrealized P&L on open positions">
             equity{' '}
-            <span className={uPnl >= 0 ? 'text-term-up' : 'text-term-down'}>
-              ${fmtCompact(data.totalValueUsd + uPnl)}
+            <span
+              className={
+                inspectedEquity.value == null
+                  ? 'text-term-dim'
+                  : inspectedEquity.actionable
+                    ? positions.data!.totalUnrealizedPnlUsd! >= 0
+                      ? 'text-term-up'
+                      : 'text-term-down'
+                    : 'text-term-text'
+              }
+            >
+              {inspectedEquity.value == null ? '—' : `$${fmtCompact(inspectedEquity.value)}`}
             </span>
+            {inspectedEquity.receipt && (
+              <SourceBadge receipt={inspectedEquity.receipt} compact className="ml-1" />
+            )}
           </span>
         )}
-        {badge && (
+        {data?.receipt ? (
+          <SourceBadge receipt={data.receipt} compact className="ml-auto" />
+        ) : badge ? (
           <span
             className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`}
-            title={badge.detail}
+            title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}
           >
-            {badge.label}
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="scroll-term min-h-0 flex-1 overflow-auto">
@@ -121,6 +146,11 @@ export function BalancesModule(_props: ModuleProps) {
       {data && data.provenance !== 'unavailable' && (
         <div className="flex items-center gap-2 border-t border-term-border px-2 py-1 text-2xs text-term-dim">
           <span>{data.balances.length} assets</span>
+          {inspectedAllocations.receipt && (
+            <span className="flex items-center gap-1">
+              allocation <SourceBadge receipt={inspectedAllocations.receipt} compact />
+            </span>
+          )}
           <span
             className="ml-auto"
             title="Midas is non-custodial and read-only — it never places orders or moves funds."

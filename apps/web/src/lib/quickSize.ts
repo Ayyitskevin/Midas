@@ -1,4 +1,5 @@
-import type { TradingStatus } from '@midas/shared';
+import type { Balances, TradingStatus } from '@midas/shared';
+import { isReceiptActionable } from './receiptView';
 
 /**
  * Sizing + cap helpers for the order ticket. Pure so the sizing math and the
@@ -14,14 +15,36 @@ import type { TradingStatus } from '@midas/shared';
 export function quickSizeAmount(
   side: 'buy' | 'sell',
   fraction: number,
-  freeBase: number,
-  freeQuote: number,
+  freeBase: number | null,
+  freeQuote: number | null,
   price: number,
 ): number | null {
   if (!(fraction > 0)) return null;
-  if (side === 'sell') return freeBase > 0 ? freeBase * fraction : null;
-  if (!(price > 0) || !(freeQuote > 0)) return null;
+  if (side === 'sell') return freeBase != null && freeBase > 0 ? freeBase * fraction : null;
+  if (!(price > 0) || freeQuote == null || !(freeQuote > 0)) return null;
   return (freeQuote * fraction) / price;
+}
+
+/**
+ * Return a balance only when the account snapshot carries fresh, inspectable
+ * evidence. Missing rows, stale evidence and legacy receipt-less payloads stay
+ * unknown instead of becoming a reassuring zero in the ticket.
+ */
+export function trustedFreeBalance(
+  snapshot: Balances | null | undefined,
+  asset: string,
+  evaluatedAtMs: number = Date.now(),
+): number | null {
+  if (
+    snapshot == null ||
+    snapshot.provenance === 'unavailable' ||
+    snapshot.receipt == null ||
+    !isReceiptActionable(snapshot.receipt, evaluatedAtMs)
+  ) {
+    return null;
+  }
+  const free = snapshot.balances.find((balance) => balance.asset === asset.toUpperCase())?.free;
+  return free != null && Number.isFinite(free) && free >= 0 ? free : null;
 }
 
 /**

@@ -9,7 +9,11 @@
  *
  * Pure and synchronous so it can be unit-tested with exact, hand-computed bars.
  */
-import type { Candle } from '@midas/shared';
+import {
+  deriveDataReceipt,
+  type Candle,
+  type DataReceipt,
+} from '@midas/shared';
 
 /** Normalize a candle timestamp (seconds or ms) to epoch ms. */
 export const toMs = (t: number): number => (t < 1e12 ? t * 1000 : t);
@@ -62,6 +66,12 @@ export interface HistorySummary {
   bestPct: number;
   /** Most negative single-bar change %. */
   worstPct: number;
+}
+
+export interface InspectedHistorySummary {
+  summary: HistorySummary | null;
+  /** Client-derived lineage for every row and aggregate computed from the series. */
+  receipt: DataReceipt | null;
 }
 
 /**
@@ -174,4 +184,55 @@ export function historySummary(candles: Candle[]): HistorySummary | null {
     bestPct: bestPct === -Infinity ? 0 : bestPct,
     worstPct: worstPct === Infinity ? 0 : worstPct,
   };
+}
+
+/**
+ * Attach inspectable methodology and the history-series lineage to the local
+ * row/summary reducer. Without a valid input receipt, values remain useful for
+ * illustration but must not be styled as actionable evidence.
+ */
+export function inspectHistorySummary(
+  candles: Candle[],
+  inputReceipt: DataReceipt | undefined,
+  instrument: string,
+  coverage: string,
+  evaluatedAtMs: number = Date.now(),
+): InspectedHistorySummary {
+  const summary = historySummary(candles);
+  if (summary === null || inputReceipt === undefined) return { summary, receipt: null };
+  try {
+    const receipt = deriveDataReceipt(
+      {
+        providerId: 'midas-web',
+        providerVersion: '1.0',
+        source: 'Midas client history reducer',
+        venue: inputReceipt.venue,
+        datasetFamily: 'history',
+        instrument,
+        coverage,
+        provenance: inputReceipt.provenance,
+        expectedCadenceMs: inputReceipt.expectedCadenceMs,
+        units: {
+          price: 'source currency',
+          volume: 'source units',
+          percentage: 'percent',
+        },
+        methodology: {
+          id: 'history-summary',
+          version: '1.0',
+          formula:
+            'row change=(close-prior close)/prior close; range=high-low; summary high=max(high), low=min(low), total change=(last close-first close)/first close, average volume=sum(volume)/count, up/down=count(close-prior close by sign)',
+        },
+        inputReceipts: [inputReceipt],
+        note:
+          inputReceipt.provenance === 'live'
+            ? null
+            : `Derived from ${inputReceipt.provenance} history evidence.`,
+      },
+      evaluatedAtMs,
+    );
+    return { summary, receipt };
+  } catch {
+    return { summary, receipt: null };
+  }
 }

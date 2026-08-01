@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { validateDataReceipt } from '@midas/shared';
 import {
   DEMO_SYMBOLS,
   balancesFor,
@@ -332,6 +333,7 @@ describe('demo shim', () => {
   const realFetch = window.fetch;
   const realGlobalFetch = globalThis.fetch;
   afterEach(() => {
+    vi.restoreAllMocks();
     window.fetch = realFetch;
     globalThis.fetch = realGlobalFetch;
     (window as unknown as { __MIDAS_STATIC_DEMO__?: boolean }).__MIDAS_STATIC_DEMO__ = undefined;
@@ -349,9 +351,51 @@ describe('demo shim', () => {
 
     const quote = await (await fetch('/api/quote/BTC%2FUSDT')).json();
     expect(quote.symbol).toBe('BTC/USDT');
+    expect(quote.receipt.provenance).toBe('synthetic');
+    expect(validateDataReceipt(quote.receipt).ok).toBe(true);
 
     await fetch('https://example.com/other');
     expect(passthrough).toHaveBeenCalledTimes(1); // only the non-API request
+  });
+
+  it('serves deterministic synthetic receipts and status parity at a fixed clock', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+
+    const first = await (await fetch('/api/quote/BTC%2FUSDT')).json();
+    const second = await (await fetch('/api/quote/BTC%2FUSDT')).json();
+    expect(first.receipt.receiptId).toBe(second.receipt.receiptId);
+    expect(first.receipt).toMatchObject({
+      datasetFamily: 'quote',
+      provenance: 'synthetic',
+      derivation: 'observed',
+      source: 'demo',
+    });
+
+    const status = await (await fetch('/api/data/status')).json();
+    expect(status.schemaVersion).toBe('1.0');
+    expect(status.providers[0].providerId).toBe('demo');
+    expect(status.providers[0].capabilities.quote.mode).toBe('synthetic');
+    expect(status.datasets.quote).toMatchObject({ state: 'healthy', source: 'demo' });
+    expect(status.datasets.history).toMatchObject({
+      state: 'unknown',
+      provenance: null,
+      lastReceiptId: null,
+      lastSuccessAt: null,
+    });
+    expect(JSON.stringify(status)).not.toMatch(/api[_-]?key|password|authorization/i);
+  });
+
+  it('fails closed instead of returning unreceipted empty arrays', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+
+    expect((await fetch('/api/quotes')).status).toBe(400);
+    expect((await fetch('/api/quotes?symbols=NOPE/USDT')).status).toBe(404);
+    expect((await fetch('/api/funding-history/NOPE%2FUSDT')).status).toBe(404);
+    expect((await fetch('/api/exchange-quotes/NOPE%2FUSDT')).status).toBe(404);
+    expect((await fetch('/api/venue-derivatives/NOPE%2FUSDT')).status).toBe(404);
   });
 
   it('refuses placement with the safety hold and unsupported surfaces with honest 501s', async () => {
@@ -390,15 +434,25 @@ describe('demo shim', () => {
     expect(chainBody.provenance).toBe('synthetic');
     expect(chainBody.entries.length).toBeGreaterThan(0);
     expect(chainBody.maxPainStrike).not.toBeNull();
+    expect(chainBody.receipt).toMatchObject({ derivation: 'derived', provenance: 'synthetic' });
+    expect(chainBody.receipt.inputReceiptIds.length).toBeGreaterThan(0);
     expect((await fetch('/api/options/chain')).status).toBe(400);
     expect((await fetch('/api/options/chain?symbol=BTC&expiry=tomorrow')).status).toBe(400);
+    expect((await fetch('/api/options/chain?symbol=BTC&expiry=4102444800001')).status).toBe(400);
+
+    const unknownChain = await (await fetch('/api/options/chain?symbol=NOPE/USDT')).json();
+    expect(unknownChain.receipt).toMatchObject({ provenance: 'unavailable', sourceAsOf: null });
 
     const term = await fetch('/api/futures/term-structure?symbol=BTC/USDT');
     expect(term.status).toBe(200);
     const termBody = await term.json();
     expect(termBody.provenance).toBe('synthetic');
     expect(termBody.points.length).toBeGreaterThan(0);
+    expect(termBody.receipt.inputReceiptIds.length).toBeGreaterThan(0);
     expect((await fetch('/api/futures/term-structure')).status).toBe(400);
+
+    const unknownTerm = await (await fetch('/api/futures/term-structure?symbol=NOPE/USDT')).json();
+    expect(unknownTerm.receipt).toMatchObject({ provenance: 'unavailable', sourceAsOf: null });
 
     const oid = await fetch('/api/oi-delta?symbol=BTC/USDT&window=24h');
     expect(oid.status).toBe(200);
@@ -409,6 +463,14 @@ describe('demo shim', () => {
     expect(oidBody.classification).not.toBeNull();
     expect((await fetch('/api/oi-delta')).status).toBe(400);
     expect((await fetch('/api/oi-delta?symbol=BTC/USDT&window=2h')).status).toBe(400);
+
+    const unknownOid = await (await fetch('/api/oi-delta?symbol=NOPE/USDT&window=24h')).json();
+    expect(unknownOid.receipt).toMatchObject({ provenance: 'unavailable', sourceAsOf: null });
+
+    const liquidations = await (await fetch('/api/liquidations')).json();
+    expect(liquidations.receipt).toMatchObject({ derivation: 'derived', provenance: 'synthetic' });
+    expect(liquidations.receipt.inputReceiptIds.length).toBeGreaterThan(0);
+    expect(liquidations.receipt.limitations.join(' ')).toMatch(/not observed/i);
   });
 
   it('sets the flag stream.ts uses to stay offline', () => {
@@ -465,11 +527,17 @@ describe('demo shim', () => {
         partial: false,
       });
       expect(typeof body.meta.asOf, path).toBe('number');
+      expect(body.meta.receipt.provenance, path).toBe('synthetic');
+      expect(body.meta.receipt.derivation, path).toBe('derived');
+      expect(body.rows.every((row: { receipt?: { receiptId?: string } }) => Boolean(row.receipt?.receiptId)), path).toBe(true);
     }
     // The funding-dispersion board specifically must not come up empty — every
     // demo venue reports its funding interval, so none are excluded.
     const dispersion = await (await fetch('/api/funding-dispersion?quote=USDT&limit=15')).json();
     expect(dispersion.rows.every((r: { spreadBps: number | null }) => r.spreadBps !== null)).toBe(true);
+    const arb = await (await fetch('/api/venue-arb?quote=USDT&limit=5')).json();
+    expect(arb.rows.every((r: { netLimitations: string[] }) => r.netLimitations.length === 0)).toBe(true);
+    expect(arb.rows.every((r: { netSpreadBps: number | null }) => r.netSpreadBps !== null)).toBe(true);
   });
 
   it('rejects an invalid screener sort like the server (400, not silent volume order)', async () => {

@@ -5,6 +5,7 @@ import { changeClass, fmtCompact, fmtPrice, fmtSigned, fmtSignedPercent } from '
 import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 interface Column {
@@ -66,12 +67,15 @@ export function QuoteMonitorModule({ panel }: ModuleProps) {
             return (
               <tr key={sym} className="border-b border-term-border/30 hover:bg-term-header/60">
                 <td className="px-2 py-1">
-                  <button
-                    className="no-drag font-medium text-term-text hover:text-term-amber"
-                    onClick={() => navigate(panel, sym)}
-                  >
-                    {sym}
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      className="no-drag font-medium text-term-text hover:text-term-amber"
+                      onClick={() => navigate(panel, sym)}
+                    >
+                      {sym}
+                    </button>
+                    {q?.receipt && <SourceBadge receipt={q.receipt} compact />}
+                  </div>
                 </td>
                 {COLUMNS.map((c) => (
                   <td

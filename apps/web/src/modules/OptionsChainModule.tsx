@@ -4,10 +4,12 @@ import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice } from '@/lib/format';
 import { fmtExpiry, fmtIv, optionsBadge, pcrLabel, type OptionsTone } from '@/lib/optionsView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 const TONE: Record<OptionsTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -46,6 +48,7 @@ export function OptionsChainModule({ panel }: ModuleProps) {
   const activeError = weeksOut === 0 ? nearest.error : error;
   const activeLoading = weeksOut === 0 ? nearest.loading : loading;
   const badge = active ? optionsBadge(active.provenance, active.note) : null;
+  const actionable = isReceiptActionable(active?.receipt);
 
   return (
     <div className="flex h-full flex-col">
@@ -64,11 +67,13 @@ export function OptionsChainModule({ panel }: ModuleProps) {
             </option>
           ))}
         </select>
-        {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-            {badge.label}
+        {active?.receipt ? (
+          <SourceBadge receipt={active.receipt} compact className="ml-auto" />
+        ) : badge ? (
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}>
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       {activeLoading && !active ? (
@@ -98,7 +103,7 @@ export function OptionsChainModule({ panel }: ModuleProps) {
                   <tr
                     key={e.strike}
                     className={`border-b border-term-border/20 hover:bg-term-header/40 ${
-                      isMaxPain ? 'bg-term-amber/10' : ''
+                      isMaxPain && actionable ? 'bg-term-amber/10' : ''
                     }`}
                     title={isMaxPain ? 'Max pain — the expiry price minimizing option-buyer payout' : undefined}
                   >
@@ -106,9 +111,9 @@ export function OptionsChainModule({ panel }: ModuleProps) {
                     <td className={`px-2 py-0.5 text-right ${itm ? 'text-term-text' : 'text-term-dim'}`}>
                       {e.callMark == null ? '—' : fmtPrice(e.callMark)}
                     </td>
-                    <td className={`px-2 py-0.5 text-right font-medium ${isMaxPain ? 'text-term-amber' : 'text-term-text'}`}>
+                    <td className={`px-2 py-0.5 text-right font-medium ${isMaxPain ? (actionable ? 'text-term-amber' : 'text-term-muted') : 'text-term-text'}`}>
                       {fmtCompact(e.strike)}
-                      {isMaxPain ? ' ◆' : ''}
+                      {isMaxPain ? (actionable ? ' ◆' : ' ◇') : ''}
                     </td>
                     <td className={`px-2 py-0.5 text-right ${!itm ? 'text-term-text' : 'text-term-dim'}`}>
                       {e.putMark == null ? '—' : fmtPrice(e.putMark)}
@@ -127,13 +132,13 @@ export function OptionsChainModule({ panel }: ModuleProps) {
         <div className="flex flex-wrap items-center gap-3 border-t border-term-border px-2 py-1 text-2xs text-term-dim">
           <span>
             max pain{' '}
-            <span className="text-term-amber">
+            <span className={actionable ? 'text-term-amber' : 'text-term-muted'}>
               {active.maxPainStrike == null ? '—' : fmtCompact(active.maxPainStrike)}
             </span>
           </span>
           <span>
             PCR{' '}
-            <span className="text-term-text">
+            <span className={actionable ? 'text-term-text' : 'text-term-muted'}>
               {active.putCallOiRatio == null ? '—' : active.putCallOiRatio.toFixed(2)}
             </span>{' '}
             <span>({pcrLabel(active.putCallOiRatio)})</span>

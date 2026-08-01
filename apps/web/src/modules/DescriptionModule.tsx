@@ -10,6 +10,7 @@ import {
 import { openModule } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 export function DescriptionModule({ panel }: ModuleProps) {
@@ -48,6 +49,7 @@ export function DescriptionModule({ panel }: ModuleProps) {
             <span className="rounded-sm border border-term-border px-1 py-0.5 text-2xs text-term-muted">
               {quote.exchange || '—'}
             </span>
+            {quote.receipt && <SourceBadge receipt={quote.receipt} compact />}
           </div>
           <div className="truncate text-xs text-term-muted">{quote.name}</div>
         </div>

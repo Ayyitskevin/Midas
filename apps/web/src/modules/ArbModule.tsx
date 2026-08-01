@@ -2,8 +2,9 @@ import type { ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
-import { computeVenueArbRow } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { computeInspectedVenueArb } from '@/lib/clientArb';
 import type { ModuleProps } from './types';
 
 function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
@@ -54,29 +55,30 @@ export function ArbModule({ panel }: ModuleProps) {
   }
 
   // Same computation as the XARB screener (shared, bps, same-venue legs guarded).
-  const arb = computeVenueArbRow(symbol, venues);
+  const { row: arb, receipt, actionable } = computeInspectedVenueArb(symbol, venues);
   const sorted = [...venues].sort((a, b) => b.price - a.price);
 
   return (
     <div className="no-drag scroll-term flex h-full flex-col gap-2 overflow-y-auto p-2">
       <div
         className={`rounded-sm border px-3 py-2 ${
-          arb.netCrossed ? 'border-term-up/40 bg-term-up/10' : 'border-term-border bg-term-panel/40'
+          actionable ? 'border-term-up/40 bg-term-up/10' : 'border-term-border bg-term-panel/40'
         }`}
       >
         <div className="flex items-center justify-between">
           <span className="text-2xs uppercase tracking-wide text-term-dim">
             Best cross-venue spread, net of reference taker fees
           </span>
-          {arb.netCrossed && (
+          {actionable && (
             <span className="rounded-sm bg-term-up/20 px-1.5 py-0.5 text-2xs font-semibold uppercase text-term-up">
               Net arb
             </span>
           )}
+          {receipt && <SourceBadge receipt={receipt} compact className="ml-2" />}
         </div>
         <div
           className={`font-mono text-xl font-semibold ${
-            arb.netSpreadBps != null ? changeClass(arb.netSpreadBps) : 'text-term-text'
+            arb.netSpreadBps != null && actionable ? changeClass(arb.netSpreadBps) : 'text-term-text'
           }`}
         >
           {fmtSpread(arb.netSpreadBps)}
@@ -91,6 +93,12 @@ export function ArbModule({ panel }: ModuleProps) {
           </div>
         )}
       </div>
+
+      {!receipt && (
+        <p className="rounded-sm border border-term-down/40 bg-term-down/10 px-2 py-1 text-2xs text-term-down">
+          Complete source evidence is unavailable; the net signal is suppressed.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Stat label="Venues" value={arb.venues.length} />
@@ -113,6 +121,7 @@ export function ArbModule({ panel }: ModuleProps) {
             <th className="px-2 py-1 text-right font-normal">ASK</th>
             <th className="px-2 py-1 text-right font-normal">LAST</th>
             <th className="px-2 py-1 text-right font-normal">24H</th>
+            <th className="px-2 py-1 text-right font-normal">SOURCE</th>
           </tr>
         </thead>
         <tbody>
@@ -132,6 +141,9 @@ export function ArbModule({ panel }: ModuleProps) {
                 <td className={`px-2 py-1 text-right tabular-nums ${changeClass(q.changePercent)}`}>
                   {fmtSignedPercent(q.changePercent)}
                 </td>
+                <td className="px-2 py-1 text-right">
+                  {q.receipt ? <SourceBadge receipt={q.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                </td>
               </tr>
             );
           })}
@@ -141,7 +153,8 @@ export function ArbModule({ panel }: ModuleProps) {
       <p className="px-1 text-2xs leading-relaxed text-term-dim">
         Net = gross spread − reference base-tier taker fees on both legs. Withdrawal/transfer costs are NOT included —
         a real arb must also clear those, and fee tiers drift, so verify before trading. Green only when the spread is
-        positive net of reference fees. Highlighted: best bid (sell) and best ask (buy).
+        positive net of reference fees with fresh live evidence. Synthetic examples remain illustrative and muted.
+        Highlighted: best bid (sell) and best ask (buy).
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { BoardMeta } from '@midas/shared';
 import { boardMetaView } from '@/lib/boardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
 
 /**
  * Provenance/freshness badge for the BoardEnvelope fan-out boards (funding,
@@ -8,12 +9,18 @@ import { boardMetaView } from '@/lib/boardMeta';
  * one — the terminal never passes stale/mock data off as live.
  */
 export function BoardMetaBadge({ meta }: { meta: BoardMeta }) {
+  if (meta.receipt) return <SourceBadge receipt={meta.receipt} />;
+
   const v = boardMetaView(meta);
+  const legacyLive = v.label === 'live';
   return (
-    <span className="flex items-center gap-1 text-term-dim" title={v.title}>
-      <span className={`inline-block h-1.5 w-1.5 rounded-full ${v.dotClass}`} />
+    <span
+      className="flex items-center gap-1 text-term-dim"
+      title={legacyLive ? `${v.title} · freshness unknown because this legacy payload has no receipt` : v.title}
+    >
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${legacyLive ? 'bg-term-muted' : v.dotClass}`} />
       <span className="text-term-muted">{v.source}</span>
-      <span>· {v.label}</span>
+      <span>· {legacyLive ? 'live · freshness unknown' : v.label}</span>
       <span>· {v.ageText}</span>
     </span>
   );

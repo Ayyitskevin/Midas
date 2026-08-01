@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
-import type { LiquidationsFeed } from '@midas/shared';
+import { createDataReceipt, partialEvidenceLimitation, type LiquidationsFeed } from '@midas/shared';
 import type { PanelState } from '@/store/usePanels';
 import { LiquidationsModule } from './LiquidationsModule';
 
@@ -71,6 +71,8 @@ describe('LiquidationsModule provenance', () => {
     expect(screen.getByText(/no public liquidation feed/)).toBeTruthy();
     expect(screen.getByText(/connect an exchange that does/)).toBeTruthy();
     expect(screen.queryByText('· live')).toBeNull();
+    expect(screen.queryByText(/LONG\s+\$0/)).toBeNull();
+    expect(screen.queryByText(/\$0\s+SHORT/)).toBeNull();
   });
 
   it('labels a real feed as live without the amber caveat', async () => {
@@ -81,8 +83,43 @@ describe('LiquidationsModule provenance', () => {
       meta: { source: 'bybit', available: true, asOf: Date.now() },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
-    expect(await screen.findByText('· live')).toBeTruthy();
+    expect(await screen.findByText('· live · freshness unknown')).toBeTruthy();
     expect(screen.getByText('bybit')).toBeTruthy();
     expect(screen.getByText('ETH/USDT')).toBeTruthy();
+  });
+
+  it('does not turn an empty partial read into a zero-liquidations claim', async () => {
+    const now = Date.now();
+    const receipt = createDataReceipt({
+      providerId: 'test',
+      providerVersion: '1',
+      source: 'test-liquidations',
+      datasetFamily: 'liquidations',
+      provenance: 'live',
+      derivation: 'derived',
+      sourceAsOf: now,
+      observedAt: now,
+      maxAgeMs: 60_000,
+      methodology: { id: 'test-feed', version: '1', formula: 'merge events' },
+      inputReceiptIds: [`dr_${'a'.repeat(32)}`],
+      limitations: [partialEvidenceLimitation('The liquidation event read failed.')],
+    }, now);
+    liquidationsMock.mockResolvedValue({
+      events: [],
+      receipt,
+      meta: {
+        source: 'test-liquidations',
+        available: true,
+        note: 'Public feed may be incomplete.',
+        asOf: now,
+        receipt,
+      },
+    });
+
+    render(createElement(LiquidationsModule, { panel: PANEL }));
+    expect(await screen.findByRole('button', { name: /LIVE \/ FRESH \/ PARTIAL \/ DERIVED/i })).toBeTruthy();
+    expect(screen.getByText(/partial; no complete event result can be asserted/i)).toBeTruthy();
+    expect(screen.queryByText(/LONG\s+\$0/)).toBeNull();
+    expect(screen.queryByText(/\$0\s+SHORT/)).toBeNull();
   });
 });

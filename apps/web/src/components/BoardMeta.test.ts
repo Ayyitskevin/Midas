@@ -2,15 +2,23 @@
 // Render-level pins for the provenance badge/honesty banner. (.ts not .tsx
 // because vitest's include glob is src/**/*.test.ts — JSX is avoided via
 // createElement so no vitest.config change is needed.)
-import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createElement } from 'react';
-import type { BoardMeta } from '@midas/shared';
+import type { BoardMeta, DataReceipt } from '@midas/shared';
 import { BoardMetaBadge, BoardMetaNote } from './BoardMeta';
 
 (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(Date.parse('2026-08-01T12:00:01.000Z'));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 function meta(overrides: Partial<BoardMeta>): BoardMeta {
   return {
@@ -24,12 +32,48 @@ function meta(overrides: Partial<BoardMeta>): BoardMeta {
   };
 }
 
+function receipt(): DataReceipt {
+  return {
+    schemaVersion: '1.0',
+    receiptId: 'rcpt-funding',
+    providerId: 'ccxt',
+    providerVersion: '4.5.0',
+    source: 'ccxt',
+    venue: 'binance',
+    datasetFamily: 'funding',
+    instrument: null,
+    coverage: 'perpetuals',
+    provenance: 'live',
+    derivation: 'observed',
+    sourceAsOf: '2026-08-01T12:00:00.000Z',
+    observedAt: '2026-08-01T12:00:01.000Z',
+    expectedCadenceMs: 60_000,
+    maxAgeMs: 180_000,
+    freshness: { state: 'fresh', ageMs: 1_000 },
+    cache: { status: 'miss', ageMs: null },
+    units: { fundingRate: 'fraction' },
+    methodology: null,
+    inputReceiptIds: [],
+    limitations: [],
+    traceId: null,
+    note: null,
+  } as DataReceipt;
+}
+
 describe('BoardMetaBadge', () => {
-  it('labels a fresh live board as live with the green dot', () => {
+  it('makes an adopted receipt actionable while preserving the legacy fallback', () => {
+    render(createElement(BoardMetaBadge, { meta: meta({ receipt: receipt() }) }));
+    const trigger = screen.getByRole('button', { name: /LIVE \/ FRESH/i });
+    fireEvent.click(trigger);
+    expect(screen.getByRole('dialog', { name: 'Source Inspector' })).toBeTruthy();
+  });
+
+  it('keeps a legacy live board neutral because freshness is unknown', () => {
     const { container } = render(createElement(BoardMetaBadge, { meta: meta({}) }));
     expect(screen.getByText('binance')).toBeTruthy();
-    expect(screen.getByText('· live')).toBeTruthy();
-    expect(container.querySelector('.bg-term-up')).toBeTruthy();
+    expect(screen.getByText('· live · freshness unknown')).toBeTruthy();
+    expect(container.querySelector('.bg-term-muted')).toBeTruthy();
+    expect(container.querySelector('.bg-term-up')).toBeNull();
   });
 
   it('labels a cached board as cached, visually distinct from live', () => {

@@ -4,14 +4,15 @@ import { useFetch } from '@/lib/hooks';
 import { useAccountRefresh } from '@/lib/accountBus';
 import { fmtCompact } from '@/lib/format';
 import { fillsBadge, type AccountTone } from '@/lib/accountReadsView';
-import { computeExecQuality } from '@/lib/execQuality';
+import { inspectExecQuality } from '@/lib/execQuality';
 import { fmtBps } from '@/lib/postTradeSlippage';
 import { useFillBaselines } from '@/store/useFillBaselines';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const TONE: Record<AccountTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -44,10 +45,11 @@ export function ExecQualityModule({ panel }: ModuleProps) {
   useAccountRefresh(refresh);
   const baselines = useFillBaselines((s) => s.baselines);
 
-  const q = useMemo(
-    () => (data ? computeExecQuality(data.fills, baselines) : null),
+  const inspected = useMemo(
+    () => (data ? inspectExecQuality(data.fills, baselines, data.receipt) : null),
     [data, baselines],
   );
+  const q = inspected?.quality ?? null;
   const badge = data ? fillsBadge(data) : null;
 
   return (
@@ -55,11 +57,13 @@ export function ExecQualityModule({ panel }: ModuleProps) {
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-text">Execution quality</span>
         <span className="text-term-dim">{symbol ?? 'all symbols'}</span>
-        {badge && (
+        {inspected?.receipt ? (
+          <SourceBadge receipt={inspected.receipt} compact className="ml-auto" />
+        ) : badge ? (
           <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-            {badge.label}
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="scroll-term min-h-0 flex-1 overflow-auto p-2">
@@ -76,9 +80,8 @@ export function ExecQualityModule({ panel }: ModuleProps) {
               <Tile label="Notional" value={fmtCompact(q.notional)} />
               <Tile label="Maker %" value={q.makerPct == null ? '—' : `${q.makerPct.toFixed(0)}%`} />
               <Tile
-                label={`Avg slip (${q.slipCoveragePct.toFixed(0)}% covered)`}
+                label={`Avg slip · local (${q.slipCoveragePct.toFixed(0)}% covered)`}
                 value={q.avgSlipBps == null ? '—' : fmtBps(q.avgSlipBps)}
-                tone={q.avgSlipBps == null ? undefined : q.avgSlipBps > 0 ? 'down' : 'up'}
               />
             </div>
 
@@ -114,9 +117,7 @@ export function ExecQualityModule({ panel }: ModuleProps) {
                     <td className="px-2 py-0.5 text-right text-term-muted">{s.fills}</td>
                     <td className="px-2 py-0.5 text-right text-term-muted">{fmtCompact(s.notional)}</td>
                     <td
-                      className={`px-2 py-0.5 text-right ${
-                        s.avgSlipBps == null ? 'text-term-dim' : s.avgSlipBps > 0 ? 'text-term-down' : 'text-term-up'
-                      }`}
+                      className="px-2 py-0.5 text-right text-term-muted"
                     >
                       {s.avgSlipBps == null ? '—' : fmtBps(s.avgSlipBps)}
                     </td>
@@ -126,8 +127,9 @@ export function ExecQualityModule({ panel }: ModuleProps) {
             </table>
 
             <p className="mt-2 px-1 text-2xs leading-relaxed text-term-dim">
-              Slippage compares fills against the estimates TICKET recorded in this browser at placement — fills
-              placed elsewhere have no baseline and are excluded from the averages (the coverage % says how much).
+              Slippage is local/unreceipted and illustrative: it compares fills against estimates TICKET recorded
+              in this browser at placement. It is excluded from the Source Inspector receipt above; the coverage %
+              reports how much fill notional had a local baseline.
             </p>
           </>
         )}

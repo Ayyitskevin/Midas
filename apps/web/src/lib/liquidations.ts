@@ -1,4 +1,10 @@
-import type { LiquidationEvent, LiquidationsMeta, LiquidationsProvenance } from '@midas/shared';
+import {
+  deriveDataReceipt,
+  type DataReceipt,
+  type LiquidationEvent,
+  type LiquidationsMeta,
+  type LiquidationsProvenance,
+} from '@midas/shared';
 
 export interface LiqSummary {
   /** Notional of liquidated longs (order side 'sell'). */
@@ -9,6 +15,11 @@ export interface LiqSummary {
   count: number;
   longCount: number;
   shortCount: number;
+}
+
+export interface InspectedLiquidationsSummary {
+  summary: LiqSummary;
+  receipt: DataReceipt | null;
 }
 
 /**
@@ -78,4 +89,47 @@ export function summarizeLiquidations(events: LiquidationEvent[]): LiqSummary {
     longCount,
     shortCount,
   };
+}
+
+/** Attach the feed lineage and formula to client-side long/short aggregates. */
+export function inspectLiquidationsSummary(
+  events: LiquidationEvent[],
+  inputReceipt: DataReceipt | undefined,
+  evaluatedAtMs: number = Date.now(),
+): InspectedLiquidationsSummary {
+  const summary = summarizeLiquidations(events);
+  if (inputReceipt === undefined) return { summary, receipt: null };
+  try {
+    return {
+      summary,
+      receipt: deriveDataReceipt(
+        {
+          providerId: 'midas-web',
+          providerVersion: '1.0',
+          source: 'Midas client liquidation reducer',
+          venue: inputReceipt.venue,
+          datasetFamily: 'liquidations',
+          instrument: inputReceipt.instrument,
+          coverage: `${events.length} liquidation event(s)`,
+          provenance: inputReceipt.provenance,
+          expectedCadenceMs: inputReceipt.expectedCadenceMs,
+          units: { value: 'quote currency', percentage: 'percent', count: 'events' },
+          methodology: {
+            id: 'liquidation-side-summary',
+            version: '1.0',
+            formula:
+              'event notional=price*amount; long=side sell, short=side buy; side totals=sum(event notional); side share=side total/(long total+short total)',
+          },
+          inputReceipts: [inputReceipt],
+          note:
+            inputReceipt.provenance === 'live'
+              ? null
+              : `Derived from ${inputReceipt.provenance} liquidation evidence.`,
+        },
+        evaluatedAtMs,
+      ),
+    };
+  } catch {
+    return { summary, receipt: null };
+  }
 }

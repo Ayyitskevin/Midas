@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { Candle } from '@midas/shared';
-import { buildHistory, historyRows, historySummary, sortHistory, toMs, type HistoryRow } from './history';
+import { createDataReceipt, type Candle } from '@midas/shared';
+import { buildHistory, historyRows, historySummary, inspectHistorySummary, sortHistory, toMs, type HistoryRow } from './history';
 
 // time in seconds (UTC); open, high, low, close, volume
 const c = (time: number, open: number, high: number, low: number, close: number, volume: number): Candle => ({
@@ -120,5 +120,55 @@ describe('historySummary', () => {
   it('returns null for an empty series', () => {
     expect(historySummary([])).toBeNull();
     expect(buildHistory([])).toEqual([] as HistoryRow[]);
+  });
+});
+
+describe('inspectHistorySummary', () => {
+  const now = Date.parse('2026-08-01T12:00:00.000Z');
+  const input = createDataReceipt({
+    providerId: 'test-history',
+    providerVersion: '1',
+    source: 'test fixture',
+    datasetFamily: 'history',
+    instrument: 'BTC/USDT',
+    coverage: '1d/1y',
+    provenance: 'live',
+    sourceAsOf: now,
+    observedAt: now,
+    maxAgeMs: 60_000,
+  }, now);
+
+  it('records methodology and complete input lineage for local aggregates', () => {
+    const inspected = inspectHistorySummary(bars, input, 'BTC/USDT', '1d/1y', now);
+    expect(inspected.summary?.n).toBe(4);
+    expect(inspected.receipt).toMatchObject({
+      derivation: 'derived',
+      provenance: 'live',
+      datasetFamily: 'history',
+      inputReceiptIds: [input.receiptId],
+      freshness: { state: 'fresh', ageMs: 0 },
+      methodology: { id: 'history-summary', version: '1.0' },
+    });
+  });
+
+  it('fails closed without lineage and preserves stale or synthetic input truth', () => {
+    expect(inspectHistorySummary(bars, undefined, 'BTC/USDT', '1d/1y', now).receipt).toBeNull();
+    const stale = inspectHistorySummary(bars, input, 'BTC/USDT', '1d/1y', now + 60_001);
+    expect(stale.receipt?.freshness.state).toBe('stale');
+    const syntheticInput = createDataReceipt({
+      providerId: 'test-history',
+      providerVersion: '1',
+      source: 'test fixture',
+      datasetFamily: 'history',
+      instrument: 'BTC/USDT',
+      coverage: '1d/1y',
+      provenance: 'synthetic',
+      sourceAsOf: now,
+      observedAt: now,
+      maxAgeMs: 60_000,
+      note: 'Deterministic demo evidence.',
+    }, now);
+    const synthetic = inspectHistorySummary(bars, syntheticInput, 'BTC/USDT', '1d/1y', now);
+    expect(synthetic.receipt?.provenance).toBe('synthetic');
   });
 });

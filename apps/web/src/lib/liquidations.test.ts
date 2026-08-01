@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { LiquidationEvent } from '@midas/shared';
+import { createDataReceipt, type LiquidationEvent } from '@midas/shared';
 import {
+  inspectLiquidationsSummary,
   liquidationsFeedBadge,
   liquidationsFeedLabel,
   summarizeLiquidations,
@@ -13,6 +14,34 @@ const ev = (side: 'buy' | 'sell', value: number): LiquidationEvent => ({
   amount: value / 100,
   value,
   timestamp: 0,
+});
+
+describe('inspectLiquidationsSummary', () => {
+  const now = Date.parse('2026-08-01T12:00:00.000Z');
+  const input = createDataReceipt({
+    providerId: 'test',
+    providerVersion: '1',
+    source: 'test feed',
+    datasetFamily: 'liquidations',
+    provenance: 'live',
+    sourceAsOf: now,
+    observedAt: now,
+    maxAgeMs: 10_000,
+  }, now);
+
+  it('carries formula, lineage, provenance and wall-clock freshness', () => {
+    const inspected = inspectLiquidationsSummary([ev('sell', 100), ev('buy', 200)], input, now);
+    expect(inspected.summary.total).toBe(300);
+    expect(inspected.receipt).toMatchObject({
+      derivation: 'derived',
+      provenance: 'live',
+      inputReceiptIds: [input.receiptId],
+      freshness: { state: 'fresh', ageMs: 0 },
+      methodology: { id: 'liquidation-side-summary', version: '1.0' },
+    });
+    expect(inspectLiquidationsSummary([], input, now + 10_001).receipt?.freshness.state).toBe('stale');
+    expect(inspectLiquidationsSummary([], undefined, now).receipt).toBeNull();
+  });
 });
 
 describe('summarizeLiquidations', () => {

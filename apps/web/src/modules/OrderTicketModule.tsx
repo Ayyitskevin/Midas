@@ -4,7 +4,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { previewOrder, type OrderType } from '@/lib/orderPreview';
 import { emitAccountChange, usePricePick } from '@/lib/accountBus';
-import { quickSizeAmount, capBlockReason } from '@/lib/quickSize';
+import { quickSizeAmount, capBlockReason, trustedFreeBalance } from '@/lib/quickSize';
 import { describeOrderTrack, isTerminalOrderStatus } from '@/lib/orderTrack';
 import { useFillBaselines } from '@/store/useFillBaselines';
 import type { Level, Side } from '@/lib/slippage';
@@ -74,8 +74,7 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   const live = trading.data?.enabled ?? false;
   // Balances power the %-of-balance quick-size buttons (synthetic in demo mode).
   const balances = useFetch((signal) => api.balances(signal), [], { intervalMs: 30_000 });
-  const freeOf = (asset: string): number =>
-    balances.data?.balances.find((b) => b.asset === asset.toUpperCase())?.free ?? 0;
+  const freeOf = (asset: string): number | null => trustedFreeBalance(balances.data, asset);
 
   const bids: Level[] = useMemo(() => (data?.bids ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
   const asks: Level[] = useMemo(() => (data?.asks ?? []).map((l) => ({ price: l.price, size: l.amount })), [data]);
@@ -190,6 +189,8 @@ export function OrderTicketModule({ panel }: ModuleProps) {
     type === 'limit' ? (Number.isFinite(limitNum) && limitNum > 0 ? limitNum : null) : preview.bestPrice;
   const estNotional = preview.ok && priceRef != null ? preview.amount * priceRef : null;
   const capBlock = live ? capBlockReason(estNotional, trading.data ?? null) : null;
+  const sizingAsset = side === 'sell' ? base : quote;
+  const sizingBalance = freeOf(sizingAsset);
 
   const applyQuickSize = (fraction: number) => {
     const amt = quickSizeAmount(side, fraction, freeOf(base), freeOf(quote), priceRef ?? 0);
@@ -298,16 +299,22 @@ export function OrderTicketModule({ panel }: ModuleProps) {
       {/* %-of-balance quick sizing: a sell sizes from free base, a buy from free quote at the ref price. */}
       <div className="flex items-center gap-1 text-2xs text-term-dim">
         <span>
-          size from balance ({side === 'sell' ? base : quote} {fmtCompact(freeOf(side === 'sell' ? base : quote))})
+          size from balance ({sizingAsset} {sizingBalance == null ? '—' : fmtCompact(sizingBalance)})
         </span>
         {[0.25, 0.5, 1].map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => applyQuickSize(f)}
-            disabled={!balances.data || (side === 'buy' && priceRef == null)}
+            disabled={sizingBalance == null || (side === 'buy' && priceRef == null)}
             className="rounded-sm border border-term-border px-1.5 py-0.5 text-term-muted hover:border-term-amber/50 hover:text-term-amber disabled:opacity-40"
-            title={side === 'buy' && priceRef == null ? 'Needs a limit price or a live touch price' : undefined}
+            title={
+              sizingBalance == null
+                ? 'Needs a fresh, reported balance for this asset'
+                : side === 'buy' && priceRef == null
+                  ? 'Needs a limit price or a live touch price'
+                  : undefined
+            }
           >
             {f === 1 ? 'MAX' : `${f * 100}%`}
           </button>
