@@ -29,6 +29,8 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OiDelta,
+  OiDeltaWindow,
   OrderBook,
   OrderRequest,
   OptionsChain,
@@ -258,6 +260,10 @@ export const api = {
 
   termStructure: (symbol: string, signal?: AbortSignal) =>
     apiGet<TermStructure>(`/api/futures/term-structure?symbol=${encodeURIComponent(symbol)}`, signal),
+
+  // OI-delta positioning (ΔOI vs Δprice quadrant; honestly labeled).
+  oiDelta: (symbol: string, window: OiDeltaWindow = '24h', signal?: AbortSignal) =>
+    apiGet<OiDelta>(`/api/oi-delta?symbol=${encodeURIComponent(symbol)}&window=${window}`, signal),
 
   screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
     apiGet<ScreenerRow[]>(

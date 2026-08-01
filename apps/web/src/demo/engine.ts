@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow } from '@midas/shared';
+import { computeFundingDispersion, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import type {
   AccountFills,
   AccountPositions,
@@ -19,6 +19,9 @@ import type {
   Interval,
   LiquidationsFeed,
   NewsItem,
+  OiDelta,
+  OiDeltaPoint,
+  OiDeltaWindow,
   OpenOrders,
   OptionsChain,
   OptionsChainEntry,
@@ -450,6 +453,65 @@ export function oiConcentrationRows(quote: string, limit: number, now: number): 
     .map((a) => computeOiConcentration(`${a.base}/${quote}`, venueDerivatives(`${a.base}/${quote}`, now)))
     .filter((r) => r.totalOiValue !== null)
     .sort((a, b) => (b.totalOiValue ?? 0) - (a.totalOiValue ?? 0));
+}
+
+/**
+ * Synthetic OI-delta positioning — parity with the server mock (apps/server/
+ * src/providers/mock/oiDelta.ts). The price leg samples the demo's own
+ * time-anchored walk (priceAt), so the last point is the price every other
+ * panel shows; the OI walk is correlated with the price returns by a
+ * per-asset regime, so the four ΔOI × Δprice quadrants emerge from the series
+ * rather than being pasted on. Always labeled synthetic.
+ */
+export function oiDeltaFor(symbol: string, window: OiDeltaWindow, now: number): OiDelta {
+  const asset = assetFor(symbol);
+  const base = symbol.toUpperCase().split(/[/:]/)[0];
+  const perp = `${base}/USDT:USDT`;
+  if (!asset) {
+    return {
+      symbol: perp,
+      window,
+      oiNow: null,
+      oiThen: null,
+      oiChangePct: null,
+      priceChangePct: null,
+      classification: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source: DEMO_SOURCE,
+      note: 'Unknown demo asset.',
+    };
+  }
+  const N = 48;
+  const bucketMs = OI_DELTA_WINDOW_MS[window] / N;
+  const corr = u(`${asset.base}:oidregime`) * 2 - 1;
+  const amp = 0.5 + u(`${asset.base}:oidamp`) * 2; // OI % response per 1% of price
+  const mid = priceAt(asset, now);
+  const oiBase = Math.floor((1_000 + u(`${asset.base}:oidbase`) * 249_000) * (asset.price > 1000 ? 1 : 1000)) * mid;
+
+  const prices = Array.from({ length: N }, (_, i) => priceAt(asset, now - (N - 1 - i) * bucketMs));
+  const oiCum: number[] = [0];
+  for (let i = 1; i < N; i++) {
+    const priceRet = prices[i - 1] > 0 ? prices[i] / prices[i - 1] - 1 : 0;
+    const noise = (u(`${asset.base}:oidnoise${window}:${Math.floor((now - (N - 1 - i) * bucketMs) / bucketMs)}`) - 0.5) * 0.008;
+    oiCum.push(oiCum[i - 1] + corr * amp * priceRet + noise);
+  }
+  const points: OiDeltaPoint[] = prices.map((price, i) => ({
+    timestamp: now - (N - 1 - i) * bucketMs,
+    openInterestValue: Math.round(oiBase * Math.exp(oiCum[i])),
+    price: Math.round(price * 1e6) / 1e6,
+  }));
+
+  return {
+    symbol: perp,
+    window,
+    ...summarizeOiDelta(points),
+    points,
+    provenance: 'synthetic',
+    source: DEMO_SOURCE,
+    note: NOTE,
+  };
 }
 
 // --- Options / DVOL / futures term structure -------------------------------

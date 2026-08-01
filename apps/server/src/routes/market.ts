@@ -4,6 +4,7 @@ import {
   computeOiConcentration,
   computeVenueArbRow,
   isInterval,
+  isOiDeltaWindow,
   isRange,
   withHonestNote,
 } from '@midas/shared';
@@ -20,6 +21,8 @@ import type {
   LiquidationEvent,
   LiquidationsFeed,
   OiConcentrationRow,
+  OiDelta,
+  OiDeltaWindow,
   OptionsChain,
   Range,
   ScreenerRow,
@@ -68,6 +71,9 @@ const COINS_TTL_MS = 60_000;
 // futures tick faster, so the term structure gets a 30s window.
 const OPTIONS_TTL_MS = 60_000;
 const TERM_STRUCTURE_TTL_MS = 30_000;
+// OI-delta reads an OI history + an OHLCV series per (symbol, window); 60s
+// collapses client polling into one upstream pair of reads.
+const OI_DELTA_TTL_MS = 60_000;
 // DVOL is published for BTC and ETH only — anything else is a 400 at the edge.
 const DVOL_SYMBOLS = new Set(['BTC', 'ETH']);
 // An explicit expiry must be a plausible epoch-millis (bounded below year 2100).
@@ -363,9 +369,11 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   const dvolCache = createTtlCache<DvolSnapshot>(OPTIONS_TTL_MS);
   const chainCache = createTtlCache<OptionsChain>(OPTIONS_TTL_MS);
   const termStructureCache = createTtlCache<TermStructure>(TERM_STRUCTURE_TTL_MS);
+  const oiDeltaCache = createTtlCache<OiDelta>(OI_DELTA_TTL_MS);
   const getDvol = provider.getDvol?.bind(provider);
   const getOptionsChain = provider.getOptionsChain?.bind(provider);
   const getTermStructure = provider.getFuturesTermStructure?.bind(provider);
+  const getOiDelta = provider.getOiDelta?.bind(provider);
 
   app.get<{ Querystring: { symbol?: string } }>('/api/options/dvol', async (req) => {
     const raw = normalizeSymbol(req.query.symbol);
@@ -448,6 +456,44 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     }
     return termStructureCache.get(symbol, async () =>
       withHonestNote(await getTermStructure(symbol), 'Futures term structure is not live.'),
+    );
+  });
+
+  // OI-delta positioning: OI CHANGE vs price CHANGE over a window — the
+  // trader's four-quadrant read (long buildup / short buildup / long unwind /
+  // short covering) that a static OI snapshot cannot give. Single-symbol
+  // payload with its own provenance, like the options surface; providers
+  // without an OI-history read degrade to an honest 'unavailable', never a
+  // delta synthesized from two snapshots.
+  app.get<{ Querystring: { symbol?: string; window?: string } }>('/api/oi-delta', async (req) => {
+    const symbol = normalizeSymbol(req.query.symbol);
+    if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
+    const windowRaw = firstStr(req.query.window) || '24h';
+    if (!isOiDeltaWindow(windowRaw)) {
+      throw new ProviderError('Invalid window — expected one of: 1h, 4h, 24h, 7d', 400, symbol);
+    }
+    const window: OiDeltaWindow = windowRaw;
+    if (!getOiDelta) {
+      return withHonestNote(
+        {
+          symbol,
+          window,
+          oiNow: null,
+          oiThen: null,
+          oiChangePct: null,
+          priceChangePct: null,
+          classification: null,
+          points: [],
+          asOf: null,
+          provenance: 'unavailable' as const,
+          source: provider.name,
+          note: `${provider.name} has no OI-history read — an OI delta comes from venues that publish open-interest history (ccxt provider).`,
+        },
+        'OI-delta is not available from this provider.',
+      ) satisfies OiDelta;
+    }
+    return oiDeltaCache.get(`${symbol}|${window}`, async () =>
+      withHonestNote(await getOiDelta(symbol, window), 'OI-delta is not live.'),
     );
   });
 

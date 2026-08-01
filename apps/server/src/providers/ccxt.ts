@@ -15,6 +15,9 @@ import type {
   HistoryResponse,
   Interval,
   NewsItem,
+  OiDelta,
+  OiDeltaPoint,
+  OiDeltaWindow,
   OpenOrders,
   OptionsChain,
   OptionsChainEntry,
@@ -37,7 +40,7 @@ import type {
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
-import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio } from '@midas/shared';
+import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
@@ -947,6 +950,114 @@ export class CcxtProvider implements DataProvider {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * OI-delta positioning for a perp over a lookback window: the venue's OI
+   * history (fetchOpenInterestHistory, where the venue publishes one — Binance,
+   * Bybit, OKX, Gate do; Deribit and Kraken Futures do not) paired with OHLCV
+   * closes over the same window, then reduced to the ΔOI × Δprice quadrant by
+   * the shared summarizeOiDelta helper.
+   *
+   * Alignment: each OI observation is paired with the close of the price bar
+   * whose floor-aligned bucket it falls into — bucket width = the OI timeframe
+   * (5m/15m/1h/4h per window). Some venues timestamp OI at the PERIOD END while
+   * OHLCV bars are stamped at the period start, so an observation one bucket
+   * ahead of its bar is paired back one bucket; anything further off is left
+   * price-null (the change is computed off priced points only — never an
+   * interpolated price).
+   *
+   * A venue without an OI-history read, an empty history, or a failed read is
+   * an honest 'unavailable' — a delta is NEVER synthesized from two
+   * point-in-time snapshots and presented as history.
+   */
+  async getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
+    const perp = toPerpSymbol(this.normalize(symbol));
+    const source = `ccxt:${this.exchange.id ?? 'unknown'}`;
+    const unavailable = (note: string): OiDelta => ({
+      symbol: perp,
+      window,
+      oiNow: null,
+      oiThen: null,
+      oiChangePct: null,
+      priceChangePct: null,
+      classification: null,
+      points: [],
+      asOf: null,
+      provenance: 'unavailable',
+      source,
+      note,
+    });
+    if (!this.exchange.has['fetchOpenInterestHistory']) {
+      return unavailable(
+        `${source} publishes no open-interest history (fetchOpenInterestHistory unsupported) — an OI delta needs real history, not two snapshots.`,
+      );
+    }
+    // OI granularity per window: fine enough for a sparkline, coarse enough to
+    // stay within the venues' published OI-history timeframes.
+    const oiTimeframe = ({ '1h': '5m', '4h': '15m', '24h': '1h', '7d': '4h' } as Record<OiDeltaWindow, string>)[window];
+    const bucketMs = timeframeSeconds(oiTimeframe) * 1000;
+    const since = Date.now() - OI_DELTA_WINDOW_MS[window];
+    let rows: Array<{ timestamp?: number; openInterestValue?: number }>;
+    try {
+      rows = (await this.exchange.fetchOpenInterestHistory(perp, oiTimeframe, since, 500)) as unknown as Array<{
+        timestamp?: number;
+        openInterestValue?: number;
+      }>;
+    } catch (err) {
+      return unavailable(`OI-history read failed — ${safeErrorLabel(err)}.`);
+    }
+    const oiRows = rows.filter(
+      (r) => r.timestamp != null && r.openInterestValue != null && Number.isFinite(r.openInterestValue) && r.openInterestValue > 0,
+    );
+    if (oiRows.length === 0) {
+      return unavailable(`${source} returned no open-interest history for ${perp} — nothing to delta.`);
+    }
+
+    // Price leg: OHLCV closes over the same window, perp first, the spot pair
+    // as fallback (a venue may not candle its perp on the same symbol form).
+    // A failed price leg degrades the price points to null — the OI change and
+    // history stay live, the price change honestly null.
+    let candles: Array<[number, number, number, number, number, number]> = [];
+    for (const cand of [perp, this.normalize(symbol)]) {
+      try {
+        const got = (await this.exchange.fetchOHLCV(cand, oiTimeframe, since, 500)) as unknown as Array<
+          [number, number, number, number, number, number]
+        >;
+        if (got.length > 0) {
+          candles = got;
+          break;
+        }
+      } catch {
+        // try the next symbol form
+      }
+    }
+    const closeByBucket = new Map<number, number>();
+    for (const c of candles) {
+      if (Number.isFinite(c[0]) && Number.isFinite(c[4]) && c[4] > 0) {
+        closeByBucket.set(Math.floor(c[0] / bucketMs) * bucketMs, c[4]);
+      }
+    }
+
+    const points: OiDeltaPoint[] = oiRows.map((r) => {
+      const ts = r.timestamp as number;
+      const b = Math.floor(ts / bucketMs) * bucketMs;
+      // Period-end vs period-start convention: fall back one bucket (see the
+      // method doc for the alignment tolerance).
+      const price = closeByBucket.get(b) ?? closeByBucket.get(b - bucketMs) ?? null;
+      return { timestamp: ts, openInterestValue: r.openInterestValue as number, price };
+    });
+    points.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      symbol: perp,
+      window,
+      ...summarizeOiDelta(points),
+      points,
+      provenance: 'live',
+      source,
+      note: null,
+    };
   }
 
   // -- Deribit options / DVOL / term structure ------------------------------

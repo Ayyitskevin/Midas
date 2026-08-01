@@ -1,4 +1,4 @@
-import { MIDAS_VERSION } from '@midas/shared';
+import { isOiDeltaWindow, MIDAS_VERSION } from '@midas/shared';
 import type { HealthResponse, SystemStatus, TradingStatus } from '@midas/shared';
 import {
   DEMO_SOURCE,
@@ -16,6 +16,7 @@ import {
   liquidationsFeed,
   newsFor,
   oiConcentrationRows,
+  oiDeltaFor,
   openOrdersFor,
   optionsChainFor,
   orderBookFor,
@@ -173,6 +174,17 @@ function handle(method: string, url: URL): Response | null {
       return json(boardEnvelope(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path === '/api/oi-concentration':
       return json(boardEnvelope(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
+    // OI-delta positioning — synthetic parity with the server, same edge rules.
+    case path === '/api/oi-delta': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      const window = url.searchParams.get('window') ?? '24h';
+      // Mirror the server's edge: the window whitelist is 1h/4h/24h/7d.
+      if (!isOiDeltaWindow(window)) {
+        return json({ error: 'ProviderError', message: 'Invalid window — expected one of: 1h, 4h, 24h, 7d', statusCode: 400 }, 400);
+      }
+      return json(oiDeltaFor(sym, window, now));
+    }
     // Options / DVOL / term structure — synthetic parity with the server.
     case path === '/api/options/dvol': {
       const raw = (url.searchParams.get('symbol') ?? '').toUpperCase().split('/')[0];

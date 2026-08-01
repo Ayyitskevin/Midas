@@ -12,6 +12,8 @@ import type {
   HistoryResponse,
   LiquidationsProvenance,
   NewsItem,
+  OiDelta,
+  OiDeltaWindow,
   OpenOrders,
   OptionsChain,
   OrderBook,
@@ -63,6 +65,7 @@ import {
 import { mockBalances, mockFills, mockOpenOrders, mockPositions } from './mock/account';
 import { mockCoinUniverse } from './mock/coins';
 import { mockDvol, mockOptionsChain, mockTermStructure } from './mock/options';
+import { mockOiDelta } from './mock/oiDelta';
 
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
@@ -173,6 +176,9 @@ export class MockProvider implements DataProvider {
   }
   getOptionsChain(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain> {
     return mockOptionsChain(symbol, expiry);
+  }
+  getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
+    return mockOiDelta(symbol, window);
   }
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
     return mockScreen(opts);

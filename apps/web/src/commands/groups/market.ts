@@ -256,6 +256,15 @@ export const MARKET_COMMANDS: CommandDef[] = [
       "Cross-venue open-interest / crowding board — for the top perps by volume, aggregate open interest across the compare set (Binance, OKX, Bybit, …) plus how concentrated it is on one venue (top-venue share + a Herfindahl index), ranked by total OI. High OI concentrated on a single venue is crowding / venue risk. The size-and-positioning companion to FUNDX (funding) and XARB (price). Crypto-only (ccxt provider).",
   },
   {
+    code: 'OID',
+    aliases: ['OICHG', 'OIPX', 'POSITIONING'],
+    title: 'OI Delta Positioning',
+    module: 'OID',
+    requiresSymbol: true,
+    description:
+      "OI-delta positioning — open-interest CHANGE vs price CHANGE over a lookback window (1h / 4h / 24h / 7d), the classic four-quadrant read a static OI snapshot cannot give: OI↑ + price↑ = long buildup, OI↑ + price↓ = short buildup, OI↓ + price↓ = long unwind, OI↓ + price↑ = short covering. Classification badge, ΔOI and Δprice columns, and an OI sparkline, with a live/synthetic data-honesty badge. Venues with no OI-history read (e.g. Deribit) show an honest unavailable — a delta is never synthesized from two snapshots and called history. Crypto-only (ccxt provider); complements OIV (static OI by venue) and FUND (single-venue funding/OI).",
+  },
+  {
     code: 'DVOL',
     aliases: ['DERIVOL', 'DVOLINDEX'],
     title: 'DVOL Volatility',

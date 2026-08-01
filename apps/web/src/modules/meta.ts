@@ -32,6 +32,7 @@ export type ModuleCode =
   | 'FUNDR'
   | 'FUNDX'
   | 'OIV'
+  | 'OID'
   | 'DVOL'
   | 'TERM'
   | 'OPTC'
@@ -280,6 +281,7 @@ export const MODULE_META: Record<ModuleCode, ModuleMeta> = {
   FUNDR: { code: 'FUNDR', title: 'Funding Rates', w: 5, h: 11, minW: 4, minH: 6 },
   FUNDX: { code: 'FUNDX', title: 'Funding Dispersion', w: 6, h: 11, minW: 5, minH: 6 },
   OIV: { code: 'OIV', title: 'OI by Venue', w: 6, h: 11, minW: 5, minH: 6 },
+  OID: { code: 'OID', title: 'OI Delta', w: 5, h: 10, minW: 4, minH: 6 },
   DVOL: { code: 'DVOL', title: 'DVOL Volatility', w: 5, h: 8, minW: 4, minH: 5 },
   TERM: { code: 'TERM', title: 'Term Structure', w: 5, h: 11, minW: 4, minH: 6 },
   OPTC: { code: 'OPTC', title: 'Options Chain', w: 6, h: 12, minW: 5, minH: 7 },

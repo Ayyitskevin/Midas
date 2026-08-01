@@ -11,6 +11,7 @@ import {
   historyFor,
   liquidationsFeed,
   newsFor,
+  oiDeltaFor,
   optionsChainFor,
   orderBookFor,
   quoteFor,
@@ -283,6 +284,30 @@ describe('demo engine', () => {
     expect(none.points).toEqual([]);
   });
 
+  it('OI delta is deterministic, synthetic, price-coherent and honestly unavailable for unknown assets', () => {
+    const a = oiDeltaFor('BTC/USDT', '24h', NOW);
+    expect({ ...a, asOf: 0, points: [] }).toEqual({ ...oiDeltaFor('BTC/USDT', '24h', NOW), asOf: 0, points: [] });
+    expect(a.points.map((p) => [p.openInterestValue, p.price])).toEqual(
+      oiDeltaFor('BTC/USDT', '24h', NOW).points.map((p) => [p.openInterestValue, p.price]),
+    );
+    expect(a.provenance).toBe('synthetic');
+    expect(a.source).toBe('demo');
+    expect(typeof a.note).toBe('string');
+    expect(a.points.length).toBeGreaterThan(1);
+    // Coherent with the demo walk: the last price point is the current quote.
+    expect(a.points[a.points.length - 1].price!).toBeCloseTo(quoteFor('BTC/USDT', NOW)!.price, 2);
+    expect(a.oiNow).toBe(a.points[a.points.length - 1].openInterestValue);
+    // The classification is a true quadrant of the returned series.
+    expect(a.classification).not.toBeNull();
+    expect(Math.sign(a.oiChangePct!)).not.toBe(0);
+    expect(Math.sign(a.priceChangePct!)).not.toBe(0);
+    // An unknown asset is honestly unavailable, never a fabricated delta.
+    const none = oiDeltaFor('NOPE/USDT', '24h', NOW);
+    expect(none.provenance).toBe('unavailable');
+    expect(none.points).toEqual([]);
+    expect(none.classification).toBeNull();
+  });
+
   it('options chain is synthetic with OI both sides, derived max pain/PCR, honest unavailable for unknown assets', () => {
     const chain = optionsChainFor('ETH/USDT', 'nearest', NOW);
     expect(chain.provenance).toBe('synthetic');
@@ -374,6 +399,16 @@ describe('demo shim', () => {
     expect(termBody.provenance).toBe('synthetic');
     expect(termBody.points.length).toBeGreaterThan(0);
     expect((await fetch('/api/futures/term-structure')).status).toBe(400);
+
+    const oid = await fetch('/api/oi-delta?symbol=BTC/USDT&window=24h');
+    expect(oid.status).toBe(200);
+    const oidBody = await oid.json();
+    expect(oidBody.provenance).toBe('synthetic');
+    expect(oidBody.window).toBe('24h');
+    expect(oidBody.points.length).toBeGreaterThan(1);
+    expect(oidBody.classification).not.toBeNull();
+    expect((await fetch('/api/oi-delta')).status).toBe(400);
+    expect((await fetch('/api/oi-delta?symbol=BTC/USDT&window=2h')).status).toBe(400);
   });
 
   it('sets the flag stream.ts uses to stay offline', () => {

@@ -17,6 +17,8 @@ import type {
   Interval,
   LiquidationsProvenance,
   NewsItem,
+  OiDelta,
+  OiDeltaWindow,
   OrderBook,
   Quote,
   Range,
@@ -131,6 +133,15 @@ export interface DataProvider {
   streamAccountNudge?(onChange: () => void): (() => void) | null;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
+  /**
+   * OI-delta positioning for a perp over a lookback window (optional): the
+   * open-interest change vs the price change, classified into the four
+   * positioning quadrants (long buildup / short buildup / long unwind / short
+   * covering). Needs a real OI-history read — venues without one (e.g. Deribit)
+   * get an honest 'unavailable' snapshot, never a delta synthesized from two
+   * snapshots. Honestly labeled, nulls over fabrication.
+   */
+  getOiDelta?(symbol: string, window: OiDeltaWindow): Promise<OiDelta>;
   /**
    * DVOL volatility-index snapshot for BTC/ETH (optional). Deribit-native —
    * the ccxt provider reads it from Deribit regardless of the configured
