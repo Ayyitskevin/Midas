@@ -9,11 +9,32 @@ import { gaussian, round, seeded, uniform } from '../util';
 import { COMPARE_VENUES, DEX_VENUES, resolveEntry } from './fixtures';
 import { buildQuote } from './quote';
 
+/**
+ * Deterministic per-symbol funding cadence (hours). Mostly the common 8h, with
+ * one hourly and one 4h symbol so the funding boards exercise interval
+ * normalization and labeling. Synthetic, like every mock value.
+ */
+const FUNDING_INTERVAL_HOURS: Record<string, number> = {
+  'SOL/USDT': 1, // hourly-funding venue (Hyperliquid-style)
+  'DOGE/USDT': 4, // 4h cadence (several Binance perps)
+};
+
+function fundingIntervalFor(symbol: string): number {
+  return FUNDING_INTERVAL_HOURS[symbol] ?? 8;
+}
+
+/** Next settlement boundary for an `intervalHours` cadence, epoch millis. */
+function nextFundingBoundary(intervalHours: number): number {
+  const stepMs = intervalHours * 3_600_000;
+  return (Math.floor(Date.now() / stepMs) + 1) * stepMs;
+}
+
 export async function mockVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
   const entry = resolveEntry(symbol);
   const mid = buildQuote(entry).price;
+  const intervalHours = fundingIntervalFor(entry.symbol);
   const eightHour = Math.floor(Date.now() / (8 * 3_600_000));
-  const nextFunding = (eightHour + 1) * (8 * 3_600_000);
+  const nextFunding = nextFundingBoundary(intervalHours);
   return COMPARE_VENUES.map((venue) => {
     // Each venue funds slightly differently → a realistic cross-venue spread.
     const rng = seeded(entry.symbol, venue, eightHour, 'venuederiv');
@@ -21,6 +42,7 @@ export async function mockVenueDerivatives(symbol: string): Promise<VenueDerivat
     return {
       exchange: venue,
       fundingRate: round(gaussian(rng) * 0.0001, 6),
+      fundingIntervalHours: intervalHours,
       nextFundingTime: nextFunding,
       markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
       openInterestValue: Math.floor(oiBase * mid),
@@ -32,11 +54,12 @@ export async function mockVenueDerivatives(symbol: string): Promise<VenueDerivat
 export async function mockDerivatives(symbol: string): Promise<DerivativesInfo> {
   const entry = resolveEntry(symbol);
   const mid = buildQuote(entry).price;
+  const intervalHours = fundingIntervalFor(entry.symbol);
   const hourBucket = Math.floor(Date.now() / 3_600_000);
   const rng = seeded(entry.symbol, hourBucket, 'deriv');
   const oiBase = Math.floor(uniform(rng, 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
-  // Next funding at the next 8-hour boundary.
-  const nextFunding = (Math.floor(Date.now() / (8 * 3_600_000)) + 1) * (8 * 3_600_000);
+  // Next funding at the next settlement boundary for this symbol's cadence.
+  const nextFunding = nextFundingBoundary(intervalHours);
 
   const minuteBucket = Math.floor(Date.now() / 60_000);
   const lrng = seeded(entry.symbol, minuteBucket, 'liq');
@@ -54,6 +77,7 @@ export async function mockDerivatives(symbol: string): Promise<DerivativesInfo> 
   return {
     symbol: entry.symbol.includes(':') ? entry.symbol : `${entry.symbol}:${entry.currency}`,
     fundingRate: round(gaussian(rng) * 0.0001, 6),
+    fundingIntervalHours: intervalHours,
     nextFundingTime: nextFunding,
     markPrice: round(mid * (1 + gaussian(rng) * 0.0003), 6),
     indexPrice: mid,

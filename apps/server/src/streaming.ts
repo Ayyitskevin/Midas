@@ -3,7 +3,8 @@ import type { RawData, WebSocket } from 'ws';
 import type { OrderBook, OrderBookLevel, Trade } from '@midas/shared';
 import type { DataProvider } from './providers';
 import { round } from './providers/util';
-import { createCcxtStreamSource, type StreamSource } from './ccxt-stream';
+import { numEnv } from './config';
+import { ccxtProAvailable, createCcxtStreamSource, type StreamSource } from './ccxt-stream';
 
 /**
  * Real-time streaming hub. Browser clients connect over a single WebSocket and
@@ -48,9 +49,16 @@ const MAX_STREAM_SOURCES = 500;
  * source of truth for BOTH the source selection in `createStreamHub` and the
  * `/api/health` `streamLive` flag the UI badge reads — so the terminal never
  * shows "LIVE" over a synthetic feed.
+ *
+ * The provider name alone is not enough: ccxt.pro covers only a subset of
+ * exchange ids, and an unsupported MIDAS_CCXT_EXCHANGE builds NO upstream
+ * source at all — reporting live then would light a LIVE badge over a feed
+ * that can never deliver. Buildability (ccxtProAvailable) is part of the
+ * check; when it's false the hub falls back to the synthetic sources and
+ * health says streamLive:false, so the badge reads SIM, never LIVE-over-silence.
  */
 export function providerStreamsLive(provider: DataProvider): boolean {
-  return provider.name.startsWith('ccxt');
+  return provider.name.startsWith('ccxt') && ccxtProAvailable();
 }
 
 export function createStreamHub(
@@ -350,17 +358,52 @@ function sendError(socket: WebSocket, message: string): void {
   if (socket.readyState === 1 /* OPEN */) socket.send(JSON.stringify({ type: 'error', message }));
 }
 
+export interface RegisterStreamOptions {
+  /**
+   * Client-socket heartbeat cadence in ms (0 = off). Defaults to
+   * MIDAS_STREAM_HEARTBEAT_MS, or 30s. Injectable for tests.
+   */
+  heartbeatMs?: number;
+}
+
 /** Register the WebSocket streaming endpoint. Requires @fastify/websocket. */
-export function registerStream(app: FastifyInstance, hub: StreamHub): void {
+export function registerStream(
+  app: FastifyInstance,
+  hub: StreamHub,
+  opts: RegisterStreamOptions = {},
+): void {
   // Per-client budget over the shared source pool — lives for the app's lifetime,
   // keyed by req.ip (real client IP when trustProxy is configured).
   const ipQuota = createIpQuota(MAX_SUBS_PER_IP);
+  const heartbeatMs = opts.heartbeatMs ?? numEnv('MIDAS_STREAM_HEARTBEAT_MS', 30_000);
 
   app.get('/api/stream', { websocket: true }, (socket: WebSocket, request: FastifyRequest) => {
     const ip = request.ip;
     // Per-socket subscription ledger: bounds one connection's resource use and
     // lets close/error release exactly what this socket held (and its IP quota).
     const held = new Set<string>();
+
+    // Liveness heartbeat (ws-level ping/pong). A half-open TCP connection —
+    // laptop sleep, dead NAT — never fires 'close', so without this the hub
+    // would hold the upstream subscription and this socket's quota slots
+    // forever. One full missed ping round-trip → terminate(), which forces
+    // the close that runs cleanup below and frees everything.
+    let pongReceived = true;
+    socket.on('pong', () => {
+      pongReceived = true;
+    });
+    const heartbeat =
+      heartbeatMs > 0
+        ? setInterval(() => {
+            if (!pongReceived) {
+              socket.terminate();
+              return;
+            }
+            pongReceived = false;
+            if (socket.readyState === 1 /* OPEN */) socket.ping();
+          }, heartbeatMs)
+        : undefined;
+    heartbeat?.unref?.();
 
     socket.on('message', (raw: RawData) => {
       const byteLength =
@@ -401,6 +444,7 @@ export function registerStream(app: FastifyInstance, hub: StreamHub): void {
     });
 
     const cleanup = (): void => {
+      if (heartbeat) clearInterval(heartbeat);
       hub.removeSocket(socket);
       held.forEach(() => ipQuota.release(ip)); // free every slot this socket held
       held.clear();

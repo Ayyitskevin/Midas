@@ -8,6 +8,8 @@ import {
   withHonestNote,
 } from '@midas/shared';
 import type {
+  BoardEnvelope,
+  BoardProvenance,
   CoinUniverse,
   FundingDispersionRow,
   FundingRow,
@@ -17,12 +19,13 @@ import type {
   LiquidationsFeed,
   OiConcentrationRow,
   Range,
+  ScreenerRow,
   VenueArbRow,
 } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
 import { config } from '../config';
-import { createTtlCache } from '../ttlCache';
+import { createTtlCache, type TtlCache } from '../ttlCache';
 import { providerStreamsLive } from '../streaming';
 import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
 
@@ -38,19 +41,96 @@ const FUNDING_DISPERSION_TTL_MS = 45_000;
 const VENUE_ARB_TTL_MS = 20_000;
 // OI moves slowly (like funding), so the OI/crowding board reuses a 45s window.
 const OI_CONCENTRATION_TTL_MS = 45_000;
+// The funding board fans screen() + getDerivatives() out over N perps per
+// request — the same cost shape as the venue boards, so it gets a short
+// single-flight window too (funding itself moves slowly).
+const FUNDING_TTL_MS = 15_000;
+// The market-wide liquidations feed has the same N-perp fan-out; a 15s window
+// collapses client polling into one upstream sweep.
+const LIQUIDATIONS_TTL_MS = 15_000;
+// The screener re-reads the full ticker set per request; quote/price data is
+// fresh enough on a 15s window shared across concurrent users.
+const SCREENER_TTL_MS = 15_000;
+// The screener sort keys the providers' sortScreener understands; anything
+// else would silently fall back to volume order, so it's rejected at the edge.
+const SCREENER_SORTS = new Set(['volume', 'change', 'price']);
 // The coin-universe (market-cap reference) changes slowly — supplies barely move
 // and only the price wiggles — so a 60s window is plenty and shares one build
 // across concurrent users and client polling.
 const COINS_TTL_MS = 60_000;
 
 /**
+ * What a board TTL cache stores: the rows plus the build-time facts the
+ * envelope meta needs — when the board was computed (→ `asOf`, and `cachedAt`
+ * on a stale serve) and how many symbols failed and were dropped (→ `partial`
+ * and the note). Stamping the cache entry means a cached serve reports the
+ * board's true age and completeness instead of looking freshly computed.
+ */
+interface CachedBoard<Row> {
+  rows: Row[];
+  computedAt: number;
+  failed: number;
+  total: number;
+}
+
+/**
+ * Wrap cached board rows in the shared envelope. Provenance comes straight
+ * from the provider (ccxt → 'live', mock → 'synthetic' — never claimed live
+ * for synthetic data). The note is null only for a fully live, complete
+ * board; synthetic provenance and dropped symbols are always stated.
+ */
+function boardEnvelope<Row>(
+  provider: DataProvider,
+  entry: CachedBoard<Row>,
+  fromCache: boolean,
+): BoardEnvelope<Row> {
+  const provenance: BoardProvenance = provider.live ? 'live' : 'synthetic';
+  const caveats: string[] = [];
+  if (provenance === 'synthetic') caveats.push(`Synthetic data from ${provider.name} — not real market data.`);
+  if (entry.failed > 0) caveats.push(`${entry.failed} of ${entry.total} symbols unavailable`);
+  return {
+    rows: entry.rows,
+    meta: {
+      provenance,
+      source: provider.name,
+      asOf: entry.computedAt,
+      cachedAt: fromCache ? entry.computedAt : null,
+      partial: entry.failed > 0,
+      note: caveats.length > 0 ? caveats.join(' ') : null,
+    },
+  };
+}
+
+/**
+ * Serve a fan-out board through its TTL cache and wrap it in a BoardEnvelope.
+ * The cache stores the rows stamped with their compute time and drop count;
+ * `cachedAt` is set only when this request was served a previously stored
+ * entry (a fresh compute, or sharing one in flight, reports null).
+ */
+async function serveBoard<Row>(
+  provider: DataProvider,
+  cache: TtlCache<CachedBoard<Row>>,
+  key: string,
+  build: () => Promise<{ rows: Row[]; failed: number; total: number }>,
+): Promise<BoardEnvelope<Row>> {
+  let computed = false;
+  const entry = await cache.get(key, async () => {
+    computed = true;
+    const { rows, failed, total } = await build();
+    return { rows, failed, total, computedAt: Date.now() };
+  });
+  return boardEnvelope(provider, entry, !computed);
+}
+
+/**
  * Register one cross-venue board route (funding dispersion, venue arb, OI
  * concentration). All three share the same shape: for the top-N perps/symbols
  * by volume, fan a per-symbol upstream read out (N×M), compute one row each
- * (dropping any that throw), keep the rows that carry a real signal, and rank
- * them descending. They differ only in the upstream call + row compute
- * (`compute`) and the field that must be non-null and is the sort key (`rank`).
- * A short single-flight TTL cache (per (quote, limit)) bounds the fan-out cost.
+ * (dropping any that throw — counted so the envelope can flag a partial
+ * board), keep the rows that carry a real signal, and rank them descending.
+ * They differ only in the upstream call + row compute (`compute`) and the
+ * field that must be non-null and is the sort key (`rank`). A short
+ * single-flight TTL cache (per (quote, limit)) bounds the fan-out cost.
  */
 function registerVenueBoard<Row>(
   app: FastifyInstance,
@@ -64,13 +144,16 @@ function registerVenueBoard<Row>(
     rank: (row: Row) => number | null;
   },
 ): void {
-  const cache = createTtlCache<Row[]>(opts.ttlMs);
+  const cache = createTtlCache<CachedBoard<Row>>(opts.ttlMs);
   app.get<{ Querystring: { quote?: string; limit?: string } }>(opts.path, async (req) => {
     const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 30) : 15;
-    return cache.get(`${quote}|${limit}`, async () => {
+    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 15;
+    return serveBoard(provider, cache, `${quote}|${limit}`, async () => {
       const rows = await provider.screen({ quote, sort: 'volume', limit });
+      let failed = 0;
       // Cast the resolved array: for a generic Row, TS widens Promise.all's
       // result to Awaited<Row>, which it can't prove equals Row. Every call
       // site's Row is a plain row object (never a promise), so this is sound.
@@ -79,13 +162,18 @@ function registerVenueBoard<Row>(
           try {
             return await opts.compute(r.symbol);
           } catch {
+            failed += 1;
             return null;
           }
         }),
       )) as (Row | null)[];
-      return board
-        .filter((x): x is Row => x !== null && opts.rank(x) !== null)
-        .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0));
+      return {
+        rows: board
+          .filter((x): x is Row => x !== null && opts.rank(x) !== null)
+          .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0)),
+        failed,
+        total: rows.length,
+      };
     });
   });
 }
@@ -201,17 +289,27 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     },
   );
 
+  // The screener re-reads the whole ticker set per request; a short
+  // single-flight window per (quote, sort, limit) shares one read across
+  // concurrent users and client polling.
+  const screenerCache = createTtlCache<ScreenerRow[]>(SCREENER_TTL_MS);
   app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
     '/api/screener',
     async (req) => {
+      const quote = normalizeQuote(req.query.quote);
+      const sortRaw = firstStr(req.query.sort);
+      // Reject unknown sorts: sortScreener would otherwise silently treat them
+      // as volume order. Never echo the raw value back (it's unbounded input).
+      if (sortRaw && !SCREENER_SORTS.has(sortRaw)) {
+        throw new ProviderError(`Invalid screener sort — expected one of: ${[...SCREENER_SORTS].join(', ')}`, 400);
+      }
       const limitRaw = Number(req.query.limit);
+      // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
       const limit =
-        Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 50;
-      return provider.screen({
-        quote: firstStr(req.query.quote) || undefined,
-        sort: firstStr(req.query.sort) || undefined,
-        limit,
-      });
+        Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 200) : 50;
+      return screenerCache.get(`${quote}|${sortRaw || 'volume'}|${limit}`, () =>
+        provider.screen({ quote, sort: sortRaw || undefined, limit }),
+      );
     },
   );
 
@@ -245,28 +343,39 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
 
   // Funding-rates board: the top-N perps by volume with their funding + OI.
   // Composed from screen() + getDerivatives() so every provider supports it.
+  // Same fan-out cost shape as the venue boards, so it sits behind the same
+  // single-flight TTL cache (per (quote, limit)) and returns the shared
+  // BoardEnvelope — dropped symbols flip meta.partial, never vanish silently.
+  const fundingCache = createTtlCache<CachedBoard<FundingRow>>(FUNDING_TTL_MS);
   app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding', async (req) => {
-    const quote = (firstStr(req.query.quote) || 'USDT').toUpperCase();
+    const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 60) : 30;
-    const rows = await provider.screen({ quote, sort: 'volume', limit });
-    const board = await Promise.all(
-      rows.map(async (r): Promise<FundingRow | null> => {
-        try {
-          const d = await provider.getDerivatives(r.symbol);
-          return {
-            symbol: r.symbol,
-            fundingRate: d.fundingRate,
-            nextFundingTime: d.nextFundingTime,
-            markPrice: d.markPrice,
-            openInterestValue: d.openInterestValue,
-          };
-        } catch {
-          return null;
-        }
-      }),
-    );
-    return board.filter((x): x is FundingRow => x !== null);
+    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
+    return serveBoard(provider, fundingCache, `${quote}|${limit}`, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      let failed = 0;
+      const board = await Promise.all(
+        rows.map(async (r): Promise<FundingRow | null> => {
+          try {
+            const d = await provider.getDerivatives(r.symbol);
+            return {
+              symbol: r.symbol,
+              fundingRate: d.fundingRate,
+              fundingIntervalHours: d.fundingIntervalHours ?? null,
+              nextFundingTime: d.nextFundingTime,
+              markPrice: d.markPrice,
+              openInterestValue: d.openInterestValue,
+            };
+          } catch {
+            failed += 1;
+            return null;
+          }
+        }),
+      );
+      return { rows: board.filter((x): x is FundingRow => x !== null), failed, total: rows.length };
+    });
   });
 
   // The three cross-venue boards share one fan-out-behind-a-TTL-cache shape
@@ -296,35 +405,43 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
 
   // Market-wide liquidations feed: the recent liquidations across the top-N
   // perps merged into one newest-first stream. Composed from screen() +
-  // getDerivatives() so every provider supports it.
+  // getDerivatives() so every provider supports it. Cached per quote on a
+  // short single-flight window — the merged feed is capped at 120 events and
+  // `limit` only widens the fan-out, so one cached sweep can serve every
+  // limit within the window; meta.asOf always reports the sweep's real age.
+  const liquidationsCache = createTtlCache<LiquidationsFeed>(LIQUIDATIONS_TTL_MS);
   app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/liquidations', async (req) => {
-    const quote = (firstStr(req.query.quote) || 'USDT').toUpperCase();
+    const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 60) : 30;
-    const rows = await provider.screen({ quote, sort: 'volume', limit });
-    const perSymbol = await Promise.all(
-      rows.map(async (r): Promise<LiquidationEvent[]> => {
-        try {
-          const d = await provider.getDerivatives(r.symbol);
-          return d.recentLiquidations.map((l) => ({
-            symbol: r.symbol,
-            side: l.side,
-            price: l.price,
-            amount: l.amount,
-            value: l.price * l.amount,
-            timestamp: l.timestamp,
-          }));
-        } catch {
-          return [];
-        }
-      }),
-    );
-    const events = perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
-    const feed: LiquidationsFeed = {
-      events,
-      meta: { ...provider.liquidationsProvenance(), asOf: Date.now() },
-    };
-    return feed;
+    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the feed.
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
+    return liquidationsCache.get(quote, async () => {
+      const rows = await provider.screen({ quote, sort: 'volume', limit });
+      const perSymbol = await Promise.all(
+        rows.map(async (r): Promise<LiquidationEvent[]> => {
+          try {
+            const d = await provider.getDerivatives(r.symbol);
+            return d.recentLiquidations.map((l) => ({
+              symbol: r.symbol,
+              side: l.side,
+              price: l.price,
+              amount: l.amount,
+              value: l.price * l.amount,
+              timestamp: l.timestamp,
+            }));
+          } catch {
+            return [];
+          }
+        }),
+      );
+      const events = perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
+      const feed: LiquidationsFeed = {
+        events,
+        meta: { ...provider.liquidationsProvenance(), asOf: Date.now() },
+      };
+      return feed;
+    });
   });
 
   app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {

@@ -5,20 +5,38 @@ import { buildDigestText } from './digest';
 
 const HOUR = 3_600_000;
 
-const pt = (at: number, totalUsd: number): EquityPoint => ({ at, totalUsd, unrealizedPnlUsd: null });
+const pt = (at: number, totalUsd: number, unrealizedPnlUsd: number | null = null): EquityPoint => ({
+  at,
+  totalUsd,
+  unrealizedPnlUsd,
+});
 
 describe('equityChange', () => {
   const series = [pt(1 * HOUR, 100), pt(2 * HOUR, 110), pt(26 * HOUR, 130), pt(27 * HOUR, 125)];
 
   it('baselines at the last snapshot at/before the period start', () => {
     const c = equityChange(series, 2 * HOUR, 28 * HOUR);
-    expect(c).toEqual({ startUsd: 110, endUsd: 125, startAt: 2 * HOUR, endAt: 27 * HOUR });
+    expect(c).toEqual({
+      startUsd: 110,
+      endUsd: 125,
+      startAt: 2 * HOUR,
+      endAt: 27 * HOUR,
+      includesLiveUnrealizedPnl: false,
+    });
   });
 
   it('falls back to the first snapshot inside the period when none precede it', () => {
     const c = equityChange(series, 0, 28 * HOUR);
     expect(c?.startUsd).toBe(100);
     expect(c?.endUsd).toBe(125);
+  });
+
+  it('marks full account equity only when both endpoints carry live uPnL', () => {
+    const live = [pt(HOUR, 1000, 0), pt(2 * HOUR, 1100, 25)];
+    expect(equityChange(live, 0, 3 * HOUR)?.includesLiveUnrealizedPnl).toBe(true);
+    // One endpoint wallet-only → the change cannot claim full equity.
+    const mixed = [pt(HOUR, 1000, null), pt(2 * HOUR, 1100, 25)];
+    expect(equityChange(mixed, 0, 3 * HOUR)?.includesLiveUnrealizedPnl).toBe(false);
   });
 
   it('is null when the series cannot speak for the period', () => {
@@ -144,7 +162,7 @@ describe('topMovers', () => {
 describe('recapLines + digest rendering', () => {
   it('renders equity, fills and movers lines with honest ≈ markers', () => {
     const lines = recapLines({
-      equity: { startUsd: 10_000, endUsd: 10_450, startAt: 0, endAt: 1 },
+      equity: { startUsd: 10_000, endUsd: 10_450, startAt: 0, endAt: 1, includesLiveUnrealizedPnl: true },
       fills: {
         count: 12,
         buyNotionalUsd: 8200,
@@ -161,6 +179,17 @@ describe('recapLines + digest rendering', () => {
     expect(lines[0]).toBe('• Equity: $10,000 → $10,450 (+$450, +4.50%)');
     expect(lines[1]).toBe('• Fills: 12 (bought ≈$8,200, sold ≈$9,100) · round-trip P&L ≈+$412.5 (ex-fees) · fees 1.23 USDT');
     expect(lines[2]).toBe('• Movers (your positions): SOL/USDT +8.20% · BTC/USDT −1.90%');
+  });
+
+  it('labels the equity line wallet-only when live perp uPnL was unavailable', () => {
+    const lines = recapLines({
+      equity: { startUsd: 10_000, endUsd: 10_450, startAt: 0, endAt: 1, includesLiveUnrealizedPnl: false },
+      fills: null,
+      movers: null,
+    });
+    expect(lines[0]).toBe(
+      '• Equity: $10,000 → $10,450 (+$450, +4.50%) — wallet balance only; live perp uPnL unavailable',
+    );
   });
 
   it('omits sections that are null and notes untimed fills', () => {
@@ -186,7 +215,7 @@ describe('recapLines + digest rendering', () => {
       missedEvents: 0,
       watching: true,
       recap: {
-        equity: { startUsd: 100, endUsd: 90, startAt: 0, endAt: 1 },
+        equity: { startUsd: 100, endUsd: 90, startAt: 0, endAt: 1, includesLiveUnrealizedPnl: true },
         fills: null,
         movers: [{ symbol: 'BTC/USDT', changePercent: -3 }],
       },

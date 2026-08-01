@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { WebSocket } from 'ws';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DataProvider } from './providers';
@@ -10,6 +10,10 @@ import {
   registerStream,
 } from './streaming';
 import type { StreamSource } from './ccxt-stream';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 /** Counts how many sources the hub actually started (each seeds one quote). */
 function countingProvider(): { provider: DataProvider; starts: () => number } {
@@ -42,6 +46,20 @@ describe('providerStreamsLive', () => {
     // Non-ccxt providers stream a synthetic random-walk, so the badge shows SIM.
     expect(providerStreamsLive(withName('mock'))).toBe(false);
     expect(providerStreamsLive(withName('yahoo'))).toBe(false);
+  });
+
+  it('is false for a ccxt provider whose exchange ccxt.pro cannot build (never LIVE over silence)', () => {
+    // The bug this guards: the name-prefix check alone reported streamLive:true
+    // for an unsupported MIDAS_CCXT_EXCHANGE, but buildProExchange() returns
+    // null there — no upstream source exists and nothing would ever arrive.
+    const prev = process.env.MIDAS_CCXT_EXCHANGE;
+    process.env.MIDAS_CCXT_EXCHANGE = 'no-such-exchange';
+    try {
+      expect(providerStreamsLive(withName('ccxt:no-such-exchange'))).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.MIDAS_CCXT_EXCHANGE;
+      else process.env.MIDAS_CCXT_EXCHANGE = prev;
+    }
   });
 });
 
@@ -191,6 +209,105 @@ describe('createStreamHub fatal-source teardown', () => {
     // A fresh subscribe is no longer swallowed by the held guard → rebuilds.
     send({ type: 'subscribe', channel: 'trades', symbol: 'JUNK/USDT' });
     expect(startCalls).toBe(2);
+  });
+});
+
+describe('registerStream heartbeat (half-open socket teardown)', () => {
+  it('terminates a socket that misses pongs and frees its hub source slot', async () => {
+    // The bug this guards: a half-open TCP connection (laptop sleep, dead NAT)
+    // never fires 'close', so the hub held the upstream source + the socket's
+    // quota slots forever. Drive the real /api/stream handler with fake timers.
+    vi.useFakeTimers();
+    const { provider } = countingProvider();
+    let startCalls = 0;
+    const injected: StreamSource = {
+      start() {
+        startCalls += 1;
+        return () => {};
+      },
+    };
+    const hub = createStreamHub(provider, 500, injected);
+
+    let wsHandler: ((s: WebSocket, r: FastifyRequest) => void) | undefined;
+    const app = {
+      get: (_path: string, _opts: unknown, h: (s: WebSocket, r: FastifyRequest) => void) => {
+        wsHandler = h;
+      },
+    } as unknown as FastifyInstance;
+    registerStream(app, hub, { heartbeatMs: 1000 });
+
+    const listeners: Record<string, (arg?: unknown) => void> = {};
+    let pings = 0;
+    let terminated = 0;
+    const sock = {
+      readyState: 1,
+      send: () => {},
+      on: (ev: string, cb: (arg?: unknown) => void) => {
+        listeners[ev] = cb;
+      },
+      ping: () => {
+        pings += 1;
+      },
+      // ws.terminate() forces the connection down; the 'close' event follows.
+      terminate: () => {
+        terminated += 1;
+        listeners.close?.();
+      },
+    } as unknown as WebSocket;
+    wsHandler!(sock, { ip: '9.9.9.9' } as unknown as FastifyRequest);
+
+    listeners.message(Buffer.from(JSON.stringify({ type: 'subscribe', channel: 'trades', symbol: 'BTC/USDT' })));
+    expect(startCalls).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1000); // first heartbeat tick: ping, wait for pong
+    expect(pings).toBe(1);
+    expect(terminated).toBe(0);
+    await vi.advanceTimersByTimeAsync(1000); // no pong arrived → terminate → close → cleanup
+    expect(terminated).toBe(1);
+
+    // Cleanup ran: the dead socket's source slot was released (not held
+    // forever), so a fresh subscribe rebuilds instead of joining a dead entry.
+    const sock2 = fakeSocket();
+    expect(hub.subscribe(sock2, 'trades', 'BTC/USDT')).toBe(true);
+    expect(startCalls).toBe(2);
+    hub.removeSocket(sock2);
+  });
+
+  it('keeps a socket that answers pings alive', async () => {
+    vi.useFakeTimers();
+    const { provider } = countingProvider();
+    const hub = createStreamHub(provider, 500, null);
+    let wsHandler: ((s: WebSocket, r: FastifyRequest) => void) | undefined;
+    const app = {
+      get: (_path: string, _opts: unknown, h: (s: WebSocket, r: FastifyRequest) => void) => {
+        wsHandler = h;
+      },
+    } as unknown as FastifyInstance;
+    registerStream(app, hub, { heartbeatMs: 1000 });
+
+    const listeners: Record<string, (arg?: unknown) => void> = {};
+    let terminated = 0;
+    const sock = {
+      readyState: 1,
+      send: () => {},
+      on: (ev: string, cb: (arg?: unknown) => void) => {
+        listeners[ev] = cb;
+      },
+      ping: () => {
+        // A healthy client answers each ping with a pong (what ws does for us
+        // in the handler's 'pong' listener).
+        listeners.pong?.();
+      },
+      terminate: () => {
+        terminated += 1;
+      },
+    } as unknown as WebSocket;
+    wsHandler!(sock, { ip: '9.9.9.9' } as unknown as FastifyRequest);
+    listeners.message(Buffer.from(JSON.stringify({ type: 'subscribe', channel: 'trades', symbol: 'BTC/USDT' })));
+
+    await vi.advanceTimersByTimeAsync(10_000); // ten heartbeat rounds, all answered
+    expect(terminated).toBe(0);
+    listeners.close?.();
   });
 });
 

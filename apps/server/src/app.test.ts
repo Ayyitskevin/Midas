@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app';
-import { createProvider } from './providers';
+import { createProvider, type DataProvider } from './providers';
 
 let app: FastifyInstance;
 
@@ -28,6 +28,31 @@ describe('GET /api/health', () => {
     // The mock provider streams a synthetic random-walk, not a live feed — so the
     // client can show SIM instead of LIVE over the socket. (Only ccxt streams live.)
     expect(body.streamLive).toBe(false);
+  });
+
+  it('reports streamLive:false when the ccxt pro exchange cannot be built (never LIVE over silence)', async () => {
+    // A ccxt provider named for an exchange ccxt.pro does not support has NO
+    // upstream source — health must say so instead of lighting a LIVE badge
+    // over a feed that can never deliver.
+    const prev = process.env.MIDAS_CCXT_EXCHANGE;
+    process.env.MIDAS_CCXT_EXCHANGE = 'no-such-exchange';
+    let ccxtApp: FastifyInstance | undefined;
+    try {
+      const stub = {
+        name: 'ccxt:no-such-exchange',
+        live: true,
+        getQuote: async (symbol: string) => ({ symbol, price: 1, changePercent: 0 }),
+      } as unknown as DataProvider;
+      ccxtApp = await buildApp(stub);
+      await ccxtApp.ready();
+      const res = await ccxtApp.inject({ method: 'GET', url: '/api/health' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().streamLive).toBe(false);
+    } finally {
+      if (prev === undefined) delete process.env.MIDAS_CCXT_EXCHANGE;
+      else process.env.MIDAS_CCXT_EXCHANGE = prev;
+      await ccxtApp?.close();
+    }
   });
 });
 
@@ -88,10 +113,15 @@ describe('GET /api/funding-history/:symbol', () => {
 });
 
 describe('GET /api/funding', () => {
-  it('returns a board of funding rows with the limit honoured', async () => {
+  it('returns a board envelope of funding rows with the limit honoured', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/funding?quote=USDT&limit=5' });
     expect(res.statusCode).toBe(200);
-    const rows = res.json();
+    const body = res.json();
+    expect(body.meta.provenance).toBe('synthetic'); // mock is never passed off as live
+    expect(body.meta.source).toBe('mock');
+    expect(typeof body.meta.asOf).toBe('number');
+    expect(body.meta.partial).toBe(false);
+    const rows = body.rows;
     expect(Array.isArray(rows)).toBe(true);
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThanOrEqual(5);
@@ -105,7 +135,7 @@ describe('GET /api/funding-dispersion', () => {
   it('returns cross-venue funding-dispersion rows ranked widest-spread first', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/funding-dispersion?quote=USDT&limit=5' });
     expect(res.statusCode).toBe(200);
-    const rows = res.json() as Array<{
+    const rows = res.json().rows as Array<{
       symbol: string;
       venues: unknown[];
       spreadBps: number | null;
@@ -158,7 +188,7 @@ describe('GET /api/venue-arb', () => {
   it('returns cross-venue arb rows ranked by price dispersion, widest first', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/venue-arb?quote=USDT&limit=5' });
     expect(res.statusCode).toBe(200);
-    const rows = res.json() as Array<{
+    const rows = res.json().rows as Array<{
       symbol: string;
       venues: unknown[];
       dispersionBps: number | null;
@@ -185,7 +215,7 @@ describe('GET /api/oi-concentration', () => {
   it('returns cross-venue OI/crowding rows ranked by total OI, biggest first', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/oi-concentration?quote=USDT&limit=5' });
     expect(res.statusCode).toBe(200);
-    const rows = res.json() as Array<{
+    const rows = res.json().rows as Array<{
       symbol: string;
       venues: unknown[];
       totalOiValue: number | null;

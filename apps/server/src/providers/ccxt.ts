@@ -42,9 +42,9 @@ import { fetchSolanaStaking, fetchSolanaValidators } from '../solana/staking';
 import { fetchSolanaToken } from '../solana/token';
 import { fetchSolanaQuote } from '../solana/jupiter';
 import { fetchSolanaMarket } from '../solana/market';
-import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd } from './balances';
+import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd, unpricedCaveat } from './balances';
 import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
-import { mapPlacedOrder } from '../trading';
+import { EXECUTION_SAFETY_HOLD_REASON, mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 import {
@@ -63,6 +63,47 @@ import {
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
 export { isKnownExchange, safeErrorLabel, toPerpSymbol } from './ccxt/helpers';
+
+/**
+ * Aggregate fine-grained candles into larger buckets — standard OHLCV rollup
+ * (open=first, high=max, low=min, close=last, volume=sum, time=bucket start).
+ * Input must be time-ascending (ccxt's fetchOHLCV contract).
+ */
+function aggregateCandles(candles: Candle[], bucketSec: number): Candle[] {
+  const out: Candle[] = [];
+  for (const c of candles) {
+    const bucket = Math.floor(c.time / bucketSec) * bucketSec;
+    const last = out[out.length - 1];
+    if (last && last.time === bucket) {
+      last.high = Math.max(last.high, c.high);
+      last.low = Math.min(last.low, c.low);
+      last.close = c.close;
+      last.volume += c.volume;
+    } else {
+      out.push({ time: bucket, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume });
+    }
+  }
+  return out;
+}
+
+/** The Interval whose length is exactly `sec` (INTERVAL_SECONDS values are unique), or null. */
+function intervalForSeconds(sec: number): Interval | null {
+  for (const [key, value] of Object.entries(INTERVAL_SECONDS)) {
+    if (value === sec) return key as Interval;
+  }
+  return null;
+}
+
+/**
+ * The provider-level execution safety hold, in the exact shape the route layer
+ * returns for POST/DELETE /api/orders (error name TradingSafetyHold, the shared
+ * reason constant, 503) so clients cannot tell the two layers apart.
+ */
+function tradingSafetyHold(): ProviderError {
+  const err = new ProviderError(EXECUTION_SAFETY_HOLD_REASON, 503);
+  err.name = 'TradingSafetyHold';
+  return err;
+}
 
 /** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
 export interface CcxtUserCreds {
@@ -225,7 +266,17 @@ export class CcxtProvider implements DataProvider {
       try {
         const dict = await this.exchange.fetchTickers(normalized);
         return normalized
-          .map((s) => (dict[s] ? this.toQuote(s, dict[s]) : null))
+          .map((s) => {
+            const t = dict[s];
+            if (!t) return null;
+            try {
+              return this.toQuote(s, t);
+            } catch {
+              // A ticker with no usable price is dropped from the batch rather
+              // than failing every symbol — and never zeroed into a fake quote.
+              return null;
+            }
+          })
           .filter((q): q is Quote => q !== null);
       } catch {
         // Some exchanges reject a symbol filter — fall back to per-symbol fetches.
@@ -269,12 +320,36 @@ export class CcxtProvider implements DataProvider {
       }
       // Strip the perp settle suffix so BTC/USDT:USDT reports currency 'USDT'.
       const quote = (s.split('/')[1] ?? '').replace(/:.*$/, '');
+      // The response interval must honestly describe its candles. When the
+      // fetched timeframe differs from the requested interval (TIMEFRAME_MAP
+      // substitution or an exchange capability fallback), aggregate the fetched
+      // bars up to the requested bucket; when the requested interval is not a
+      // clean multiple of the fetched timeframe (e.g. 90m from 1h bars), label
+      // the response with the timeframe actually served instead of mislabeling.
+      const intervalSec = INTERVAL_SECONDS[opts.interval];
+      let interval: Interval = opts.interval;
+      let out = candles;
+      if (barSec > 0 && barSec !== intervalSec) {
+        if (intervalSec % barSec === 0) {
+          out = aggregateCandles(candles, intervalSec);
+        } else {
+          const actual = intervalForSeconds(barSec);
+          if (!actual) {
+            throw new ProviderError(
+              `${this.name} cannot serve ${opts.interval} history for ${s}: the fetched timeframe ${timeframe} has no clean label.`,
+              502,
+              s,
+            );
+          }
+          interval = actual;
+        }
+      }
       return {
         symbol: s,
-        interval: opts.interval,
+        interval,
         range: opts.range,
         currency: quote,
-        candles,
+        candles: out,
       };
     } catch (err) {
       throw new ProviderError(this.describe(err, s), 502, s);
@@ -334,6 +409,7 @@ export class CcxtProvider implements DataProvider {
         return {
           exchange: ex.name ?? ex.id,
           fundingRate: funding.fundingRate,
+          fundingIntervalHours: funding.fundingIntervalHours,
           nextFundingTime: funding.nextFundingTime,
           markPrice: funding.markPrice,
           openInterestValue: oi.openInterestValue,
@@ -362,6 +438,7 @@ export class CcxtProvider implements DataProvider {
     const out: DerivativesInfo = {
       symbol: perp,
       fundingRate: null,
+      fundingIntervalHours: null,
       nextFundingTime: null,
       markPrice: null,
       indexPrice: null,
@@ -373,6 +450,7 @@ export class CcxtProvider implements DataProvider {
 
     const funding = await readFunding(this.exchange, perp);
     out.fundingRate = funding.fundingRate;
+    out.fundingIntervalHours = funding.fundingIntervalHours;
     out.nextFundingTime = funding.nextFundingTime;
     out.markPrice = funding.markPrice;
     out.indexPrice = funding.indexPrice;
@@ -529,7 +607,9 @@ export class CcxtProvider implements DataProvider {
       return {
         source: this.name,
         provenance: 'live',
-        note: second?.note ?? null,
+        // Honest total: assets with no /USDT market are excluded from the sum,
+        // so when any exist the note must say the total is a floor.
+        note: [second?.note, unpricedCaveat(balances)].filter(Boolean).join(' ') || null,
         totalValueUsd: sumValueUsd(balances),
         balances,
         asOf: Date.now(),
@@ -753,42 +833,25 @@ export class CcxtProvider implements DataProvider {
   }
 
   /**
-   * Cancel a resting order. A risk-REDUCING write, gated by the route behind
-   * the same trading switches as placement — a trader who can place a limit
-   * order must be able to pull it.
+   * Cancel a resting order. FAIL-CLOSED under the execution safety hold:
+   * throws the same TradingSafetyHold shape the route layer returns
+   * (routes/account.ts) so the hold cannot be bypassed by a future caller that
+   * reaches the provider directly. Resting orders must be managed directly at
+   * the exchange until the write path is repaired.
    */
-  async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
-    if (!this.exchange.has['cancelOrder']) {
-      throw new ProviderError(`${this.name} does not support order cancellation.`, 501);
-    }
-    const sym = this.normalize(symbol);
-    const raw = (await this.exchange.cancelOrder(id, sym)) as unknown as Record<string, unknown> | undefined;
-    const status = typeof raw?.status === 'string' && raw.status ? raw.status : 'canceled';
-    return { id: typeof raw?.id === 'string' && raw.id ? raw.id : id, symbol: sym, status };
+  async cancelOrder(_id: string, _symbol: string): Promise<CancelResult> {
+    throw tradingSafetyHold();
   }
 
   /**
-   * Place a LIVE order — with cancelOrder above, one of the only two writes in
-   * Midas (place / cancel; never withdraw or transfer). Reached only after the
-   * route confirms live trading is enabled and the request has been validated
-   * and notional-capped — this method does not re-gate, it executes.
+   * Place a LIVE order. FAIL-CLOSED under the execution safety hold: throws
+   * the same TradingSafetyHold shape the route layer returns (routes/account.ts).
+   * Defense in depth — the POST /api/orders route returns its 503 before ever
+   * reaching this method, and this provider throw guarantees no other caller
+   * (present or future) can execute a live write while the hold stands.
    */
-  async placeOrder(req: OrderRequest): Promise<PlacedOrder> {
-    if (!this.exchange.has['createOrder']) {
-      throw new ProviderError(`${this.name} does not support order placement.`, 501);
-    }
-    const symbol = this.normalize(req.symbol);
-    const params: Record<string, unknown> = {};
-    if (req.clientOrderId) params.clientOrderId = req.clientOrderId;
-    const raw = await this.exchange.createOrder(
-      symbol,
-      req.type,
-      req.side,
-      req.amount,
-      req.type === 'limit' ? req.price ?? undefined : undefined,
-      params,
-    );
-    return mapPlacedOrder(raw, { ...req, symbol });
+  async placeOrder(_req: OrderRequest): Promise<PlacedOrder> {
+    throw tradingSafetyHold();
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
@@ -886,7 +949,11 @@ export class CcxtProvider implements DataProvider {
   private toQuote(symbol: string, t: Ticker): Quote {
     const [base, rawQuote] = symbol.split('/');
     const quote = (rawQuote ?? '').replace(/:.*$/, ''); // strip perp settle suffix
-    const price = tickerPrice(t) ?? 0; // mid-from-bid/ask before any 0 fallback
+    // mid-from-bid/ask before giving up — and null must NEVER become 0: a
+    // fabricated $0.00 would flow to clients as a real live quote (the same
+    // rule getExchangeQuotes enforces per venue).
+    const price = tickerPrice(t);
+    if (price == null) throw new ProviderError(`${this.name} ${symbol}: ticker has no price`, 502, symbol);
     const previousClose = num(t.previousClose ?? t.open ?? price, price);
     const change = num(t.change, price - previousClose);
     const changePercent = num(

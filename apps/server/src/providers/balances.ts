@@ -76,3 +76,17 @@ export function sumValueUsd(balances: AccountBalance[]): number | null {
   }
   return any ? sum : null;
 }
+
+/**
+ * Honest caveat for balances that could not be priced (no /USDT market): their
+ * value is excluded from `sumValueUsd`, so the total is a floor, not the whole
+ * account. Null when every held asset is priced. Pure.
+ */
+export function unpricedCaveat(balances: AccountBalance[]): string | null {
+  let n = 0;
+  for (const b of balances) {
+    if (b.valueUsd == null) n++;
+  }
+  if (n === 0) return null;
+  return `${n} asset${n === 1 ? '' : 's'} could not be priced (no USDT market); the USD total is a floor.`;
+}

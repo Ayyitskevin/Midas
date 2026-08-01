@@ -58,7 +58,9 @@ export interface Notifier {
 /**
  * POSTs fires as JSON to a single webhook URL. The payload is shaped to work
  * with Discord (`content`), Slack (`text`) and custom endpoints (`triggers`)
- * out of the box. Failures are swallowed (best-effort) via `onError`.
+ * out of the box. Delivery is bounded by a 10s timeout so a hung endpoint
+ * cannot pin a socket forever; failures (network, timeout, non-2xx) are
+ * swallowed (best-effort) via `onError`.
  */
 export class WebhookNotifier implements Notifier {
   constructor(
@@ -73,11 +75,15 @@ export class WebhookNotifier implements Notifier {
   async deliver(fired: AlertTrigger[]): Promise<void> {
     if (fired.length === 0) return;
     try {
-      await this.fetchImpl(this.url, {
+      const res = await this.fetchImpl(this.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(buildWebhookPayload(fired, this.synthetic)),
+        signal: AbortSignal.timeout(10_000),
       });
+      // A 404/401 is a delivery failure too — report message-only (never the
+      // URL, which embeds the webhook token, or the payload).
+      if (!res.ok) this.onError?.(new Error(`webhook responded HTTP ${res.status}`));
     } catch (err) {
       this.onError?.(err);
     }

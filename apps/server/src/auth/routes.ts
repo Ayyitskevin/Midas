@@ -157,6 +157,22 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         return err(400, 'BadRequest', 'Auth is disabled');
       }
       const username = (req.body?.username ?? '').trim();
+      // Bound the username BEFORE it can become a throttle-map key: an
+      // unbounded username would let one unauthenticated request write up to
+      // the 1 MiB body limit into an in-memory map. Same bound as signup,
+      // rejected with the generic 401 so the body still reveals nothing.
+      if (username.length > MAX_USERNAME) {
+        reply.code(401);
+        return err(401, 'Unauthorized', 'Invalid username or password');
+      }
+      // Per-IP aggregate ceiling FIRST: stuffing across many usernames from
+      // one address would otherwise get a fresh per-pair budget each time.
+      const ipWaitMs = throttle.checkIp(req.ip, Date.now());
+      if (ipWaitMs != null) {
+        app.log.warn({ ip: req.ip }, 'login throttled (per-IP ceiling)');
+        reply.code(429);
+        return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(ipWaitMs / 1000)}s.`);
+      }
       // Throttle per username+ip pair: repeated failures lock the pair out
       // briefly, making online password guessing impractically slow without
       // letting an attacker lock a victim out from a different address.
@@ -173,6 +189,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       const candidate = req.body?.password ?? '';
       if (candidate.length > MAX_PASSWORD) {
         throttle.fail(throttleKey, Date.now());
+        throttle.failIp(req.ip, Date.now());
         reply.code(401);
         return err(401, 'Unauthorized', 'Invalid username or password');
       }
@@ -183,6 +200,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       const ok = await verifyPassword(candidate, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
       if (!user || !ok) {
         throttle.fail(throttleKey, Date.now());
+        throttle.failIp(req.ip, Date.now());
         reply.code(401);
         return err(401, 'Unauthorized', 'Invalid username or password');
       }
