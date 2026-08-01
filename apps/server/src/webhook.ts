@@ -6,6 +6,8 @@
  * path or a watcher tick).
  */
 
+import { safeErrorFields } from './safeLog';
+
 /** A hung endpoint must not pin a socket forever. */
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
@@ -22,8 +24,7 @@ export function postWebhookText(url: string, text: string, fetchImpl: typeof fet
       // payload (alert detail). A 404/401 must not be swallowed silently.
       if (!res.ok) console.warn(`webhook delivery failed: HTTP ${res.status}`);
     })
-    .catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : 'unknown error';
-      console.warn(`webhook delivery failed: ${message}`);
+    .catch((error: unknown) => {
+      console.warn(`webhook delivery failed: ${safeErrorFields(error).errorType}`);
     });
 }

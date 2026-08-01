@@ -15,6 +15,7 @@ import { PortfolioRepo } from './portfolio/repo';
 import { WatchlistRepo } from './watchlists/repo';
 import { NotesRepo } from './notes/repo';
 import { UserRepo } from './auth/users';
+import { safeErrorFields } from './safeLog';
 
 async function main(): Promise<void> {
   const provider = createProvider(config.provider);
@@ -35,7 +36,7 @@ async function main(): Promise<void> {
         provider,
         intervalMs: Math.max(2000, config.accountWatchMs),
         notify: (text) => postWebhookText(config.alertWebhook, text),
-        onError: (err) => app.log.error(err, 'account watcher error'),
+        onError: (error) => app.log.error(safeErrorFields(error), 'account watcher error'),
       })
     : null;
 
@@ -110,8 +111,8 @@ async function main(): Promise<void> {
   }
   if (accountEquity) {
     const snapMs = Math.max(60_000, config.equitySnapMs); // floor: once a minute
-    startEquityLoop(accountEquity.repo, provider, snapMs, (err) =>
-      app.log.error(err, 'equity snapshot error'),
+    startEquityLoop(accountEquity.repo, provider, snapMs, (error) =>
+      app.log.error(safeErrorFields(error), 'equity snapshot error'),
     );
     app.log.info({ intervalMs: snapMs }, 'equity snapshots running');
   }
@@ -124,7 +125,7 @@ async function main(): Promise<void> {
   // so they reach the user even with no browser open.
   const notifier = createNotifier({
     webhookUrl: config.alertWebhook,
-    onError: (err) => app.log.error(err, 'alert webhook delivery failed'),
+    onError: (error) => app.log.error(safeErrorFields(error), 'alert webhook delivery failed'),
     // On a non-live provider (mock/dev) price/change/funding alerts fire on
     // synthetic data — mark deliveries so a webhook consumer never reads a
     // mock-fired alert as a live-market signal.
@@ -154,7 +155,7 @@ async function main(): Promise<void> {
       digest,
       hours * 3_600_000,
       (text) => postWebhookText(config.alertWebhook, text),
-      (err) => app.log.error(err, 'digest error'),
+      (error) => app.log.error(safeErrorFields(error), 'digest error'),
     );
     app.log.info({ hours }, 'operator digest enabled');
   }
@@ -168,13 +169,13 @@ async function main(): Promise<void> {
       void notifier.deliver(fired);
       digest?.addAlertFires(fired.length);
     },
-    (err) => app.log.error(err, 'alert loop error'),
+    (error) => app.log.error(safeErrorFields(error), 'alert loop error'),
   );
 
   try {
     await app.listen({ host: config.host, port: config.port });
-  } catch (err) {
-    app.log.error(err);
+  } catch (error) {
+    app.log.error(safeErrorFields(error), 'server startup failed');
     process.exit(1);
   }
 }

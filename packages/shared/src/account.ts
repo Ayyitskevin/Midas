@@ -5,6 +5,8 @@
  * index.ts).
  */
 
+import type { DataReceipt } from './dataTrust';
+
 /** Whether an account-balances snapshot is a real keyed read, synthetic demo, or unavailable. */
 export type BalancesProvenance = 'live' | 'synthetic' | 'unavailable';
 
@@ -48,6 +50,7 @@ export interface Balances {
   balances: AccountBalance[];
   /** Epoch millis the snapshot was assembled. */
   asOf: number;
+  receipt?: DataReceipt;
 }
 
 /** Whether an account read (orders/positions) is a real keyed read, synthetic demo, or unavailable. */
@@ -88,6 +91,7 @@ export interface OpenOrders {
   orders: OpenOrder[];
   /** Epoch millis the snapshot was assembled. */
   asOf: number;
+  receipt?: DataReceipt;
 }
 
 /** A single open derivatives position on the account. Read-only — Midas never opens or closes positions. */
@@ -122,6 +126,7 @@ export interface AccountPositions {
   positions: AccountPosition[];
   /** Epoch millis the snapshot was assembled. */
   asOf: number;
+  receipt?: DataReceipt;
 }
 
 /** A single executed fill (my-trade) on the account. Read-only. */
@@ -156,6 +161,7 @@ export interface AccountFills {
   fills: AccountFill[];
   /** Epoch millis the snapshot was assembled. */
   asOf: number;
+  receipt?: DataReceipt;
 }
 
 /** The exchange's acknowledgement of a canceled order. */

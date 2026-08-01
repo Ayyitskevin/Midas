@@ -35,6 +35,13 @@ import type {
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import {
+  buildProviderCapabilities,
+  providerReceipt,
+  withProviderDerivedReceipt,
+  withProviderReceipt,
+  type CapabilityDefinition,
+} from './receipts';
+import {
   mockExchangeQuotes,
   mockFundingHistory,
   mockHistory,
@@ -67,6 +74,60 @@ import { mockCoinUniverse } from './mock/coins';
 import { mockDvol, mockOptionsChain, mockTermStructure } from './mock/options';
 import { mockOiDelta } from './mock/oiDelta';
 
+export const MOCK_PROVIDER_VERSION = '1.0.0';
+
+const syntheticCapability = (
+  method: string,
+  coverage: string,
+  expectedCadenceMs: number | null,
+  maxAgeMs: number | null,
+  methodologyId = 'midas.mock.seeded',
+): CapabilityDefinition => ({
+  method,
+  support: 'supported',
+  auth: 'none',
+  mode: 'synthetic',
+  venue: null,
+  coverage,
+  expectedCadenceMs,
+  maxAgeMs,
+  cacheTtlMs: null,
+  methodology: { id: methodologyId, version: '1.0.0', formula: null },
+  caveats: ['Deterministic synthetic fixture data; never real market or account evidence.'],
+});
+
+const MOCK_CAPABILITIES = buildProviderCapabilities({
+  providerId: 'mock',
+  providerVersion: MOCK_PROVIDER_VERSION,
+  source: 'mock',
+  capabilities: {
+    quote: syntheticCapability('getQuote', 'curated symbols plus deterministic symbol fallback', 60_000, 120_000),
+    history: syntheticCapability('getHistory', 'requested symbol, interval and range', null, null),
+    funding: syntheticCapability('getDerivatives', 'funding projection from synthetic derivatives snapshot', 3_600_000, 7_200_000),
+    'funding-history': syntheticCapability('getFundingHistory', 'up to 500 synthetic 8h settlements', 28_800_000, 57_600_000),
+    'open-interest': syntheticCapability('getDerivatives', 'OI projection from synthetic derivatives snapshot', 3_600_000, 7_200_000),
+    'open-interest-history': syntheticCapability('getOiDelta', '48 synthetic observations per requested window', null, null),
+    'open-interest-delta': syntheticCapability('getOiDelta', '1h, 4h, 24h and 7d windows', null, null, 'midas.oi-delta'),
+    derivatives: syntheticCapability('getDerivatives', 'funding, OI and liquidation bundle', 60_000, 120_000),
+    'venue-derivatives': syntheticCapability('getVenueDerivatives', 'configured mock compare venues', 60_000, 120_000),
+    liquidations: syntheticCapability('liquidationsProvenance|getDerivatives', 'fabricated recent events for panel exercise', 60_000, 120_000),
+    'venue-quotes': syntheticCapability('getExchangeQuotes', 'configured mock compare venues', 60_000, 120_000),
+    'venue-arbitrage': {
+      ...syntheticCapability('getExchangeQuotes', 'derived from synthetic venue quotes', 60_000, 120_000),
+      methodology: {
+        id: 'midas.venue-arbitrage-top-of-book',
+        version: '1.0',
+        formula: 'grossBps = (bestBid - bestAsk) / bestAsk * 10000; netBps = grossBps - referenceTakerFeesBps',
+      },
+    },
+    options: syntheticCapability('getDvol|getFuturesTermStructure|getOptionsChain', 'synthetic BTC/ETH-style options surfaces', 3_600_000, 7_200_000, 'midas.mock.options'),
+    balances: syntheticCapability('getBalances', 'fixed synthetic demo account', 60_000, 120_000),
+    'account-orders': syntheticCapability('getOpenOrders', 'fixed synthetic demo account', 60_000, 120_000),
+    'account-positions': syntheticCapability('getPositions', 'fixed synthetic demo account', 60_000, 120_000),
+    'account-fills': syntheticCapability('getFills', 'fixed synthetic demo account', 60_000, 120_000),
+  },
+});
+
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
  * terminal feels alive) but are stable within a given minute, and historical
@@ -80,29 +141,89 @@ import { mockOiDelta } from './mock/oiDelta';
 export class MockProvider implements DataProvider {
   readonly name = 'mock';
   readonly live = false;
+  readonly capabilities = MOCK_CAPABILITIES;
   /** Demo-order ids canceled through this instance (keeps the demo book honest). */
   private readonly canceledDemoOrders = new Set<string>();
 
-  getQuote(symbol: string): Promise<Quote> {
-    return mockQuote(symbol);
+  constructor(private readonly now: () => number = Date.now) {}
+
+  async getQuote(symbol: string): Promise<Quote> {
+    const quote = await mockQuote(symbol);
+    return withProviderReceipt(this, quote, {
+      datasetFamily: 'quote',
+      instrument: quote.symbol,
+      venue: quote.exchange,
+      provenance: 'synthetic',
+      sourceAsOf: quote.asOf,
+      units: { price: quote.currency, volume: 'base-asset' },
+      note: 'Synthetic quote for offline/demo use — not real market data.',
+    }, this.now());
   }
-  getQuotes(symbols: string[]): Promise<Quote[]> {
-    return mockQuotes(symbols);
+  async getQuotes(symbols: string[]): Promise<Quote[]> {
+    const quotes = await mockQuotes(symbols);
+    return quotes.map((quote) => withProviderReceipt(this, quote, {
+      datasetFamily: 'quote',
+      instrument: quote.symbol,
+      venue: quote.exchange,
+      provenance: 'synthetic',
+      sourceAsOf: quote.asOf,
+      units: { price: quote.currency, volume: 'base-asset' },
+      note: 'Synthetic quote for offline/demo use — not real market data.',
+    }, this.now()));
   }
   getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
     return mockOrderBook(symbol, depth);
   }
-  getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
-    return mockExchangeQuotes(symbol);
+  async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
+    const rows = await mockExchangeQuotes(symbol);
+    return rows.map((row) => withProviderReceipt(this, row, {
+      datasetFamily: 'venue-quotes',
+      instrument: symbol.toUpperCase(),
+      venue: row.exchange,
+      provenance: 'synthetic',
+      sourceAsOf: row.timestamp,
+      units: { price: 'quote-asset', bid: 'quote-asset', ask: 'quote-asset', volume: 'base-asset' },
+      note: 'Synthetic venue quote for offline/demo use — not real market data.',
+    }, this.now()));
   }
-  getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
-    return mockVenueDerivatives(symbol);
+  async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
+    const rows = await mockVenueDerivatives(symbol);
+    return rows.map((row) => withProviderReceipt(this, row, {
+      datasetFamily: 'venue-derivatives',
+      instrument: symbol.toUpperCase(),
+      venue: row.exchange,
+      provenance: 'synthetic',
+      sourceAsOf: row.timestamp,
+      units: { fundingRate: 'fraction-per-interval', openInterestValue: 'quote-asset', markPrice: 'quote-asset' },
+      note: 'Synthetic venue derivatives for offline/demo use — not real market data.',
+    }, this.now()));
   }
-  getDerivatives(symbol: string): Promise<DerivativesInfo> {
-    return mockDerivatives(symbol);
+  async getDerivatives(symbol: string): Promise<DerivativesInfo> {
+    const value = await mockDerivatives(symbol);
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'derivatives',
+      instrument: value.symbol,
+      provenance: 'synthetic',
+      sourceAsOf: value.timestamp,
+      coverage: 'funding, open interest and fabricated recent liquidations',
+      units: { fundingRate: 'fraction-per-interval', openInterest: 'base-asset', openInterestValue: 'quote-asset', price: 'quote-asset' },
+      note: 'Synthetic derivatives snapshot for offline/demo use — not real market data.',
+    }, this.now());
   }
   liquidationsProvenance(): LiquidationsProvenance {
-    return mockLiquidationsProvenance();
+    const value = mockLiquidationsProvenance();
+    return {
+      ...value,
+      receipt: providerReceipt(this, {
+        datasetFamily: 'liquidations',
+        provenance: 'synthetic',
+        sourceAsOf: null,
+        coverage: 'fabricated event availability declaration',
+        units: { amount: 'base-asset', price: 'quote-asset' },
+        limitations: ['No upstream/source timestamp exists for fabricated availability metadata.'],
+        note: value.note ?? 'Synthetic liquidations are not real market data.',
+      }, this.now()),
+    };
   }
   getDexPools(symbol: string): Promise<DexPools> {
     return mockDexPools(symbol);
@@ -134,13 +255,28 @@ export class MockProvider implements DataProvider {
   getSolanaMarket(): Promise<SolanaMarket> {
     return mockSolanaMarket();
   }
-  getBalances(): Promise<Balances> {
-    return mockBalances();
+  async getBalances(): Promise<Balances> {
+    const value = await mockBalances();
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'balances',
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
+      note: value.note,
+    }, value.asOf);
   }
   async getOpenOrders(): Promise<OpenOrders> {
     const snapshot = await mockOpenOrders();
-    if (this.canceledDemoOrders.size === 0) return snapshot;
-    return { ...snapshot, orders: snapshot.orders.filter((o) => !this.canceledDemoOrders.has(o.id)) };
+    const value = this.canceledDemoOrders.size === 0
+      ? snapshot
+      : { ...snapshot, orders: snapshot.orders.filter((o) => !this.canceledDemoOrders.has(o.id)) };
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'account-orders',
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', value: 'quote-asset' },
+      note: value.note,
+    }, value.asOf);
   }
   /**
    * Deterministic hermetic cancel for the demo book: removes the order from
@@ -159,32 +295,144 @@ export class MockProvider implements DataProvider {
     this.canceledDemoOrders.add(id);
     return { id, symbol, status: 'canceled' };
   }
-  getPositions(): Promise<AccountPositions> {
-    return mockPositions();
+  async getPositions(): Promise<AccountPositions> {
+    const value = await mockPositions();
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'account-positions',
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      units: { contracts: 'contracts-or-base', notionalUsd: 'USD', price: 'quote-asset', unrealizedPnlUsd: 'USD' },
+      note: value.note,
+    }, value.asOf);
   }
-  getFills(symbol?: string): Promise<AccountFills> {
-    return mockFills(symbol);
+  async getFills(symbol?: string): Promise<AccountFills> {
+    const value = await mockFills(symbol);
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'account-fills',
+      instrument: symbol ?? null,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+      note: value.note,
+    }, value.asOf);
   }
-  getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
-    return mockFundingHistory(symbol, limit);
+  async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
+    const points = await mockFundingHistory(symbol, limit);
+    return points.map((point) => withProviderReceipt(this, point, {
+      datasetFamily: 'funding-history',
+      instrument: symbol.toUpperCase(),
+      provenance: 'synthetic',
+      sourceAsOf: point.time,
+      units: { fundingRate: 'fraction-per-settlement', fundingIntervalHours: 'hours' },
+      note: 'Synthetic funding history for offline/demo use — not real market data.',
+    }, this.now()));
   }
-  getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
-    return mockDvol(symbol);
+  async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
+    const value = await mockDvol(symbol);
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'options',
+      instrument: symbol,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      coverage: 'synthetic DVOL level and 30-day history',
+      units: { value: 'annualized-volatility-percent' },
+      note: value.note,
+    }, this.now());
   }
-  getFuturesTermStructure(symbol: string): Promise<TermStructure> {
-    return mockTermStructure(symbol);
+  async getFuturesTermStructure(symbol: string): Promise<TermStructure> {
+    const value = await mockTermStructure(symbol);
+    const rawInput = providerReceipt(this, {
+      datasetFamily: 'options',
+      instrument: value.underlying,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      coverage: 'raw synthetic futures and reference prices',
+      units: { price: 'USD' },
+      note: value.note,
+    }, this.now());
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'options',
+      instrument: value.underlying,
+      provenance: value.provenance,
+      inputReceipts: [rawInput],
+      sourceAsOf: value.asOf,
+      coverage: 'synthetic dated-futures term structure',
+      units: { price: 'USD', annualizedBasisPct: 'percent' },
+      methodology: { id: 'midas.annualized-simple-basis', version: '1.0.0', formula: '(F/S - 1) * 365/days * 100' },
+      note: value.note,
+    }, this.now());
   }
-  getOptionsChain(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain> {
-    return mockOptionsChain(symbol, expiry);
+  async getOptionsChain(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain> {
+    const value = await mockOptionsChain(symbol, expiry);
+    const rawInput = providerReceipt(this, {
+      datasetFamily: 'options',
+      instrument: value.underlying,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      coverage: 'raw synthetic option marks and open interest',
+      units: { strike: 'USD', openInterest: 'contracts', mark: 'USD', iv: 'percent' },
+      note: value.note,
+    }, this.now());
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'options',
+      instrument: value.underlying,
+      provenance: value.provenance,
+      inputReceipts: [rawInput],
+      sourceAsOf: value.asOf,
+      coverage: 'synthetic options chain with derived max pain and put/call OI ratio',
+      units: { strike: 'USD', openInterest: 'contracts', mark: 'USD', iv: 'percent' },
+      methodology: { id: 'midas.options-chain-summary', version: '1.0.0', formula: 'max-pain payout minimization; put OI / call OI' },
+      note: value.note,
+    }, this.now());
   }
-  getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
-    return mockOiDelta(symbol, window);
+  async getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
+    const value = await mockOiDelta(symbol, window);
+    const oiInput = providerReceipt(this, {
+      datasetFamily: 'open-interest-history',
+      instrument: value.symbol,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      coverage: `${window} synthetic OI history`,
+      units: { openInterestValue: 'quote-asset' },
+      note: value.note,
+    }, this.now());
+    const priceInput = providerReceipt(this, {
+      datasetFamily: 'history',
+      instrument: value.symbol,
+      provenance: value.provenance,
+      sourceAsOf: value.asOf,
+      coverage: `${window} synthetic price history`,
+      units: { price: 'quote-asset' },
+      note: value.note,
+    }, this.now());
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'open-interest-delta',
+      instrument: value.symbol,
+      provenance: value.provenance,
+      inputReceipts: [oiInput, priceInput],
+      sourceAsOf: value.asOf,
+      coverage: `${window} synthetic OI/price alignment`,
+      units: { openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+      methodology: { id: 'midas.oi-delta', version: '1.0.0', formula: '(now/then - 1) * 100; quadrant(sign(ΔOI), sign(Δprice))' },
+      note: value.note,
+    }, this.now());
   }
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
     return mockScreen(opts);
   }
-  getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
-    return mockHistory(symbol, opts);
+  async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
+    const value = await mockHistory(symbol, opts);
+    const last = value.candles.at(-1);
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'history',
+      instrument: value.symbol,
+      provenance: 'synthetic',
+      sourceAsOf: last == null ? null : last.time * 1000,
+      coverage: `${value.interval} candles over ${value.range}`,
+      units: { time: 'unix-seconds', ohlc: value.currency, volume: 'base-asset' },
+      limitations: last == null ? ['No candles were generated; source as-of is unknown.'] : [],
+      note: 'Synthetic price history for offline/demo use — not real market data.',
+    }, this.now());
   }
   search(query: string): Promise<SearchResult[]> {
     return mockSearch(query);

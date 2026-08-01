@@ -15,6 +15,7 @@
  */
 
 import type { DataProvenance } from './provenance';
+import type { DataReceipt } from './dataTrust';
 
 /** Underliers Deribit publishes a DVOL volatility index for. */
 export type DvolSymbol = 'BTC' | 'ETH';
@@ -41,6 +42,7 @@ export interface DvolSnapshot {
   /** Source label, e.g. 'ccxt:deribit' or 'mock'. */
   source: string;
   note: string | null;
+  receipt?: DataReceipt;
 }
 
 /** One dated future on the term structure. */
@@ -75,6 +77,7 @@ export interface TermStructure {
   provenance: DataProvenance;
   source: string;
   note: string | null;
+  receipt?: DataReceipt;
 }
 
 /**
@@ -116,6 +119,21 @@ export interface OptionsChain {
   provenance: DataProvenance;
   source: string;
   note: string | null;
+  receipt?: DataReceipt;
+}
+
+type CompleteOpenInterest<T extends { callOi: number | null; putOi: number | null }> = T & {
+  callOi: number;
+  putOi: number;
+};
+
+function hasCompleteOpenInterest<T extends { callOi: number | null; putOi: number | null }>(
+  entry: T,
+): entry is CompleteOpenInterest<T> {
+  return (
+    entry.callOi !== null && Number.isFinite(entry.callOi) && entry.callOi >= 0 &&
+    entry.putOi !== null && Number.isFinite(entry.putOi) && entry.putOi >= 0
+  );
 }
 
 /**
@@ -150,21 +168,27 @@ export function annualizedBasisPct(
  * Max pain: the expiry price at which option buyers' aggregate intrinsic value
  * is smallest — for each candidate strike K, the total payout is
  * Σ callOi·max(K − strike, 0) + Σ putOi·max(strike − K, 0), and max pain is
- * the K minimizing it. Null OI contributes nothing (a venue that reports only
- * one side still yields an honest one-sided answer). Null when no strike
- * carries any OI — never a strike picked off empty evidence.
+ * the K minimizing it. Null when any contributing strike lacks either side's
+ * OI, because absent OI is unknown rather than zero. Also null when no strike
+ * carries positive OI — never a strike picked off incomplete or empty evidence.
  */
 export function computeMaxPainStrike(
   entries: ReadonlyArray<Pick<OptionsChainEntry, 'strike' | 'callOi' | 'putOi'>>,
 ): number | null {
-  const withOi = entries.filter((e) => (e.callOi ?? 0) > 0 || (e.putOi ?? 0) > 0);
-  if (withOi.length === 0) return null;
+  const completeEntries = entries.filter(hasCompleteOpenInterest);
+  if (
+    entries.length === 0 ||
+    completeEntries.length !== entries.length ||
+    !completeEntries.some((entry) => entry.callOi > 0 || entry.putOi > 0)
+  ) {
+    return null;
+  }
   let best: { strike: number; pain: number } | null = null;
-  for (const candidate of withOi) {
+  for (const candidate of completeEntries) {
     const k = candidate.strike;
     let pain = 0;
-    for (const e of withOi) {
-      pain += (e.callOi ?? 0) * Math.max(k - e.strike, 0) + (e.putOi ?? 0) * Math.max(e.strike - k, 0);
+    for (const entry of completeEntries) {
+      pain += entry.callOi * Math.max(k - entry.strike, 0) + entry.putOi * Math.max(entry.strike - k, 0);
     }
     if (best === null || pain < best.pain) best = { strike: k, pain };
   }
@@ -173,18 +197,22 @@ export function computeMaxPainStrike(
 
 /**
  * Put/call open-interest ratio (total put OI ÷ total call OI) — the classic
- * positioning gauge (> 1 = put-heavy). Null OI contributes nothing; null when
- * total call OI is zero (the ratio is undefined, never infinite or 0-by-fiat)
- * or when there is no OI evidence at all.
+ * positioning gauge (> 1 = put-heavy). Null when any contributing strike lacks
+ * either side's OI, because absent OI is unknown rather than zero. Also null
+ * when total call OI is zero (the ratio is undefined, never infinite).
  */
 export function computePutCallOiRatio(
   entries: ReadonlyArray<Pick<OptionsChainEntry, 'callOi' | 'putOi'>>,
 ): number | null {
+  const completeEntries = entries.filter(hasCompleteOpenInterest);
+  if (entries.length === 0 || completeEntries.length !== entries.length) {
+    return null;
+  }
   let call = 0;
   let put = 0;
-  for (const e of entries) {
-    call += e.callOi ?? 0;
-    put += e.putOi ?? 0;
+  for (const e of completeEntries) {
+    call += e.callOi;
+    put += e.putOi;
   }
   if (call <= 0) return null;
   return put / call;

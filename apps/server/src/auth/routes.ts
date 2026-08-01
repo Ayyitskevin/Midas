@@ -114,7 +114,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // too, so a junk spray is throttled the same as a valid one.
       const waitMs = signupLimiter.check(req.ip, now());
       if (waitMs != null) {
-        app.log.warn({ ip: req.ip }, 'signup throttled');
+        app.log.warn({ scope: 'ip' }, 'signup throttled');
         reply.code(429);
         return err(429, 'TooManyRequests', `Too many signups — try again in ${Math.ceil(waitMs / 1000)}s.`);
       }
@@ -172,7 +172,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // one address would otherwise get a fresh per-pair budget each time.
       const ipWaitMs = throttle.checkIp(req.ip, now());
       if (ipWaitMs != null) {
-        app.log.warn({ ip: req.ip }, 'login throttled (per-IP ceiling)');
+        app.log.warn({ scope: 'ip' }, 'login throttled');
         reply.code(429);
         return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(ipWaitMs / 1000)}s.`);
       }
@@ -182,7 +182,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       const throttleKey = `${username.toLowerCase()}|${req.ip}`;
       const waitMs = throttle.check(throttleKey, now());
       if (waitMs != null) {
-        app.log.warn({ username, ip: req.ip }, 'login throttled');
+        app.log.warn({ scope: 'credential-pair' }, 'login throttled');
         reply.code(429);
         return err(429, 'TooManyRequests', `Too many failed logins — try again in ${Math.ceil(waitMs / 1000)}s.`);
       }

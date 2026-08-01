@@ -25,8 +25,16 @@ import type {
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
+import { partialEvidenceLimitation } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
+import {
+  buildProviderCapabilities,
+  providerUnavailableReceipt,
+  withProviderReceipt,
+  type CapabilityDefinition,
+} from './receipts';
+import { INTERVAL_SECONDS } from './util';
 
 /**
  * Live market data from Yahoo Finance's public JSON endpoints.
@@ -45,6 +53,74 @@ const SEARCH_BASE = 'https://query2.finance.yahoo.com/v1/finance/search';
 const USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+export const YAHOO_PROVIDER_VERSION = '1.0.0';
+
+const unsupported = (method: string, caveat: string): CapabilityDefinition => ({
+  method,
+  support: 'unsupported',
+  auth: 'none',
+  mode: 'unavailable',
+  venue: null,
+  coverage: null,
+  expectedCadenceMs: null,
+  maxAgeMs: null,
+  cacheTtlMs: null,
+  methodology: null,
+  caveats: [caveat],
+});
+
+const YAHOO_CAPABILITIES = buildProviderCapabilities({
+  providerId: 'yahoo',
+  providerVersion: YAHOO_PROVIDER_VERSION,
+  source: 'yahoo',
+  capabilities: {
+    quote: {
+      method: 'getQuote', support: 'supported', auth: 'public', mode: 'live', source: 'yahoo-chart', venue: null,
+      coverage: 'Yahoo Finance symbols served by the public chart endpoint', expectedCadenceMs: 60_000,
+      maxAgeMs: 300_000, cacheTtlMs: null, methodology: null,
+      caveats: ['Public, unofficial endpoint availability and exchange delay vary by instrument.'],
+    },
+    history: {
+      method: 'getHistory', support: 'supported', auth: 'public', mode: 'live', source: 'yahoo-chart', venue: null,
+      coverage: 'Yahoo Finance symbols, requested interval and range', expectedCadenceMs: 60_000,
+      maxAgeMs: 120_000, cacheTtlMs: null, methodology: null,
+      caveats: ['Bars missing any OHLCV field are omitted rather than zero-filled.'],
+    },
+    funding: unsupported('getDerivatives', 'Yahoo does not publish crypto perpetual funding.'),
+    'funding-history': unsupported('getFundingHistory', 'Yahoo does not publish crypto perpetual funding history.'),
+    'open-interest': unsupported('getDerivatives', 'Yahoo does not publish crypto perpetual open interest.'),
+    'open-interest-history': unsupported('getOiDelta', 'Yahoo does not publish crypto perpetual OI history.'),
+    'open-interest-delta': unsupported('getOiDelta', 'Yahoo does not publish crypto perpetual OI history.'),
+    derivatives: unsupported('getDerivatives', 'Yahoo does not provide the bundled crypto derivatives dataset.'),
+    'venue-derivatives': unsupported('getVenueDerivatives', 'Yahoo does not provide cross-venue crypto derivatives.'),
+    liquidations: unsupported('liquidationsProvenance', 'Yahoo does not publish crypto liquidation events.'),
+    'venue-quotes': unsupported('getExchangeQuotes', 'Yahoo does not provide executable cross-venue crypto quotes.'),
+    'venue-arbitrage': unsupported('getExchangeQuotes', 'Yahoo cannot supply the venue evidence required for arbitrage.'),
+    options: unsupported('getDvol|getFuturesTermStructure|getOptionsChain', 'This adapter has no Yahoo options/DVOL implementation.'),
+    balances: unsupported('getBalances', 'Yahoo is not an authenticated exchange-account provider.'),
+    'account-orders': unsupported('getOpenOrders', 'Yahoo is not an authenticated exchange-account provider.'),
+    'account-positions': unsupported('getPositions', 'Yahoo is not an authenticated exchange-account provider.'),
+    'account-fills': unsupported('getFills', 'Yahoo is not an authenticated exchange-account provider.'),
+  },
+});
+
+export interface YahooProviderDeps {
+  fetch?: typeof globalThis.fetch;
+  now?: () => number;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function finitePositiveOrNull(value: unknown): number | null {
+  return isFiniteNumber(value) && value > 0 ? value : null;
+}
+
+function finiteNonNegativeOrNull(value: unknown): number | null {
+  return isFiniteNumber(value) && value >= 0 ? value : null;
+}
 
 interface YahooChartMeta {
   symbol?: string;
@@ -87,10 +163,36 @@ interface YahooChartResult {
 export class YahooProvider implements DataProvider {
   readonly name = 'yahoo';
   readonly live = true;
+  readonly capabilities = YAHOO_CAPABILITIES;
+  private readonly fetchImpl: typeof globalThis.fetch;
+  private readonly now: () => number;
+
+  constructor(deps: YahooProviderDeps = {}) {
+    this.fetchImpl = deps.fetch ?? globalThis.fetch;
+    this.now = deps.now ?? Date.now;
+  }
 
   async getQuote(symbol: string): Promise<Quote> {
     const result = await this.fetchChart(symbol, '1d', '1d');
-    return this.quoteFromChart(symbol, result);
+    const quote = this.quoteFromChart(symbol, result);
+    return withProviderReceipt(this, quote, {
+      datasetFamily: 'quote',
+      instrument: quote.symbol,
+      venue: quote.exchange,
+      provenance: 'live',
+      sourceAsOf: result.meta.regularMarketTime ? quote.asOf : null,
+      units: { price: quote.currency, volume: 'shares-or-contracts' },
+      limitations: [
+        ...(result.meta.regularMarketTime ? [] : ['Yahoo omitted its market timestamp; source as-of is unknown.']),
+        ...(quote.currency === 'UNKNOWN'
+          ? [partialEvidenceLimitation('Yahoo omitted the quote currency; price units are unknown.')]
+          : []),
+        ...(quote.volume === null
+          ? [partialEvidenceLimitation('Yahoo omitted valid market-volume evidence.')]
+          : []),
+      ],
+      note: null,
+    }, this.now());
   }
 
   async getQuotes(symbols: string[]): Promise<Quote[]> {
@@ -106,29 +208,76 @@ export class YahooProvider implements DataProvider {
     const quote = result.indicators?.quote?.[0] ?? {};
     const candles: Candle[] = [];
 
+    let omitted = 0;
     for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = timestamps[i];
       const open = quote.open?.[i];
       const high = quote.high?.[i];
       const low = quote.low?.[i];
       const close = quote.close?.[i];
-      if (open == null || high == null || low == null || close == null) continue;
+      const volume = quote.volume?.[i];
+      if (
+        !isFiniteNumber(timestamp) || timestamp <= 0 ||
+        !isFiniteNumber(open) || open <= 0 ||
+        !isFiniteNumber(high) || high <= 0 ||
+        !isFiniteNumber(low) || low <= 0 ||
+        !isFiniteNumber(close) || close <= 0 ||
+        !isFiniteNumber(volume) || volume < 0
+      ) {
+        omitted += 1;
+        continue;
+      }
       candles.push({
-        time: timestamps[i],
+        time: timestamp,
         open,
         high,
         low,
         close,
-        volume: quote.volume?.[i] ?? 0,
+        volume,
       });
     }
 
-    return {
+    if (timestamps.length === 0) {
+      throw new ProviderError(`Yahoo returned no history rows for ${symbol}`, 502, symbol, 'upstream-unavailable');
+    }
+    if (candles.length === 0) {
+      throw new ProviderError(
+        `Yahoo returned only malformed history rows for ${symbol}`,
+        502,
+        symbol,
+        'malformed-upstream',
+      );
+    }
+
+    const value: HistoryResponse = {
       symbol: result.meta.symbol ?? symbol.toUpperCase(),
       interval: opts.interval,
       range: opts.range,
-      currency: result.meta.currency ?? 'USD',
+      currency: result.meta.currency?.trim() || 'UNKNOWN',
       candles,
     };
+    const last = candles.at(-1);
+    const cadenceMs = INTERVAL_SECONDS[opts.interval] * 1_000;
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'history',
+      instrument: value.symbol,
+      provenance: 'live',
+      sourceAsOf: last == null ? null : last.time * 1000,
+      coverage: `${value.interval} candles over ${value.range}`,
+      expectedCadenceMs: cadenceMs,
+      maxAgeMs: cadenceMs * 2,
+      units: { time: 'unix-seconds', ohlc: value.currency, volume: 'shares-or-contracts' },
+      limitations: [
+        ...(omitted > 0
+          ? [partialEvidenceLimitation(`${omitted} upstream bars missing OHLCV evidence were omitted.`)]
+          : []),
+        ...(last == null ? ['No complete candle was returned; source as-of is unknown.'] : []),
+        ...(value.currency === 'UNKNOWN'
+          ? [partialEvidenceLimitation('Yahoo omitted the history currency; OHLC units are unknown.')]
+          : []),
+      ],
+      note: null,
+    }, this.now());
   }
 
   async getOrderBook(symbol: string): Promise<OrderBook> {
@@ -165,10 +314,17 @@ export class YahooProvider implements DataProvider {
   }
 
   liquidationsProvenance(): LiquidationsProvenance {
+    const note = 'Liquidations are a crypto feature — switch to the ccxt provider.';
     return {
       source: this.name,
       available: false,
-      note: 'Liquidations are a crypto feature — switch to the ccxt provider.',
+      note,
+      receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'liquidations',
+        coverage: 'availability declaration only',
+        units: { amount: 'base-asset', price: 'quote-asset' },
+        note,
+      }, this.now()),
     };
   }
 
@@ -311,45 +467,65 @@ export class YahooProvider implements DataProvider {
   }
 
   async getBalances(): Promise<Balances> {
-    return {
+    const value: Balances = {
       source: this.name,
       provenance: 'unavailable',
       note: 'Account balances are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       totalValueUsd: null,
       balances: [],
-      asOf: Date.now(),
+      asOf: this.now(),
     };
+    return { ...value, receipt: providerUnavailableReceipt(this, {
+      datasetFamily: 'balances', sourceAsOf: null,
+      units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
+      note: value.note ?? 'Balances are unavailable from Yahoo.',
+    }, this.now()) };
   }
 
   async getOpenOrders(): Promise<OpenOrders> {
-    return {
+    const value: OpenOrders = {
       source: this.name,
       provenance: 'unavailable',
       note: 'Open orders are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       orders: [],
-      asOf: Date.now(),
+      asOf: this.now(),
     };
+    return { ...value, receipt: providerUnavailableReceipt(this, {
+      datasetFamily: 'account-orders', sourceAsOf: null,
+      units: { price: 'quote-asset', amount: 'base-asset', value: 'quote-asset' },
+      note: value.note ?? 'Open orders are unavailable from Yahoo.',
+    }, this.now()) };
   }
 
   async getPositions(): Promise<AccountPositions> {
-    return {
+    const value: AccountPositions = {
       source: this.name,
       provenance: 'unavailable',
       note: 'Open positions are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       totalUnrealizedPnlUsd: null,
       positions: [],
-      asOf: Date.now(),
+      asOf: this.now(),
     };
+    return { ...value, receipt: providerUnavailableReceipt(this, {
+      datasetFamily: 'account-positions', sourceAsOf: null,
+      units: { contracts: 'contracts-or-base', notionalUsd: 'USD', unrealizedPnlUsd: 'USD' },
+      note: value.note ?? 'Positions are unavailable from Yahoo.',
+    }, this.now()) };
   }
 
   async getFills(): Promise<AccountFills> {
-    return {
+    const value: AccountFills = {
       source: this.name,
       provenance: 'unavailable',
       note: 'Account fills are a crypto-exchange feature — switch to the ccxt provider and supply read-only API keys.',
       fills: [],
-      asOf: Date.now(),
+      asOf: this.now(),
     };
+    return { ...value, receipt: providerUnavailableReceipt(this, {
+      datasetFamily: 'account-fills', sourceAsOf: null,
+      units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+      note: value.note ?? 'Fills are unavailable from Yahoo.',
+    }, this.now()) };
   }
 
   async screen(_opts: ScreenerOptions): Promise<ScreenerRow[]> {
@@ -396,7 +572,7 @@ export class YahooProvider implements DataProvider {
     }>(url);
 
     const err = data.chart?.error;
-    if (err) throw new ProviderError(err.description ?? 'Yahoo chart error', 404, symbol);
+    if (err) throw new ProviderError(`No Yahoo Finance data is available for symbol ${symbol}`, 404, symbol);
 
     const result = data.chart?.result?.[0];
     if (!result?.meta) throw new ProviderError(`No data for symbol ${symbol}`, 404, symbol);
@@ -405,29 +581,35 @@ export class YahooProvider implements DataProvider {
 
   private quoteFromChart(symbol: string, result: YahooChartResult): Quote {
     const meta = result.meta;
-    const price = meta.regularMarketPrice ?? meta.previousClose ?? 0;
-    const previousClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+    const price = meta.regularMarketPrice;
+    const previousClose = meta.chartPreviousClose ?? meta.previousClose;
+    if (price == null || !Number.isFinite(price) || price <= 0) {
+      throw new ProviderError(`No usable price for symbol ${symbol}`, 502, symbol, 'malformed-upstream');
+    }
+    if (previousClose == null || !Number.isFinite(previousClose) || previousClose <= 0) {
+      throw new ProviderError(`No usable previous close for symbol ${symbol}`, 502, symbol, 'malformed-upstream');
+    }
     const change = price - previousClose;
-    const firstOpen = result.indicators?.quote?.[0]?.open?.find((v) => v != null) ?? null;
+    const firstOpen = finitePositiveOrNull(result.indicators?.quote?.[0]?.open?.find((v) => v != null));
 
     return {
       symbol: meta.symbol ?? symbol.toUpperCase(),
       name: meta.longName ?? meta.shortName ?? meta.symbol ?? symbol.toUpperCase(),
-      currency: meta.currency ?? 'USD',
+      currency: meta.currency?.trim() || 'UNKNOWN',
       exchange: meta.fullExchangeName ?? meta.exchangeName ?? '',
       marketState: this.marketStateFromMeta(meta),
       price,
       previousClose,
       open: firstOpen,
-      dayHigh: meta.regularMarketDayHigh ?? null,
-      dayLow: meta.regularMarketDayLow ?? null,
+      dayHigh: finitePositiveOrNull(meta.regularMarketDayHigh),
+      dayLow: finitePositiveOrNull(meta.regularMarketDayLow),
       change,
-      changePercent: previousClose === 0 ? 0 : (change / previousClose) * 100,
-      volume: meta.regularMarketVolume ?? null,
+      changePercent: (change / previousClose) * 100,
+      volume: finiteNonNegativeOrNull(meta.regularMarketVolume),
       marketCap: null, // not available on the crumbless chart endpoint
-      fiftyTwoWeekHigh: meta.fiftyTwoWeekHigh ?? null,
-      fiftyTwoWeekLow: meta.fiftyTwoWeekLow ?? null,
-      asOf: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(),
+      fiftyTwoWeekHigh: finitePositiveOrNull(meta.fiftyTwoWeekHigh),
+      fiftyTwoWeekLow: finitePositiveOrNull(meta.fiftyTwoWeekLow),
+      asOf: meta.regularMarketTime ? meta.regularMarketTime * 1000 : null,
     };
   }
 
@@ -444,20 +626,24 @@ export class YahooProvider implements DataProvider {
   private async fetchJson<T>(url: string): Promise<T> {
     let res: Response;
     try {
-      res = await fetch(url, {
+      res = await this.fetchImpl(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       });
     } catch (cause) {
+      void cause;
       throw new ProviderError(
-        `Failed to reach Yahoo Finance (${(cause as Error).message}). ` +
-          `If you are in a restricted environment, use MIDAS_DATA_PROVIDER=mock.`,
+        'Failed to reach Yahoo Finance. If you are in a restricted environment, use MIDAS_DATA_PROVIDER=mock.',
         502,
       );
     }
     if (!res.ok) {
       throw new ProviderError(`Yahoo Finance responded ${res.status}`, res.status === 404 ? 404 : 502);
     }
-    return (await res.json()) as T;
+    try {
+      return (await res.json()) as T;
+    } catch {
+      throw new ProviderError('Yahoo Finance returned a malformed JSON response', 502, undefined, 'malformed-upstream');
+    }
   }
 }
 

@@ -144,8 +144,8 @@ export async function fetchSolanaValidators(): Promise<SolanaValidators> {
   }
   try {
     return mapValidators(await jsonRpc('getVoteAccounts', []), Date.now());
-  } catch (err) {
-    return validatorsUnavailable(`Live Solana RPC unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return validatorsUnavailable('Live Solana RPC unavailable because the upstream request failed.');
   }
 }
 
@@ -170,7 +170,7 @@ export async function fetchSolanaStaking(): Promise<SolanaStaking> {
       ? all.reduce((sum, v) => sum + (num(v.activatedStake) ?? 0), 0)
       : null;
     return mapStaking({ inflation, supply, totalStakeLamports, now: Date.now() });
-  } catch (err) {
-    return stakingUnavailable(`Live Solana RPC unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return stakingUnavailable('Live Solana RPC unavailable because the upstream request failed.');
   }
 }

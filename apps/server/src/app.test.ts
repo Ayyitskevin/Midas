@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { createDataReceipt } from '@midas/shared';
 import { buildApp } from './app';
 import { createProvider, type DataProvider } from './providers';
 
@@ -185,9 +186,11 @@ describe('GET /api/liquidations', () => {
 
   it('repairs ambiguous mock provenance at the API boundary', async () => {
     const ambiguousMock = createProvider('mock');
+    const receipt = ambiguousMock.liquidationsProvenance().receipt;
     ambiguousMock.liquidationsProvenance = () => ({
       source: 'mock',
       available: true,
+      receipt,
     });
     const boundaryApp = await buildApp(ambiguousMock);
     await boundaryApp.ready();
@@ -204,6 +207,50 @@ describe('GET /api/liquidations', () => {
       expect(meta.synthetic).toBe(true);
       expect(meta.note).toMatch(/synthetic|demo|not real/i);
       expect(typeof meta.asOf).toBe('number');
+    } finally {
+      await boundaryApp.close();
+    }
+  });
+
+  it('keeps an unavailable liquidation declaration authoritative over derivatives reads', async () => {
+    const unavailableProvider = createProvider('mock');
+    const now = Date.parse('2026-08-01T12:00:00.000Z');
+    const declaration = createDataReceipt({
+      providerId: unavailableProvider.capabilities.providerId,
+      providerVersion: unavailableProvider.capabilities.providerVersion,
+      source: 'test-provider',
+      datasetFamily: 'liquidations',
+      provenance: 'unavailable',
+      sourceAsOf: null,
+      observedAt: now,
+      maxAgeMs: null,
+      coverage: 'public liquidation-feed capability declaration',
+      limitations: ['The configured provider has no public liquidation-event source.'],
+      note: 'Liquidation events are unavailable from this provider.',
+    }, now);
+    unavailableProvider.liquidationsProvenance = () => ({
+      source: 'test-provider',
+      available: false,
+      note: 'Liquidation events are unavailable from this provider.',
+      receipt: declaration,
+    });
+    const screen = vi.spyOn(unavailableProvider, 'screen');
+    const boundaryApp = await buildApp(unavailableProvider);
+    await boundaryApp.ready();
+
+    try {
+      const res = await boundaryApp.inject({
+        method: 'GET',
+        url: '/api/liquidations?quote=USDT&limit=1',
+      });
+      expect(res.statusCode).toBe(200);
+      const feed = res.json();
+      expect(feed.events).toEqual([]);
+      expect(feed.meta.available).toBe(false);
+      expect(feed.receipt.provenance).toBe('unavailable');
+      expect(feed.meta.receipt.provenance).toBe('unavailable');
+      expect(feed.receipt.inputReceiptIds).toContain(declaration.receiptId);
+      expect(screen).not.toHaveBeenCalled();
     } finally {
       await boundaryApp.close();
     }

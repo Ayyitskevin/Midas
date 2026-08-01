@@ -68,8 +68,20 @@ describe('postWebhookText', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(warn).toHaveBeenCalledTimes(1);
     const logged = String(warn.mock.calls[0][0]);
-    expect(logged).toContain('timed out');
+    expect(logged).toContain('TimeoutError');
     expect(logged).not.toContain('SECRET-TOKEN');
+  });
+
+  it('never copies a hostile rejection message into logs', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const fetchImpl = (async () => {
+      throw new Error('apiKey=LEAK_KEY https://hook.example/LEAK_TOKEN /home/private/account.json');
+    }) as typeof fetch;
+    postWebhookText('http://hook.example/SECRET-TOKEN', 'account value 12345', fetchImpl);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const logged = String(warn.mock.calls[0][0]);
+    expect(logged).toContain('Error');
+    expect(logged).not.toMatch(/LEAK|SECRET-TOKEN|12345|\/home\/private/);
   });
 
   it('does not log on a successful delivery', async () => {

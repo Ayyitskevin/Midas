@@ -17,7 +17,9 @@ describe('mock getDvol', () => {
     const a = await provider.getDvol('BTC');
     const b = await provider.getDvol('BTC');
     // asOf is wall-clock; everything data-bearing is reproducible.
-    expect({ ...a, asOf: 0 }).toEqual({ ...b, asOf: 0 });
+    const { receipt: _aReceipt, ...aData } = a;
+    const { receipt: _bReceipt, ...bData } = b;
+    expect({ ...aData, asOf: 0 }).toEqual({ ...bData, asOf: 0 });
     expect(a.provenance).toBe('synthetic');
     expect(a.source).toBe('mock');
     expect(provenanceNoteConsistent(a.provenance, a.note)).toBe(true);
@@ -40,7 +42,9 @@ describe('mock getFuturesTermStructure', () => {
   it('is deterministic, contango-shaped and honestly labeled', async () => {
     const a = await provider.getFuturesTermStructure('BTC/USDT');
     const b = await provider.getFuturesTermStructure('BTC/USDT');
-    expect({ ...a, asOf: 0 }).toEqual({ ...b, asOf: 0 });
+    const { receipt: _aReceipt, ...aData } = a;
+    const { receipt: _bReceipt, ...bData } = b;
+    expect({ ...aData, asOf: 0 }).toEqual({ ...bData, asOf: 0 });
     expect(a.provenance).toBe('synthetic');
     expect(provenanceNoteConsistent(a.provenance, a.note)).toBe(true);
     expect(a.underlying).toBe('BTC');
@@ -63,7 +67,9 @@ describe('mock getOptionsChain', () => {
   it('is deterministic and honestly labeled synthetic', async () => {
     const a = await provider.getOptionsChain('BTC');
     const b = await provider.getOptionsChain('BTC');
-    expect({ ...a, asOf: 0 }).toEqual({ ...b, asOf: 0 });
+    const { receipt: _aReceipt, ...aData } = a;
+    const { receipt: _bReceipt, ...bData } = b;
+    expect({ ...aData, asOf: 0 }).toEqual({ ...bData, asOf: 0 });
     expect(a.provenance).toBe('synthetic');
     expect(provenanceNoteConsistent(a.provenance, a.note)).toBe(true);
     expect(a.underlying).toBe('BTC');

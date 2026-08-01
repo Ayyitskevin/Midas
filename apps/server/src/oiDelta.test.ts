@@ -79,7 +79,7 @@ describe('summarizeOiDelta', () => {
     expect(s.asOf).toBe(3_000);
   });
 
-  it('ignores unpriced points for the price change without erasing it', () => {
+  it('requires prices at the exact OI endpoints instead of shortening the window', () => {
     const s = summarizeOiDelta([
       { timestamp: 1_000, openInterestValue: 100_000, price: null },
       { timestamp: 2_000, openInterestValue: 90_000, price: 50_000 },
@@ -87,8 +87,8 @@ describe('summarizeOiDelta', () => {
       { timestamp: 4_000, openInterestValue: 75_000, price: null },
     ]);
     expect(s.oiChangePct).toBeCloseTo(-25, 10);
-    expect(s.priceChangePct).toBeCloseTo(-2, 10);
-    expect(s.classification).toBe('long-unwind');
+    expect(s.priceChangePct).toBeNull();
+    expect(s.classification).toBeNull();
     expect(s.asOf).toBe(4_000);
   });
 

@@ -10,6 +10,7 @@ import type {
   DexPools,
   DvolSnapshot,
   DvolSymbol,
+  DataReceipt,
   LiquidationsProvenance,
   FundingHistoryPoint,
   HistoryResponse,
@@ -24,6 +25,7 @@ import type {
   OrderBook,
   OrderRequest,
   PlacedOrder,
+  ProviderCapabilityManifest,
   Quote,
   ScreenerRow,
   SearchResult,
@@ -40,9 +42,17 @@ import type {
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
-import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
+import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, partialEvidenceLimitation, summarizeOiDelta, withReceiptLimitations } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
+import {
+  buildProviderCapabilities,
+  providerReceipt,
+  providerUnavailableReceipt,
+  withProviderDerivedReceipt,
+  withProviderReceipt,
+  type CapabilityDefinition,
+} from './receipts';
 import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
 import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
 import { fetchSolanaNetwork } from '../solana/network';
@@ -52,16 +62,23 @@ import { fetchSolanaStaking, fetchSolanaValidators } from '../solana/staking';
 import { fetchSolanaToken } from '../solana/token';
 import { fetchSolanaQuote } from '../solana/jupiter';
 import { fetchSolanaMarket } from '../solana/market';
-import { STABLES, ccxtKeysConfigured, mapCcxtBalance, sumValueUsd, unpricedCaveat } from './balances';
-import { mapMyTrades, mapOpenOrders, mapPositions, mergeVenueRows, sumUnrealizedPnl } from './accountReads';
+import { STABLES, ccxtKeysConfigured, mapCcxtBalanceWithDiagnostics, sumValueUsd, unpricedCaveat } from './balances';
+import {
+  mapMyTradesWithDiagnostics,
+  mapOpenOrdersWithDiagnostics,
+  mapPositionsWithDiagnostics,
+  mergeVenueRows,
+  sumUnrealizedPnl,
+} from './accountReads';
 import { EXECUTION_SAFETY_HOLD_REASON, mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 import {
   TIMEFRAME_MAP,
   ccxtRegistry,
+  compareExchangeIds,
   isKnownExchange,
-  num,
+  fundingIntervalHours,
   readFunding,
   readOpenInterest,
   safeErrorLabel,
@@ -72,7 +89,9 @@ import {
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
-export { isKnownExchange, safeErrorLabel, toPerpSymbol } from './ccxt/helpers';
+export { compareExchangeIds, isKnownExchange, safeErrorLabel, toPerpSymbol } from './ccxt/helpers';
+
+const HOUR_MS = 3_600_000;
 
 /**
  * Aggregate fine-grained candles into larger buckets — standard OHLCV rollup
@@ -102,6 +121,104 @@ function intervalForSeconds(sec: number): Interval | null {
     if (value === sec) return key as Interval;
   }
   return null;
+}
+
+function finiteOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function nonNegativeFiniteOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function positiveFiniteOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function sourceTimestampOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function crossVenuePartialLimitation(
+  family: 'quote' | 'derivatives',
+  attempted: number,
+  returned: number,
+  failed: number,
+): string {
+  const unsupportedOrEmpty = attempted - returned - failed;
+  return partialEvidenceLimitation(
+    `Cross-venue ${family} fan-out attempted ${attempted} venue(s); ${returned} returned usable evidence, ` +
+    `${failed} failed, and ${unsupportedOrEmpty} returned unsupported or empty evidence.`,
+  );
+}
+
+function withRowReceiptLimitation<T extends { receipt?: DataReceipt }>(
+  value: T,
+  limitation: string,
+  instrument: string,
+): T & { receipt: DataReceipt } {
+  if (!value.receipt) {
+    throw new ProviderError(
+      `Cross-venue provider returned unreceipted evidence for ${instrument}`,
+      502,
+      instrument,
+      'malformed-upstream',
+    );
+  }
+  return { ...value, receipt: withReceiptLimitations(value.receipt, [limitation]) };
+}
+
+interface MappingSummary {
+  rows: unknown[];
+  inputValid: boolean;
+  attempted: number;
+  omitted: number;
+}
+
+function assertUsableAccountMapping(mapping: MappingSummary, label: string): void {
+  if (!mapping.inputValid || (mapping.attempted > 0 && mapping.rows.length === 0 && mapping.omitted > 0)) {
+    throw new ProviderError(`Malformed ${label} payload from the configured exchange.`, 502, undefined, 'malformed-upstream');
+  }
+}
+
+function accountOmissionCaveat(mapping: MappingSummary | null, label: string): string | null {
+  if (!mapping || mapping.omitted === 0) return null;
+  return partialEvidenceLimitation(
+    `${mapping.omitted} of ${mapping.attempted} ${label} row(s) were malformed and omitted; aggregates are partial.`,
+  );
+}
+
+function normalizedFieldOmission(
+  label: string,
+  state: 'ok' | 'unsupported' | 'error',
+  fields: readonly unknown[],
+): string | null {
+  if (state !== 'ok') return null;
+  const returned = fields.filter((field) => field !== null).length;
+  const omitted = fields.length - returned;
+  if (omitted === 0) return null;
+  return partialEvidenceLimitation(
+    `${label} observation attempted ${fields.length} evidence field(s); ${returned} returned usable evidence and ${omitted} were missing or malformed.`,
+  );
+}
+
+function fundingOmission(funding: Awaited<ReturnType<typeof readFunding>>): string | null {
+  return normalizedFieldOmission('Funding', funding.state, [
+    funding.fundingRate,
+    funding.fundingIntervalHours,
+    funding.nextFundingTime,
+    funding.markPrice,
+    funding.indexPrice,
+  ]);
+}
+
+function openInterestOmission(oi: Awaited<ReturnType<typeof readOpenInterest>>): string | null {
+  return normalizedFieldOmission('Open-interest', oi.state, [oi.openInterest, oi.openInterestValue]);
+}
+
+function optionOiScore(value: OptionsChainEntry): number {
+  const known = [value.callOi, value.putOi].filter((oi): oi is number => oi !== null);
+  return known.length > 0 ? known.reduce((sum, oi) => sum + oi, 0) : Number.NEGATIVE_INFINITY;
 }
 
 /**
@@ -139,6 +256,8 @@ function classifyCancelError(err: unknown, id: string, symbol: string): Provider
         'Check the exchange for the true order state before assuming it is open or canceled.',
       502,
       symbol,
+      'upstream-unavailable',
+      'cancel-outcome-unknown',
     );
   }
   if (
@@ -167,11 +286,36 @@ export interface CcxtUserCreds {
   password?: string;
 }
 
+export interface CcxtProviderDeps {
+  /** Hermetic test seam; production constructs the configured ccxt exchange. */
+  exchange?: Exchange;
+  /** Hermetic cross-venue fan-out clients. */
+  compareExchanges?: Exchange[];
+  /** Hermetic Deribit public client for options tests. */
+  deribit?: Exchange;
+  now?: () => number;
+}
+
+export const CCXT_PROVIDER_VERSION = '1.0.0';
+
+function ccxtCapability(input: Partial<CapabilityDefinition> & Pick<CapabilityDefinition, 'method' | 'support' | 'auth' | 'mode' | 'coverage'>): CapabilityDefinition {
+  return {
+    venue: null,
+    expectedCadenceMs: null,
+    maxAgeMs: null,
+    cacheTtlMs: null,
+    methodology: null,
+    caveats: [],
+    ...input,
+  };
+}
+
 /** The fields the options surface reads off a ccxt option-chain entry. */
 interface DeribitOptionQuote {
   openInterest?: number;
   markPrice?: number;
   underlyingPrice?: number;
+  timestamp?: number;
   info?: { mark_iv?: number };
 }
 
@@ -190,15 +334,17 @@ interface DeribitOptionQuote {
 export class CcxtProvider implements DataProvider {
   readonly name: string;
   readonly live = true;
+  readonly capabilities: ProviderCapabilityManifest;
   private readonly exchange: Exchange;
   private readonly exchangeId: string;
   /** True when constructed from explicit per-user creds (vs operator env). */
   private readonly userKeyed: boolean;
   private marketsPromise: Promise<unknown> | null = null;
   private compareExchanges: Exchange[] | null = null;
+  private readonly now: () => number;
 
-  constructor(creds?: CcxtUserCreds) {
-    const id = (creds?.exchange ?? process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
+  constructor(creds?: CcxtUserCreds, deps: CcxtProviderDeps = {}) {
+    const id = (creds?.exchange ?? deps.exchange?.id ?? process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
     // Allowlist against ccxt's own registry — NOT a `typeof === 'function'`
     // check. `registry['constructor']` (and 'toString', 'valueOf', …) are
     // inherited Object members that ARE functions, so a crafted exchange id
@@ -223,10 +369,13 @@ export class CcxtProvider implements DataProvider {
       exchangeConfig.secret = secret;
       if (password) exchangeConfig.password = password;
     }
-    this.exchange = new ExchangeCtor(exchangeConfig);
+    this.exchange = deps.exchange ?? new ExchangeCtor(exchangeConfig);
     this.exchangeId = id;
     this.userKeyed = Boolean(creds);
     this.name = `ccxt:${id}`;
+    this.now = deps.now ?? Date.now;
+    if (deps.compareExchanges) this.compareExchanges = deps.compareExchanges;
+    if (deps.deribit) this.deribitClient = deps.deribit;
 
     // Optional SECOND keyed venue for the multi-venue account view. Same
     // non-custodial rules: read-only keys from the operator's env, account
@@ -242,6 +391,67 @@ export class CcxtProvider implements DataProvider {
         this.secondary = { ex: new Ctor2(cfg2), id: id2 };
       }
     }
+    const keyed = this.hasKeys();
+    const has = this.exchange.has;
+    const runtimeMode = (supported: boolean): 'live' | 'unavailable' => supported ? 'live' : 'unavailable';
+    const conditional = (
+      method: string,
+      supported: boolean,
+      coverage: string,
+      expectedCadenceMs: number,
+      maxAgeMs: number,
+      caveats: string[] = [],
+    ): CapabilityDefinition =>
+      ccxtCapability({
+        method,
+        support: 'conditional',
+        auth: 'public',
+        mode: runtimeMode(supported),
+        venue: id,
+        coverage,
+        expectedCadenceMs,
+        maxAgeMs,
+        caveats,
+      });
+    const account = (method: string, supported: boolean, coverage: string): CapabilityDefinition =>
+      ccxtCapability({
+        method,
+        support: 'conditional',
+        auth: 'credentials-required',
+        mode: runtimeMode(keyed && supported),
+        venue: id,
+        coverage,
+        expectedCadenceMs: 15_000,
+        maxAgeMs: 60_000,
+        caveats: [
+          ...(keyed ? [] : ['Read-only exchange credentials are not configured for this provider instance.']),
+          'Account snapshot endpoints may omit an authoritative source timestamp; receipt freshness is unknown when omitted.',
+        ],
+      });
+    this.capabilities = buildProviderCapabilities({
+      providerId: 'ccxt',
+      providerVersion: CCXT_PROVIDER_VERSION,
+      source: this.name,
+      capabilities: {
+        quote: ccxtCapability({ method: 'getQuote', support: 'supported', auth: 'public', mode: 'live', venue: id, coverage: 'configured exchange markets', expectedCadenceMs: 5_000, maxAgeMs: 30_000, caveats: ['Ticker timestamps are venue-dependent and may be absent.'] }),
+        history: conditional('getHistory', Boolean(has['fetchOHLCV']), 'configured exchange OHLCV/timeframes', 60_000, 300_000),
+        funding: conditional('getDerivatives', Boolean(has['fetchFundingRate']), 'funding projection from configured-exchange derivatives snapshot', 60_000, 300_000),
+        'funding-history': conditional('getFundingHistory', Boolean(has['fetchFundingRateHistory']), 'configured exchange funding settlements', 28_800_000, 57_600_000),
+        'open-interest': conditional('getDerivatives', Boolean(has['fetchOpenInterest']), 'OI projection from configured-exchange derivatives snapshot', 60_000, 300_000),
+        'open-interest-history': conditional('getOiDelta', Boolean(has['fetchOpenInterestHistory']), 'configured exchange OI history', 300_000, 28_800_000),
+        'open-interest-delta': conditional('getOiDelta', Boolean(has['fetchOpenInterestHistory']), '1h, 4h, 24h and 7d aligned OI/price windows', 300_000, 28_800_000),
+        derivatives: conditional('getDerivatives', Boolean(has['fetchFundingRate'] || has['fetchOpenInterest'] || has['fetchLiquidations']), 'bundled funding, OI and liquidation snapshot', 60_000, 300_000),
+        'venue-derivatives': ccxtCapability({ method: 'getVenueDerivatives', support: 'conditional', auth: 'public', mode: 'live', coverage: 'configured public compare-exchange set', expectedCadenceMs: 60_000, maxAgeMs: 300_000, caveats: ['Each venue independently exposes funding/OI fields; partial rows are possible.'] }),
+        liquidations: conditional('liquidationsProvenance|getDerivatives', Boolean(has['fetchLiquidations']), 'recent public liquidation events', 1_000, 60_000, ['Many exchanges expose no public feed or throttle it, so observed events can undercount the market.']),
+        'venue-quotes': ccxtCapability({ method: 'getExchangeQuotes', support: 'conditional', auth: 'public', mode: 'live', coverage: 'configured public compare-exchange set', expectedCadenceMs: 5_000, maxAgeMs: 30_000, caveats: ['Venue failures are represented by partial coverage rather than fabricated quotes.'] }),
+        'venue-arbitrage': ccxtCapability({ method: 'getExchangeQuotes', support: 'conditional', auth: 'public', mode: 'live', coverage: 'derived from contemporaneous executable venue quotes', expectedCadenceMs: 5_000, maxAgeMs: 30_000, methodology: { id: 'midas.venue-arbitrage-top-of-book', version: '1.0', formula: 'grossBps = (bestBid - bestAsk) / bestAsk * 10000; netBps = grossBps - referenceTakerFeesBps' }, caveats: ['Actionability additionally requires known fees, top-of-book size and bounded timestamp skew.'] }),
+        options: ccxtCapability({ method: 'getDvol|getFuturesTermStructure|getOptionsChain', support: 'conditional', auth: 'public', mode: 'live', source: 'ccxt:deribit', venue: 'deribit', coverage: 'Deribit BTC/ETH public options, DVOL and dated futures', expectedCadenceMs: 60_000, maxAgeMs: 300_000, caveats: ['Options availability depends on the installed ccxt Deribit public methods and listed instruments.'] }),
+        balances: account('getBalances', Boolean(has['fetchBalance']), 'configured exchange account balances'),
+        'account-orders': account('getOpenOrders', Boolean(has['fetchOpenOrders']), 'configured exchange resting orders'),
+        'account-positions': account('getPositions', Boolean(has['fetchPositions']), 'configured exchange open positions'),
+        'account-fills': account('getFills', Boolean(has['fetchMyTrades']), 'configured exchange recent fills'),
+      },
+    });
   }
 
   private readonly secondary: { ex: Exchange; id: string } | null = null;
@@ -317,6 +527,7 @@ export class CcxtProvider implements DataProvider {
       const ticker = await this.exchange.fetchTicker(s);
       return this.toQuote(s, ticker);
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(this.describe(err, s), 502, s);
     }
   }
@@ -362,23 +573,47 @@ export class CcxtProvider implements DataProvider {
     // `since` from the clamped bar count so the window is always the most recent.
     const barSec = timeframeSeconds(timeframe) || INTERVAL_SECONDS[opts.interval];
     const limit = Math.min(Math.max(Math.floor(rangeSec / barSec), 2), 1000);
-    const since = Date.now() - limit * barSec * 1000;
+    const since = this.now() - limit * barSec * 1000;
 
     try {
       const rows = (await this.exchange.fetchOHLCV(s, timeframe, since, limit)) as number[][];
+      if (!Array.isArray(rows)) {
+        throw new ProviderError(`${this.name} ${s}: malformed OHLCV response`, 502, s, 'malformed-upstream');
+      }
       const candles: Candle[] = [];
+      let omitted = 0;
       for (const row of rows) {
         const [ts, open, high, low, close, volume] = row;
-        if (close == null) continue;
-        const c = num(close);
+        if (
+          sourceTimestampOrNull(ts) === null ||
+          positiveFiniteOrNull(open) === null ||
+          positiveFiniteOrNull(high) === null ||
+          positiveFiniteOrNull(low) === null ||
+          positiveFiniteOrNull(close) === null ||
+          nonNegativeFiniteOrNull(volume) === null
+        ) {
+          omitted += 1;
+          continue;
+        }
         candles.push({
-          time: Math.floor(num(ts) / 1000),
-          open: num(open, c),
-          high: num(high, c),
-          low: num(low, c),
-          close: c,
-          volume: num(volume),
+          time: Math.floor(ts / 1000),
+          open,
+          high,
+          low,
+          close,
+          volume,
         });
+      }
+      if (rows.length === 0) {
+        throw new ProviderError(`${this.name} ${s}: upstream returned no OHLCV rows`, 502, s, 'upstream-unavailable');
+      }
+      if (candles.length === 0) {
+        throw new ProviderError(
+          `${this.name} ${s}: upstream returned only malformed OHLCV rows`,
+          502,
+          s,
+          'malformed-upstream',
+        );
       }
       // Strip the perp settle suffix so BTC/USDT:USDT reports currency 'USDT'.
       const quote = (s.split('/')[1] ?? '').replace(/:.*$/, '');
@@ -406,14 +641,33 @@ export class CcxtProvider implements DataProvider {
           interval = actual;
         }
       }
-      return {
+      const value: HistoryResponse = {
         symbol: s,
         interval,
         range: opts.range,
         currency: quote,
         candles: out,
       };
+      const last = out.at(-1);
+      return withProviderReceipt(this, value, {
+        datasetFamily: 'history',
+        instrument: s,
+        venue: this.exchangeId,
+        provenance: 'live',
+        sourceAsOf: last == null ? null : last.time * 1000,
+        coverage: `${interval} candles over ${opts.range}`,
+        expectedCadenceMs: barSec * 1_000,
+        maxAgeMs: barSec * 2_000,
+        units: { time: 'unix-seconds', ohlc: quote || 'quote-asset', volume: 'base-asset' },
+        limitations: [
+          ...(omitted > 0
+            ? [partialEvidenceLimitation(`${omitted} malformed upstream OHLCV rows were omitted.`)]
+            : []),
+          ...(last == null ? ['No complete upstream OHLCV row was returned; source as-of is unknown.'] : []),
+        ],
+      }, this.now());
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(this.describe(err, s), 502, s);
     }
   }
@@ -423,12 +677,15 @@ export class CcxtProvider implements DataProvider {
     try {
       const ob = await this.exchange.fetchOrderBook(s, depth);
       const toLevels = (rows: number[][]) =>
-        rows.slice(0, depth).map(([price, amount]) => ({ price: num(price), amount: num(amount) }));
+        rows
+          .slice(0, depth)
+          .map(([price, amount]) => ({ price: positiveFiniteOrNull(price), amount: positiveFiniteOrNull(amount) }))
+          .filter((level): level is { price: number; amount: number } => level.price !== null && level.amount !== null);
       return {
         symbol: s,
         bids: toLevels(ob.bids as number[][]),
         asks: toLevels(ob.asks as number[][]),
-        timestamp: ob.timestamp ?? Date.now(),
+        timestamp: ob.timestamp ?? this.now(),
       };
     } catch (err) {
       throw new ProviderError(this.describe(err, s), 502, s);
@@ -443,47 +700,149 @@ export class CcxtProvider implements DataProvider {
         const price = tickerPrice(t);
         // Drop a venue whose ticker carries no usable price rather than
         // fabricating 0 — a fake 0 reads as a ~100% cross-venue discrepancy.
-        if (price == null) throw new ProviderError(`${ex.id} ${s}: ticker has no price`, 502, s);
-        return {
+        if (price == null) {
+          throw new ProviderError(`${ex.id} ${s}: ticker has no price`, 502, s, 'malformed-upstream');
+        }
+        const previousClose = positiveFiniteOrNull(t.previousClose) ?? positiveFiniteOrNull(t.open);
+        const changePercent = finiteOrNull(t.percentage) ??
+          (previousClose === null ? null : ((price - previousClose) / previousClose) * 100);
+        if (changePercent === null) {
+          throw new ProviderError(
+            `${ex.id} ${s}: ticker has no change-percent evidence`,
+            502,
+            s,
+            'malformed-upstream',
+          );
+        }
+        const sourceTimestamp = sourceTimestampOrNull(t.timestamp);
+        const sizes = t as Ticker & { bidVolume?: number | null; askVolume?: number | null };
+        const value: VenueQuote = {
           exchange: ex.name ?? ex.id,
           price,
-          bid: t.bid ?? null,
-          ask: t.ask ?? null,
-          changePercent: num(t.percentage),
-          volume: t.baseVolume ?? null,
-          timestamp: t.timestamp ?? Date.now(),
+          bid: positiveFiniteOrNull(t.bid),
+          ask: positiveFiniteOrNull(t.ask),
+          bidSize: positiveFiniteOrNull(sizes.bidVolume),
+          askSize: positiveFiniteOrNull(sizes.askVolume),
+          changePercent,
+          volume: nonNegativeFiniteOrNull(t.baseVolume),
+          timestamp: sourceTimestamp,
         };
+        return withProviderReceipt(this, value, {
+          datasetFamily: 'venue-quotes',
+          source: `ccxt:${ex.id}`,
+          instrument: s,
+          venue: ex.id,
+          provenance: 'live',
+          sourceAsOf: sourceTimestamp,
+          units: {
+            price: 'quote-asset', bid: 'quote-asset', ask: 'quote-asset',
+            bidSize: 'base-asset', askSize: 'base-asset', volume: 'base-asset',
+          },
+          limitations: [
+            ...(sourceTimestamp === null ? ['The venue ticker omitted its source timestamp.'] : []),
+            ...(value.volume === null
+              ? [partialEvidenceLimitation('The venue ticker omitted valid 24-hour base volume.')]
+              : []),
+            ...(value.bid === null || value.ask === null
+              ? [partialEvidenceLimitation('The venue ticker omitted a valid bid or ask.')]
+              : []),
+            ...(value.bidSize === null || value.askSize === null
+              ? [partialEvidenceLimitation('The venue ticker omitted executable top-of-book size.')]
+              : []),
+          ],
+        }, this.now());
       }),
     );
-    return settled
+    const values = settled
       .filter((r): r is PromiseFulfilledResult<VenueQuote> => r.status === 'fulfilled')
       .map((r) => r.value);
+    const failures = settled.length - values.length;
+    if (values.length === 0 && failures > 0) {
+      const category = settled.every(
+        (result) => result.status === 'rejected' &&
+          result.reason instanceof ProviderError &&
+          result.reason.dataHealthCategory === 'malformed-upstream',
+      ) ? 'malformed-upstream' : 'upstream-unavailable';
+      throw new ProviderError(`${this.name} ${s}: every configured venue quote read failed`, 502, s, category);
+    }
+    if (failures === 0) return values;
+    const limitation = crossVenuePartialLimitation('quote', settled.length, values.length, failures);
+    return values.map((value) => withRowReceiptLimitation(value, limitation, s));
   }
 
   async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
     const perp = toPerpSymbol(this.normalize(symbol));
     const settled = await Promise.allSettled(
       this.getCompareExchanges().map(async (ex): Promise<VenueDerivatives> => {
-        const timestamp = Date.now();
         // Sequential (funding then OI), matching the original single-venue read.
         const funding = await readFunding(ex, perp);
         const oi = await readOpenInterest(ex, perp);
-        return {
+        if ((funding.state === 'error' && oi.state !== 'ok') || (oi.state === 'error' && funding.state !== 'ok')) {
+          throw new ProviderError(`${ex.id} ${perp}: derivatives upstream read failed`, 502, perp);
+        }
+        const sourceTimes = [
+          ...(funding.state === 'ok' ? [funding.sourceAsOf] : []),
+          ...(oi.state === 'ok' ? [oi.sourceAsOf] : []),
+        ];
+        const sourceTimestamp = sourceTimes.length > 0 && sourceTimes.every((timestamp) => timestamp !== null)
+          ? Math.min(...sourceTimes as number[])
+          : null;
+        const value: VenueDerivatives = {
           exchange: ex.name ?? ex.id,
           fundingRate: funding.fundingRate,
           fundingIntervalHours: funding.fundingIntervalHours,
           nextFundingTime: funding.nextFundingTime,
           markPrice: funding.markPrice,
           openInterestValue: oi.openInterestValue,
-          timestamp,
+          timestamp: sourceTimestamp,
         };
+        const hasEvidence =
+          value.fundingRate !== null || value.openInterestValue !== null ||
+          value.markPrice !== null || value.nextFundingTime !== null;
+        if (!hasEvidence && (funding.state === 'ok' || oi.state === 'ok')) {
+          throw new ProviderError(
+            `${ex.id} ${perp}: malformed empty derivatives response`,
+            502,
+            perp,
+            'malformed-upstream',
+          );
+        }
+        return withProviderReceipt(this, value, {
+          datasetFamily: 'venue-derivatives',
+          source: `ccxt:${ex.id}`,
+          instrument: perp,
+          venue: ex.id,
+          provenance: 'live',
+          sourceAsOf: sourceTimestamp,
+          units: {
+            fundingRate: 'fraction-per-interval', markPrice: 'quote-asset',
+            openInterestValue: 'quote-asset',
+          },
+          limitations: [
+            ...(funding.state === 'unsupported'
+              ? [partialEvidenceLimitation('The venue does not support unified funding-rate reads.')]
+              : []),
+            ...(funding.state === 'error'
+              ? [partialEvidenceLimitation('The venue funding-rate upstream read failed.')]
+              : []),
+            ...(fundingOmission(funding) ? [fundingOmission(funding)!] : []),
+            ...(oi.state === 'unsupported'
+              ? [partialEvidenceLimitation('The venue does not support unified open-interest reads.')]
+              : []),
+            ...(oi.state === 'error'
+              ? [partialEvidenceLimitation('The venue open-interest upstream read failed.')]
+              : []),
+            ...(openInterestOmission(oi) ? [openInterestOmission(oi)!] : []),
+            ...(sourceTimestamp === null ? ['The venue omitted source timestamps for derivatives evidence.'] : []),
+          ],
+        }, this.now());
       }),
     );
     // Keep venues that reported any perp field (funding, OI, mark or next-funding);
     // drop only the all-null spot-only venues. A venue can answer fetchFundingRate
     // with a markPrice/next time but a null fundingRate (the ccxt fields are
     // independently optional), so don't gate solely on fundingRate/OI.
-    return settled
+    const values = settled
       .filter((r): r is PromiseFulfilledResult<VenueDerivatives> => r.status === 'fulfilled')
       .map((r) => r.value)
       .filter(
@@ -493,6 +852,18 @@ export class CcxtProvider implements DataProvider {
           v.markPrice !== null ||
           v.nextFundingTime !== null,
       );
+    if (values.length === 0 && settled.some((result) => result.status === 'rejected')) {
+      const category = settled.every(
+        (result) => result.status === 'rejected' &&
+          result.reason instanceof ProviderError &&
+          result.reason.dataHealthCategory === 'malformed-upstream',
+      ) ? 'malformed-upstream' : 'upstream-unavailable';
+      throw new ProviderError(`${this.name} ${perp}: every configured venue derivatives read failed`, 502, perp, category);
+    }
+    const failures = settled.filter((result) => result.status === 'rejected').length;
+    if (values.length === settled.length) return values;
+    const limitation = crossVenuePartialLimitation('derivatives', settled.length, values.length, failures);
+    return values.map((value) => withRowReceiptLimitation(value, limitation, perp));
   }
 
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {
@@ -507,7 +878,7 @@ export class CcxtProvider implements DataProvider {
       openInterest: null,
       openInterestValue: null,
       recentLiquidations: [],
-      timestamp: Date.now(),
+      timestamp: null,
     };
 
     const funding = await readFunding(this.exchange, perp);
@@ -521,9 +892,15 @@ export class CcxtProvider implements DataProvider {
     out.openInterest = oi.openInterest;
     out.openInterestValue = oi.openInterestValue;
 
+    let liquidationsState: 'ok' | 'unsupported' | 'error' = 'unsupported';
+    let liquidationsSourceAsOf: number | null = null;
+    let omittedLiquidations = 0;
+    let liquidationsMalformed = false;
     if (this.exchange.has['fetchLiquidations']) {
       try {
-        const liqs = (await this.exchange.fetchLiquidations(perp, undefined, 20)) as unknown as Array<{
+        const response = await this.exchange.fetchLiquidations(perp, undefined, 20);
+        if (!Array.isArray(response)) throw new Error('malformed liquidation response');
+        const liqs = response as unknown as Array<{
           side?: string;
           price?: number;
           amount?: number;
@@ -539,17 +916,99 @@ export class CcxtProvider implements DataProvider {
         for (const l of liqs.slice(0, 20)) {
           const rawSide = (l.side ?? l.info?.side ?? '').toString().toLowerCase();
           const side = rawSide === 'sell' ? ('sell' as const) : rawSide === 'buy' ? ('buy' as const) : null;
-          const price = num(l.price);
-          if (!side || !(price > 0)) continue;
-          recent.push({ side, price, amount: num(l.amount ?? l.contracts), timestamp: l.timestamp ?? Date.now() });
+          const price = positiveFiniteOrNull(l.price);
+          const amount = positiveFiniteOrNull(l.amount ?? l.contracts);
+          const timestamp = sourceTimestampOrNull(l.timestamp);
+          if (!side || price === null || amount === null || timestamp === null) {
+            omittedLiquidations += 1;
+            continue;
+          }
+          recent.push({ side, price, amount, timestamp });
         }
         out.recentLiquidations = recent;
+        liquidationsState = 'ok';
+        liquidationsMalformed = liqs.length > 0 && recent.length === 0;
+        liquidationsSourceAsOf = recent.length > 0
+          ? Math.max(...recent.map((liquidation) => liquidation.timestamp))
+          : null;
       } catch {
-        // public liquidations feed not available
+        liquidationsState = 'error';
       }
     }
 
-    return out;
+    const fundingHasEvidence = funding.state === 'ok' && [
+      funding.fundingRate, funding.fundingIntervalHours, funding.nextFundingTime,
+      funding.markPrice, funding.indexPrice,
+    ].some((field) => field !== null);
+    const oiHasEvidence = oi.state === 'ok' && [oi.openInterest, oi.openInterestValue].some((field) => field !== null);
+    const fundingMalformed = funding.state === 'ok' && !fundingHasEvidence;
+    const oiMalformed = oi.state === 'ok' && !oiHasEvidence;
+    const hasSuccessfulInput =
+      fundingHasEvidence || oiHasEvidence || (liquidationsState === 'ok' && !liquidationsMalformed);
+    const hasFailedInput =
+      funding.state === 'error' || oi.state === 'error' || liquidationsState === 'error' ||
+      fundingMalformed || oiMalformed || liquidationsMalformed;
+    if (hasFailedInput && !hasSuccessfulInput) {
+      const category =
+        (fundingMalformed || oiMalformed || liquidationsMalformed) &&
+        funding.state !== 'error' && oi.state !== 'error' && liquidationsState !== 'error'
+          ? 'malformed-upstream'
+          : 'upstream-unavailable';
+      throw new ProviderError(`${this.name} ${perp}: derivatives upstream read failed`, 502, perp, category);
+    }
+    const successfulTimestamps = [
+      ...(fundingHasEvidence ? [funding.sourceAsOf] : []),
+      ...(oiHasEvidence ? [oi.sourceAsOf] : []),
+      ...(liquidationsState === 'ok' && !liquidationsMalformed ? [liquidationsSourceAsOf] : []),
+    ];
+    const allSuccessfulInputsTimestamped = successfulTimestamps.every((timestamp) => timestamp !== null);
+    const sourceTimestamp =
+      successfulTimestamps.length > 0 && allSuccessfulInputsTimestamped
+        ? Math.min(...successfulTimestamps as number[])
+        : null;
+    out.timestamp = sourceTimestamp;
+    const provenance = hasSuccessfulInput ? 'live' : 'unavailable';
+    return withProviderReceipt(this, out, {
+      datasetFamily: 'derivatives',
+      instrument: perp,
+      venue: this.exchangeId,
+      provenance,
+      sourceAsOf: sourceTimestamp,
+      coverage: 'funding, open interest and recent public liquidations where supported',
+      units: {
+        fundingRate: 'fraction-per-interval', markPrice: 'quote-asset', indexPrice: 'quote-asset',
+        openInterest: 'base-asset', openInterestValue: 'quote-asset', liquidationAmount: 'base-asset',
+      },
+      limitations: [
+        ...(funding.state === 'unsupported'
+          ? [partialEvidenceLimitation('The configured venue does not support unified funding-rate reads.')]
+          : []),
+        ...(funding.state === 'error'
+          ? [partialEvidenceLimitation('The funding-rate upstream read failed; this snapshot is partial.')]
+          : []),
+        ...(fundingOmission(funding) ? [fundingOmission(funding)!] : []),
+        ...(oi.state === 'unsupported'
+          ? [partialEvidenceLimitation('The configured venue does not support unified open-interest reads.')]
+          : []),
+        ...(oi.state === 'error'
+          ? [partialEvidenceLimitation('The open-interest upstream read failed; this snapshot is partial.')]
+          : []),
+        ...(openInterestOmission(oi) ? [openInterestOmission(oi)!] : []),
+        ...(liquidationsState === 'unsupported'
+          ? [partialEvidenceLimitation('The configured venue does not expose a public liquidation feed.')]
+          : []),
+        ...(liquidationsState === 'error'
+          ? [partialEvidenceLimitation('The liquidation upstream read failed; this snapshot is partial.')]
+          : []),
+        ...(liquidationsMalformed
+          ? [partialEvidenceLimitation('The liquidation response contained rows, but none carried complete side, price, amount, and timestamp evidence.')]
+          : []),
+        ...(omittedLiquidations > 0
+          ? [partialEvidenceLimitation(`${omittedLiquidations} malformed liquidation rows were omitted.`)]
+          : []),
+      ],
+      note: provenance === 'unavailable' ? 'No configured derivatives endpoint is supported by this venue.' : null,
+    }, this.now());
   }
 
   liquidationsProvenance(): LiquidationsProvenance {
@@ -557,7 +1016,24 @@ export class CcxtProvider implements DataProvider {
     const note = available
       ? 'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.'
       : `${this.name} exposes no public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE at a venue that publishes liquidations, or use cross-exchange aggregation.`;
-    return { source: this.name, available, note };
+    const receipt = available
+      ? providerReceipt(this, {
+          datasetFamily: 'liquidations',
+          venue: this.exchangeId,
+          provenance: 'live',
+          sourceAsOf: null,
+          coverage: 'public liquidation-feed capability declaration',
+          units: { price: 'quote-asset', amount: 'base-asset' },
+          note,
+        }, this.now())
+      : providerUnavailableReceipt(this, {
+          datasetFamily: 'liquidations',
+          venue: this.exchangeId,
+          coverage: 'public liquidation-feed capability declaration',
+          units: { price: 'quote-asset', amount: 'base-asset' },
+          note,
+        }, this.now());
+    return { source: this.name, available, note, receipt };
   }
 
   async getDexPools(symbol: string): Promise<DexPools> {
@@ -637,7 +1113,7 @@ export class CcxtProvider implements DataProvider {
 
   async getBalances(): Promise<Balances> {
     if (!this.hasKeys()) {
-      return {
+      const value: Balances = {
         source: this.name,
         provenance: 'unavailable',
         note:
@@ -645,46 +1121,93 @@ export class CcxtProvider implements DataProvider {
           '(use read-only keys — Midas never places orders and never holds your funds).',
         totalValueUsd: null,
         balances: [],
-        asOf: Date.now(),
+        asOf: this.now(),
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'balances',
+        venue: this.exchangeId,
+        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
+        note: value.note ?? 'Read-only balances are not configured.',
+      }, value.asOf) };
     }
     try {
       // READ-ONLY account read. Midas is non-custodial: this calls only
       // fetchBalance — never createOrder or any write/withdraw method.
-      const readBalances = async (ex: Exchange): Promise<ReturnType<typeof mapCcxtBalance>> => {
+      let primarySourceAsOf: number | null = null;
+      let secondarySourceAsOf: number | null = null;
+      let primaryMapping: ReturnType<typeof mapCcxtBalanceWithDiagnostics> | null = null;
+      let secondaryMapping: ReturnType<typeof mapCcxtBalanceWithDiagnostics> | null = null;
+      const readBalances = async (ex: Exchange): Promise<ReturnType<typeof mapCcxtBalanceWithDiagnostics>['rows']> => {
         const raw = await ex.fetchBalance();
+        if (ex === this.exchange) {
+          primarySourceAsOf = sourceTimestampOrNull((raw as { timestamp?: unknown }).timestamp);
+        } else {
+          secondarySourceAsOf = sourceTimestampOrNull((raw as { timestamp?: unknown }).timestamp);
+        }
         const totals = (raw as { total?: Record<string, unknown> }).total ?? {};
         const assets = Object.keys(totals).filter((a) => {
           const n = Number((totals as Record<string, unknown>)[a]);
           return Number.isFinite(n) && n > 0;
         });
         const prices = await this.priceAssetsUsd(assets, ex);
-        return mapCcxtBalance(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
+        const mapping = mapCcxtBalanceWithDiagnostics(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
+        if (ex === this.exchange) primaryMapping = mapping;
+        else secondaryMapping = mapping;
+        assertUsableAccountMapping(mapping, 'balance');
+        return mapping.rows;
       };
       let balances = await readBalances(this.exchange);
       const second = await this.fromSecondary(readBalances);
       if (second) {
         balances = mergeVenueRows(balances, this.exchangeId, second.rows, this.secondary!.id, (b) => b.valueUsd);
       }
-      return {
+      const sourceAsOf = second == null
+        ? primarySourceAsOf
+        : primarySourceAsOf !== null && secondarySourceAsOf !== null
+          ? Math.min(primarySourceAsOf, secondarySourceAsOf)
+          : null;
+      const value: Balances = {
         source: this.name,
         provenance: 'live',
         // Honest total: assets with no /USDT market are excluded from the sum,
         // so when any exist the note must say the total is a floor.
-        note: [second?.note, unpricedCaveat(balances)].filter(Boolean).join(' ') || null,
+        note: [
+          second?.note,
+          accountOmissionCaveat(primaryMapping, 'held balance'),
+          accountOmissionCaveat(secondaryMapping, 'held balance'),
+          unpricedCaveat(balances),
+        ].filter(Boolean).join(' ') || null,
         totalValueUsd: sumValueUsd(balances),
         balances,
-        asOf: Date.now(),
+        asOf: this.now(),
       };
+      const rawBalanceInput = providerReceipt(this, {
+        datasetFamily: 'balances', venue: this.exchangeId, provenance: 'live', sourceAsOf,
+        coverage: 'raw exchange asset quantities',
+        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units' },
+      }, value.asOf);
+      const pricingInput = providerReceipt(this, {
+        datasetFamily: 'quote', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
+        coverage: 'USDT ticker prices and explicit USD-stablecoin parity assumptions',
+        units: { price: 'USD-per-asset' },
+        limitations: ['Individual valuation-ticker source timestamps are not retained by this aggregate.'],
+      }, value.asOf);
+      return withProviderDerivedReceipt(this, value, {
+        datasetFamily: 'balances', venue: this.exchangeId, provenance: 'live',
+        inputReceipts: [rawBalanceInput, pricingInput], sourceAsOf: null,
+        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
+        methodology: {
+          id: 'midas.balance-usd-valuation', version: '1.0.0',
+          formula: 'valueUsd = total * USD price; totalValueUsd = sum(known valueUsd)',
+        },
+        note: value.note,
+      }, value.asOf);
     } catch (err) {
-      return {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `Balance read failed — ${safeErrorLabel(err)}. Check that the API key is valid and has read access (read-only is sufficient).`,
-        totalValueUsd: null,
-        balances: [],
-        asOf: Date.now(),
-      };
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(
+        `Balance read failed — ${safeErrorLabel(err)}. Check that the API key is valid and has read access (read-only is sufficient).`,
+        502,
+      );
     }
   }
 
@@ -724,9 +1247,9 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getOpenOrders(): Promise<OpenOrders> {
-    const asOf = Date.now();
+    const asOf = this.now();
     if (!this.hasKeys()) {
-      return {
+      const value: OpenOrders = {
         source: this.name,
         provenance: 'unavailable',
         note:
@@ -735,42 +1258,82 @@ export class CcxtProvider implements DataProvider {
         orders: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-orders', venue: this.exchangeId,
+        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
+        note: value.note ?? 'Read-only open orders are not configured.',
+      }, asOf) };
     }
     if (!this.exchange.has['fetchOpenOrders']) {
-      return {
+      const value: OpenOrders = {
         source: this.name,
         provenance: 'unavailable',
         note: `${this.name} does not expose a fetchOpenOrders endpoint.`,
         orders: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-orders', venue: this.exchangeId,
+        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
+        note: value.note ?? 'Open-orders reads are unsupported.',
+      }, asOf) };
     }
     try {
       // READ-ONLY: fetchOpenOrders only — never createOrder/cancelOrder/editOrder.
       const raw = await this.exchange.fetchOpenOrders();
-      let orders = mapOpenOrders(raw);
-      const second = await this.fromSecondary(async (ex) =>
-        ex.has['fetchOpenOrders'] ? mapOpenOrders(await ex.fetchOpenOrders()) : [],
-      );
+      const primaryMapping = mapOpenOrdersWithDiagnostics(raw);
+      assertUsableAccountMapping(primaryMapping, 'open-orders');
+      let orders = primaryMapping.rows;
+      let secondaryMapping: ReturnType<typeof mapOpenOrdersWithDiagnostics> | null = null;
+      const second = await this.fromSecondary(async (ex) => {
+        if (!ex.has['fetchOpenOrders']) return [];
+        secondaryMapping = mapOpenOrdersWithDiagnostics(await ex.fetchOpenOrders());
+        assertUsableAccountMapping(secondaryMapping, 'open-orders');
+        return secondaryMapping.rows;
+      });
       if (second) {
         orders = mergeVenueRows(orders, this.exchangeId, second.rows, this.secondary!.id, (o) => o.timestamp);
       }
-      return { source: this.name, provenance: 'live', note: second?.note ?? null, orders, asOf };
-    } catch (err) {
-      return {
+      const value: OpenOrders = {
         source: this.name,
-        provenance: 'unavailable',
-        note: `Open-orders read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
-        orders: [],
+        provenance: 'live',
+        note: [
+          second?.note,
+          accountOmissionCaveat(primaryMapping, 'open-order'),
+          accountOmissionCaveat(secondaryMapping, 'open-order'),
+        ].filter(Boolean).join(' ') || null,
+        orders,
         asOf,
       };
+      const rawInput = providerReceipt(this, {
+        datasetFamily: 'account-orders', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
+        coverage: 'raw configured-exchange open-order rows',
+        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
+        note: value.note,
+      }, asOf);
+      return withProviderDerivedReceipt(this, value, {
+        datasetFamily: 'account-orders', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
+        inputReceipts: [rawInput],
+        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
+        methodology: {
+          id: 'midas.open-order-normalization', version: '1.0.0',
+          formula: 'remaining = reported remaining or max(amount - filled, 0); value = price * amount',
+        },
+        note: value.note,
+      }, asOf);
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(
+        `Open-orders read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
+        502,
+      );
     }
   }
 
   async getPositions(): Promise<AccountPositions> {
-    const asOf = Date.now();
+    const asOf = this.now();
     if (!this.hasKeys()) {
-      return {
+      const value: AccountPositions = {
         source: this.name,
         provenance: 'unavailable',
         note:
@@ -780,9 +1343,14 @@ export class CcxtProvider implements DataProvider {
         positions: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-positions', venue: this.exchangeId,
+        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
+        note: value.note ?? 'Read-only positions are not configured.',
+      }, asOf) };
     }
     if (!this.exchange.has['fetchPositions']) {
-      return {
+      const value: AccountPositions = {
         source: this.name,
         provenance: 'unavailable',
         note: `${this.name} does not expose a fetchPositions endpoint (spot-only account or exchange).`,
@@ -790,41 +1358,69 @@ export class CcxtProvider implements DataProvider {
         positions: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-positions', venue: this.exchangeId,
+        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
+        note: value.note ?? 'Position reads are unsupported.',
+      }, asOf) };
     }
     try {
       // READ-ONLY: fetchPositions only — never any order/position write method.
       const raw = await this.exchange.fetchPositions();
-      let positions = mapPositions(raw);
-      const second = await this.fromSecondary(async (ex) =>
-        ex.has['fetchPositions'] ? mapPositions(await ex.fetchPositions()) : [],
-      );
+      const primaryMapping = mapPositionsWithDiagnostics(raw);
+      assertUsableAccountMapping(primaryMapping, 'positions');
+      let positions = primaryMapping.rows;
+      let secondaryMapping: ReturnType<typeof mapPositionsWithDiagnostics> | null = null;
+      const second = await this.fromSecondary(async (ex) => {
+        if (!ex.has['fetchPositions']) return [];
+        secondaryMapping = mapPositionsWithDiagnostics(await ex.fetchPositions());
+        assertUsableAccountMapping(secondaryMapping, 'positions');
+        return secondaryMapping.rows;
+      });
       if (second) {
         positions = mergeVenueRows(positions, this.exchangeId, second.rows, this.secondary!.id, (p) => p.notionalUsd);
       }
-      return {
+      const value: AccountPositions = {
         source: this.name,
         provenance: 'live',
-        note: second?.note ?? null,
+        note: [
+          second?.note,
+          accountOmissionCaveat(primaryMapping, 'position'),
+          accountOmissionCaveat(secondaryMapping, 'position'),
+        ].filter(Boolean).join(' ') || null,
         totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
         positions,
         asOf,
       };
+      const rawInput = providerReceipt(this, {
+        datasetFamily: 'account-positions', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
+        coverage: 'raw configured-exchange position rows',
+        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
+        note: value.note,
+      }, asOf);
+      return withProviderDerivedReceipt(this, value, {
+        datasetFamily: 'account-positions', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
+        inputReceipts: [rawInput],
+        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
+        methodology: {
+          id: 'midas.position-normalization', version: '1.0.0',
+          formula: 'contracts = abs(reported contracts); totalUnrealizedPnlUsd = sum(known unrealizedPnlUsd)',
+        },
+        note: value.note,
+      }, asOf);
     } catch (err) {
-      return {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `Positions read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
-        totalUnrealizedPnlUsd: null,
-        positions: [],
-        asOf,
-      };
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(
+        `Positions read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
+        502,
+      );
     }
   }
 
   async getFills(symbol?: string): Promise<AccountFills> {
-    const asOf = Date.now();
+    const asOf = this.now();
     if (!this.hasKeys()) {
-      return {
+      const value: AccountFills = {
         source: this.name,
         provenance: 'unavailable',
         note:
@@ -833,43 +1429,97 @@ export class CcxtProvider implements DataProvider {
         fills: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-fills', instrument: symbol ?? null, venue: this.exchangeId,
+        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+        note: value.note ?? 'Read-only fills are not configured.',
+      }, asOf) };
     }
     if (!this.exchange.has['fetchMyTrades']) {
-      return {
+      const value: AccountFills = {
         source: this.name,
         provenance: 'unavailable',
         note: `${this.name} does not expose a fetchMyTrades endpoint.`,
         fills: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-fills', instrument: symbol ?? null, venue: this.exchangeId,
+        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+        note: value.note ?? 'Fill reads are unsupported.',
+      }, asOf) };
     }
     try {
       // READ-ONLY: fetchMyTrades only. Many venues (e.g. Binance) require a
       // symbol for this endpoint — surface that honestly instead of guessing.
       const sym = symbol ? this.normalize(symbol) : undefined;
       const raw = await this.exchange.fetchMyTrades(sym, undefined, 100);
-      let fills = mapMyTrades(raw);
-      const second = await this.fromSecondary(async (ex) =>
-        ex.has['fetchMyTrades'] ? mapMyTrades(await ex.fetchMyTrades(sym, undefined, 100)) : [],
-      );
+      const primaryMapping = mapMyTradesWithDiagnostics(raw);
+      assertUsableAccountMapping(primaryMapping, 'fills');
+      let fills = primaryMapping.rows;
+      let secondaryMapping: ReturnType<typeof mapMyTradesWithDiagnostics> | null = null;
+      const second = await this.fromSecondary(async (ex) => {
+        if (!ex.has['fetchMyTrades']) return [];
+        secondaryMapping = mapMyTradesWithDiagnostics(await ex.fetchMyTrades(sym, undefined, 100));
+        assertUsableAccountMapping(secondaryMapping, 'fills');
+        return secondaryMapping.rows;
+      });
       if (second) {
         fills = mergeVenueRows(fills, this.exchangeId, second.rows, this.secondary!.id, (f) => f.timestamp);
       }
-      return { source: this.name, provenance: 'live', note: second?.note ?? null, fills, asOf };
+      const value: AccountFills = {
+        source: this.name,
+        provenance: 'live',
+        note: [
+          second?.note,
+          accountOmissionCaveat(primaryMapping, 'fill'),
+          accountOmissionCaveat(secondaryMapping, 'fill'),
+        ].filter(Boolean).join(' ') || null,
+        fills,
+        asOf,
+      };
+      const rawInput = providerReceipt(this, {
+        datasetFamily: 'account-fills', instrument: sym ?? null, venue: this.exchangeId,
+        provenance: 'live', sourceAsOf: null,
+        coverage: 'raw configured-exchange trade/fill rows',
+        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+        note: value.note,
+      }, asOf);
+      return withProviderDerivedReceipt(this, value, {
+        datasetFamily: 'account-fills', instrument: sym ?? null, venue: this.exchangeId,
+        provenance: 'live', sourceAsOf: null,
+        inputReceipts: [rawInput],
+        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+        methodology: {
+          id: 'midas.fill-normalization', version: '1.0.0',
+          formula: 'cost = reported cost or price * amount; fee fields remain null when unreported',
+        },
+        note: value.note,
+      }, asOf);
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       // Inspect the raw message internally to detect the "symbol required" case,
       // but never place it in the note — it can carry the signed request URL.
       const rawMsg = err instanceof Error ? err.message : '';
       const needsSymbol = /symbol|argument/i.test(rawMsg) && !symbol;
-      return {
+      if (!needsSymbol) {
+        throw new ProviderError(
+          `Fills read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
+          502,
+        );
+      }
+      const value: AccountFills = {
         source: this.name,
         provenance: 'unavailable',
-        note: needsSymbol
-          ? `${this.name} requires a symbol for fills — open FILLS with a symbol (e.g. BTC/USDT FILLS).`
-          : `Fills read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
+        note: `${this.name} requires a symbol for fills — open FILLS with a symbol (e.g. BTC/USDT FILLS).`,
         fills: [],
         asOf,
       };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'account-fills', instrument: null, venue: this.exchangeId,
+        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
+        note: value.note ?? 'A symbol is required for fill reads.',
+      }, asOf) };
     }
   }
 
@@ -940,15 +1590,64 @@ export class CcxtProvider implements DataProvider {
     if (!this.exchange.has['fetchFundingRateHistory']) return [];
     const n = Math.min(Math.max(1, Math.floor(limit)), 500);
     try {
-      const rows = (await this.exchange.fetchFundingRateHistory(perp, undefined, n)) as unknown as Array<{
+      const response = await this.exchange.fetchFundingRateHistory(perp, undefined, n);
+      if (!Array.isArray(response)) {
+        throw new ProviderError(
+          `${this.name} ${perp}: malformed funding-history response`,
+          502,
+          perp,
+          'malformed-upstream',
+        );
+      }
+      const rows = response as unknown as Array<{
         timestamp?: number;
         fundingRate?: number;
+        interval?: unknown;
+        fundingInterval?: unknown;
       }>;
-      return rows
-        .filter((r) => r.timestamp != null)
-        .map((r) => ({ time: r.timestamp as number, fundingRate: r.fundingRate ?? null }));
-    } catch {
-      return [];
+      const valid = rows.filter(
+        (row) => sourceTimestampOrNull(row.timestamp) !== null && finiteOrNull(row.fundingRate) !== null,
+      );
+      if (rows.length > 0 && valid.length === 0) {
+        throw new ProviderError(
+          `${this.name} ${perp}: malformed funding-history response`,
+          502,
+          perp,
+          'malformed-upstream',
+        );
+      }
+      const omitted = rows.length - valid.length;
+      const completeness = omitted > 0
+        ? partialEvidenceLimitation(
+            `Funding-history read attempted ${rows.length} row(s); ${valid.length} returned usable evidence and ${omitted} were malformed and omitted.`,
+          )
+        : null;
+      return valid
+        .map((r) => {
+          const time = r.timestamp as number;
+          const intervalHours = fundingIntervalHours(r.interval ?? r.fundingInterval);
+          const value: FundingHistoryPoint = {
+            time,
+            fundingRate: r.fundingRate as number,
+            fundingIntervalHours: intervalHours,
+          };
+          return withProviderReceipt(this, value, {
+            datasetFamily: 'funding-history', instrument: perp, venue: this.exchangeId,
+            provenance: 'live', sourceAsOf: time,
+            expectedCadenceMs: intervalHours === null ? undefined : intervalHours * HOUR_MS,
+            maxAgeMs: intervalHours === null ? undefined : intervalHours * HOUR_MS * 2,
+            units: { fundingRate: 'fraction-per-settlement', fundingIntervalHours: 'hours' },
+            limitations: [
+              ...(completeness ? [completeness] : []),
+              ...(intervalHours === null
+                ? [partialEvidenceLimitation('The venue omitted the funding settlement interval; annualized funding is unavailable.')]
+                : []),
+            ],
+          }, this.now());
+        });
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(`${this.name} ${perp}: funding-history upstream read failed (${safeErrorLabel(err)})`, 502, perp);
     }
   }
 
@@ -964,8 +1663,8 @@ export class CcxtProvider implements DataProvider {
    * (5m/15m/1h/4h per window). Some venues timestamp OI at the PERIOD END while
    * OHLCV bars are stamped at the period start, so an observation one bucket
    * ahead of its bar is paired back one bucket; anything further off is left
-   * price-null (the change is computed off priced points only — never an
-   * interpolated price).
+   * price-null. Classification requires prices at the exact first and last OI
+   * endpoints; inner priced points never shorten the requested comparison.
    *
    * A venue without an OI-history read, an empty history, or a failed read is
    * an honest 'unavailable' — a delta is NEVER synthesized from two
@@ -974,20 +1673,29 @@ export class CcxtProvider implements DataProvider {
   async getOiDelta(symbol: string, window: OiDeltaWindow): Promise<OiDelta> {
     const perp = toPerpSymbol(this.normalize(symbol));
     const source = `ccxt:${this.exchange.id ?? 'unknown'}`;
-    const unavailable = (note: string): OiDelta => ({
-      symbol: perp,
-      window,
-      oiNow: null,
-      oiThen: null,
-      oiChangePct: null,
-      priceChangePct: null,
-      classification: null,
-      points: [],
-      asOf: null,
-      provenance: 'unavailable',
-      source,
-      note,
-    });
+    const now = this.now();
+    const unavailable = (note: string): OiDelta => {
+      const value: OiDelta = {
+        symbol: perp,
+        window,
+        oiNow: null,
+        oiThen: null,
+        oiChangePct: null,
+        priceChangePct: null,
+        classification: null,
+        points: [],
+        asOf: null,
+        provenance: 'unavailable',
+        source,
+        note,
+      };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'open-interest-delta', instrument: perp, venue: this.exchangeId,
+        coverage: `${window} OI/price alignment`,
+        units: { openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+        note,
+      }, this.now()) };
+    };
     if (!this.exchange.has['fetchOpenInterestHistory']) {
       return unavailable(
         `${source} publishes no open-interest history (fetchOpenInterestHistory unsupported) — an OI delta needs real history, not two snapshots.`,
@@ -997,38 +1705,89 @@ export class CcxtProvider implements DataProvider {
     // stay within the venues' published OI-history timeframes.
     const oiTimeframe = ({ '1h': '5m', '4h': '15m', '24h': '1h', '7d': '4h' } as Record<OiDeltaWindow, string>)[window];
     const bucketMs = timeframeSeconds(oiTimeframe) * 1000;
-    const since = Date.now() - OI_DELTA_WINDOW_MS[window];
+    const since = now - OI_DELTA_WINDOW_MS[window];
     let rows: Array<{ timestamp?: number; openInterestValue?: number }>;
     try {
-      rows = (await this.exchange.fetchOpenInterestHistory(perp, oiTimeframe, since, 500)) as unknown as Array<{
+      const response = await this.exchange.fetchOpenInterestHistory(perp, oiTimeframe, since, 500);
+      if (!Array.isArray(response)) {
+        throw new ProviderError(
+          `${source} returned a malformed open-interest history response.`,
+          502,
+          perp,
+          'malformed-upstream',
+        );
+      }
+      rows = response as unknown as Array<{
         timestamp?: number;
         openInterestValue?: number;
       }>;
     } catch (err) {
-      return unavailable(`OI-history read failed — ${safeErrorLabel(err)}.`);
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(`OI-history read failed — ${safeErrorLabel(err)}.`, 502, perp);
     }
     const oiRows = rows.filter(
-      (r) => r.timestamp != null && r.openInterestValue != null && Number.isFinite(r.openInterestValue) && r.openInterestValue > 0,
+      (r) => sourceTimestampOrNull(r?.timestamp) !== null && positiveFiniteOrNull(r?.openInterestValue) !== null,
     );
+    const omittedOiRows = rows.length - oiRows.length;
+    if (rows.length > 0 && oiRows.length === 0) {
+      throw new ProviderError(
+        `${source} returned a malformed open-interest history response.`,
+        502,
+        perp,
+        'malformed-upstream',
+      );
+    }
     if (oiRows.length === 0) {
       return unavailable(`${source} returned no open-interest history for ${perp} — nothing to delta.`);
     }
+    oiRows.sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
+    const outOfWindow = oiRows.filter((row) => {
+      const timestamp = row.timestamp as number;
+      return timestamp < since - bucketMs || timestamp > now;
+    });
+    if (outOfWindow.length > 0) {
+      throw new ProviderError(
+        `${source} returned out-of-window open-interest history observations.`,
+        502,
+        perp,
+        'malformed-upstream',
+      );
+    }
+    const earliestOi = oiRows[0].timestamp as number;
+    const latestOi = oiRows[oiRows.length - 1].timestamp as number;
+    if (earliestOi > since + bucketMs || latestOi < now - bucketMs) {
+      return unavailable(
+        `${source} did not cover the requested ${window} window within the ${oiTimeframe} endpoint tolerance — no delta was classified.`,
+      );
+    }
+    const actualCoverageMs = latestOi - earliestOi;
 
     // Price leg: OHLCV closes over the same window, perp first, the spot pair
     // as fallback (a venue may not candle its perp on the same symbol form).
     // A failed price leg degrades the price points to null — the OI change and
     // history stay live, the price change honestly null.
     let candles: Array<[number, number, number, number, number, number]> = [];
+    let priceReadErrors = 0;
+    let attemptedPriceRows = 0;
+    let omittedPriceRows = 0;
     for (const cand of [perp, this.normalize(symbol)]) {
       try {
-        const got = (await this.exchange.fetchOHLCV(cand, oiTimeframe, since, 500)) as unknown as Array<
+        const response = await this.exchange.fetchOHLCV(cand, oiTimeframe, since, 500);
+        if (!Array.isArray(response)) throw new Error('malformed OHLCV response');
+        const got = response as unknown as Array<
           [number, number, number, number, number, number]
         >;
-        if (got.length > 0) {
-          candles = got;
+        attemptedPriceRows += got.length;
+        const usable = got.filter(
+          (row) => sourceTimestampOrNull(row?.[0]) !== null && positiveFiniteOrNull(row?.[4]) !== null,
+        );
+        omittedPriceRows += got.length - usable.length;
+        if (usable.length > 0) {
+          candles = usable;
           break;
         }
       } catch {
+        priceReadErrors += 1;
         // try the next symbol form
       }
     }
@@ -1049,7 +1808,7 @@ export class CcxtProvider implements DataProvider {
     });
     points.sort((a, b) => a.timestamp - b.timestamp);
 
-    return {
+    const value: OiDelta = {
       symbol: perp,
       window,
       ...summarizeOiDelta(points),
@@ -1058,6 +1817,56 @@ export class CcxtProvider implements DataProvider {
       source,
       note: null,
     };
+    const oiSourceAsOf = points.at(-1)?.timestamp ?? null;
+    const priceSourceAsOf = candles
+      .map((candle) => sourceTimestampOrNull(candle[0]))
+      .filter((timestamp): timestamp is number => timestamp !== null)
+      .sort((a, b) => b - a)[0] ?? null;
+    const oiInput = providerReceipt(this, {
+      datasetFamily: 'open-interest-history', instrument: perp, venue: this.exchangeId,
+      provenance: 'live', sourceAsOf: oiSourceAsOf,
+      expectedCadenceMs: bucketMs,
+      maxAgeMs: bucketMs * 2,
+      coverage: `${window} requested; ${actualCoverageMs}ms actual OI endpoint coverage`,
+      units: { openInterestValue: 'quote-asset' },
+      limitations: omittedOiRows > 0
+        ? [partialEvidenceLimitation(
+            `Open-interest history attempted ${rows.length} row(s); ${oiRows.length} returned usable evidence and ${omittedOiRows} were malformed and omitted.`,
+          )]
+        : [],
+    }, now);
+    const priceInput = providerReceipt(this, {
+      datasetFamily: 'history', instrument: perp, venue: this.exchangeId,
+      provenance: 'live', sourceAsOf: priceSourceAsOf, coverage: `${window} aligned price history`,
+      expectedCadenceMs: bucketMs,
+      maxAgeMs: bucketMs * 2,
+      units: { price: 'quote-asset' },
+      limitations: [
+        ...(candles.length === 0
+          ? [partialEvidenceLimitation('No usable OHLCV price history was returned for OI alignment.')]
+          : []),
+        ...(priceReadErrors > 0
+          ? [partialEvidenceLimitation('One or more OHLCV upstream reads failed during price alignment.')]
+          : []),
+        ...(omittedPriceRows > 0
+          ? [partialEvidenceLimitation(
+              `Price-history alignment attempted ${attemptedPriceRows} row(s); ${attemptedPriceRows - omittedPriceRows} returned usable evidence and ${omittedPriceRows} were malformed and omitted.`,
+            )]
+          : []),
+      ],
+    }, now);
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'open-interest-delta', instrument: perp, venue: this.exchangeId,
+      provenance: 'live', inputReceipts: [oiInput, priceInput],
+      expectedCadenceMs: bucketMs,
+      maxAgeMs: bucketMs * 2,
+      coverage: `${window} requested; ${actualCoverageMs}ms actual aligned endpoint coverage`,
+      units: { openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+      methodology: {
+        id: 'midas.oi-delta', version: '1.0.0',
+        formula: '(now/then - 1) * 100; quadrant(sign(ΔOI), sign(Δprice))',
+      },
+    }, now);
   }
 
   // -- Deribit options / DVOL / term structure ------------------------------
@@ -1067,8 +1876,8 @@ export class CcxtProvider implements DataProvider {
   // actually trade (the configured venue — e.g. binance — lists no European
   // options and no volatility index). A dedicated, public (keyless) client is
   // used, built lazily so a non-crypto deployment never constructs it. Every
-  // read is READ-ONLY market data; failures degrade to an honest 'unavailable'
-  // snapshot with a sanitized note — never a fabricated level, basis or OI.
+  // read is READ-ONLY market data; unsupported/unlisted data is unavailable,
+  // while transport or malformed upstream failures throw sanitized errors.
 
   private deribitClient: Exchange | null = null;
 
@@ -1086,14 +1895,22 @@ export class CcxtProvider implements DataProvider {
   }
 
   private async dvolUnavailable(symbol: DvolSymbol, note: string): Promise<DvolSnapshot> {
-    return { symbol, value: null, history: [], asOf: null, provenance: 'unavailable', source: 'ccxt:deribit', note };
+    const value: DvolSnapshot = {
+      symbol, value: null, history: [], asOf: null, provenance: 'unavailable', source: 'ccxt:deribit', note,
+    };
+    return { ...value, receipt: providerUnavailableReceipt(this, {
+      datasetFamily: 'options', source: 'ccxt:deribit', instrument: symbol, venue: 'deribit',
+      coverage: 'Deribit DVOL level and history', units: { value: 'annualized-volatility-percent' }, note,
+    }, this.now()) };
   }
 
   /**
    * The Deribit DVOL volatility index (30-day forward-looking implied vol).
    * ccxt exposes no unified method for it, so this uses the deribit client's
    * implicit get_volatility_index_data endpoint — guarded by a typeof check,
-   * and any failure is an honest 'unavailable', never a synthesized level.
+   * Unsupported capability is an honest unavailable result. Operational and
+   * malformed upstream failures throw a sanitized ProviderError so status can
+   * distinguish them from ordinary lack of support.
    */
   async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
     const ex = this.deribit() as Exchange & {
@@ -1103,7 +1920,7 @@ export class CcxtProvider implements DataProvider {
       return this.dvolUnavailable(symbol, 'The installed ccxt build exposes no Deribit volatility-index endpoint — DVOL is unavailable.');
     }
     try {
-      const end = Date.now();
+      const end = this.now();
       const res = (await ex.publicGetGetVolatilityIndexData({
         currency: symbol,
         start_timestamp: end - 40 * 86_400_000,
@@ -1111,15 +1928,32 @@ export class CcxtProvider implements DataProvider {
         resolution: '1D',
       })) as { result?: { data?: unknown } };
       // Rows are [timestamp_ms, open, high, low, close] — the daily index fixes.
-      const rows = Array.isArray(res?.result?.data) ? (res.result.data as number[][]) : [];
+      if (!Array.isArray(res?.result?.data)) {
+        throw new ProviderError(
+          `Deribit returned a malformed DVOL response for ${symbol}.`,
+          502,
+          symbol,
+          'malformed-upstream',
+        );
+      }
+      const rows = res.result.data as number[][];
       const history = rows
         .filter((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[4]) && r[4] > 0)
         .map((r) => ({ time: r[0], value: r[4] }));
       const last = history[history.length - 1];
       if (!last) {
+        if (rows.length > 0) {
+          throw new ProviderError(
+            `Deribit returned malformed DVOL fixes for ${symbol}.`,
+            502,
+            symbol,
+            'malformed-upstream',
+          );
+        }
         return this.dvolUnavailable(symbol, `Deribit returned no DVOL fixes for ${symbol} — nothing to show.`);
       }
-      return {
+      const omitted = rows.length - history.length;
+      const value: DvolSnapshot = {
         symbol,
         value: last.value,
         history,
@@ -1128,8 +1962,19 @@ export class CcxtProvider implements DataProvider {
         source: 'ccxt:deribit',
         note: null,
       };
+      return withProviderReceipt(this, value, {
+        datasetFamily: 'options', source: 'ccxt:deribit', instrument: symbol, venue: 'deribit',
+        provenance: 'live', sourceAsOf: last.time, coverage: 'Deribit DVOL level and history',
+        units: { value: 'annualized-volatility-percent' },
+        limitations: omitted > 0
+          ? [partialEvidenceLimitation(
+              `DVOL read attempted ${rows.length} fix row(s); ${history.length} returned usable evidence and ${omitted} were malformed and omitted.`,
+            )]
+          : [],
+      }, end);
     } catch (err) {
-      return this.dvolUnavailable(symbol, `Deribit DVOL read failed — ${safeErrorLabel(err)}.`);
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(`Deribit DVOL read failed — ${safeErrorLabel(err)}.`, 502, symbol);
     }
   }
 
@@ -1142,22 +1987,22 @@ export class CcxtProvider implements DataProvider {
    */
   async getFuturesTermStructure(symbol: string): Promise<TermStructure> {
     const base = this.baseAsset(symbol);
-    const now = Date.now();
-    const unavailable = (note: string): TermStructure => ({
-      underlying: base,
-      referencePrice: null,
-      perpPrice: null,
-      points: [],
-      asOf: null,
-      provenance: 'unavailable',
-      source: 'ccxt:deribit',
-      note,
-    });
+    const now = this.now();
+    const unavailable = (note: string): TermStructure => {
+      const value: TermStructure = {
+        underlying: base, referencePrice: null, perpPrice: null, points: [], asOf: null,
+        provenance: 'unavailable', source: 'ccxt:deribit', note,
+      };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+        coverage: 'Deribit dated-futures term structure', units: { price: 'USD', annualizedBasisPct: 'percent' }, note,
+      }, now) };
+    };
     const ex = this.deribit();
     try {
       await ex.loadMarkets();
     } catch (err) {
-      return unavailable(`Deribit markets unreadable — ${safeErrorLabel(err)}.`);
+      throw new ProviderError(`Deribit markets read failed — ${safeErrorLabel(err)}.`, 502, base);
     }
     const markets = Object.values(ex.markets ?? {}) as Array<{
       symbol: string;
@@ -1178,17 +2023,28 @@ export class CcxtProvider implements DataProvider {
     // One batched read; a venue that rejects the batch falls back per-symbol so
     // one bad instrument doesn't sink the board (same pattern as priceAssetsUsd).
     const tickers: Record<string, Ticker> = {};
+    let tickerReadFailures = 0;
+    let batchFailureLabel: string | null = null;
     try {
       Object.assign(tickers, await ex.fetchTickers(wanted));
-    } catch {
+    } catch (error) {
+      batchFailureLabel = safeErrorLabel(error);
       await Promise.all(
         wanted.map(async (s) => {
           try {
             tickers[s] = await ex.fetchTicker(s);
           } catch {
+            tickerReadFailures += 1;
             // leave this instrument unpriced — its point is dropped below
           }
         }),
+      );
+    }
+    if (wanted.length > 0 && Object.keys(tickers).length === 0) {
+      throw new ProviderError(
+        `Deribit futures ticker read failed — ${batchFailureLabel ?? 'error'}.`,
+        502,
+        base,
       );
     }
     const perpPrice = perp ? tickerPrice(tickers[perp.symbol] ?? {}) : null;
@@ -1202,16 +2058,61 @@ export class CcxtProvider implements DataProvider {
       points.push({ expiry: f.expiry!, futureSymbol: f.symbol, price, annualizedBasisPct: basis, daysToExpiry: days });
     }
     points.sort((a, b) => a.expiry - b.expiry);
-    return {
+    if (points.length === 0) {
+      if (perp && Object.keys(tickers).length > 0) {
+        throw new ProviderError(
+          `Deribit returned malformed or unpriced ${base} futures tickers.`,
+          502,
+          base,
+          'malformed-upstream',
+        );
+      }
+      return unavailable(`Deribit returned no usable, perp-referenced ${base} futures prices.`);
+    }
+    const usableTickerCount = wanted.filter((tickerSymbol) => tickerPrice(tickers[tickerSymbol] ?? {}) !== null).length;
+    const omittedTickerCount = wanted.length - usableTickerCount;
+    const contributingTickers = [
+      ...(perp ? [tickers[perp.symbol]] : []),
+      ...points.map((point) => tickers[point.futureSymbol]),
+    ].filter((ticker): ticker is Ticker => ticker != null);
+    const tickerTimes = contributingTickers.map((ticker) => sourceTimestampOrNull(ticker.timestamp));
+    const sourceAsOf = tickerTimes.length > 0 && tickerTimes.every((timestamp) => timestamp !== null)
+      ? Math.min(...tickerTimes as number[])
+      : null;
+    const value: TermStructure = {
       underlying: base,
       referencePrice: perpPrice,
       perpPrice,
       points: points.slice(0, 12),
-      asOf: now,
+      asOf: sourceAsOf,
       provenance: 'live',
       source: 'ccxt:deribit',
       note: perpPrice == null ? 'No Deribit perpetual price — basis could not be referenced to the perp.' : null,
     };
+    const rawInput = providerReceipt(this, {
+      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+      provenance: 'live', sourceAsOf, coverage: 'raw Deribit futures and perpetual ticker prices',
+      units: { price: 'USD' },
+      limitations: [
+        ...(sourceAsOf === null ? ['One or more contributing Deribit tickers omitted a source timestamp.'] : []),
+        ...(omittedTickerCount > 0
+          ? [partialEvidenceLimitation(
+              `Futures ticker fan-out attempted ${wanted.length} instrument(s); ${usableTickerCount} returned usable prices, ${tickerReadFailures} reads failed, and ${Math.max(0, omittedTickerCount - tickerReadFailures)} were missing or malformed.`,
+            )]
+          : []),
+      ],
+    }, now);
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+      provenance: 'live', inputReceipts: [rawInput], sourceAsOf,
+      coverage: 'Deribit dated-futures term structure',
+      units: { price: 'USD', annualizedBasisPct: 'percent' },
+      methodology: {
+        id: 'midas.annualized-simple-basis', version: '1.0.0',
+        formula: '(F/S - 1) * 365/days * 100',
+      },
+      note: value.note,
+    }, now);
   }
 
   /**
@@ -1224,19 +2125,19 @@ export class CcxtProvider implements DataProvider {
    */
   async getOptionsChain(symbol: string, expiry: number | 'nearest' = 'nearest'): Promise<OptionsChain> {
     const base = this.baseAsset(symbol);
-    const now = Date.now();
-    const unavailable = (note: string): OptionsChain => ({
-      underlying: base,
-      expiry: typeof expiry === 'number' ? expiry : 0,
-      underlyingPrice: null,
-      entries: [],
-      maxPainStrike: null,
-      putCallOiRatio: null,
-      asOf: null,
-      provenance: 'unavailable',
-      source: 'ccxt:deribit',
-      note,
-    });
+    const now = this.now();
+    const unavailable = (note: string): OptionsChain => {
+      const value: OptionsChain = {
+        underlying: base, expiry: typeof expiry === 'number' ? expiry : 0,
+        underlyingPrice: null, entries: [], maxPainStrike: null, putCallOiRatio: null,
+        asOf: null, provenance: 'unavailable', source: 'ccxt:deribit', note,
+      };
+      return { ...value, receipt: providerUnavailableReceipt(this, {
+        datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+        coverage: 'Deribit options chain',
+        units: { strike: 'USD', openInterest: 'contracts', mark: 'USD', iv: 'percent' }, note,
+      }, now) };
+    };
     const ex = this.deribit();
     if (!ex.has['fetchOptionChain']) {
       return unavailable('The installed ccxt build exposes no Deribit option-chain read.');
@@ -1244,7 +2145,7 @@ export class CcxtProvider implements DataProvider {
     try {
       await ex.loadMarkets();
     } catch (err) {
-      return unavailable(`Deribit markets unreadable — ${safeErrorLabel(err)}.`);
+      throw new ProviderError(`Deribit options markets read failed — ${safeErrorLabel(err)}.`, 502, base);
     }
     const markets = Object.values(ex.markets ?? {}) as Array<{
       symbol: string;
@@ -1255,10 +2156,25 @@ export class CcxtProvider implements DataProvider {
       strike?: number;
       optionType?: string;
     }>;
-    const options = markets.filter(
-      (m) => m.option === true && m.base === base && m.active !== false && typeof m.expiry === 'number' && m.expiry > now && typeof m.strike === 'number',
+    const optionCandidates = markets.filter(
+      (market) => market.option === true && market.base === base && market.active !== false,
     );
+    const options = optionCandidates.filter(
+      (market) =>
+        typeof market.expiry === 'number' && Number.isFinite(market.expiry) && market.expiry > now &&
+        typeof market.strike === 'number' && Number.isFinite(market.strike) && market.strike > 0 &&
+        (market.optionType === 'call' || market.optionType === 'put'),
+    );
+    const omittedMarketDefinitions = optionCandidates.length - options.length;
     if (options.length === 0) {
+      if (omittedMarketDefinitions > 0) {
+        throw new ProviderError(
+          `Deribit returned malformed ${base} option market definitions.`,
+          502,
+          base,
+          'malformed-upstream',
+        );
+      }
       return unavailable(`Deribit lists no active ${base} options — no chain to show.`);
     }
     const target = expiry === 'nearest' ? Math.min(...options.map((m) => m.expiry!)) : expiry;
@@ -1268,9 +2184,19 @@ export class CcxtProvider implements DataProvider {
     }
     let chain: Record<string, DeribitOptionQuote>;
     try {
-      chain = (await ex.fetchOptionChain(base)) as unknown as Record<string, DeribitOptionQuote>;
+      const response = await ex.fetchOptionChain(base);
+      if (response == null || typeof response !== 'object' || Array.isArray(response)) {
+        throw new ProviderError(
+          `Deribit returned a malformed ${base} option-chain response.`,
+          502,
+          base,
+          'malformed-upstream',
+        );
+      }
+      chain = response as unknown as Record<string, DeribitOptionQuote>;
     } catch (err) {
-      return unavailable(`Deribit option-chain read failed — ${safeErrorLabel(err)}.`);
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(`Deribit option-chain read failed — ${safeErrorLabel(err)}.`, 502, base);
     }
     // The venue's own underlying price, from any entry that reports it.
     let underlyingPrice: number | null = null;
@@ -1282,14 +2208,18 @@ export class CcxtProvider implements DataProvider {
       }
     }
     const byStrike = new Map<number, OptionsChainEntry>();
+    const usableMarkets: typeof chainMarkets = [];
     for (const m of chainMarkets) {
       const q = chain[m.symbol];
-      const entry = byStrike.get(m.strike!) ?? { strike: m.strike!, expiry: target, callOi: null, putOi: null, callMark: null, putMark: null, iv: null };
-      const oi = q && Number.isFinite(q.openInterest) ? q.openInterest! : null;
+      const oi = nonNegativeFiniteOrNull(q?.openInterest);
       // Deribit inverse options quote marks in the base currency → USD via the
       // underlying price; without it the mark stays null, never a raw BTC number.
-      const markUsd = q && Number.isFinite(q.markPrice) && underlyingPrice != null ? q.markPrice! * underlyingPrice : null;
-      const iv = q && Number.isFinite(q.info?.mark_iv) ? q.info!.mark_iv! : null;
+      const mark = positiveFiniteOrNull(q?.markPrice);
+      const markUsd = mark !== null && underlyingPrice != null ? mark * underlyingPrice : null;
+      const iv = nonNegativeFiniteOrNull(q?.info?.mark_iv);
+      if (oi === null && mark === null && iv === null) continue;
+      usableMarkets.push(m);
+      const entry = byStrike.get(m.strike!) ?? { strike: m.strike!, expiry: target, callOi: null, putOi: null, callMark: null, putMark: null, iv: null };
       if (m.optionType === 'call') {
         entry.callOi = oi;
         entry.callMark = markUsd;
@@ -1300,27 +2230,86 @@ export class CcxtProvider implements DataProvider {
       if (iv != null) entry.iv = iv;
       byStrike.set(m.strike!, entry);
     }
+    if (usableMarkets.length === 0) {
+      throw new ProviderError(
+        `Deribit returned no usable ${base} option observations.`,
+        502,
+        base,
+        'malformed-upstream',
+      );
+    }
     // Bound to the strikes around the money: sort by distance from the
     // underlying (or by OI when no underlying price) and keep the closest 24.
     const all = [...byStrike.values()];
     const kept = (
       underlyingPrice != null
         ? all.sort((a, b) => Math.abs(a.strike - underlyingPrice) - Math.abs(b.strike - underlyingPrice))
-        : all.sort((a, b) => (b.callOi ?? 0) + (b.putOi ?? 0) - ((a.callOi ?? 0) + (a.putOi ?? 0)))
+        : all.sort((a, b) => optionOiScore(b) - optionOiScore(a))
     ).slice(0, 24);
     kept.sort((a, b) => a.strike - b.strike);
-    return {
+    const sourceTimes = usableMarkets.map((market) => sourceTimestampOrNull(chain[market.symbol]?.timestamp));
+    const sourceAsOf = sourceTimes.length > 0 && sourceTimes.every((timestamp) => timestamp !== null)
+      ? Math.min(...sourceTimes as number[])
+      : null;
+    const value: OptionsChain = {
       underlying: base,
       expiry: target,
       underlyingPrice,
       entries: kept,
       maxPainStrike: computeMaxPainStrike(kept),
       putCallOiRatio: computePutCallOiRatio(kept),
-      asOf: now,
+      asOf: sourceAsOf,
       provenance: 'live',
       source: 'ccxt:deribit',
       note: underlyingPrice == null ? 'No underlying price reported — USD marks are unavailable.' : null,
     };
+    const omittedObservations = chainMarkets.length - usableMarkets.length;
+    const keptStrikes = new Set(kept.map((entry) => entry.strike));
+    const summaryMarkets = usableMarkets.filter((market) => keptStrikes.has(market.strike!));
+    const knownOi = summaryMarkets.filter(
+      (market) => nonNegativeFiniteOrNull(chain[market.symbol]?.openInterest) !== null,
+    ).length;
+    const missingOi = summaryMarkets.length - knownOi;
+    const incompleteSummaryOi = kept.some((entry) => entry.callOi === null || entry.putOi === null);
+    const rawInput = providerReceipt(this, {
+      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+      provenance: 'live', sourceAsOf, coverage: 'raw Deribit option marks and open interest',
+      units: { strike: 'USD', openInterest: 'contracts', mark: 'base-asset', iv: 'percent' },
+      limitations: [
+        ...(sourceAsOf === null ? ['One or more contributing Deribit option rows omitted a source timestamp.'] : []),
+        ...(omittedObservations > 0
+          ? [partialEvidenceLimitation(
+              `Options read attempted ${chainMarkets.length} listed contract observation(s); ${usableMarkets.length} returned usable evidence and ${omittedObservations} were missing or malformed.`,
+            )]
+          : []),
+        ...(omittedMarketDefinitions > 0
+          ? [partialEvidenceLimitation(
+              `Options markets attempted ${optionCandidates.length} active contract definition(s); ${options.length} were usable and ${omittedMarketDefinitions} were malformed and omitted.`,
+            )]
+          : []),
+        ...(missingOi > 0
+          ? [partialEvidenceLimitation(
+              `Options summary attempted ${summaryMarkets.length} contract open-interest field(s); ${knownOi} returned usable evidence and ${missingOi} were missing or malformed.`,
+            )]
+          : []),
+        ...(incompleteSummaryOi
+          ? [partialEvidenceLimitation(
+              'Max-pain and put/call OI summaries were withheld because at least one included strike lacked explicit call or put OI; missing OI was not coerced to zero.',
+            )]
+          : []),
+      ],
+    }, now);
+    return withProviderDerivedReceipt(this, value, {
+      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
+      provenance: 'live', inputReceipts: [rawInput], sourceAsOf,
+      coverage: 'Deribit options chain with derived summaries',
+      units: { strike: 'USD', openInterest: 'contracts', mark: 'USD', iv: 'percent' },
+      methodology: {
+        id: 'midas.options-chain-summary', version: '1.0.0',
+        formula: 'max-pain payout minimization; put open interest / call open interest',
+      },
+      note: value.note,
+    }, now);
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
@@ -1333,13 +2322,15 @@ export class CcxtProvider implements DataProvider {
         if (!sym.endsWith(`/${quote}`)) continue;
         const price = tickerPrice(t);
         if (price == null) continue; // skip pairs with no usable price, not price 0
+        const changePercent = finiteOrNull(t.percentage);
+        if (changePercent === null) continue;
         rows.push({
           symbol: sym,
           name: sym,
           price,
-          changePercent: num(t.percentage),
-          volume: t.baseVolume ?? null,
-          quoteVolume: t.quoteVolume ?? null,
+          changePercent,
+          volume: nonNegativeFiniteOrNull(t.baseVolume),
+          quoteVolume: nonNegativeFiniteOrNull(t.quoteVolume),
         });
       }
       return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
@@ -1405,15 +2396,26 @@ export class CcxtProvider implements DataProvider {
     // fabricated $0.00 would flow to clients as a real live quote (the same
     // rule getExchangeQuotes enforces per venue).
     const price = tickerPrice(t);
-    if (price == null) throw new ProviderError(`${this.name} ${symbol}: ticker has no price`, 502, symbol);
-    const previousClose = num(t.previousClose ?? t.open ?? price, price);
-    const change = num(t.change, price - previousClose);
-    const changePercent = num(
-      t.percentage,
-      previousClose ? (change / previousClose) * 100 : 0,
-    );
+    if (price == null) {
+      throw new ProviderError(`${this.name} ${symbol}: ticker has no price`, 502, symbol, 'malformed-upstream');
+    }
+    const reportedPreviousClose = positiveFiniteOrNull(t.previousClose);
+    const reportedOpen = positiveFiniteOrNull(t.open);
+    const previousClose = reportedPreviousClose ?? reportedOpen;
+    if (previousClose === null) {
+      throw new ProviderError(
+        `${this.name} ${symbol}: ticker has no previous-close evidence`,
+        502,
+        symbol,
+        'malformed-upstream',
+      );
+    }
+    const change = finiteOrNull(t.change) ?? price - previousClose;
+    const changePercent = finiteOrNull(t.percentage) ?? (change / previousClose) * 100;
+    const sourceTimestamp = sourceTimestampOrNull(t.timestamp);
+    const observedAt = this.now();
 
-    return {
+    const value: Quote = {
       symbol,
       name: base && quote ? `${base} / ${quote}` : symbol,
       currency: quote ?? '',
@@ -1421,26 +2423,40 @@ export class CcxtProvider implements DataProvider {
       marketState: 'REGULAR', // crypto trades 24/7
       price,
       previousClose,
-      open: t.open ?? null,
-      dayHigh: t.high ?? null,
-      dayLow: t.low ?? null,
+      open: reportedOpen,
+      dayHigh: positiveFiniteOrNull(t.high),
+      dayLow: positiveFiniteOrNull(t.low),
       change,
       changePercent,
-      volume: t.baseVolume ?? null,
+      volume: nonNegativeFiniteOrNull(t.baseVolume),
       marketCap: null,
       fiftyTwoWeekHigh: null,
       fiftyTwoWeekLow: null,
-      asOf: t.timestamp ?? Date.now(),
+      asOf: sourceTimestamp,
     };
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'quote',
+      instrument: symbol,
+      venue: this.exchangeId,
+      provenance: 'live',
+      sourceAsOf: sourceTimestamp,
+      units: { price: quote || 'quote-asset', volume: 'base-asset' },
+      limitations: [
+        ...(reportedPreviousClose === null
+          ? [partialEvidenceLimitation('Previous close was unavailable; venue open was used as the comparison basis.')]
+          : []),
+        ...(sourceTimestamp === null ? ['The venue ticker omitted its source timestamp.'] : []),
+        ...(value.volume === null
+          ? [partialEvidenceLimitation('The venue ticker omitted valid 24-hour base volume.')]
+          : []),
+      ],
+    }, observedAt);
   }
 
   /** Lazily build the set of exchanges used for the multi-exchange compare. */
   private getCompareExchanges(): Exchange[] {
     if (!this.compareExchanges) {
-      const ids = (process.env.MIDAS_CCXT_COMPARE ?? 'binance,coinbase,kraken,bitfinex,okx,kucoin')
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
+      const ids = compareExchangeIds(process.env.MIDAS_CCXT_COMPARE);
       const registry = ccxtRegistry();
       this.compareExchanges = ids
         .map((id) => {

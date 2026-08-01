@@ -93,7 +93,7 @@ export async function mockFundingHistory(symbol: string, limit: number): Promise
   for (let i = n - 1; i >= 0; i--) {
     const time = latest - i * interval;
     const rng = seeded(entry.symbol, Math.floor(time / interval), 'fundhist');
-    out.push({ time, fundingRate: round(gaussian(rng) * 0.0001, 6) });
+    out.push({ time, fundingRate: round(gaussian(rng) * 0.0001, 6), fundingIntervalHours: 8 });
   }
   return out;
 }

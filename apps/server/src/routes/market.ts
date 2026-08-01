@@ -6,6 +6,8 @@ import {
   isInterval,
   isOiDeltaWindow,
   isRange,
+  partialEvidenceLimitation,
+  withDataReceipt,
   withHonestNote,
 } from '@midas/shared';
 import type {
@@ -28,6 +30,8 @@ import type {
   ScreenerRow,
   TermStructure,
   VenueArbRow,
+  DataReceipt,
+  TrustDatasetFamily,
 } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
@@ -36,6 +40,19 @@ import { createTtlCache, type TtlCache } from '../ttlCache';
 import { providerStreamsLive } from '../streaming';
 import { normalizeLiquidationsMeta } from '../liquidationsHonesty';
 import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
+import type { DataStatusTracker } from '../dataStatus';
+import { DATA_ROUTE_PATHS } from '../dataCoverage';
+import {
+  attachProviderReceipt,
+  attachProviderReceiptRows,
+  deriveRouteReceipt,
+  receiptHasPartialEvidence,
+  trackProviderCall,
+  transportDerivedReceipt,
+  unavailableReceipt,
+  type ReceiptCarrier,
+  type ReceiptExpectation,
+} from './dataTrust';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
@@ -90,7 +107,15 @@ interface CachedBoard<Row> {
   rows: Row[];
   computedAt: number;
   failed: number;
+  insufficient: number;
+  partialRows: number;
   total: number;
+  receipt: DataReceipt;
+}
+
+interface CachedReceiptPayload<T> {
+  payload: T;
+  storedAt: number;
 }
 
 /**
@@ -100,23 +125,30 @@ interface CachedBoard<Row> {
  * board; synthetic provenance and dropped symbols are always stated.
  */
 function boardEnvelope<Row>(
-  provider: DataProvider,
   entry: CachedBoard<Row>,
   fromCache: boolean,
 ): BoardEnvelope<Row> {
-  const provenance: BoardProvenance = provider.live ? 'live' : 'synthetic';
+  const provenance: BoardProvenance = entry.receipt.provenance;
   const caveats: string[] = [];
-  if (provenance === 'synthetic') caveats.push(`Synthetic data from ${provider.name} — not real market data.`);
+  if (provenance === 'synthetic') {
+    caveats.push(`Synthetic data from ${entry.receipt.source} — not real market data.`);
+  }
+  if (provenance === 'unavailable' && entry.receipt.note) caveats.push(entry.receipt.note);
   if (entry.failed > 0) caveats.push(`${entry.failed} of ${entry.total} symbols unavailable`);
+  if (entry.insufficient > 0) {
+    caveats.push(`${entry.insufficient} of ${entry.total} symbols lacked the required signal and were omitted`);
+  }
+  if (entry.partialRows > 0) caveats.push(`${entry.partialRows} returned row(s) carry partial evidence`);
   return {
     rows: entry.rows,
     meta: {
       provenance,
-      source: provider.name,
+      source: entry.receipt.source,
       asOf: entry.computedAt,
       cachedAt: fromCache ? entry.computedAt : null,
-      partial: entry.failed > 0,
+      partial: entry.failed > 0 || entry.insufficient > 0 || entry.partialRows > 0,
       note: caveats.length > 0 ? caveats.join(' ') : null,
+      receipt: entry.receipt,
     },
   };
 }
@@ -127,19 +159,161 @@ function boardEnvelope<Row>(
  * `cachedAt` is set only when this request was served a previously stored
  * entry (a fresh compute, or sharing one in flight, reports null).
  */
-async function serveBoard<Row>(
+async function serveBoard<Row extends object & { receipt: DataReceipt }>(
   provider: DataProvider,
+  family: TrustDatasetFamily,
   cache: TtlCache<CachedBoard<Row>>,
   key: string,
-  build: () => Promise<{ rows: Row[]; failed: number; total: number }>,
+  traceId: string,
+  dataStatus: DataStatusTracker,
+  build: () => Promise<{
+    rows: Row[];
+    failed: number;
+    insufficient?: number;
+    evidenceReceipts?: DataReceipt[];
+    total: number;
+  }>,
 ): Promise<BoardEnvelope<Row>> {
   let computed = false;
   const entry = await cache.get(key, async () => {
     computed = true;
-    const { rows, failed, total } = await build();
-    return { rows, failed, total, computedAt: Date.now() };
+    const { rows, failed, insufficient = 0, evidenceReceipts, total } = await build();
+    const computedAt = Date.now();
+    const inputs = evidenceReceipts ?? rows.map((row) => row.receipt);
+    const partialRows = rows.filter((row) => receiptHasPartialEvidence(row.receipt)).length;
+    const limitations = [
+      ...(failed > 0
+        ? [partialEvidenceLimitation(`${failed} of ${total} board input(s) failed.`)]
+        : []),
+      ...(insufficient > 0
+        ? [
+            partialEvidenceLimitation(
+              `${insufficient} of ${total} board input(s) lacked the required signal and were omitted.`,
+            ),
+          ]
+        : []),
+      ...(partialRows > 0
+        ? [partialEvidenceLimitation(`${partialRows} returned board row(s) carry partial evidence.`)]
+        : []),
+    ];
+    const partial = limitations.length > 0;
+    const receipt = inputs.length > 0
+      ? deriveRouteReceipt(
+          provider,
+          {
+            family,
+            coverage: `${rows.length} of ${total} requested board row(s).`,
+            inputReceipts: inputs,
+            methodology:
+              family === 'venue-arbitrage' &&
+              provider.capabilities.capabilities['venue-arbitrage'].methodology
+                ? provider.capabilities.capabilities['venue-arbitrage'].methodology
+                : {
+                    id: `midas.${family}.board-assembly`,
+                    version: '1.0',
+                    formula:
+                      'Assemble successful per-symbol derivations; retain route-defined ranking; report omissions.',
+                  },
+            units: {},
+            limitations,
+            traceId,
+            cache: { status: 'miss', ageMs: 0 },
+          },
+          dataStatus,
+          partial ? 'partial' : null,
+          computedAt,
+        )
+      : unavailableReceipt(
+          provider,
+          {
+            family,
+            coverage: `0 of ${total} requested board row(s).`,
+            limitations: [
+              ...limitations,
+              'No receipted board rows were available.',
+            ],
+            note: 'No receipted board rows are currently available.',
+            traceId,
+          },
+          dataStatus,
+          partial ? 'partial' : 'upstream-unavailable',
+          computedAt,
+        );
+    return { rows, failed, insufficient, partialRows, total, computedAt, receipt };
   });
-  return boardEnvelope(provider, entry, !computed);
+  const now = Date.now();
+  const fromCache = !computed;
+  const rows = entry.rows.map((row) =>
+    suppressStaleArbitrage(
+      family,
+      transportDerivedReceipt(
+        provider,
+        row,
+        traceId,
+        dataStatus,
+        { status: fromCache ? 'hit' : 'miss', ageMs: fromCache ? Math.max(0, now - entry.computedAt) : 0 },
+        now,
+      ),
+    ),
+  );
+  const receipt = transportDerivedReceipt(
+    provider,
+    { receipt: entry.receipt },
+    traceId,
+    dataStatus,
+    { status: fromCache ? 'hit' : 'miss', ageMs: fromCache ? Math.max(0, now - entry.computedAt) : 0 },
+    now,
+  ).receipt;
+  return boardEnvelope({ ...entry, rows, receipt }, fromCache);
+}
+
+/** Cached quote evidence can age out while the numeric row remains cached. */
+function suppressStaleArbitrage<Row extends object & { receipt: DataReceipt }>(
+  family: TrustDatasetFamily,
+  row: Row,
+): Row {
+  if (family !== 'venue-arbitrage' || row.receipt.freshness.state === 'fresh') return row;
+  const arb = row as Row & VenueArbRow;
+  return {
+    ...arb,
+    netSpreadBps: null,
+    netCrossed: false,
+    netLimitations: [
+      ...arb.netLimitations,
+      'Cached quote evidence is no longer fresh enough for an actionable net calculation.',
+    ],
+  };
+}
+
+async function serveReceiptPayload<T extends object & ReceiptCarrier>(
+  provider: DataProvider,
+  family: TrustDatasetFamily,
+  cache: TtlCache<CachedReceiptPayload<T>>,
+  key: string,
+  traceId: string,
+  dataStatus: DataStatusTracker,
+  build: () => Promise<T>,
+  expected: ReceiptExpectation = {},
+): Promise<T & { receipt: DataReceipt }> {
+  let computed = false;
+  const entry = await cache.get(key, async () => {
+    computed = true;
+    return { payload: await build(), storedAt: Date.now() };
+  });
+  const now = Date.now();
+  return attachProviderReceipt(
+    provider,
+    family,
+    entry.payload,
+    traceId,
+    dataStatus,
+    {
+      status: computed ? 'miss' : 'hit',
+      ageMs: computed ? 0 : Math.max(0, now - entry.storedAt),
+    },
+    now,
+    expected,
+  );
 }
 
 /**
@@ -152,14 +326,16 @@ async function serveBoard<Row>(
  * field that must be non-null and is the sort key (`rank`). A short
  * single-flight TTL cache (per (quote, limit)) bounds the fan-out cost.
  */
-function registerVenueBoard<Row>(
+function registerVenueBoard<Row extends object & { receipt: DataReceipt }>(
   app: FastifyInstance,
   provider: DataProvider,
+  dataStatus: DataStatusTracker,
   opts: {
     path: string;
+    family: TrustDatasetFamily;
     ttlMs: number;
     /** Per-symbol upstream read + row compute; a throw drops the symbol. */
-    compute: (symbol: string) => Promise<Row>;
+    compute: (symbol: string, traceId: string) => Promise<Row>;
     /** The signal field: a row is kept only when this is non-null, ranked desc. */
     rank: (row: Row) => number | null;
   },
@@ -171,8 +347,10 @@ function registerVenueBoard<Row>(
     // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
     const limit =
       Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 15;
-    return serveBoard(provider, cache, `${quote}|${limit}`, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
+    return serveBoard(provider, opts.family, cache, `${quote}|${limit}`, String(req.id), dataStatus, async () => {
+      const rows = await trackProviderCall(provider, opts.family, dataStatus, () =>
+        provider.screen({ quote, sort: 'volume', limit }),
+      );
       let failed = 0;
       // Cast the resolved array: for a generic Row, TS widens Promise.all's
       // result to Awaited<Row>, which it can't prove equals Row. Every call
@@ -180,18 +358,25 @@ function registerVenueBoard<Row>(
       const board = (await Promise.all(
         rows.map(async (r): Promise<Row | null> => {
           try {
-            return await opts.compute(r.symbol);
+            return await opts.compute(r.symbol, String(req.id));
           } catch {
             failed += 1;
             return null;
           }
         }),
       )) as (Row | null)[];
+      const successful = board.filter((row): row is Row => row !== null);
+      const ranked = successful
+        .filter((row) => opts.rank(row) !== null)
+        .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0));
+      const omitted = successful.filter((row) => opts.rank(row) === null);
       return {
-        rows: board
-          .filter((x): x is Row => x !== null && opts.rank(x) !== null)
-          .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0)),
+        rows: ranked,
         failed,
+        insufficient: omitted.length,
+        // Keep returned-row lineage in display order, then append evidence for
+        // rows omitted solely because their required signal was unavailable.
+        evidenceReceipts: [...ranked, ...omitted].map((row) => row.receipt),
         total: rows.length,
       };
     });
@@ -204,9 +389,13 @@ function registerVenueBoard<Row>(
  * funding board, market-wide liquidations, search and news. All read-only
  * against the active provider.
  */
-export function registerMarketRoutes(app: FastifyInstance, provider: DataProvider): void {
+export function registerMarketRoutes(
+  app: FastifyInstance,
+  provider: DataProvider,
+  dataStatus: DataStatusTracker,
+): void {
 
-  app.get('/api/health', async (): Promise<HealthResponse> => {
+  app.get(DATA_ROUTE_PATHS.health, async (): Promise<HealthResponse> => {
     return {
       status: 'ok',
       provider: provider.name,
@@ -221,13 +410,23 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     };
   });
 
-  app.get<{ Params: { symbol: string } }>('/api/quote/:symbol', async (req) => {
+  app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.quote, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
-    return provider.getQuote(symbol);
+    const payload = await trackProviderCall(provider, 'quote', dataStatus, () => provider.getQuote(symbol));
+    return attachProviderReceipt(
+      provider,
+      'quote',
+      payload,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol },
+    );
   });
 
-  app.get<{ Querystring: { symbols?: string } }>('/api/quotes', async (req) => {
+  app.get<{ Querystring: { symbols?: string } }>(DATA_ROUTE_PATHS.quotes, async (req) => {
     const raw = firstStr(req.query.symbols);
     const symbols = Array.from(
       new Set(
@@ -237,14 +436,62 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
           .filter(Boolean),
       ),
     ).slice(0, MAX_BATCH_SYMBOLS);
-    if (symbols.length === 0) return [];
-    return provider.getQuotes(symbols);
+    if (symbols.length === 0) throw new ProviderError('At least one valid symbol is required', 400);
+    const rows = await trackProviderCall(provider, 'quote', dataStatus, () => provider.getQuotes(symbols));
+    const returnedSymbols = rows.map((row) => normalizeSymbol(row.symbol));
+    if (new Set(returnedSymbols).size !== returnedSymbols.length) {
+      dataStatus.recordError(provider, 'quote', 'malformed-upstream');
+      throw new ProviderError(
+        'Provider returned duplicate quote observations for a batch request',
+        502,
+        undefined,
+        'malformed-upstream',
+      );
+    }
+    const attached = attachProviderReceiptRows(
+      provider,
+      'quote',
+      rows,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instruments: symbols },
+    );
+    if (attached.length === symbols.length) return attached;
+    const limitation = partialEvidenceLimitation(
+      `Provider returned ${attached.length} of ${symbols.length} requested quote observation(s).`,
+    );
+    return attached.map((row) =>
+      withDataReceipt(
+        row,
+        deriveRouteReceipt(
+          provider,
+          {
+            family: 'quote',
+            instrument: row.symbol,
+            coverage: `${attached.length} of ${symbols.length} requested symbol(s).`,
+            inputReceipts: [row.receipt],
+            methodology: {
+              id: 'midas.quote-batch-coverage',
+              version: '1.0',
+              formula: 'Preserve each successful provider quote and disclose omitted requested symbols.',
+            },
+            units: row.receipt.units,
+            limitations: [limitation],
+            traceId: String(req.id),
+          },
+          dataStatus,
+          'partial',
+        ),
+      ),
+    );
   });
 
   app.get<{
     Params: { symbol: string };
     Querystring: { interval?: string; range?: string };
-  }>('/api/history/:symbol', async (req) => {
+  }>(DATA_ROUTE_PATHS.history, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
 
@@ -255,13 +502,25 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       ? req.query.range
       : DEFAULT_RANGE;
 
-    return provider.getHistory(symbol, { interval, range });
+    const payload = await trackProviderCall(provider, 'history', dataStatus, () =>
+      provider.getHistory(symbol, { interval, range }),
+    );
+    return attachProviderReceipt(
+      provider,
+      'history',
+      payload,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol, range },
+    );
   });
 
   app.get<{
     Params: { symbol: string };
     Querystring: { depth?: string };
-  }>('/api/orderbook/:symbol', async (req) => {
+  }>(DATA_ROUTE_PATHS.orderBook, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     const depthRaw = Number(req.query.depth);
@@ -270,42 +529,103 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     return provider.getOrderBook(symbol, depth);
   });
 
-  app.get<{ Params: { symbol: string } }>('/api/exchange-quotes/:symbol', async (req) => {
+  app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.exchangeQuotes, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
-    return provider.getExchangeQuotes(symbol);
+    const rows = await trackProviderCall(provider, 'venue-quotes', dataStatus, () =>
+      provider.getExchangeQuotes(symbol),
+    );
+    return attachProviderReceiptRows(
+      provider,
+      'venue-quotes',
+      rows,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol },
+    );
   });
 
   // Per-venue funding & open interest for a perp across the compare set.
-  app.get<{ Params: { symbol: string } }>('/api/venue-derivatives/:symbol', async (req) => {
+  app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.venueDerivatives, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
-    return provider.getVenueDerivatives(symbol);
+    const rows = await trackProviderCall(provider, 'venue-derivatives', dataStatus, () =>
+      provider.getVenueDerivatives(symbol),
+    );
+    return attachProviderReceiptRows(
+      provider,
+      'venue-derivatives',
+      rows,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol },
+    );
   });
 
-  app.get<{ Params: { symbol: string } }>('/api/derivatives/:symbol', async (req) => {
+  app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.derivatives, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
-    return provider.getDerivatives(symbol);
+    const payload = await trackProviderCall(provider, 'derivatives', dataStatus, () =>
+      provider.getDerivatives(symbol),
+    );
+    return attachProviderReceipt(
+      provider,
+      'derivatives',
+      payload,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol },
+    );
   });
 
-  app.get<{ Params: { symbol: string } }>('/api/onchain/:symbol', async (req) => {
+  app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.onChain, async (req) => {
     const symbol = normalizeSymbol(req.params.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     return provider.getDexPools(symbol);
   });
 
   app.get<{ Params: { symbol: string }; Querystring: { limit?: string } }>(
-    '/api/funding-history/:symbol',
+    DATA_ROUTE_PATHS.fundingHistory,
     async (req) => {
       const symbol = normalizeSymbol(req.params.symbol);
       if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
       if (!provider.getFundingHistory) {
-        throw new ProviderError('Funding history not supported by this provider', 501, symbol);
+        const declaredUnsupported =
+          provider.capabilities.capabilities['funding-history'].support === 'unsupported';
+        dataStatus.recordError(
+          provider,
+          'funding-history',
+          declaredUnsupported ? 'unsupported' : 'malformed-upstream',
+        );
+        throw new ProviderError(
+          declaredUnsupported
+            ? 'Funding history not supported by this provider'
+            : 'Provider declares funding history but does not implement it',
+          declaredUnsupported ? 501 : 502,
+          symbol,
+        );
       }
       const limitRaw = Number(req.query.limit);
       const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 200) : 90;
-      return provider.getFundingHistory(symbol, limit);
+      const rows = await trackProviderCall(provider, 'funding-history', dataStatus, () =>
+        provider.getFundingHistory!(symbol, limit),
+      );
+      return attachProviderReceiptRows(
+        provider,
+        'funding-history',
+        rows,
+        String(req.id),
+        dataStatus,
+        undefined,
+        undefined,
+        { instrument: symbol },
+      );
     },
   );
 
@@ -314,7 +634,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // concurrent users and client polling.
   const screenerCache = createTtlCache<ScreenerRow[]>(SCREENER_TTL_MS);
   app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
-    '/api/screener',
+    DATA_ROUTE_PATHS.screener,
     async (req) => {
       const quote = normalizeQuote(req.query.quote);
       const sortRaw = firstStr(req.query.sort);
@@ -340,7 +660,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // reference source is env-gated. TTL-cached: supplies barely move.
   const coinsCache = createTtlCache<CoinUniverse>(COINS_TTL_MS);
   const getCoinUniverse = provider.getCoinUniverse?.bind(provider);
-  app.get<{ Querystring: { limit?: string } }>('/api/coins', async (req) => {
+  app.get<{ Querystring: { limit?: string } }>(DATA_ROUTE_PATHS.coins, async (req) => {
     const limitRaw = Number(req.query.limit);
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 250) : 100;
     if (!getCoinUniverse) {
@@ -366,16 +686,16 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // provenance inside the payload (no BoardEnvelope) — withHonestNote
   // guarantees a synthetic/unavailable snapshot never ships without a caveat.
   // Providers without the reads degrade to an honest 'unavailable' snapshot.
-  const dvolCache = createTtlCache<DvolSnapshot>(OPTIONS_TTL_MS);
-  const chainCache = createTtlCache<OptionsChain>(OPTIONS_TTL_MS);
-  const termStructureCache = createTtlCache<TermStructure>(TERM_STRUCTURE_TTL_MS);
-  const oiDeltaCache = createTtlCache<OiDelta>(OI_DELTA_TTL_MS);
+  const dvolCache = createTtlCache<CachedReceiptPayload<DvolSnapshot>>(OPTIONS_TTL_MS);
+  const chainCache = createTtlCache<CachedReceiptPayload<OptionsChain>>(OPTIONS_TTL_MS);
+  const termStructureCache = createTtlCache<CachedReceiptPayload<TermStructure>>(TERM_STRUCTURE_TTL_MS);
+  const oiDeltaCache = createTtlCache<CachedReceiptPayload<OiDelta>>(OI_DELTA_TTL_MS);
   const getDvol = provider.getDvol?.bind(provider);
   const getOptionsChain = provider.getOptionsChain?.bind(provider);
   const getTermStructure = provider.getFuturesTermStructure?.bind(provider);
   const getOiDelta = provider.getOiDelta?.bind(provider);
 
-  app.get<{ Querystring: { symbol?: string } }>('/api/options/dvol', async (req) => {
+  app.get<{ Querystring: { symbol?: string } }>(DATA_ROUTE_PATHS.dvol, async (req) => {
     const raw = normalizeSymbol(req.query.symbol);
     if (!raw) throw new ProviderError('Missing or invalid symbol', 400);
     const base = raw.split('/')[0].replace(/:.*$/, '');
@@ -384,7 +704,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     }
     const symbol = base as DvolSymbol;
     if (!getDvol) {
-      return withHonestNote(
+      const payload = withHonestNote(
         {
           symbol,
           value: null,
@@ -396,13 +716,39 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
         },
         'DVOL is not available from this provider.',
       ) satisfies DvolSnapshot;
+      const receipt = unavailableReceipt(
+        provider,
+        {
+          family: 'options',
+          instrument: symbol,
+          coverage: 'Deribit DVOL index.',
+          limitations: ['Provider does not implement a DVOL read.'],
+          note: payload.note!,
+          traceId: String(req.id),
+          expectedCadenceMs: OPTIONS_TTL_MS,
+          maxAgeMs: OPTIONS_TTL_MS * 2,
+        },
+        dataStatus,
+      );
+      return withDataReceipt(payload, receipt);
     }
-    return dvolCache.get(symbol, async () =>
-      withHonestNote(await getDvol(symbol), 'DVOL is not live.'),
+    return serveReceiptPayload(
+      provider,
+      'options',
+      dvolCache,
+      symbol,
+      String(req.id),
+      dataStatus,
+      async () =>
+        withHonestNote(
+          await trackProviderCall(provider, 'options', dataStatus, () => getDvol(symbol)),
+          'DVOL is not live.',
+        ),
+      { instrument: symbol },
     );
   });
 
-  app.get<{ Querystring: { symbol?: string; expiry?: string } }>('/api/options/chain', async (req) => {
+  app.get<{ Querystring: { symbol?: string; expiry?: string } }>(DATA_ROUTE_PATHS.optionsChain, async (req) => {
     const symbol = normalizeSymbol(req.query.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     const expiryRaw = firstStr(req.query.expiry).trim().toLowerCase();
@@ -415,7 +761,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
       expiry = Math.floor(n);
     }
     if (!getOptionsChain) {
-      return withHonestNote(
+      const payload = withHonestNote(
         {
           underlying: symbol.split('/')[0].replace(/:.*$/, ''),
           expiry: expiry === 'nearest' ? 0 : expiry,
@@ -430,17 +776,43 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
         },
         'Options chain is not available from this provider.',
       ) satisfies OptionsChain;
+      const receipt = unavailableReceipt(
+        provider,
+        {
+          family: 'options',
+          instrument: symbol,
+          coverage: expiry === 'nearest' ? 'Nearest listed expiry.' : `Expiry ${expiry}.`,
+          limitations: ['Provider does not implement an options-chain read.'],
+          note: payload.note!,
+          traceId: String(req.id),
+          expectedCadenceMs: OPTIONS_TTL_MS,
+          maxAgeMs: OPTIONS_TTL_MS * 2,
+        },
+        dataStatus,
+      );
+      return withDataReceipt(payload, receipt);
     }
-    return chainCache.get(`${symbol}|${expiry}`, async () =>
-      withHonestNote(await getOptionsChain(symbol, expiry), 'Options chain is not live.'),
+    return serveReceiptPayload(
+      provider,
+      'options',
+      chainCache,
+      `${symbol}|${expiry}`,
+      String(req.id),
+      dataStatus,
+      async () =>
+        withHonestNote(
+          await trackProviderCall(provider, 'options', dataStatus, () => getOptionsChain(symbol, expiry)),
+          'Options chain is not live.',
+        ),
+      { instrument: symbol, expiry: expiry === 'nearest' ? undefined : expiry },
     );
   });
 
-  app.get<{ Querystring: { symbol?: string } }>('/api/futures/term-structure', async (req) => {
+  app.get<{ Querystring: { symbol?: string } }>(DATA_ROUTE_PATHS.termStructure, async (req) => {
     const symbol = normalizeSymbol(req.query.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     if (!getTermStructure) {
-      return withHonestNote(
+      const payload = withHonestNote(
         {
           underlying: symbol.split('/')[0].replace(/:.*$/, ''),
           referencePrice: null,
@@ -453,9 +825,35 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
         },
         'Futures term structure is not available from this provider.',
       ) satisfies TermStructure;
+      const receipt = unavailableReceipt(
+        provider,
+        {
+          family: 'options',
+          instrument: symbol,
+          coverage: 'Dated futures and perpetual reference curve.',
+          limitations: ['Provider does not implement a dated-futures read.'],
+          note: payload.note!,
+          traceId: String(req.id),
+          expectedCadenceMs: TERM_STRUCTURE_TTL_MS,
+          maxAgeMs: TERM_STRUCTURE_TTL_MS * 2,
+        },
+        dataStatus,
+      );
+      return withDataReceipt(payload, receipt);
     }
-    return termStructureCache.get(symbol, async () =>
-      withHonestNote(await getTermStructure(symbol), 'Futures term structure is not live.'),
+    return serveReceiptPayload(
+      provider,
+      'options',
+      termStructureCache,
+      symbol,
+      String(req.id),
+      dataStatus,
+      async () =>
+        withHonestNote(
+          await trackProviderCall(provider, 'options', dataStatus, () => getTermStructure(symbol)),
+          'Futures term structure is not live.',
+        ),
+      { instrument: symbol },
     );
   });
 
@@ -465,7 +863,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // payload with its own provenance, like the options surface; providers
   // without an OI-history read degrade to an honest 'unavailable', never a
   // delta synthesized from two snapshots.
-  app.get<{ Querystring: { symbol?: string; window?: string } }>('/api/oi-delta', async (req) => {
+  app.get<{ Querystring: { symbol?: string; window?: string } }>(DATA_ROUTE_PATHS.oiDelta, async (req) => {
     const symbol = normalizeSymbol(req.query.symbol);
     if (!symbol) throw new ProviderError('Missing or invalid symbol', 400);
     const windowRaw = firstStr(req.query.window) || '24h';
@@ -474,7 +872,7 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
     }
     const window: OiDeltaWindow = windowRaw;
     if (!getOiDelta) {
-      return withHonestNote(
+      const payload = withHonestNote(
         {
           symbol,
           window,
@@ -491,9 +889,35 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
         },
         'OI-delta is not available from this provider.',
       ) satisfies OiDelta;
+      const receipt = unavailableReceipt(
+        provider,
+        {
+          family: 'open-interest-delta',
+          instrument: symbol,
+          coverage: `${window} OI and price change.`,
+          limitations: ['Provider does not implement an open-interest history read.'],
+          note: payload.note!,
+          traceId: String(req.id),
+          expectedCadenceMs: OI_DELTA_TTL_MS,
+          maxAgeMs: OI_DELTA_TTL_MS * 2,
+        },
+        dataStatus,
+      );
+      return withDataReceipt(payload, receipt);
     }
-    return oiDeltaCache.get(`${symbol}|${window}`, async () =>
-      withHonestNote(await getOiDelta(symbol, window), 'OI-delta is not live.'),
+    return serveReceiptPayload(
+      provider,
+      'open-interest-delta',
+      oiDeltaCache,
+      `${symbol}|${window}`,
+      String(req.id),
+      dataStatus,
+      async () =>
+        withHonestNote(
+          await trackProviderCall(provider, 'open-interest-delta', dataStatus, () => getOiDelta(symbol, window)),
+          'OI-delta is not live.',
+        ),
+      { instrument: symbol, window },
     );
   });
 
@@ -502,27 +926,340 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
   // Same fan-out cost shape as the venue boards, so it sits behind the same
   // single-flight TTL cache (per (quote, limit)) and returns the shared
   // BoardEnvelope — dropped symbols flip meta.partial, never vanish silently.
-  const fundingCache = createTtlCache<CachedBoard<FundingRow>>(FUNDING_TTL_MS);
-  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/funding', async (req) => {
+  const fundingCache = createTtlCache<CachedBoard<FundingRow & { receipt: DataReceipt }>>(FUNDING_TTL_MS);
+  app.get<{ Querystring: { quote?: string; limit?: string } }>(DATA_ROUTE_PATHS.funding, async (req) => {
     const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
     // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
     const limit =
       Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
-    return serveBoard(provider, fundingCache, `${quote}|${limit}`, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
+    return serveBoard(
+      provider,
+      'funding',
+      fundingCache,
+      `${quote}|${limit}`,
+      String(req.id),
+      dataStatus,
+      async () => {
+        const rows = await trackProviderCall(provider, 'funding', dataStatus, () =>
+          provider.screen({ quote, sort: 'volume', limit }),
+        );
+        let failed = 0;
+        const board = await Promise.all(
+          rows.map(async (r): Promise<(FundingRow & { receipt: DataReceipt }) | null> => {
+            try {
+              const raw = await trackProviderCall(provider, 'derivatives', dataStatus, () =>
+                provider.getDerivatives(r.symbol),
+              );
+              const d = attachProviderReceipt(
+                provider,
+                'derivatives',
+                raw,
+                String(req.id),
+                dataStatus,
+                undefined,
+                undefined,
+                { instrument: r.symbol },
+              );
+              const row: FundingRow = {
+                symbol: r.symbol,
+                fundingRate: d.fundingRate,
+                fundingIntervalHours: d.fundingIntervalHours ?? null,
+                nextFundingTime: d.nextFundingTime,
+                markPrice: d.markPrice,
+                openInterestValue: d.openInterestValue,
+              };
+              const limitations = [
+                ...(d.fundingRate == null ? [partialEvidenceLimitation('Funding rate unavailable.')] : []),
+                ...(d.fundingIntervalHours == null ? [partialEvidenceLimitation('Funding interval unavailable.')] : []),
+                ...(d.markPrice == null ? [partialEvidenceLimitation('Mark price unavailable.')] : []),
+                ...(d.openInterestValue == null
+                  ? [partialEvidenceLimitation('Open-interest value unavailable.')]
+                  : []),
+              ];
+              const receipt = deriveRouteReceipt(
+                provider,
+                {
+                  family: 'funding',
+                  instrument: r.symbol,
+                  coverage: 'Top-perpetual funding board row.',
+                  inputReceipts: [d.receipt],
+                  methodology: {
+                    id: 'midas.funding-board-row',
+                    version: '1.0',
+                    formula: 'Projection of provider funding, cadence, mark and open-interest fields.',
+                  },
+                  units: {
+                    fundingRate: 'fraction/settlement',
+                    fundingIntervalHours: 'hours',
+                    markPrice: 'quote currency',
+                    openInterestValue: 'quote currency',
+                  },
+                  limitations,
+                  traceId: String(req.id),
+                  expectedCadenceMs: FUNDING_TTL_MS,
+                  maxAgeMs: FUNDING_TTL_MS * 2,
+                },
+                dataStatus,
+                limitations.length > 0 ? 'partial' : null,
+              );
+              return withDataReceipt(row, receipt);
+            } catch {
+              failed += 1;
+              return null;
+            }
+          }),
+        );
+        return {
+          rows: board.filter((x): x is FundingRow & { receipt: DataReceipt } => x !== null),
+          failed,
+          total: rows.length,
+        };
+      },
+    );
+  });
+
+  // The three cross-venue boards share one fan-out-behind-a-TTL-cache shape
+  // (registerVenueBoard). Each keeps only rows whose signal field is non-null
+  // (funding spread ≥ 2 venues / price dispersion ≥ 2 venues / OI ≥ 1 venue) and
+  // ranks by it descending — supplied here as `compute` + `rank`.
+  registerVenueBoard<FundingDispersionRow & { receipt: DataReceipt }>(app, provider, dataStatus, {
+    path: DATA_ROUTE_PATHS.fundingDispersion,
+    family: 'funding',
+    ttlMs: FUNDING_DISPERSION_TTL_MS,
+    compute: async (symbol, traceId) => {
+      const raw = await trackProviderCall(provider, 'venue-derivatives', dataStatus, () =>
+        provider.getVenueDerivatives(symbol),
+      );
+      const inputs = attachProviderReceiptRows(
+        provider,
+        'venue-derivatives',
+        raw,
+        traceId,
+        dataStatus,
+        undefined,
+        undefined,
+        { instrument: symbol },
+      );
+      const row = computeFundingDispersion(symbol, inputs);
+      const missingIntervals = inputs.filter(
+        (input) => input.fundingRate != null && input.fundingIntervalHours == null,
+      ).length;
+      const limitations = [
+        ...(missingIntervals > 0
+          ? [
+              partialEvidenceLimitation(
+                `${missingIntervals} venue funding rate(s) lacked a settlement interval and were excluded.`,
+              ),
+            ]
+          : []),
+        ...(row.totalOiValue == null
+          ? [partialEvidenceLimitation('No venue reported open-interest value.')]
+          : []),
+      ];
+      const receipt = deriveRouteReceipt(
+        provider,
+        {
+          family: 'funding',
+          instrument: symbol,
+          coverage: `${inputs.length} venue derivative snapshot(s).`,
+          inputReceipts: inputs.map((input) => input.receipt),
+          methodology: {
+            id: 'midas.funding-dispersion-8h',
+            version: '1.0',
+            formula: 'normalizedRate = fundingRate * 8 / intervalHours; spreadBps = (max - min) * 10000',
+          },
+          units: {
+            fundingRate: 'fraction/settlement',
+            normalizedRate: 'fraction/8h',
+            spreadBps: 'basis points/8h',
+            totalOiValue: 'quote currency',
+          },
+          limitations,
+          traceId,
+          expectedCadenceMs: FUNDING_DISPERSION_TTL_MS,
+          maxAgeMs: FUNDING_DISPERSION_TTL_MS * 2,
+        },
+        dataStatus,
+        limitations.length > 0 ? 'partial' : null,
+      );
+      return withDataReceipt(row, receipt);
+    },
+    rank: (row) => row.spreadBps,
+  });
+
+  registerVenueBoard<VenueArbRow & { receipt: DataReceipt }>(app, provider, dataStatus, {
+    path: DATA_ROUTE_PATHS.venueArb,
+    family: 'venue-arbitrage',
+    ttlMs: VENUE_ARB_TTL_MS,
+    compute: async (symbol, traceId) => {
+      const raw = await trackProviderCall(provider, 'venue-quotes', dataStatus, () =>
+        provider.getExchangeQuotes(symbol),
+      );
+      const inputs = attachProviderReceiptRows(
+        provider,
+        'venue-quotes',
+        raw,
+        traceId,
+        dataStatus,
+        undefined,
+        undefined,
+        { instrument: symbol },
+      );
+      const computed = computeVenueArbRow(symbol, inputs, Date.now());
+      // Defense in depth around the pure calculation: missing fee, size, or
+      // aligned-time evidence can never leave an actionable net result.
+      const row = computed.netLimitations.length > 0
+        ? { ...computed, netSpreadBps: null, netCrossed: false }
+        : computed;
+      const receipt = deriveRouteReceipt(
+        provider,
+        {
+          family: 'venue-arbitrage',
+          instrument: symbol,
+          coverage: `${inputs.length} venue top-of-book snapshot(s).`,
+          inputReceipts: inputs.map((input) => input.receipt),
+          methodology: {
+            id: 'midas.venue-arbitrage-top-of-book',
+            version: '1.0',
+            formula:
+              'grossBps = (bestBid - bestAsk) / bestAsk * 10000; netBps = grossBps - referenceTakerFeesBps',
+          },
+          units: {
+            spreadBps: 'basis points',
+            feeBps: 'basis points',
+            netSpreadBps: 'basis points',
+            executableSize: 'base asset',
+            timestampSkewMs: 'milliseconds',
+          },
+          limitations: [
+            ...row.netLimitations.map(partialEvidenceLimitation),
+            'Fees use a static reference taker tier and exclude transfer/withdrawal costs and user-specific tiers.',
+          ],
+          traceId,
+          expectedCadenceMs: VENUE_ARB_TTL_MS,
+          maxAgeMs: VENUE_ARB_TTL_MS * 2,
+        },
+        dataStatus,
+        row.netLimitations.length > 0 ? 'partial' : null,
+      );
+      return withDataReceipt(row, receipt);
+    },
+    rank: (row) => row.dispersionBps,
+  });
+
+  registerVenueBoard<OiConcentrationRow & { receipt: DataReceipt }>(app, provider, dataStatus, {
+    path: DATA_ROUTE_PATHS.oiConcentration,
+    family: 'open-interest',
+    ttlMs: OI_CONCENTRATION_TTL_MS,
+    compute: async (symbol, traceId) => {
+      const raw = await trackProviderCall(provider, 'venue-derivatives', dataStatus, () =>
+        provider.getVenueDerivatives(symbol),
+      );
+      const inputs = attachProviderReceiptRows(
+        provider,
+        'venue-derivatives',
+        raw,
+        traceId,
+        dataStatus,
+        undefined,
+        undefined,
+        { instrument: symbol },
+      );
+      const row = computeOiConcentration(symbol, inputs);
+      const missingOi = inputs.length - row.venueCount;
+      const limitations = missingOi > 0
+        ? [partialEvidenceLimitation(`${missingOi} venue(s) did not report open-interest value.`)]
+        : [];
+      const receipt = deriveRouteReceipt(
+        provider,
+        {
+          family: 'open-interest',
+          instrument: symbol,
+          coverage: `${inputs.length} venue derivative snapshot(s).`,
+          inputReceipts: inputs.map((input) => input.receipt),
+          methodology: {
+            id: 'midas.open-interest-concentration',
+            version: '1.0',
+            formula: 'share_i = oi_i / sum(oi); herfindahl = sum(share_i^2)',
+          },
+          units: {
+            totalOiValue: 'quote currency',
+            topVenueShare: 'fraction',
+            herfindahl: 'index 0..1',
+          },
+          limitations,
+          traceId,
+          expectedCadenceMs: OI_CONCENTRATION_TTL_MS,
+          maxAgeMs: OI_CONCENTRATION_TTL_MS * 2,
+        },
+        dataStatus,
+        limitations.length > 0 ? 'partial' : null,
+      );
+      return withDataReceipt(row, receipt);
+    },
+    rank: (row) => row.totalOiValue,
+  });
+
+  // Market-wide liquidations feed: the recent liquidations across the top-N
+  // perps merged into one newest-first stream. Composed from screen() +
+  // getDerivatives() so every provider supports it. Cached per quote on a
+  // short single-flight window keyed by quote + requested fan-out. The merged
+  // feed is capped at 120 events; meta.asOf always reports the sweep's real age.
+  const liquidationsCache = createTtlCache<
+    CachedReceiptPayload<LiquidationsFeed & { receipt: DataReceipt }>
+  >(LIQUIDATIONS_TTL_MS);
+  app.get<{ Querystring: { quote?: string; limit?: string } }>(DATA_ROUTE_PATHS.liquidations, async (req) => {
+    const quote = normalizeQuote(req.query.quote);
+    const limitRaw = Number(req.query.limit);
+    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the feed.
+    const limit =
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
+    let computed = false;
+    const entry = await liquidationsCache.get(`${quote}|${limit}`, async () => {
+      computed = true;
+      const provenance = attachProviderReceipt(
+        provider,
+        'liquidations',
+        provider.liquidationsProvenance(),
+        String(req.id),
+        dataStatus,
+      );
+      // The provider's liquidation capability declaration is authoritative.
+      // Do not turn unrelated funding/OI snapshots into a liquidation feed
+      // when that provider explicitly says no public event source exists.
+      const rows = provenance.available
+        ? await trackProviderCall(provider, 'liquidations', dataStatus, () =>
+            provider.screen({ quote, sort: 'volume', limit }),
+          )
+        : [];
       let failed = 0;
-      const board = await Promise.all(
-        rows.map(async (r): Promise<FundingRow | null> => {
+      const perSymbol = await Promise.all(
+        rows.map(async (r): Promise<{ events: LiquidationEvent[]; receipt: DataReceipt } | null> => {
           try {
-            const d = await provider.getDerivatives(r.symbol);
+            const raw = await trackProviderCall(provider, 'derivatives', dataStatus, () =>
+              provider.getDerivatives(r.symbol),
+            );
+            const d = attachProviderReceipt(
+              provider,
+              'derivatives',
+              raw,
+              String(req.id),
+              dataStatus,
+              undefined,
+              undefined,
+              { instrument: r.symbol },
+            );
             return {
-              symbol: r.symbol,
-              fundingRate: d.fundingRate,
-              fundingIntervalHours: d.fundingIntervalHours ?? null,
-              nextFundingTime: d.nextFundingTime,
-              markPrice: d.markPrice,
-              openInterestValue: d.openInterestValue,
+              receipt: d.receipt,
+              events: d.recentLiquidations.map((liquidation) => ({
+                symbol: r.symbol,
+                side: liquidation.side,
+                price: liquidation.price,
+                amount: liquidation.amount,
+                value: liquidation.price * liquidation.amount,
+                timestamp: liquidation.timestamp,
+              })),
             };
           } catch {
             failed += 1;
@@ -530,83 +1267,67 @@ export function registerMarketRoutes(app: FastifyInstance, provider: DataProvide
           }
         }),
       );
-      return { rows: board.filter((x): x is FundingRow => x !== null), failed, total: rows.length };
-    });
-  });
-
-  // The three cross-venue boards share one fan-out-behind-a-TTL-cache shape
-  // (registerVenueBoard). Each keeps only rows whose signal field is non-null
-  // (funding spread ≥ 2 venues / price dispersion ≥ 2 venues / OI ≥ 1 venue) and
-  // ranks by it descending — supplied here as `compute` + `rank`.
-  registerVenueBoard<FundingDispersionRow>(app, provider, {
-    path: '/api/funding-dispersion',
-    ttlMs: FUNDING_DISPERSION_TTL_MS,
-    compute: async (symbol) => computeFundingDispersion(symbol, await provider.getVenueDerivatives(symbol)),
-    rank: (row) => row.spreadBps,
-  });
-
-  registerVenueBoard<VenueArbRow>(app, provider, {
-    path: '/api/venue-arb',
-    ttlMs: VENUE_ARB_TTL_MS,
-    compute: async (symbol) => computeVenueArbRow(symbol, await provider.getExchangeQuotes(symbol)),
-    rank: (row) => row.dispersionBps,
-  });
-
-  registerVenueBoard<OiConcentrationRow>(app, provider, {
-    path: '/api/oi-concentration',
-    ttlMs: OI_CONCENTRATION_TTL_MS,
-    compute: async (symbol) => computeOiConcentration(symbol, await provider.getVenueDerivatives(symbol)),
-    rank: (row) => row.totalOiValue,
-  });
-
-  // Market-wide liquidations feed: the recent liquidations across the top-N
-  // perps merged into one newest-first stream. Composed from screen() +
-  // getDerivatives() so every provider supports it. Cached per quote on a
-  // short single-flight window — the merged feed is capped at 120 events and
-  // `limit` only widens the fan-out, so one cached sweep can serve every
-  // limit within the window; meta.asOf always reports the sweep's real age.
-  const liquidationsCache = createTtlCache<LiquidationsFeed>(LIQUIDATIONS_TTL_MS);
-  app.get<{ Querystring: { quote?: string; limit?: string } }>('/api/liquidations', async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the feed.
-    const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
-    return liquidationsCache.get(quote, async () => {
-      const rows = await provider.screen({ quote, sort: 'volume', limit });
-      const perSymbol = await Promise.all(
-        rows.map(async (r): Promise<LiquidationEvent[]> => {
-          try {
-            const d = await provider.getDerivatives(r.symbol);
-            return d.recentLiquidations.map((l) => ({
-              symbol: r.symbol,
-              side: l.side,
-              price: l.price,
-              amount: l.amount,
-              value: l.price * l.amount,
-              timestamp: l.timestamp,
-            }));
-          } catch {
-            return [];
-          }
-        }),
+      const successful = perSymbol.filter(
+        (result): result is { events: LiquidationEvent[]; receipt: DataReceipt } => result !== null,
       );
-      const events = perSymbol.flat().sort((a, b) => b.timestamp - a.timestamp).slice(0, 120);
-      const feed: LiquidationsFeed = {
-        events,
-        meta: normalizeLiquidationsMeta(provider.liquidationsProvenance(), Date.now()),
-      };
-      return feed;
+      const eventful = successful.filter((result) => result.events.length > 0);
+      const events = eventful
+        .flatMap((result) => result.events)
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 120);
+      const limitations = [
+        ...(failed > 0
+          ? [partialEvidenceLimitation(`${failed} of ${rows.length} symbol liquidation read(s) failed.`)]
+          : []),
+        'Public exchange liquidation feeds may be throttled or incomplete; event totals are not exhaustive.',
+      ];
+      const receipt = deriveRouteReceipt(
+        provider,
+        {
+          family: 'liquidations',
+          coverage: `${rows.length} screened perpetual symbol(s); latest 120 events retained.`,
+          inputReceipts: [
+            provenance.receipt,
+            ...successful.map((result) => result.receipt),
+          ],
+          methodology: {
+            id: 'midas.liquidations-feed',
+            version: '1.0',
+            formula: 'eventNotional = observedPrice * observedBaseAmount; merge newest-first; retain 120',
+          },
+          units: { price: 'quote currency', amount: 'base asset', value: 'quote currency' },
+          limitations,
+          traceId: String(req.id),
+          expectedCadenceMs: LIQUIDATIONS_TTL_MS,
+          maxAgeMs: LIQUIDATIONS_TTL_MS * 2,
+          cache: { status: 'miss', ageMs: 0 },
+        },
+        dataStatus,
+        failed > 0 ? 'partial' : null,
+      );
+      const meta = withDataReceipt(normalizeLiquidationsMeta(provenance, Date.now()), receipt);
+      const feed = withDataReceipt({ events, meta }, receipt);
+      return { payload: feed, storedAt: Date.now() };
     });
+    const now = Date.now();
+    const transported = transportDerivedReceipt(
+      provider,
+      entry.payload,
+      String(req.id),
+      dataStatus,
+      { status: computed ? 'miss' : 'hit', ageMs: computed ? 0 : Math.max(0, now - entry.storedAt) },
+      now,
+    );
+    return { ...transported, meta: { ...transported.meta, receipt: transported.receipt } };
   });
 
-  app.get<{ Querystring: { q?: string } }>('/api/search', async (req) => {
+  app.get<{ Querystring: { q?: string } }>(DATA_ROUTE_PATHS.search, async (req) => {
     const q = firstStr(req.query.q).trim().slice(0, 64);
     if (q.length === 0) return [];
     return provider.search(q);
   });
 
-  app.get<{ Querystring: { symbol?: string } }>('/api/news', async (req) => {
+  app.get<{ Querystring: { symbol?: string } }>(DATA_ROUTE_PATHS.news, async (req) => {
     const symbol = normalizeSymbol(req.query.symbol) || undefined;
     return provider.getNews(symbol);
   });

@@ -78,11 +78,11 @@ export async function fetchDexPools(base: string): Promise<DexPools> {
       return { symbol: sym, provenance: 'unavailable', note: `No DEX pools found for ${sym} on Dexscreener.`, pools: [] };
     }
     return { symbol: sym, provenance: 'live', note: null, pools };
-  } catch (err) {
+  } catch {
     return {
       symbol: sym,
       provenance: 'unavailable',
-      note: `Live DEX source (Dexscreener) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
+      note: 'Live DEX source (Dexscreener) unavailable because the upstream request failed.',
       pools: [],
     };
   }

@@ -91,8 +91,8 @@ export async function callClaude(opts: {
         messages: opts.messages,
       }),
     });
-  } catch (cause) {
-    throw new ProviderError(`Failed to reach Anthropic API: ${(cause as Error).message}`, 502);
+  } catch {
+    throw new ProviderError('Anthropic API request failed', 502);
   }
 
   if (!res.ok) {

@@ -95,11 +95,11 @@ export async function fetchSolanaTrending(): Promise<SolanaTrending> {
       return { source: GT_SOURCE, provenance: 'unavailable', note: 'No trending Solana pools returned.', tokens: [], asOf: Date.now() };
     }
     return { source: GT_SOURCE, provenance: 'live', note: null, tokens, asOf: Date.now() };
-  } catch (err) {
+  } catch {
     return {
       source: GT_SOURCE,
       provenance: 'unavailable',
-      note: `Live Solana DEX source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
+      note: 'Live Solana DEX source (GeckoTerminal) unavailable because the upstream request failed.',
       tokens: [],
       asOf: Date.now(),
     };
@@ -118,11 +118,11 @@ export async function fetchSolanaPools(base: string): Promise<DexPools> {
       return { symbol: sym, provenance: 'unavailable', note: `No Solana DEX pools found for ${sym}.`, pools: [] };
     }
     return { symbol: sym, provenance: 'live', note: null, pools };
-  } catch (err) {
+  } catch {
     return {
       symbol: sym,
       provenance: 'unavailable',
-      note: `Live Solana DEX source (GeckoTerminal) unavailable — ${err instanceof Error ? err.message : 'error'}.`,
+      note: 'Live Solana DEX source (GeckoTerminal) unavailable because the upstream request failed.',
       pools: [],
     };
   }

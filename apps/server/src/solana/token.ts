@@ -111,7 +111,7 @@ export async function fetchSolanaToken(mint: string, priceUsd: PriceUsd): Promis
       () => null,
     );
     return mapTokenInfo({ mint, supply, accountInfo, priceUsd, now: Date.now() });
-  } catch (err) {
-    return unavailable(mint, `Live Solana RPC unavailable — ${err instanceof Error ? err.message : 'error'}.`);
+  } catch {
+    return unavailable(mint, 'Live Solana RPC unavailable because the upstream request failed.');
   }
 }

@@ -1,9 +1,9 @@
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import { randomBytes } from 'node:crypto';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
-import type { ApiError, SystemStatus } from '@midas/shared';
+import { sanitizeReceiptText, type ApiError, type SystemStatus } from '@midas/shared';
 import { config } from './config';
 import { ProviderError, type DataProvider } from './providers';
 import { registerRoutes } from './routes';
@@ -27,8 +27,11 @@ import { createProviderPool } from './keys/pool';
 import { createUserLoops, userEquityFileName, type UserLoops } from './keys/loops';
 import { CcxtProvider } from './providers/ccxt';
 import { createRateLimiter } from './rateLimit';
+import { SAFE_LOG_REDACT_PATHS, safeErrorFields } from './safeLog';
 
 export interface BuildAppOptions {
+  /** Logger seam for deterministic privacy tests; production uses env level/stdout. */
+  logger?: { level?: string; stream?: { write(message: string): void } };
   /** Alert store; defaults to an in-memory repo (tests). index.ts injects a file-backed one. */
   alertRepo?: AlertRepo;
   /** Per-user workspace snapshot store; defaults to in-memory (tests). */
@@ -69,7 +72,26 @@ export async function buildApp(
   opts: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: { level: process.env.LOG_LEVEL ?? 'info' },
+    logger: {
+      level: opts.logger?.level ?? process.env.LOG_LEVEL ?? 'info',
+      ...(opts.logger?.stream ? { stream: opts.logger.stream } : {}),
+      redact: { paths: [...SAFE_LOG_REDACT_PATHS], censor: '[REDACTED]' },
+      // Defense in depth for future accidental `log.error(err)` calls: never
+      // serialize Error.message/stack, even though current call sites already
+      // use safeErrorFields().
+      serializers: {
+        req: (request) => ({ method: request.method }),
+        err: (error) => ({
+          type: safeErrorFields(error).errorType,
+          message: '[REDACTED]',
+          stack: '[REDACTED]',
+        }),
+      },
+    },
+    // Default request logs include remoteAddress and URLs. Both can contain
+    // identifiers or hostile secret-bearing query text, so Midas emits only
+    // the explicit, allowlisted operational events below.
+    logController: new LogController({ disableRequestLogging: true }),
     // Fastify's default, made explicit: no request body may exceed 1 MiB.
     // The biggest legitimate payloads (workspace/portfolio snapshots) sit
     // well under this; everything larger is an honest 413, not an allocation.
@@ -182,9 +204,10 @@ export async function buildApp(
             equityMs: config.equitySnapMs > 0 ? Math.max(60_000, config.equitySnapMs) : 0,
             equityFileFor: (userId) => join(dirname(config.equityFile), userEquityFileName(userId)),
             maxUsers: config.maxKeyedUsers,
-            onError: (userId, err) => app.log.error({ err, userId }, 'per-user loop error'),
-            onRefused: (userId) =>
-              app.log.warn({ userId, cap: config.maxKeyedUsers }, 'keyed-user cap reached — no loops for this user'),
+            onError: (_userId, error) =>
+              app.log.error(safeErrorFields(error), 'per-user loop error'),
+            onRefused: (_userId) =>
+              app.log.warn({ cap: config.maxKeyedUsers }, 'keyed-user cap reached — no loops for this user'),
           })
         : null;
   if (userLoops && keyRepo) {
@@ -262,25 +285,37 @@ export async function buildApp(
       : typeof error.statusCode === 'number'
         ? error.statusCode
         : 500;
-    request.log.error(error);
-    // Only echo the error's own message when it is a deliberate, client-safe
-    // error: a ProviderError (already sanitized via describe()/safeErrorLabel)
-    // or any <500 (e.g. Fastify validation). An unexpected 5xx carries a raw
-    // internal message — a stack string, or a ccxt error embedding the signed
-    // request URL (HMAC signature / API key) — and must never reach the client.
-    const clientSafe = isProvider || statusCode < 500;
+    request.log.error(
+      { ...safeErrorFields(error), statusCode },
+      'request failed',
+    );
+    // Provider transport failures can carry arbitrary upstream strings. Only
+    // deliberate client/configuration statuses are eligible for a sanitized
+    // public message; 5xx transport/system failures stay generic.
+    const fixedProviderMessage =
+      isProvider && error.publicErrorCode === 'cancel-outcome-unknown'
+        ? 'Cancel outcome UNKNOWN — the exchange did not confirm the result. Check the exchange for the true order state before assuming it is open or canceled.'
+        : null;
+    const providerPublic =
+      isProvider && (statusCode < 500 || statusCode === 501 || statusCode === 503 || fixedProviderMessage != null);
+    const clientSafe = providerPublic || (!isProvider && statusCode < 500);
+    const safeMessage = fixedProviderMessage ?? (clientSafe ? sanitizeReceiptText(error.message, 300) : '');
     const body: ApiError = {
-      error: error.name || 'Error',
-      message: clientSafe ? error.message || 'Error' : 'Internal Server Error',
+      error: isProvider
+        ? 'ProviderError'
+        : statusCode >= 500
+          ? 'InternalServerError'
+          : safeErrorFields(error).errorType,
+      message: safeMessage || (statusCode >= 500 ? 'Internal Server Error' : 'Request failed'),
       statusCode,
     };
     reply.status(statusCode).send(body);
   });
 
-  app.setNotFoundHandler((request, reply) => {
+  app.setNotFoundHandler((_request, reply) => {
     const body: ApiError = {
       error: 'NotFound',
-      message: `Route ${request.method} ${request.url} not found`,
+      message: 'Route not found',
       statusCode: 404,
     };
     reply.status(404).send(body);

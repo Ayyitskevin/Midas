@@ -65,7 +65,7 @@ export async function jsonRpc<T = unknown>(method: string, params: unknown[]): P
   // A Solana node returns HTTP 200 even on a logical failure, carrying
   // `{ error }` in the body — so inspect it here, or a failed lookup would be
   // mislabeled as a live read.
-  if (body.error) throw new Error(str(body.error.message) || `RPC error (${method})`);
+  if (body.error) throw new Error(`RPC upstream error (${method})`);
   return body.result as T;
 }
 

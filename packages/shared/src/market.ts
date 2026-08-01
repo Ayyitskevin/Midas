@@ -5,6 +5,7 @@
  */
 
 import type { Interval, Range } from './chart';
+import type { DataReceipt } from './dataTrust';
 import { netSpreadBps, roundTripFeesBps } from './fees';
 
 /** Trading status of a symbol's primary exchange. */
@@ -46,8 +47,10 @@ export interface Quote {
   marketCap: number | null;
   fiftyTwoWeekHigh: number | null;
   fiftyTwoWeekLow: number | null;
-  /** Epoch millis of the underlying data point, for staleness display. */
-  asOf: number;
+  /** Epoch millis reported by the source; null when the source omits time. */
+  asOf: number | null;
+  /** Versioned source evidence for this quote. */
+  receipt?: DataReceipt;
 }
 
 /** Response to a history (candles) request. */
@@ -57,6 +60,8 @@ export interface HistoryResponse {
   range: Range;
   currency: string;
   candles: Candle[];
+  /** Versioned source evidence for this history series. */
+  receipt?: DataReceipt;
 }
 
 /** A security returned by the search / security-finder endpoint. */
@@ -103,10 +108,15 @@ export interface VenueQuote {
   price: number;
   bid: number | null;
   ask: number | null;
+  /** Executable base-asset size at the reported bid; null/absent when unknown. */
+  bidSize?: number | null;
+  /** Executable base-asset size at the reported ask; null/absent when unknown. */
+  askSize?: number | null;
   changePercent: number;
   /** Base-asset 24h volume. */
   volume: number | null;
-  timestamp: number;
+  timestamp: number | null;
+  receipt?: DataReceipt;
 }
 
 /** One venue's top-of-book for a symbol, in the cross-venue arb screener. */
@@ -148,14 +158,22 @@ export interface VenueArbRow {
    * when the spread or either venue's fee tier is unknown (never assumed 0).
    */
   netSpreadBps: number | null;
-  /** True only when the spread stays positive NET of reference taker fees — the actionable signal. */
+  /** True only when complete fee, size, and aligned-time evidence yields a positive net spread. */
   netCrossed: boolean;
+  /** Maximum common executable base-asset size across the selected legs. */
+  executableSize: number | null;
+  /** Absolute source timestamp difference between the selected legs. */
+  timestampSkewMs: number | null;
+  /** Why an executable net calculation is unavailable; empty only with complete evidence. */
+  netLimitations: string[];
   /** (max − min) / min of last price across venues, in bps — how much venues disagree; null with < 2. */
   dispersionBps: number | null;
   /** Cheapest last price across venues; null if none. */
   priceMin: number | null;
   /** Dearest last price across venues; null if none. */
   priceMax: number | null;
+  /** Derived lineage for the cross-venue calculation. */
+  receipt?: DataReceipt;
 }
 
 /**
@@ -163,13 +181,23 @@ export interface VenueArbRow {
  * (sell here) and best ask (buy here) across venues, their spread in bps (the
  * arb signal — positive means a crossed, gross-of-fees arb), that spread net of
  * reference taker fees (`feeBps`/`netSpreadBps`/`netCrossed` — the actionable
- * figure), and the last-price dispersion (how much venues disagree). Pure;
+ * figure), and the last-price dispersion (how much venues disagree). A net
+ * figure additionally requires positive bid/ask sizes and source timestamps
+ * aligned within `VENUE_ARB_MAX_TIMESTAMP_SKEW_MS`. Pure;
  * ignores venues with a non-positive price and bid/ask legs that are null or
  * ≤ 0. `spreadBps` and `dispersionBps` are null unless at least two venues
- * quote; the net fields are null whenever the spread or a leg's fee tier is
- * unknown.
+ * quote; the net fields are null whenever the spread, a leg's fee tier, size,
+ * or aligned timestamp evidence is unknown.
  */
-export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueArbRow {
+export const VENUE_ARB_MAX_TIMESTAMP_SKEW_MS = 10_000;
+/** Absolute quote age allowed for an actionable top-of-book comparison. */
+export const VENUE_ARB_MAX_QUOTE_AGE_MS = 30_000;
+
+export function computeVenueArbRow(
+  symbol: string,
+  quotes: VenueQuote[],
+  evaluatedAtMs: number = Date.now(),
+): VenueArbRow {
   const venues: VenuePricePoint[] = quotes
     .map((q) => ({ exchange: q.exchange, bid: q.bid, ask: q.ask, price: q.price }))
     .sort((a, b) => b.price - a.price);
@@ -202,7 +230,53 @@ export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueA
   // Null whenever the spread or either venue's fee tier is unknown — a gross
   // crossed book with unknown fees is not shown as actionable.
   const feeBps = crossVenue && bestBid && bestAsk ? roundTripFeesBps(bestAsk.exchange, bestBid.exchange) : null;
-  const net = crossVenue && bestBid && bestAsk ? netSpreadBps(spreadBps, bestAsk.exchange, bestBid.exchange) : null;
+  const bestBidQuote = bestBid
+    ? quotes.find((quote) => quote.exchange === bestBid.exchange && quote.bid === bestBid.value)
+    : undefined;
+  const bestAskQuote = bestAsk
+    ? quotes.find((quote) => quote.exchange === bestAsk.exchange && quote.ask === bestAsk.value)
+    : undefined;
+  const bidSize = positiveFinite(bestBidQuote?.bidSize);
+  const askSize = positiveFinite(bestAskQuote?.askSize);
+  const executableSize = crossVenue && bidSize !== null && askSize !== null ? Math.min(bidSize, askSize) : null;
+  const bidTime = finiteTimestamp(bestBidQuote?.timestamp);
+  const askTime = finiteTimestamp(bestAskQuote?.timestamp);
+  const timestampSkewMs = crossVenue && bidTime !== null && askTime !== null ? Math.abs(bidTime - askTime) : null;
+  const netLimitations: string[] = [];
+  if (crossVenue) {
+    if (feeBps === null) netLimitations.push('A required venue fee tier is unknown.');
+    if (executableSize === null) netLimitations.push('Executable bid/ask size is unknown.');
+    if (timestampSkewMs === null) netLimitations.push('A required leg timestamp is unknown.');
+    else if (timestampSkewMs > VENUE_ARB_MAX_TIMESTAMP_SKEW_MS) {
+      netLimitations.push(
+        `Selected leg timestamps are ${timestampSkewMs}ms apart (maximum ${VENUE_ARB_MAX_TIMESTAMP_SKEW_MS}ms).`,
+      );
+    }
+    for (const [leg, quote, timestamp] of [
+      ['bid', bestBidQuote, bidTime],
+      ['ask', bestAskQuote, askTime],
+    ] as const) {
+      if (timestamp === null) continue;
+      const ageMs = evaluatedAtMs - timestamp;
+      if (!Number.isFinite(ageMs) || ageMs < 0) {
+        netLimitations.push(`Selected ${leg} timestamp is in the future (clock skew).`);
+      } else if (ageMs > VENUE_ARB_MAX_QUOTE_AGE_MS) {
+        netLimitations.push(
+          `Selected ${leg} quote is ${ageMs}ms old (maximum ${VENUE_ARB_MAX_QUOTE_AGE_MS}ms).`,
+        );
+      }
+      if (!quote?.receipt) {
+        netLimitations.push(`Selected ${leg} quote has no source receipt.`);
+      } else if (quote.receipt.freshness.state !== 'fresh') {
+        netLimitations.push(`Selected ${leg} receipt is not fresh.`);
+      }
+    }
+  } else {
+    netLimitations.push('Distinct buy and sell venues are required.');
+  }
+  const net = netLimitations.length === 0 && bestBid && bestAsk
+    ? netSpreadBps(spreadBps, bestAsk.exchange, bestBid.exchange)
+    : null;
   const dispersionBps =
     priced >= 2 && priceMin !== null && priceMax !== null && priceMin > 0
       ? ((priceMax - priceMin) / priceMin) * 10_000
@@ -218,10 +292,21 @@ export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueA
     feeBps,
     netSpreadBps: net,
     netCrossed: net !== null && net > 0,
+    executableSize,
+    timestampSkewMs,
+    netLimitations,
     dispersionBps,
     priceMin,
     priceMax,
   };
+}
+
+function positiveFinite(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function finiteTimestamp(value: number | null | undefined): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 /**
@@ -245,7 +330,9 @@ export interface VenueDerivatives {
   markPrice: number | null;
   /** Open interest notional in quote units; null if unavailable. */
   openInterestValue: number | null;
-  timestamp: number;
+  /** Upstream observation timestamp; null when the venue omits it. */
+  timestamp: number | null;
+  receipt?: DataReceipt;
 }
 
 /** A single executed trade (print), streamed by the live trades feed. */
@@ -300,6 +387,7 @@ export interface LiquidationsProvenance {
   synthetic?: boolean;
   /** Honest caveat: why the feed may be empty/partial, the throttling warning, etc. */
   note?: string;
+  receipt?: DataReceipt;
 }
 
 /** {@link LiquidationsProvenance} stamped with the time the feed was assembled. */
@@ -312,6 +400,7 @@ export interface LiquidationsMeta extends LiquidationsProvenance {
 export interface LiquidationsFeed {
   events: LiquidationEvent[];
   meta: LiquidationsMeta;
+  receipt?: DataReceipt;
 }
 
 /** Whether an on-chain/DEX snapshot is real, synthetic, or unavailable for this provider. */
@@ -363,7 +452,10 @@ export interface DerivativesInfo {
   /** Open interest notional in quote units. */
   openInterestValue: number | null;
   recentLiquidations: Liquidation[];
-  timestamp: number;
+  /** Oldest required upstream component timestamp; null when unknown. */
+  timestamp: number | null;
+  /** Evidence for this bundled funding/OI/liquidations provider snapshot. */
+  receipt?: DataReceipt;
 }
 
 /** One row of the funding-rates board — a perp's funding + open interest. */
@@ -382,6 +474,7 @@ export interface FundingRow {
   markPrice: number | null;
   /** Open interest notional in quote units. */
   openInterestValue: number | null;
+  receipt?: DataReceipt;
 }
 
 /** One venue's funding rate for a perp, in the cross-venue dispersion board. */
@@ -426,6 +519,7 @@ export interface FundingDispersionRow {
   lowVenue: string | null;
   /** Aggregate open-interest notional across venues (quote units); null if none. */
   totalOiValue: number | null;
+  receipt?: DataReceipt;
 }
 
 /**
@@ -518,6 +612,7 @@ export interface OiConcentrationRow {
   herfindahl: number | null;
   /** Number of venues reporting OI. */
   venueCount: number;
+  receipt?: DataReceipt;
 }
 
 /**
@@ -558,6 +653,9 @@ export interface FundingHistoryPoint {
   time: number;
   /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
   fundingRate: number | null;
+  /** Venue-reported settlement cadence in hours; null/omitted when unknown. */
+  fundingIntervalHours?: number | null;
+  receipt?: DataReceipt;
 }
 
 /** A single row in the crypto screener. */

@@ -14,7 +14,9 @@ describe('mock getOiDelta', () => {
     const provider = new MockProvider();
     const a = await provider.getOiDelta('BTC/USDT', '24h');
     const b = await provider.getOiDelta('BTC/USDT', '24h');
-    expect({ ...a, asOf: 0, points: [] }).toEqual({ ...b, asOf: 0, points: [] });
+    const { receipt: _aReceipt, ...aData } = a;
+    const { receipt: _bReceipt, ...bData } = b;
+    expect({ ...aData, asOf: 0, points: [] }).toEqual({ ...bData, asOf: 0, points: [] });
     expect(a.points.map((p) => [p.openInterestValue, p.price])).toEqual(
       b.points.map((p) => [p.openInterestValue, p.price]),
     );

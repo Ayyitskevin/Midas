@@ -40,6 +40,24 @@ describe('computeVenueArbRow', () => {
     expect(row.spreadBps).toBeGreaterThan(0);
     expect(row.bestBid?.exchange).toBe('a');
     expect(row.bestAsk?.exchange).toBe('b');
+    // Gross evidence is still useful, but a quote without executable size can
+    // never become a reassuring/actionable net signal.
+    expect(row.executableSize).toBeNull();
+    expect(row.netSpreadBps).toBeNull();
+    expect(row.netCrossed).toBe(false);
+    expect(row.netLimitations.join(' ')).toMatch(/size/i);
+  });
+
+  it('never marks complete-looking unreceipted legs as an actionable net opportunity', () => {
+    const now = 1_700_000_000_000;
+    const row = computeVenueArbRow('BTC/USDT', [
+      { ...q('binance', 101, 102, 103), bidSize: 2, askSize: 2, timestamp: now },
+      { ...q('okx', 99, 98, 100), bidSize: 2, askSize: 2, timestamp: now },
+    ], now);
+    expect(row.crossed).toBe(true);
+    expect(row.netSpreadBps).toBeNull();
+    expect(row.netCrossed).toBe(false);
+    expect(row.netLimitations.join(' ')).toMatch(/no source receipt/i);
   });
 
   it('needs ≥ 2 venues for a dispersion/spread', () => {
