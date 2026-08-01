@@ -11,6 +11,8 @@ export interface AuthDeps {
   allowSignup: boolean;
   secret: string;
   users: UserRepo;
+  /** Clock source for deterministic timing tests; production uses Date.now. */
+  now?: () => number;
   /** Login brute-force brake; a default is created when omitted (tests inject). */
   throttle?: LoginThrottle;
   /** Per-IP signup limiter; a default is created when omitted (tests inject). */
@@ -62,7 +64,7 @@ export function signupCredentialError(username: string, password: string): strin
 export function userFromRequest(req: FastifyRequest, deps: AuthDeps): StoredUser | null {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) return null;
-  const claims = verifyToken(header.slice(7), deps.secret, Date.now());
+  const claims = verifyToken(header.slice(7), deps.secret, (deps.now ?? Date.now)());
   if (!claims) return null;
   const user = deps.users.findById(claims.userId);
   if (!user || user.tokenVersion !== claims.version) return null;
@@ -75,8 +77,9 @@ function canSignup(deps: AuthDeps): boolean {
 }
 
 export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
+  const now = deps.now ?? Date.now;
   const session = (user: StoredUser): AuthSession => ({
-    token: signToken(user.id, user.tokenVersion, Date.now() + TOKEN_TTL_MS, deps.secret),
+    token: signToken(user.id, user.tokenVersion, now() + TOKEN_TTL_MS, deps.secret),
     user: toPublic(user),
   });
 
@@ -109,7 +112,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       }
       // Per-IP cap BEFORE any parsing or hashing — a malformed request counts
       // too, so a junk spray is throttled the same as a valid one.
-      const waitMs = signupLimiter.check(req.ip, Date.now());
+      const waitMs = signupLimiter.check(req.ip, now());
       if (waitMs != null) {
         app.log.warn({ ip: req.ip }, 'signup throttled');
         reply.code(429);
@@ -141,7 +144,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
         reply.code(409);
         return err(409, 'Conflict', 'Username is taken');
       }
-      const user = deps.users.create(username, passwordHash, Date.now());
+      const user = deps.users.create(username, passwordHash, now());
       reply.code(201);
       return session(user);
     },
@@ -167,7 +170,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       }
       // Per-IP aggregate ceiling FIRST: stuffing across many usernames from
       // one address would otherwise get a fresh per-pair budget each time.
-      const ipWaitMs = throttle.checkIp(req.ip, Date.now());
+      const ipWaitMs = throttle.checkIp(req.ip, now());
       if (ipWaitMs != null) {
         app.log.warn({ ip: req.ip }, 'login throttled (per-IP ceiling)');
         reply.code(429);
@@ -177,7 +180,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // briefly, making online password guessing impractically slow without
       // letting an attacker lock a victim out from a different address.
       const throttleKey = `${username.toLowerCase()}|${req.ip}`;
-      const waitMs = throttle.check(throttleKey, Date.now());
+      const waitMs = throttle.check(throttleKey, now());
       if (waitMs != null) {
         app.log.warn({ username, ip: req.ip }, 'login throttled');
         reply.code(429);
@@ -188,8 +191,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // username, so this leaks nothing about account existence.
       const candidate = req.body?.password ?? '';
       if (candidate.length > MAX_PASSWORD) {
-        throttle.fail(throttleKey, Date.now());
-        throttle.failIp(req.ip, Date.now());
+        throttle.fail(throttleKey, now());
+        throttle.failIp(req.ip, now());
         reply.code(401);
         return err(401, 'Unauthorized', 'Invalid username or password');
       }
@@ -199,8 +202,8 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthDeps): void {
       // whether an account exists (username-enumeration timing oracle).
       const ok = await verifyPassword(candidate, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
       if (!user || !ok) {
-        throttle.fail(throttleKey, Date.now());
-        throttle.failIp(req.ip, Date.now());
+        throttle.fail(throttleKey, now());
+        throttle.failIp(req.ip, now());
         reply.code(401);
         return err(401, 'Unauthorized', 'Invalid username or password');
       }
