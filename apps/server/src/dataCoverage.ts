@@ -38,6 +38,8 @@ export const DATA_ROUTE_PATHS = {
   orders: '/api/orders',
   positions: '/api/positions',
   fills: '/api/fills',
+  accountEvents: '/api/account/events',
+  accountEquity: '/api/account/equity',
   order: '/api/orders/:id',
   tradingStatus: '/api/trading/status',
 } as const;
@@ -73,10 +75,11 @@ const exempt = (families: string[], reason: string, backlog: string): DataRouteC
 });
 
 /**
- * Every GET registered by routes/market.ts, routes/account.ts and
- * routes/dataStatus.ts appears exactly once. Keep exemptions narrow and
- * actionable: each one records both the compatibility reason and the concrete
- * follow-up needed to remove it.
+ * Every numeric observation GET registered by routes/market.ts,
+ * routes/account.ts, routes/dataStatus.ts, accountWatch.ts and equity.ts appears
+ * exactly once. Configuration/identity routes are outside this data-evidence
+ * boundary. Keep exemptions narrow and actionable: each one records both the
+ * compatibility reason and the concrete follow-up needed to remove it.
  */
 export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
   {
@@ -156,6 +159,22 @@ export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
   { path: DATA_ROUTE_PATHS.orders, coverage: receipt('account-orders') },
   { path: DATA_ROUTE_PATHS.positions, coverage: receipt('account-positions') },
   { path: DATA_ROUTE_PATHS.fills, coverage: receipt('account-fills') },
+  {
+    path: DATA_ROUTE_PATHS.accountEvents,
+    coverage: exempt(
+      ['account-events'],
+      'The persisted account-event projection is outside the bounded v1 receipt slice.',
+      'Retain fill/order input receipt IDs when persisting events, then derive one feed receipt without exposing account values in status.',
+    ),
+  },
+  {
+    path: DATA_ROUTE_PATHS.accountEquity,
+    coverage: exempt(
+      ['account-equity'],
+      'The persisted account-equity projection is outside the bounded v1 receipt slice.',
+      'Persist balance/position input receipt IDs with each point, then derive a curve receipt with explicit gap and retention coverage.',
+    ),
+  },
   {
     path: DATA_ROUTE_PATHS.order,
     coverage: exempt(

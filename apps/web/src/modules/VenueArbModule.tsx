@@ -109,7 +109,7 @@ export function VenueArbModule({ panel }: ModuleProps) {
                   <td className="px-2 py-1 text-right tabular-nums">
                     {r.bestBid ? (
                       <>
-                        <span className="text-term-up">{fmtPrice(r.bestBid.value)}</span>
+                        <span className={actionable ? 'text-term-up' : 'text-term-muted'}>{fmtPrice(r.bestBid.value)}</span>
                         <span className="ml-1 text-term-dim">{r.bestBid.exchange}</span>
                       </>
                     ) : (
@@ -137,8 +137,7 @@ export function VenueArbModule({ panel }: ModuleProps) {
         )}
       </div>
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        DISP = cross-venue price dispersion (bp) · <span className="text-term-accent">BUY</span> lowest ask /{' '}
-        <span className="text-term-up">SELL</span> highest bid · SPREAD &gt; 0 = crossed book (gross) · NET = SPREAD −
+        DISP = cross-venue price dispersion (bp) · BUY lowest ask / SELL highest bid · SPREAD &gt; 0 = crossed book (gross) · NET = SPREAD −
         round-trip reference taker fees, only with known size and aligned timestamps (base tier, ignores
         withdrawal/transfer — inspect the receipt)
       </div>

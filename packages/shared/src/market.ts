@@ -678,7 +678,8 @@ export type CoinUniverseProvenance = 'live' | 'synthetic' | 'unavailable';
  * view an exchange cannot produce alone. A CEX ticker has price and 24h volume
  * but no circulating supply, so it has no honest market cap (`Quote.marketCap`
  * is null for the ccxt provider). This shape is populated by a reference-data
- * source: synthetic in the mock/demo, live via an env-gated provider.
+ * source: synthetic in the explicit mock/demo; current live providers return
+ * unavailable until a reference provider is implemented.
  */
 export interface CoinRef {
   /** Rank by circulating market cap, 1 = largest. */

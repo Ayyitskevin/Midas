@@ -9,8 +9,9 @@ import { MOCK_SOURCE } from './fixtures';
  * so there is no honest market cap from a CEX feed alone — this fixture supplies
  * approximate supplies and a reference price so a synthetic-but-realistic ranking
  * exists offline. Figures are ORDER-OF-MAGNITUDE approximations, not live data;
- * the universe is always labeled `provenance: 'synthetic'`. A live source
- * (env-gated, e.g. CoinGecko) replaces these with real figures.
+ * the universe is always labeled `provenance: 'synthetic'`. A future reference
+ * provider (for example, CoinGecko) can replace these with
+ * real figures; no current live provider implements this family.
  */
 interface CoinSeed {
   base: string;
@@ -109,7 +110,7 @@ export async function mockCoinUniverse(limit: number): Promise<CoinUniverse> {
       coins: coins.slice(0, n),
       provenance: 'synthetic' as const,
       source: MOCK_SOURCE,
-      note: 'Synthetic reference universe — approximate supplies with a synthetic price wiggle, not live market cap. Configure a live reference source for real figures.',
+      note: 'Synthetic reference universe — approximate supplies with a synthetic price wiggle, not live market cap. No current live provider implements this reference family.',
       asOf: now,
     },
     'Synthetic market-cap reference — not live.',

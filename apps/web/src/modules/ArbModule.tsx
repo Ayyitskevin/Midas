@@ -5,6 +5,7 @@ import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { Loading, ErrorMsg } from '@/components/Feedback';
 import { SourceBadge } from '@/components/SourceInspector';
 import { computeInspectedVenueArb } from '@/lib/clientArb';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
@@ -89,7 +90,7 @@ export function ArbModule({ panel }: ModuleProps) {
         {arb.bestAsk && arb.bestBid && (
           <div className="text-2xs text-term-muted">
             Buy <span className="text-term-accent">{arb.bestAsk.exchange}</span> @ {fmtPrice(arb.bestAsk.value)} · Sell{' '}
-            <span className="text-term-up">{arb.bestBid.exchange}</span> @ {fmtPrice(arb.bestBid.value)}
+            <span className={actionable ? 'text-term-up' : 'text-term-muted'}>{arb.bestBid.exchange}</span> @ {fmtPrice(arb.bestBid.value)}
           </div>
         )}
       </div>
@@ -128,17 +129,18 @@ export function ArbModule({ panel }: ModuleProps) {
           {sorted.map((q) => {
             const isBuy = arb.bestAsk?.exchange === q.exchange;
             const isSell = arb.bestBid?.exchange === q.exchange;
+            const quoteActionable = isReceiptActionable(q.receipt);
             return (
               <tr key={q.exchange} className="border-b border-term-border/30">
                 <td className="px-2 py-1 text-term-text">{q.exchange}</td>
-                <td className={`px-2 py-1 text-right tabular-nums ${isSell ? 'font-semibold text-term-up' : ''}`}>
+                <td className={`px-2 py-1 text-right tabular-nums ${isSell && actionable ? 'font-semibold text-term-up' : ''}`}>
                   {q.bid != null ? fmtPrice(q.bid) : '—'}
                 </td>
                 <td className={`px-2 py-1 text-right tabular-nums ${isBuy ? 'font-semibold text-term-accent' : ''}`}>
                   {q.ask != null ? fmtPrice(q.ask) : '—'}
                 </td>
                 <td className="px-2 py-1 text-right tabular-nums">{fmtPrice(q.price)}</td>
-                <td className={`px-2 py-1 text-right tabular-nums ${changeClass(q.changePercent)}`}>
+                <td className={`px-2 py-1 text-right tabular-nums ${quoteActionable ? changeClass(q.changePercent) : 'text-term-muted'}`}>
                   {fmtSignedPercent(q.changePercent)}
                 </td>
                 <td className="px-2 py-1 text-right">

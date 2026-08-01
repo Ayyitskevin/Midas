@@ -656,8 +656,9 @@ export function registerMarketRoutes(
   // Top-N coins by circulating market cap (rank / cap / supply / FDV). Reference
   // data an exchange feed can't produce (a CEX ticker has no circulating supply,
   // so `Quote.marketCap` is null on ccxt). Providers without getCoinUniverse
-  // degrade to an honest 'unavailable' universe — never a fabricated cap; a live
-  // reference source is env-gated. TTL-cached: supplies barely move.
+  // degrade to an honest 'unavailable' universe — never a fabricated cap. No
+  // current live provider implements this reference family. TTL-cached: supplies
+  // barely move.
   const coinsCache = createTtlCache<CoinUniverse>(COINS_TTL_MS);
   const getCoinUniverse = provider.getCoinUniverse?.bind(provider);
   app.get<{ Querystring: { limit?: string } }>(DATA_ROUTE_PATHS.coins, async (req) => {
@@ -670,10 +671,10 @@ export function registerMarketRoutes(
           coins: [],
           provenance: 'unavailable' as const,
           source: provider.name,
-          note: 'No market-cap reference source is configured for this provider.',
+          note: 'No market-cap reference source is implemented for this provider.',
           asOf: null,
         },
-        'No market-cap reference source is configured for this provider.',
+        'No market-cap reference source is implemented for this provider.',
       ) satisfies CoinUniverse;
     }
     return coinsCache.get(String(limit), async () =>
