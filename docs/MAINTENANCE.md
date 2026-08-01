@@ -23,7 +23,7 @@ Green gates are the definition of "done". A red gate is never merged around.
 
 | Invariant | Enforced by |
 |---|---|
-| Non-custodial execution hold | `POST /api/orders` and `DELETE /api/orders/:id` return `503` in `routes.ts`; no runtime caller reaches provider write methods |
+| Non-custodial execution hold | `POST /api/orders` returns `503 TradingSafetyHold` (placement fail-closed); `DELETE /api/orders/:id` is cancel-only (ownership-gated live cancel) |
 | Legacy execution repair scaffolding | Pure helpers remain in `apps/server/src/trading.ts` but are not execution authority |
 | Per-user account-read isolation | `ProviderPool.userFor` never falls back; see `docs/HOSTED_KEYS_DESIGN.md` |
 | Keys encrypted at rest, never returned/logged | `apps/server/src/keys/` — tests assert plaintext never touches disk |

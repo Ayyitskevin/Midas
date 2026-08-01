@@ -86,12 +86,23 @@ describe('dependency wave regressions (fastify / websocket / mock honesty)', () 
     });
     expect(place.statusCode).toBe(503);
     expect(place.json()).toMatchObject({ error: 'TradingSafetyHold' });
+  });
 
+  it('keeps cancellation live but ownership-gated (cancel-only posture)', async () => {
+    // An id that is not in the caller's own open-orders list → 404, never a
+    // blind cancel call.
+    const unknown = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/fake-id?symbol=BTC/USDT',
+    });
+    expect(unknown.statusCode).toBe(404);
+
+    // A resting order from the caller's own list cancels for real (mock book).
     const cancel = await app.inject({
       method: 'DELETE',
-      url: '/api/orders/fake-id',
+      url: '/api/orders/demo-3?symbol=SOL/USDT',
     });
-    expect(cancel.statusCode).toBe(503);
-    expect(cancel.json()).toMatchObject({ error: 'TradingSafetyHold' });
+    expect(cancel.statusCode).toBe(200);
+    expect(cancel.json()).toMatchObject({ id: 'demo-3', status: 'canceled' });
   });
 });

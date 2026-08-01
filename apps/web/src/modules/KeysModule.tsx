@@ -111,7 +111,7 @@ export function KeysModule() {
           </div>
           <div className="mt-1 flex items-baseline justify-between text-2xs">
             <span className={keys.canTrade ? 'text-term-amber' : 'text-term-up'}>
-              {keys.canTrade ? 'trade permission recorded · execution held' : 'read-only'}
+              {keys.canTrade ? 'trade permission recorded · placement held, cancel live' : 'read-only'}
             </span>
             <span className="text-term-dim">saved {fmtTimeAgo(keys.createdAt)}</span>
           </div>
@@ -172,11 +172,11 @@ export function KeysModule() {
           />
           <label
             className="no-drag flex items-start gap-1.5 text-2xs text-term-muted"
-            title="Records exchange-key metadata for future compatibility. It does not bypass the server execution safety hold."
+            title="Records exchange-key metadata. It does not bypass the server execution safety hold on placement; the exchange itself enforces the key's permissions on cancel."
           >
             <input type="checkbox" checked={canTrade} onChange={(e) => setCanTrade(e.target.checked)} className="mt-0.5" />
             <span>
-              record that this exchange key has trade permission (execution remains held; never use withdrawal permission)
+              record that this exchange key has trade permission (placement remains held; never use withdrawal permission)
             </span>
           </label>
           {problems.length > 0 && (
@@ -197,8 +197,8 @@ export function KeysModule() {
       )}
 
       <div className="mt-auto border-t border-term-border/30 pt-1.5 text-2xs text-term-dim">
-        Non-custodial and read-only: execution is held and Midas can never withdraw. Your keys never appear in any API
-        response or log after this save.
+        Non-custodial: order placement is held, canceling your own resting orders is live (cancel-only), and Midas can
+        never withdraw. Your keys never appear in any API response or log after this save.
       </div>
     </div>
   );

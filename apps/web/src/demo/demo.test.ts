@@ -275,16 +275,22 @@ describe('demo shim', () => {
     expect(passthrough).toHaveBeenCalledTimes(1); // only the non-API request
   });
 
-  it('refuses execution with the safety hold and unsupported surfaces with honest 501s', async () => {
+  it('refuses placement with the safety hold and unsupported surfaces with honest 501s', async () => {
     window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
     installDemoShim();
     const order = await fetch('/api/orders', { method: 'POST', body: '{}' });
     expect(order.status).toBe(503);
     expect((await order.json()).error).toBe('TradingSafetyHold');
+    // The demo has no account to cancel against — an honest 501 like the
+    // demo's other unavailable mutations, not a fake cancel.
+    const cancel = await fetch('/api/orders/demo-1?symbol=BTC/USDT', { method: 'DELETE' });
+    expect(cancel.status).toBe(501);
     const keys = await fetch('/api/account/keys');
     expect(keys.status).toBe(501);
     const trading = await (await fetch('/api/trading/status')).json();
     expect(trading.enabled).toBe(false);
+    expect(trading.cancelEnabled).toBe(false);
+    expect(trading.mode).toBe('off');
     expect(trading.reason).toMatch(/static demo/i);
   });
 

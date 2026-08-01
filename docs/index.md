@@ -53,8 +53,9 @@ own box for free, forever.
 1. **Data honesty.** Synthetic, delayed or unavailable data is always labeled;
    a gap is truthful, a made-up point is a bug.
 2. **Non-custodial.** Midas never holds funds and has no withdrawal code path.
-   Account access is read-only; placement and in-app cancellation fail closed
-   under the execution safety hold.
+   Account access is read-only; order placement fails closed under the
+   execution safety hold, and canceling your own resting orders is live
+   (cancel-only, ownership-gated).
 3. **Free and open source.** Every panel and board, no accounts and no paid
    tier — self-host it or run the static demo locally. Optional shared hosting
    for a team stays free too.

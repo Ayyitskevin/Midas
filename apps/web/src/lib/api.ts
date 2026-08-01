@@ -203,8 +203,9 @@ export const api = {
       signal,
     ),
 
-  // Execution compatibility surface. The server currently reports a safety hold
-  // and rejects both mutation calls; the ticket remains a read-only preview.
+  // Execution surface. The server runs cancel-only: placement is rejected with
+  // 503 TradingSafetyHold, while canceling one of the caller's OWN open orders
+  // is live (honest 409 already-filled / 502 outcome-unknown failures).
   tradingStatus: (signal?: AbortSignal) => apiGet<TradingStatus>('/api/trading/status', signal),
   placeOrder: (req: OrderRequest, signal?: AbortSignal) => apiPost<PlacedOrder>('/api/orders', req, signal),
   cancelOrder: (id: string, symbol: string, signal?: AbortSignal) =>

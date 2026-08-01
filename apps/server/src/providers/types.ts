@@ -134,9 +134,9 @@ export interface DataProvider {
    */
   placeOrder?(req: OrderRequest): Promise<PlacedOrder>;
   /**
-   * Cancel a resting order (optional — ccxt only). Risk-REDUCING write, gated
-   * by the same trading switches as placement: a trader who can place a limit
-   * order must be able to pull it.
+   * Cancel a resting order (optional). Risk-REDUCING write — live under the
+   * cancel-only posture. The route proves the order belongs to the caller
+   * before calling this; providers that omit it cannot cancel.
    */
   cancelOrder?(id: string, symbol: string): Promise<CancelResult>;
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;

@@ -62,7 +62,7 @@ const executionHeld = (): Response =>
   json(
     {
       error: 'TradingSafetyHold',
-      message: 'Execution safety hold: order placement and in-app cancellation are disabled. Order preview remains available.',
+      message: 'Execution safety hold: order placement is disabled. Order preview remains available; canceling your own resting orders works on a real server (cancel-only mode).',
       statusCode: 503,
     },
     503,
@@ -92,7 +92,11 @@ function handle(method: string, url: URL): Response | null {
 
   if (method !== 'GET') {
     if (path.startsWith('/api/alerts')) return unavailable('The server-side alert engine');
-    if (path.startsWith('/api/orders')) return executionHeld();
+    // Placement mirrors the server's fail-closed hold exactly. Cancellation is
+    // live on a real server, but the in-browser demo has no account to cancel
+    // against — it answers like the demo's other unavailable mutations.
+    if (method === 'POST' && path === '/api/orders') return executionHeld();
+    if (path.startsWith('/api/orders')) return unavailable('In-browser order cancellation');
     if (path.startsWith('/api/auth')) return unavailable('Accounts');
     if (path.startsWith('/api/account/keys')) return unavailable('Per-user exchange keys');
     // The AI copilot is a POST; without this it fell to the generic 501 below
@@ -233,7 +237,11 @@ function handle(method: string, url: URL): Response | null {
     case path === '/api/trading/status': {
       const body: TradingStatus = {
         enabled: false,
-        reason: 'This is the public static demo. Midas execution is under a server safety hold; order preview remains available.',
+        // The static demo has no account at all, so even the server's
+        // cancel-only surface is honestly unavailable here.
+        cancelEnabled: false,
+        mode: 'off',
+        reason: 'This is the public static demo. On a real server Midas runs cancel-only: order placement is held, canceling your own resting orders is live. Order preview remains available.',
         maxOrderUsd: null,
         dailyCapUsd: null,
         dailyUsedUsd: 0,

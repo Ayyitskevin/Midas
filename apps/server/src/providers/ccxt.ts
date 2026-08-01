@@ -96,13 +96,57 @@ function intervalForSeconds(sec: number): Interval | null {
 
 /**
  * The provider-level execution safety hold, in the exact shape the route layer
- * returns for POST/DELETE /api/orders (error name TradingSafetyHold, the shared
- * reason constant, 503) so clients cannot tell the two layers apart.
+ * returns for POST /api/orders (error name TradingSafetyHold, the shared
+ * reason constant, 503) so clients cannot tell the two layers apart. Placement
+ * only — cancellation is live under the cancel-only posture.
  */
 function tradingSafetyHold(): ProviderError {
   const err = new ProviderError(EXECUTION_SAFETY_HOLD_REASON, 503);
   err.name = 'TradingSafetyHold';
   return err;
+}
+
+/**
+ * Map a failed cancel attempt to an honest outcome. The raw ccxt error message
+ * is inspected ONLY for classification — it can embed the signed request URL
+ * (HMAC signature / API key), so client-facing text is always rebuilt.
+ *
+ * - no exchange verdict (timeout/network) → 502 "outcome unknown": the cancel
+ *   may or may not have landed; never claim canceled when unknown.
+ * - order no longer open (filled / already canceled) → 409.
+ * - any other rejection → 502: the cancel did NOT happen, order still open.
+ */
+function classifyCancelError(err: unknown, id: string, symbol: string): ProviderError {
+  if (err instanceof ProviderError) return err;
+  const name = err instanceof Error ? err.name : '';
+  const rawMsg = err instanceof Error ? err.message : '';
+  if (
+    err instanceof ccxt.NetworkError ||
+    ['RequestTimeout', 'ExchangeNotAvailable', 'DDoSProtection', 'NetworkError'].includes(name)
+  ) {
+    return new ProviderError(
+      `Cancel outcome UNKNOWN for order ${id} on ${symbol} — the exchange did not confirm (${safeErrorLabel(err)}). ` +
+        'Check the exchange for the true order state before assuming it is open or canceled.',
+      502,
+      symbol,
+    );
+  }
+  if (
+    name === 'OrderNotFound' ||
+    name === 'InvalidOrder' ||
+    /already (filled|cancelled|canceled|closed)|order does not exist|unknown order/i.test(rawMsg)
+  ) {
+    return new ProviderError(
+      `Order ${id} on ${symbol} is no longer open — already filled or canceled (it may also rest on another venue of this account).`,
+      409,
+      symbol,
+    );
+  }
+  return new ProviderError(
+    `Cancel rejected by the exchange for order ${id} on ${symbol} (${safeErrorLabel(err)}) — the order should still be open.`,
+    502,
+    symbol,
+  );
 }
 
 /** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
@@ -833,14 +877,33 @@ export class CcxtProvider implements DataProvider {
   }
 
   /**
-   * Cancel a resting order. FAIL-CLOSED under the execution safety hold:
-   * throws the same TradingSafetyHold shape the route layer returns
-   * (routes/account.ts) so the hold cannot be bypassed by a future caller that
-   * reaches the provider directly. Resting orders must be managed directly at
-   * the exchange until the write path is repaired.
+   * Cancel a resting order. LIVE under the cancel-only posture: the route
+   * (routes/account.ts) proves the id sits in the caller's OWN open-orders
+   * list before this is ever called, so this write can only reduce the
+   * caller's exposure — it moves no funds, needs no notional cap.
+   *
+   * Outcomes are honest: exchange confirmation → CancelResult; already
+   * filled/canceled → 409; timeout/network → 502 "outcome unknown" (never a
+   * claimed cancel); other rejections → 502 with the order still open.
+   * Errors are classified WITHOUT leaking the raw ccxt message (signed URLs).
    */
-  async cancelOrder(_id: string, _symbol: string): Promise<CancelResult> {
-    throw tradingSafetyHold();
+  async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
+    if (!this.exchange.has['cancelOrder']) {
+      throw new ProviderError(`${this.name} does not support order cancellation.`, 501);
+    }
+    const sym = this.normalize(symbol);
+    try {
+      const raw = (await this.exchange.cancelOrder(id, sym)) as unknown as Record<string, unknown> | null;
+      const o = raw ?? {};
+      const strField = (v: unknown): string => (typeof v === 'string' ? v : '');
+      return {
+        id: strField(o.id) || id,
+        symbol: strField(o.symbol) || sym,
+        status: strField(o.status) || 'canceled',
+      };
+    } catch (err) {
+      throw classifyCancelError(err, id, sym);
+    }
   }
 
   /**

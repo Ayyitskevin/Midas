@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import type { OrderRequest, PlacedOrder } from '@midas/shared';
+import type { OpenOrder, OrderRequest, PlacedOrder } from '@midas/shared';
 import {
   computeTradingStatus,
   createScopedDailyLedgers,
@@ -11,7 +11,7 @@ import { KeyRepo, type UserExchangeKeys } from './repo';
 import { createUserLoops, userEquityFileName } from './loops';
 import { buildApp } from '../app';
 import { config } from '../config';
-import { createProvider, type DataProvider } from '../providers';
+import { createProvider, ProviderError, type DataProvider } from '../providers';
 import type { AccountWatchHandle } from '../accountWatch';
 
 const KMS = 'test-kms-secret';
@@ -196,7 +196,7 @@ describe('per-user loops', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Route-level: execution safety hold
+// Route-level: execution posture (placement held, cancel-only live)
 // ---------------------------------------------------------------------------
 
 interface TradeStub {
@@ -206,10 +206,26 @@ interface TradeStub {
   cancelOrder: ReturnType<typeof vi.fn>;
   getQuote: ReturnType<typeof vi.fn>;
   getOpenOrders: ReturnType<typeof vi.fn>;
+  setOrders: (orders: OpenOrder[]) => void;
 }
+
+const makeOpenOrder = (id: string, symbol = 'BTC/USDT'): OpenOrder => ({
+  id,
+  symbol,
+  side: 'buy',
+  type: 'limit',
+  price: 100,
+  amount: 1,
+  filled: 0,
+  remaining: 1,
+  value: 100,
+  timestamp: 0,
+  status: 'open',
+});
 
 const makeTradeStub = (name: string, tag: string): TradeStub => {
   let n = 0;
+  let orders: OpenOrder[] = [];
   return {
     name,
     live: true,
@@ -230,11 +246,14 @@ const makeTradeStub = (name: string, tag: string): TradeStub => {
     }),
     cancelOrder: vi.fn(async (id: string, symbol: string) => ({ id, symbol, status: 'canceled' })),
     getQuote: vi.fn(async () => ({ price: 100 })),
-    getOpenOrders: vi.fn(async () => ({ source: name, provenance: 'live', note: null, orders: [], asOf: 0 })),
+    getOpenOrders: vi.fn(async () => ({ source: name, provenance: 'live', note: null, orders, asOf: 0 })),
+    setOrders: (next: OpenOrder[]) => {
+      orders = next;
+    },
   };
 };
 
-describe('execution safety hold routes', () => {
+describe('execution posture routes (placement hold + cancel-only)', () => {
   let app: FastifyInstance;
   let tokenA = '';
   let tokenB = '';
@@ -294,6 +313,7 @@ describe('execution safety hold routes', () => {
       stub.cancelOrder.mockClear();
       stub.getQuote.mockClear();
       stub.getOpenOrders.mockClear();
+      stub.setOrders([]); // no leftover open orders from a prior cancel test
     }
   });
 
@@ -317,19 +337,25 @@ describe('execution safety hold routes', () => {
     });
   };
 
-  it('reports preview-only with each caller\'s resolved account-data source', async () => {
+  it('reports cancel-only with each caller\'s resolved account-data source', async () => {
     const a = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asA() })).json();
     expect(a.enabled).toBe(false);
+    expect(a.cancelEnabled).toBe(true);
+    expect(a.mode).toBe('cancel-only');
     expect(a.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
     expect(a.source).toBe('ccxt:kraken');
 
     const b = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asB() })).json();
     expect(b.enabled).toBe(false);
+    expect(b.cancelEnabled).toBe(true);
+    expect(b.mode).toBe('cancel-only');
     expect(b.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
     expect(b.source).toBe('ccxt:kraken');
 
     const c = (await app.inject({ method: 'GET', url: '/api/trading/status', headers: asC() })).json();
     expect(c.enabled).toBe(false);
+    expect(c.cancelEnabled).toBe(true);
+    expect(c.mode).toBe('cancel-only');
     expect(c.reason).toBe(EXECUTION_SAFETY_HOLD_REASON);
     expect(c.source).toBe('per-user-keys');
 
@@ -373,9 +399,9 @@ describe('execution safety hold routes', () => {
     expect(bobStub!.placeOrder).not.toHaveBeenCalled();
   });
 
-  it('remains held when authentication is disabled', async () => {
+  it('keeps placement held and cancellation ownership-gated when authentication is disabled', async () => {
     const noAuthPlace = vi.fn();
-    const noAuthCancel = vi.fn();
+    const noAuthCancel = vi.fn(async (id: string, symbol: string) => ({ id, symbol, status: 'canceled' }));
     const noAuthProvider = createProvider('mock');
     Object.assign(noAuthProvider, { placeOrder: noAuthPlace, cancelOrder: noAuthCancel });
     const noAuthApp = await buildApp(noAuthProvider, {
@@ -384,29 +410,129 @@ describe('execution safety hold routes', () => {
     });
     await noAuthApp.ready();
     try {
+      // Placement stays fail-closed even with no auth.
       const placed = await noAuthApp.inject({ method: 'POST', url: '/api/orders', payload: order() });
-      const canceled = await noAuthApp.inject({ method: 'DELETE', url: '/api/orders/some-order?symbol=BTC/USDT' });
       expectHeld(placed);
-      expectHeld(canceled);
       expect(noAuthPlace).not.toHaveBeenCalled();
-      expect(noAuthCancel).not.toHaveBeenCalled();
+
+      // A no-auth single-operator deployment reads the base provider as the
+      // caller's own account — so canceling a resting order from that account's
+      // open-orders list is live (the mock book holds demo-1..3)…
+      const canceled = await noAuthApp.inject({ method: 'DELETE', url: '/api/orders/demo-1?symbol=BTC/USDT' });
+      expect(canceled.statusCode).toBe(200);
+      expect(noAuthCancel).toHaveBeenCalledWith('demo-1', 'BTC/USDT');
+
+      // …but an id outside that list is a 404 without touching the exchange.
+      const unknown = await noAuthApp.inject({ method: 'DELETE', url: '/api/orders/some-order?symbol=BTC/USDT' });
+      expect(unknown.statusCode).toBe(404);
+      expect(noAuthCancel).toHaveBeenCalledTimes(1);
     } finally {
       await noAuthApp.close();
     }
   });
 
-  it('rejects in-app cancellation before provider access', async () => {
-    await app.inject({ method: 'GET', url: '/api/orders', headers: asA() });
+  it('cancels a user\'s own resting order through their own key', async () => {
+    const aliceStub = stubs.get('alice-api-key')!;
+    const bobStub = stubs.get('bob-api-key')!;
+    aliceStub.setOrders([makeOpenOrder('alice-ord-1'), makeOpenOrder('alice-ord-2', 'ETH/USDT')]);
+    bobStub.setOrders([makeOpenOrder('bob-ord-1')]);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/alice-ord-1?symbol=BTC/USDT',
+      headers: asA(),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id: 'alice-ord-1', symbol: 'BTC/USDT', status: 'canceled' });
+    expect(aliceStub.cancelOrder).toHaveBeenCalledWith('alice-ord-1', 'BTC/USDT');
+    expect(bobStub.cancelOrder).not.toHaveBeenCalled();
+    expect(operatorCancel).not.toHaveBeenCalled();
+
+    // The symbol falls back to the caller's own open-orders entry when the
+    // query param is absent.
+    const noQuery = await app.inject({ method: 'DELETE', url: '/api/orders/alice-ord-2', headers: asA() });
+    expect(noQuery.statusCode).toBe(200);
+    expect(aliceStub.cancelOrder).toHaveBeenCalledWith('alice-ord-2', 'ETH/USDT');
+  });
+
+  it('cross-user cancellation is a 404 — user B can never reach user A\'s order', async () => {
+    const aliceStub = stubs.get('alice-api-key')!;
+    const bobStub = stubs.get('bob-api-key')!;
+    aliceStub.setOrders([makeOpenOrder('alice-ord-9')]);
+    bobStub.setOrders([makeOpenOrder('bob-ord-9')]);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/alice-ord-9?symbol=BTC/USDT',
+      headers: asB(),
+    });
+    expect(res.statusCode).toBe(404);
+    expect(res.json().message).toMatch(/not among this account's open orders/);
+    expect(aliceStub.cancelOrder).not.toHaveBeenCalled();
+    expect(bobStub.cancelOrder).not.toHaveBeenCalled();
+    expect(operatorCancel).not.toHaveBeenCalled();
+  });
+
+  it('a user without usable keys cannot cancel — never an operator-account fallback', async () => {
+    const res = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/operator-order?symbol=BTC/USDT',
+      headers: asC(),
+    });
+    expect(res.statusCode).toBe(503);
+    expect(res.json().message).toMatch(/never used as a fallback/i);
+    expect(operatorCancel).not.toHaveBeenCalled();
+  });
+
+  it('an id outside the caller\'s open-orders list is a 404 before any cancel call', async () => {
+    const aliceStub = stubs.get('alice-api-key')!;
+    aliceStub.setOrders([]);
     const withSymbol = await app.inject({
       method: 'DELETE',
       url: '/api/orders/some-order?symbol=BTC/USDT',
       headers: asA(),
     });
     const withoutSymbol = await app.inject({ method: 'DELETE', url: '/api/orders/some-order', headers: asA() });
-    expectHeld(withSymbol);
-    expectHeld(withoutSymbol);
-    expect(stubs.get('alice-api-key')!.cancelOrder).not.toHaveBeenCalled();
+    expect(withSymbol.statusCode).toBe(404);
+    expect(withoutSymbol.statusCode).toBe(404);
+    expect(aliceStub.cancelOrder).not.toHaveBeenCalled();
     expect(operatorCancel).not.toHaveBeenCalled();
+  });
+
+  it('propagates the provider\'s honest outcomes: already-filled → 409, timeout → 502 unknown', async () => {
+    const aliceStub = stubs.get('alice-api-key')!;
+    aliceStub.setOrders([makeOpenOrder('alice-ord-3'), makeOpenOrder('alice-ord-4')]);
+    aliceStub.cancelOrder
+      .mockRejectedValueOnce(
+        new ProviderError('Order alice-ord-3 on BTC/USDT is no longer open — already filled or canceled.', 409),
+      )
+      .mockRejectedValueOnce(
+        new ProviderError(
+          'Cancel outcome UNKNOWN for order alice-ord-4 on BTC/USDT — the exchange did not confirm (RequestTimeout). ' +
+            'Check the exchange for the true order state before assuming it is open or canceled.',
+          502,
+        ),
+      );
+
+    const conflict = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/alice-ord-3?symbol=BTC/USDT',
+      headers: asA(),
+    });
+    expect(conflict.statusCode).toBe(409);
+    expect(conflict.json().message).toMatch(/already filled or canceled/);
+
+    const unknown = await app.inject({
+      method: 'DELETE',
+      url: '/api/orders/alice-ord-4?symbol=BTC/USDT',
+      headers: asA(),
+    });
+    expect(unknown.statusCode).toBe(502);
+    expect(unknown.json().message).toMatch(/outcome UNKNOWN/i);
+    // An unknown outcome must never read as a successful cancel: the body is
+    // an error, not a CancelResult.
+    expect(unknown.json().error).toBe('ProviderError');
+    expect(unknown.json().status).toBeUndefined();
   });
 
   it('preserves read-only account access while execution is held', async () => {

@@ -2,6 +2,7 @@ import type {
   AccountFills,
   AccountPositions,
   Balances,
+  CancelResult,
   CoinUniverse,
   DerivativesInfo,
   DexPools,
@@ -26,6 +27,7 @@ import type {
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
+import { ProviderError } from './types';
 import {
   mockExchangeQuotes,
   mockFundingHistory,
@@ -62,13 +64,16 @@ import { mockCoinUniverse } from './mock/coins';
  * terminal feels alive) but are stable within a given minute, and historical
  * series are fully reproducible for a (symbol, interval, range) triple.
  *
- * The provider is stateless: every method is a thin delegator to a pure
- * synthetic generator, grouped by domain under ./mock (market, derivatives,
- * solana, account) over the shared roster fixtures and quote engine.
+ * The provider is stateless except for one thing: demo orders canceled through
+ * {@link MockProvider.cancelOrder} stay canceled for the life of the instance,
+ * so the cancel-only posture behaves like a real account (cancel → the order
+ * leaves the open-orders list; a repeated cancel is an honest 409).
  */
 export class MockProvider implements DataProvider {
   readonly name = 'mock';
   readonly live = false;
+  /** Demo-order ids canceled through this instance (keeps the demo book honest). */
+  private readonly canceledDemoOrders = new Set<string>();
 
   getQuote(symbol: string): Promise<Quote> {
     return mockQuote(symbol);
@@ -124,8 +129,27 @@ export class MockProvider implements DataProvider {
   getBalances(): Promise<Balances> {
     return mockBalances();
   }
-  getOpenOrders(): Promise<OpenOrders> {
-    return mockOpenOrders();
+  async getOpenOrders(): Promise<OpenOrders> {
+    const snapshot = await mockOpenOrders();
+    if (this.canceledDemoOrders.size === 0) return snapshot;
+    return { ...snapshot, orders: snapshot.orders.filter((o) => !this.canceledDemoOrders.has(o.id)) };
+  }
+  /**
+   * Deterministic hermetic cancel for the demo book: removes the order from
+   * this instance's synthetic open-orders fixture, with an honest 409 for an
+   * id the fixture doesn't hold (or already canceled) — the same
+   * "no longer open" outcome the ccxt provider maps from a real exchange.
+   */
+  async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
+    const open = (await mockOpenOrders()).orders.some((o) => o.id === id);
+    if (!open || this.canceledDemoOrders.has(id)) {
+      throw new ProviderError(
+        `Order ${id} on ${symbol} is no longer open — already filled or canceled (or never a demo order).`,
+        409,
+      );
+    }
+    this.canceledDemoOrders.add(id);
+    return { id, symbol, status: 'canceled' };
   }
   getPositions(): Promise<AccountPositions> {
     return mockPositions();

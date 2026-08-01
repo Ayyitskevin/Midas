@@ -50,7 +50,7 @@ export const PLATFORM_COMMANDS: CommandDef[] = [
     module: 'ORD',
     requiresSymbol: false,
     description:
-      'Read-only open (resting) orders on your exchange account — symbol, side, type, price, amount, filled % and quote value, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server environment (ccxt provider); Midas only ever reads (fetchOpenOrders) — it never places or cancels orders. Shows a synthetic demo set until keys are configured.',
+      'Open (resting) orders on your exchange account — symbol, side, type, price, amount, filled % and quote value, with a live/demo data-honesty badge. Non-custodial, cancel-only: Midas never places orders, but you can cancel your OWN resting orders here (two-step confirm) — the server proves ownership against your key\'s open-orders list before any cancel call. Shows a synthetic demo set until keys are configured.',
   },
   {
     code: 'POSN',
@@ -87,7 +87,7 @@ export const PLATFORM_COMMANDS: CommandDef[] = [
     module: 'KEYS',
     requiresSymbol: false,
     description:
-      'Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, BAL/ORD/POSN/FILLS read YOUR account. Execution remains under a server safety hold regardless of canTrade metadata. Needs login; the operator enables the store with MIDAS_KEYS_KMS_SECRET. Use read-only keys and never enable withdrawal permission.',
+      'Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, BAL/ORD/POSN/FILLS read YOUR account. Order placement remains under a server safety hold regardless of canTrade metadata; canceling your own resting orders is live (cancel-only). Needs login; the operator enables the store with MIDAS_KEYS_KMS_SECRET. Use read-only keys and never enable withdrawal permission.',
   },
   {
     code: 'START',
@@ -133,6 +133,6 @@ export const PLATFORM_COMMANDS: CommandDef[] = [
     module: 'TICKET',
     requiresSymbol: true,
     description:
-      'Order ticket — build and validate a market/limit order and preview it against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Preview only: the server execution safety hold rejects placement and in-app cancellation regardless of environment flags or key metadata.',
+      'Order ticket — build and validate a market/limit order and preview it against the live L2 book: average fill, fee, slippage vs the touch, whether a limit takes now or rests, total cost / net proceeds, and a book-exhausted warning. Preview only: the server execution safety hold rejects placement regardless of environment flags or key metadata; canceling your own resting orders is live from ORD (cancel-only).',
   },
 ];

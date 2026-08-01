@@ -53,7 +53,7 @@ export interface Balances {
 /** Whether an account read (orders/positions) is a real keyed read, synthetic demo, or unavailable. */
 export type AccountProvenance = 'live' | 'synthetic' | 'unavailable';
 
-/** A single resting (open) order on the account. Read-only — Midas never places or cancels orders. */
+/** A single resting (open) order on the account. Read-only to list; the cancel-only posture can cancel the caller's own. */
 export interface OpenOrder {
   id: string;
   symbol: string;
@@ -198,11 +198,16 @@ export interface PlacedOrder {
 
 /**
  * Execution posture plus the reason and limits, so the UI can stay honest about
- * live versus preview-only mode. The current server always reports the execution
- * safety hold.
+ * live versus cancel-only versus preview-only mode. The current server reports
+ * the execution safety hold: placement off, cancellation of the caller's own
+ * resting orders live (`cancel-only`).
  */
 export interface TradingStatus {
   enabled: boolean;
+  /** True when DELETE /api/orders/:id is live for the caller's OWN open orders. */
+  cancelEnabled: boolean;
+  /** Execution posture: 'off' (no writes), 'cancel-only', or 'live' (placement + cancel). */
+  mode: 'off' | 'cancel-only' | 'live';
   /** Why trading is off (when disabled), or a confirmation note when on. */
   reason: string;
   /** Per-order USD notional cap the server enforces, or null if uncapped. */

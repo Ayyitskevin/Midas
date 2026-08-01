@@ -39,6 +39,8 @@ function health(overrides: Partial<HealthResponse>): HealthResponse {
 
 const HOLD: TradingStatus = {
   enabled: false,
+  cancelEnabled: true,
+  mode: 'cancel-only',
   reason: 'Trading is disabled while the execution safety hold is active.',
   maxOrderUsd: null,
   dailyCapUsd: null,

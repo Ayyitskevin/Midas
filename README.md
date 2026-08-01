@@ -15,10 +15,11 @@ machine, your data, your keys. Inspired by [Gödel Terminal](https://godeltermin
 no subscription, no paid tier. Self-host it, run the static demo locally, or
 fork it. A personal project, built in the open.
 
-> **Project status:** pre-release and read-only by design. The static demo uses
-> deterministic synthetic data in the browser; run your own instance to point it
-> at live markets. Midas does not custody funds, and live order
-> placement/cancellation remains under an unconditional safety hold.
+> **Project status:** pre-release and non-custodial by design. The static demo
+> uses deterministic synthetic data in the browser; run your own instance to
+> point it at live markets. Midas does not custody funds. Order placement
+> remains under an unconditional safety hold; canceling your own resting
+> orders is live (cancel-only).
 
 <p align="center"><img src="docs/assets/hero.png" alt="The Midas terminal — watchlist, security description, chart, order book and time & sales on one linked desk" width="900"></p>
 
@@ -99,8 +100,8 @@ and [AI-assisted development policy](docs/AI-DEVELOPMENT.md).
   (`FILLS`), and a read-only account watcher turns every fill/cancel into a
   terminal toast + webhook push — even for orders placed outside Midas.
   The order ticket (`TICKET`) previews fills against the live book. Real order
-  placement and in-app cancellation are under an unconditional execution safety
-  hold; manage existing orders directly at the exchange.
+  placement is under an unconditional execution safety hold; you can cancel
+  your own resting orders from `ORD` (cancel-only, two-step confirm).
 - **Pluggable data layer.** `mock` (deterministic, offline), `ccxt` (live
   multi-exchange crypto), `yahoo` (equities) — swap behind one interface.
 - **Typed end-to-end** with a shared data contract package.
@@ -261,13 +262,13 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `Q`     | `QM`, `QUOTE`  | no           | Dense live quote grid for watchlist symbols.  |
 | `PORT`  | `POS`          | no           | Paper portfolio — positions, realized & live P&L, trade history. |
 | `BAL`   | `BALANCE`, `BALANCES`, `ACCTBAL` | no | Read-only exchange account balances — per-asset free/used/total, USD value & allocation %, with a live/demo data-honesty badge. Non-custodial: read with read-only API keys from the server env (`ccxt` provider); Midas never places orders or holds funds. Synthetic demo book until keys are set. |
-| `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Read-only open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial: reads only (`fetchOpenOrders`) — never places or cancels orders. Synthetic demo set until read-only keys are set. |
+| `ORD`   | `ORDERS`, `OPENORDERS`, `OO` | no | Open (resting) orders — symbol, side, type, price, amount, filled % & quote value, with a live/demo badge. Non-custodial, cancel-only: Midas never places orders, but you can cancel your OWN resting orders here (two-step confirm) — the server proves ownership against your key's open-orders list first. Synthetic demo set until keys are set. |
 | `POSN`  | `POSITIONS`, `LIVEPOS`, `XPOS` | no | Read-only open derivatives positions — side, size, entry, mark, unrealized P&L (& %), liquidation price & leverage, with a total uPnL and a live/demo badge. Non-custodial: reads only (`fetchPositions`) — never opens or closes positions. Synthetic demo set until read-only keys are set. |
 | `FILLS` | `MYTRADES`, `FILLHIST`, `EXECUTIONS` | no | Your own executions (my-trades) — time, side, price, amount, cost, fee & maker/taker, with a live/demo badge. Symbol-aware (some venues only serve fills per symbol: `BTC/USDT FILLS`). Read-only; synthetic demo fills until keys are set. |
-| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build and validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, and book-exhausted warning. **Preview only:** the server execution safety hold rejects placement and in-app cancellation. |
+| `TICKET`| `ORDER`, `OE`, `PREVIEW` | yes | Order ticket — build and validate a market/limit order and preview the fill against the live book: average fill, fee, slippage, takes-now vs rests, total cost / net proceeds, and book-exhausted warning. **Preview only:** the server execution safety hold rejects placement; canceling your own resting orders is live from `ORD` (cancel-only). |
 | `START` | `TOUR`, `GETSTART`, `INTRO` | no | First-run tour — six one-click rows that each **run** a real command, teaching the grammar by doing. Opens automatically on the very first visit. |
 | `SYS`   | `STATUS`, `SYSTEM` | no | System status — provider, version, uptime, and which background loops are actually running (watcher, stream nudge, digest, equity snapshots, trading gate). |
-| `KEYS`  | `APIKEYS`, `EXKEYS` | no | Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, `BAL`/`ORD`/`POSN`/`FILLS` read YOUR account. Needs login; execution remains under the server safety hold. Use read-only keys, never enable withdrawal permission. |
+| `KEYS`  | `APIKEYS`, `EXKEYS` | no | Manage your own exchange API keys on a shared/hosted Midas — save (write-only: encrypted at rest server-side, never displayed again), inspect the metadata (exchange + last 4), delete in one action. With keys stored, `BAL`/`ORD`/`POSN`/`FILLS` read YOUR account. Needs login; order placement remains under the server safety hold, cancellation of your own orders is live. Use read-only keys, never enable withdrawal permission. |
 | `WN`    | `WHATSNEW`, `CHANGELOG`, `RELEASES` | no | What's New — release highlights in-terminal, newest first. Pairs with a one-time "Midas updated to vX" toast when your server moves to a new version. |
 | `AEQ`   | `ACCTEQ`, `ACCTCURVE` | no | Your real account's **equity curve** — periodic server-side snapshots of total value + unrealized P&L (read-only), persisted across restarts and accruing with no browser open (`MIDAS_EQUITY_SNAP_MS`, default hourly). Outages render as honest gaps, never interpolated points. |
 | `XQL`   | `EXECQ`, `TCA` | no | **Execution quality** from your own fills — maker/taker mix, fee totals by currency, notional, and realized slippage vs the estimates `TICKET` recorded at placement (notional-weighted, with an honest coverage %). Per-symbol breakdown; symbol-aware like `FILLS`. |
@@ -478,7 +479,8 @@ a panel type means writing a module component and registering it.
 | `GET /api/orders/:id?symbol=`      | read-only single-order lookup (TICKET tracking) |
 | `GET /api/account/events?since=`   | account watcher feed (fills/cancels observed) |
 | `GET /api/trading/status`          | current execution posture and safety-hold reason |
-| `POST /api/orders` · `DELETE /api/orders/:id` | compatibility endpoints; return `503 TradingSafetyHold` |
+| `POST /api/orders`                 | order placement — returns `503 TradingSafetyHold` (fail-closed) |
+| `DELETE /api/orders/:id?symbol=`   | cancel one of YOUR open orders (cancel-only: ownership-gated; `404` not yours, `409` already filled/canceled, `502` outcome unknown) |
 | `GET /api/auth/status`             | whether auth is on / signup open |
 | `POST /api/auth/signup\|login`     | create a session (returns a token)|
 | `GET /api/auth/me`                 | the signed-in user (bearer token)|
@@ -530,7 +532,7 @@ Server (environment variables):
 | `PORT`                | `4000`      | API port.                           |
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin.                |
-| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Once enabled, account reads require each user's own usable key and never fall back to operator env credentials. The server refuses this mode unless `MIDAS_AUTH_ENABLED=true`. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold. |
+| `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Once enabled, account reads require each user's own usable key and never fall back to operator env credentials. The server refuses this mode unless `MIDAS_AUTH_ENABLED=true`. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold on placement. |
 | `MIDAS_MAX_KEYED_USERS` | `25`      | Keyed users allowed to run per-user background loops (fill watcher + equity snapshots). Beyond the cap, reads still work per-request; the events/equity panels say loops are off. |
 | `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
 | `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data and closes signups. Execution is already held globally. |
@@ -545,23 +547,31 @@ Server (environment variables):
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Allow ongoing open registration. The first account can always bootstrap; later signups require an explicit `true`. |
 | `MIDAS_AUTH_SECRET`   | —           | Secret for signing session tokens.   |
-| `MIDAS_TRADING_ENABLED` | `false`   | Legacy compatibility flag. It does not enable execution while the safety hold is active. |
+| `MIDAS_TRADING_ENABLED` | `false`   | Legacy compatibility flag. It does not enable order placement while the safety hold is active. |
 | `MIDAS_MAX_ORDER_USD` | `1000`      | Legacy per-order cap target retained for execution repair work. |
 | `MIDAS_MAX_DAILY_USD` | `5000`      | Legacy daily cap target retained for execution repair work. |
-| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Legacy compatibility flag. It does not bypass the execution safety hold. |
+| `MIDAS_TRADING_ALLOW_NO_AUTH` | `false` | Legacy compatibility flag. It does not bypass the execution safety hold on placement. |
 
 ### Execution safety hold
 
-Midas currently operates as a read-only, non-custodial research terminal. The
-`TICKET` panel remains a live-book preview, but the server unconditionally returns
-`503 TradingSafetyHold` from order placement and in-app cancellation. Environment
-flags and trade-marked keys cannot bypass the hold.
+Midas operates as a non-custodial research terminal with a **cancel-only**
+execution posture. The `TICKET` panel remains a live-book preview, and the
+server unconditionally returns `503 TradingSafetyHold` from order placement —
+environment flags and trade-marked keys cannot bypass the hold.
 
-The hold exists because the retired execution path used process-local daily limits
-and idempotency state, and its notional estimate was not USD-normalized for every
-instrument. Re-enabling execution requires durable transactional state, atomic
-idempotency, startup reconciliation, explicit unknown-outcome handling, and
-instrument-aware USD normalization. See
+`DELETE /api/orders/:id` is live for the authenticated owner of the order:
+cancellation is risk-reducing (it moves no funds and needs no notional caps),
+and the route proves the order sits in the caller's own open-orders list —
+with no operator-account fallback — before any cancel call. Outcomes are
+honest: `409` when the order already filled or canceled, `502` with an
+explicit "outcome unknown — check the exchange" message on timeouts, never a
+claimed cancel when the result is ambiguous.
+
+The placement hold exists because the retired execution path used process-local
+daily limits and idempotency state, and its notional estimate was not
+USD-normalized for every instrument. Re-enabling placement requires durable
+transactional state, atomic idempotency, startup reconciliation, explicit
+unknown-outcome handling, and instrument-aware USD normalization. See
 [`docs/EXECUTION_SAFETY_HOLD.md`](./docs/EXECUTION_SAFETY_HOLD.md).
 
 Web (build-time): `VITE_API_TARGET` (dev proxy target),

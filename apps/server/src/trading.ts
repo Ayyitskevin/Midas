@@ -1,17 +1,23 @@
 import type { OrderRequest, PlacedOrder, TradingStatus } from '@midas/shared';
 
 export const EXECUTION_SAFETY_HOLD_REASON =
-  'Execution safety hold: live order placement and in-app cancellation are disabled until ' +
+  'Execution safety hold: live order placement is disabled until ' +
   'restart-safe limits, atomic idempotency, and USD-normalized notional checks are implemented. ' +
-  'Manage existing orders directly at the exchange.';
+  'In-app cancellation of your own resting orders is available (cancel-only mode); ' +
+  'place new orders directly at the exchange.';
 
 /**
- * The public execution posture while the legacy write path is being repaired.
- * Keeping this status independent of environment flags makes the hold fail closed.
+ * The public execution posture: cancel-only. Placement stays fail-closed under
+ * the safety hold, but cancellation is risk-reducing (moves no funds, needs no
+ * notional caps or idempotency-of-money) and is live for the authenticated
+ * owner of the order. Keeping this status independent of environment flags
+ * makes the placement hold fail closed.
  */
 export function executionSafetyHoldStatus(source: string): TradingStatus {
   return {
     enabled: false,
+    cancelEnabled: true,
+    mode: 'cancel-only',
     reason: EXECUTION_SAFETY_HOLD_REASON,
     maxOrderUsd: null,
     dailyCapUsd: null,
@@ -22,8 +28,8 @@ export function executionSafetyHoldStatus(source: string): TradingStatus {
 
 /**
  * Legacy live-trading gate calculations retained for repair work and tests.
- * HTTP execution is held unconditionally by {@link executionSafetyHoldStatus};
- * these calculations must not be used to make provider writes reachable.
+ * HTTP order placement is held unconditionally by {@link executionSafetyHoldStatus};
+ * these calculations must not be used to make provider placement writes reachable.
  *
  * Keeping every gate here pure means the rules are unit-testable without a live
  * exchange.
@@ -111,6 +117,12 @@ export function computeTradingStatus(
   const enabled = reasons.length === 0;
   return {
     enabled,
+    // Legacy scaffolding semantics: this gate models FULL live trading, so
+    // cancel rides along with placement here. The actual server posture is
+    // published by {@link executionSafetyHoldStatus} (cancel-only) — this
+    // function is repair scaffolding, not execution authority.
+    cancelEnabled: enabled,
+    mode: enabled ? 'live' : 'off',
     reason: enabled
       ? 'Live trading is ENABLED — orders placed here are real and will execute on the exchange.'
       : reasons.join(' '),

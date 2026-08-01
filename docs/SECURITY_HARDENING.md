@@ -69,25 +69,32 @@ in [`WORKFLOW_SECURITY.md`](./WORKFLOW_SECURITY.md). The policy script
 
 ## The execution safety hold
 
-Order placement and in-app cancellation stop at the route boundary:
+Order placement stops at the route boundary; cancellation is cancel-only:
 
 ```
 POST /api/orders       -> 503 TradingSafetyHold
-DELETE /api/orders/:id -> 503 TradingSafetyHold
+DELETE /api/orders/:id -> 404 unless the id sits in the caller's OWN
+                          open-orders list; otherwise provider.cancelOrder
+                          (200 confirmed / 409 already filled-canceled /
+                          502 outcome unknown)
 ```
 
-`GET /api/trading/status` always reports preview-only with the hold reason.
+`GET /api/trading/status` reports the cancel-only posture with the hold reason.
 Tests exercise trade-marked users, operator-backed users, invalid instruments,
-concurrent retries, and cancellation, and assert that provider write methods are
-never called. Existing resting orders must be managed directly at the exchange.
+concurrent retries, cross-user cancellation, and unknown outcomes, and assert
+that `provider.placeOrder` is never called. New orders must be placed directly
+at the exchange.
 
 ## Guarantees the codebase enforces (verified by tests)
 
 These are invariants, not aspirations — each has a test that fails CI if it
 regresses:
 
-- **Execution fails closed.** Runtime flags, credentials, key metadata, request
-  shape, and retry timing cannot make the HTTP API reach provider writes.
+- **Placement fails closed.** Runtime flags, credentials, key metadata, request
+  shape, and retry timing cannot make the HTTP API reach `provider.placeOrder`.
+- **Cancellation is ownership-gated.** `DELETE /api/orders/:id` can only reach
+  `provider.cancelOrder` for an id in the caller's OWN open-orders list (no
+  operator-account fallback), and ambiguous outcomes are reported honestly.
 - **The input edges are bounded.** Symbols are charset+length checked at every
   route; the public WebSocket validates channel/symbol, caps frame size,
   bounds subscriptions per socket, and ceilings total upstream sources;

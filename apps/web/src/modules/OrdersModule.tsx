@@ -30,9 +30,10 @@ function fmtAge(ts: number | null): string {
 }
 
 /**
- * ORD — read-only open (resting) orders on the connected exchange account.
- * Account-wide (ignores the panel symbol). The execution safety hold keeps this
- * panel read-only; existing orders must be managed directly at the exchange.
+ * ORD — open (resting) orders on the connected exchange account. Account-wide
+ * (ignores the panel symbol). Under the server's cancel-only posture, the
+ * caller can cancel their OWN resting orders here (two-step confirm); new
+ * orders are still placed directly at the exchange.
  */
 export function OrdersModule(_props: ModuleProps) {
   const { data, error, loading, refresh } = useFetch((signal) => api.openOrders(signal), [], {
@@ -40,7 +41,7 @@ export function OrdersModule(_props: ModuleProps) {
   });
   useAccountRefresh(refresh);
   const trading = useTradingStatus();
-  const canCancel = trading?.enabled ?? false;
+  const canCancel = trading?.cancelEnabled ?? false;
 
   // Two-step cancel: first click arms the row, second confirms.
   const [armedId, setArmedId] = useState<string | null>(null);
@@ -55,7 +56,11 @@ export function OrdersModule(_props: ModuleProps) {
       setArmedId(null);
       emitAccountChange(); // this panel + BAL/POSN refresh
     } catch (e) {
+      // Honest failure states come from the server as-is: 409 already
+      // filled/canceled, 502 outcome unknown. Either way, re-read the book —
+      // on an unknown outcome the order may in fact be gone.
       setCancelError(e instanceof Error ? e.message : 'Cancel failed.');
+      refresh();
     } finally {
       setCancelingId(null);
     }
@@ -176,11 +181,11 @@ export function OrdersModule(_props: ModuleProps) {
             className="ml-auto"
             title={
               canCancel
-                ? 'Live trading is enabled — cancels execute on the exchange after a two-step confirm.'
+                ? 'Cancel-only mode — cancels execute on the exchange after a two-step confirm; placement stays disabled.'
                 : trading?.reason ?? 'Midas is non-custodial and read-only.'
             }
           >
-            {canCancel ? 'non-custodial · cancel enabled' : 'non-custodial · read-only'}
+            {canCancel ? 'non-custodial · cancel-only' : 'non-custodial · read-only'}
           </span>
         </div>
       )}
