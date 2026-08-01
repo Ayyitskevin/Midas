@@ -7,6 +7,7 @@ import {
   coinUniverseFor,
   derivativesFor,
   dexPoolsFor,
+  dvolFor,
   fillsFor,
   fundingDispersionRows,
   fundingHistoryFor,
@@ -16,6 +17,7 @@ import {
   newsFor,
   oiConcentrationRows,
   openOrdersFor,
+  optionsChainFor,
   orderBookFor,
   positionsFor,
   quoteFor,
@@ -30,6 +32,7 @@ import {
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
+  termStructureFor,
   venueArbRows,
   venueDerivatives,
   venueQuotes,
@@ -170,6 +173,30 @@ function handle(method: string, url: URL): Response | null {
       return json(boardEnvelope(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path === '/api/oi-concentration':
       return json(boardEnvelope(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
+    // Options / DVOL / term structure — synthetic parity with the server.
+    case path === '/api/options/dvol': {
+      const raw = (url.searchParams.get('symbol') ?? '').toUpperCase().split('/')[0];
+      // Mirror the server's edge: DVOL is published for BTC and ETH only.
+      if (raw !== 'BTC' && raw !== 'ETH') {
+        return json({ error: 'ProviderError', message: 'DVOL is published for BTC and ETH only', statusCode: 400 }, 400);
+      }
+      return json(dvolFor(raw as 'BTC' | 'ETH', now));
+    }
+    case path === '/api/options/chain': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      const rawExpiry = url.searchParams.get('expiry') ?? 'nearest';
+      const expiry = rawExpiry === 'nearest' ? ('nearest' as const) : Number(rawExpiry);
+      if (expiry !== 'nearest' && (!Number.isFinite(expiry) || expiry <= 0)) {
+        return json({ error: 'ProviderError', message: 'Invalid expiry — expected "nearest" or an epoch-millis expiry', statusCode: 400 }, 400);
+      }
+      return json(optionsChainFor(sym, expiry, now));
+    }
+    case path === '/api/futures/term-structure': {
+      const sym = url.searchParams.get('symbol') ?? '';
+      if (!sym) return json({ error: 'ProviderError', message: 'Missing or invalid symbol', statusCode: 400 }, 400);
+      return json(termStructureFor(sym, now));
+    }
     case path.startsWith('/api/venue-derivatives/'):
       return json(venueDerivatives(seg(3), now));
     case path === '/api/screener': {

@@ -6,8 +6,11 @@ import type {
   CoinUniverse,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
+  DvolSymbol,
   FundingHistoryPoint,
   OpenOrders,
+  OptionsChain,
   OrderRequest,
   PlacedOrder,
   HistoryResponse,
@@ -27,6 +30,7 @@ import type {
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
+  TermStructure,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -127,6 +131,26 @@ export interface DataProvider {
   streamAccountNudge?(onChange: () => void): (() => void) | null;
   /** Recent funding settlements for a perp (optional — crypto providers only). */
   getFundingHistory?(symbol: string, limit: number): Promise<FundingHistoryPoint[]>;
+  /**
+   * DVOL volatility-index snapshot for BTC/ETH (optional). Deribit-native —
+   * the ccxt provider reads it from Deribit regardless of the configured
+   * exchange; providers that omit it get an honest 'unavailable' snapshot from
+   * the route. Read-only, honestly labeled.
+   */
+  getDvol?(symbol: DvolSymbol): Promise<DvolSnapshot>;
+  /**
+   * Dated-futures term structure for an underlying (optional) — the calendar
+   * curve of annualized basis vs the perp/spot reference. Deribit-native for
+   * the same reason as getDvol; honestly labeled, nulls over fabrication.
+   */
+  getFuturesTermStructure?(symbol: string): Promise<TermStructure>;
+  /**
+   * Options chain for an underlying at one expiry (optional): strikes around
+   * the money with call/put OI and marks, max pain and the put/call OI ratio.
+   * `expiry` is 'nearest' (default) or an epoch-millis expiry. Deribit-native;
+   * honestly labeled, nulls over fabrication.
+   */
+  getOptionsChain?(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain>;
   /**
    * Place a LIVE order (optional — ccxt only). The single write in the data layer.
    * Reached only when live trading is explicitly enabled, validated and capped by

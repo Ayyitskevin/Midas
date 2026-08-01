@@ -11,6 +11,8 @@
 
 export * from './chart';
 export * from './market';
+export * from './fees';
+export * from './options';
 export * from './board';
 export * from './solana';
 export * from './account';

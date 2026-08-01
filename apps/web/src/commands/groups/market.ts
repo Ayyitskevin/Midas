@@ -256,6 +256,33 @@ export const MARKET_COMMANDS: CommandDef[] = [
       "Cross-venue open-interest / crowding board — for the top perps by volume, aggregate open interest across the compare set (Binance, OKX, Bybit, …) plus how concentrated it is on one venue (top-venue share + a Herfindahl index), ranked by total OI. High OI concentrated on a single venue is crowding / venue risk. The size-and-positioning companion to FUNDX (funding) and XARB (price). Crypto-only (ccxt provider).",
   },
   {
+    code: 'DVOL',
+    aliases: ['DERIVOL', 'DVOLINDEX'],
+    title: 'DVOL Volatility',
+    module: 'DVOL',
+    requiresSymbol: false,
+    description:
+      "Deribit DVOL volatility index — the 30-day forward-looking implied-vol gauge for BTC and ETH, with a 30-day sparkline. Options drive BTC/ETH price discovery and DVOL is its fear gauge: rising DVOL = demand for protection. Read from Deribit regardless of the configured exchange (options are Deribit-native), with a live/synthetic data-honesty badge. Complements VTS (realized-vol term structure) and VCONE (realized-vol cones) with the implied side.",
+  },
+  {
+    code: 'FTERM',
+    aliases: ['FBASIS', 'FUTTERM'],
+    title: 'Futures Term Structure',
+    module: 'TERM',
+    requiresSymbol: true,
+    description:
+      "Futures term structure — every dated future for the symbol with its annualized basis vs the perpetual, read as a calendar curve: contango (futures rich, positive basis) or backwardation (futures cheap, negative). The calendar-spread and cash-and-carry lens PREM lacks (PREM is perp-vs-spot only). Deribit dated futures, with a live/synthetic data-honesty badge.",
+  },
+  {
+    code: 'OPTC',
+    aliases: ['OPTCHAIN', 'MAXPAIN'],
+    title: 'Options Chain',
+    module: 'OPTC',
+    requiresSymbol: true,
+    description:
+      "Options chain — strikes around the money for the nearest (or a later) expiry with call/put open interest, USD marks and implied vol, the max-pain strike highlighted, and the put/call OI ratio as the positioning read (put-heavy vs call-heavy). Deribit options, with a live/synthetic data-honesty badge. Pairs with DVOL (the vol level) and FTERM (the futures curve).",
+  },
+  {
     code: 'LIQS',
     aliases: ['LIQUIDATIONS', 'REKT'],
     title: 'Liquidations',
