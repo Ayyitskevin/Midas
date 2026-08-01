@@ -7,6 +7,7 @@ import { rslBoard, type RslSort, type RslSide } from '@/lib/rsl';
 import { fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -23,31 +24,6 @@ const PRESETS: { label: string; period: number }[] = [
 
 const SIDE_LABEL: Record<RslSide, string> = { up: '▲ strong', down: '▼ weak' };
 const sideClass = (s: RslSide) => (s === 'up' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: RslSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: RslSort;
-  onSort: (c: RslSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function RslModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

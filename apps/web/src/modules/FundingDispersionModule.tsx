@@ -3,6 +3,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { FundingVenuePoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -18,9 +19,11 @@ function fmtBps(bps: number | null): string {
   return `${bps.toFixed(2)} bp`;
 }
 
-/** Full per-venue breakdown for the row's hover title. */
+/** Full per-venue breakdown for the row's hover title — raw per-interval rate with its cadence. */
 function venuesTitle(venues: FundingVenuePoint[]): string {
-  return venues.map((v) => `${v.exchange} ${fmtPct(v.fundingRate)}`).join('  ·  ');
+  return venues
+    .map((v) => `${v.exchange} ${fmtPct(v.fundingRate)}${v.fundingIntervalHours != null ? ` (${v.fundingIntervalHours}h)` : ''}`)
+    .join('  ·  ');
 }
 
 export function FundingDispersionModule({ panel }: ModuleProps) {
@@ -31,14 +34,19 @@ export function FundingDispersionModule({ panel }: ModuleProps) {
   );
 
   // The server already ranks widest-spread first — the funding-arb signal.
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">FUNDING DISPERSION</span>
-        <span className="text-term-dim">cross-venue Δfund · USDT · 8h</span>
+        {data ? (
+          <BoardMetaBadge meta={data.meta} />
+        ) : (
+          <span className="text-term-dim">cross-venue Δfund · USDT · per-8h norm</span>
+        )}
       </div>
+      {data && <BoardMetaNote meta={data.meta} />}
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading dispersion" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
@@ -99,7 +107,8 @@ export function FundingDispersionModule({ panel }: ModuleProps) {
         )}
       </div>
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        Δ = cross-venue funding spread (bp) · <span className="text-term-up">long</span> the cheapest-funded venue,{' '}
+        Δ = cross-venue funding spread (bp), rates normalized to per-8h ·{' '}
+        <span className="text-term-up">long</span> the cheapest-funded venue,{' '}
         <span className="text-term-down">short</span> the dearest · OI = aggregate open interest
       </div>
     </div>

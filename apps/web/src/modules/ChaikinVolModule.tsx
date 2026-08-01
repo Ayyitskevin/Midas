@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { chaikinVolBoard, type ChaikinVolSort, type ChaikinRegime, type ChaikinBar } from '@/lib/chaikinVol';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ function RegimeCell({ regime }: { regime: ChaikinRegime }) {
   if (regime === 'expanding') return <span className="text-term-amber">EXPANDING</span>;
   if (regime === 'contracting') return <span className="text-term-down">CONTRACTING</span>;
   return <span className="text-term-dim">FLAT</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: ChaikinVolSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: ChaikinVolSort;
-  onSort: (c: ChaikinVolSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function ChaikinVolModule({ panel }: ModuleProps) {

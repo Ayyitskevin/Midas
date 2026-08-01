@@ -7,6 +7,7 @@ import { trixBoard, type TrixSort, type TrixSide, type TrixCross } from '@/lib/t
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const PRESETS: { label: string; period: number; signal: number }[] = [
 ];
 
 const sideColor = (side: TrixSide) => (side === 'up' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TrixSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TrixSort;
-  onSort: (c: TrixSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: TrixCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

@@ -23,6 +23,7 @@ import { encodeScan, shareUrl } from '@/lib/deepLink';
 import { copyToClipboard } from '@/lib/clipboard';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 /** Seed the scan filter from a deep link / persisted panel param, else show all. */
@@ -75,31 +76,6 @@ function Chip({ label, value, onClick }: { label: string; value: string; onClick
       <span className="text-term-dim">{label} </span>
       {value}
     </button>
-  );
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: SignalSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: SignalSort;
-  onSort: (c: SignalSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
   );
 }
 

@@ -7,36 +7,12 @@ import { liquidity, sortLiquidity, type LiquidityRow, type LiquiditySort } from 
 import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 16;
 const LEVEL_OPTS = [10, 25];
 const base = (sym: string) => sym.replace(/\/.*$/, '');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: LiquiditySort;
-  label: string;
-  align: 'left' | 'right';
-  sort: LiquiditySort;
-  onSort: (c: LiquiditySort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function LiquidityModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

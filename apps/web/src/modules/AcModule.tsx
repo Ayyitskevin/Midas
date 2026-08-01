@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { acBoard, type AcSort, type AcBarColor, type AcBar } from '@/lib/ac';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -26,31 +27,6 @@ const acClass = (v: number) => (v >= 0 ? 'text-term-up' : 'text-term-down');
 function BarCell({ bar }: { bar: AcBarColor }) {
   if (bar === 'up') return <span className="text-term-up">▲ RISE</span>;
   return <span className="text-term-down">▼ FALL</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: AcSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: AcSort;
-  onSort: (c: AcSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function AcModule({ panel }: ModuleProps) {

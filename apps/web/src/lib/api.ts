@@ -13,6 +13,7 @@ import type {
   AuthSession,
   AuthStatus,
   Balances,
+  BoardEnvelope,
   CancelResult,
   CoinUniverse,
   DerivativesInfo,
@@ -144,7 +145,10 @@ export const api = {
     apiGet<VenueDerivatives[]>(`/api/venue-derivatives/${encodeURIComponent(symbol)}`, signal),
 
   venueArb: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
-    apiGet<VenueArbRow[]>(`/api/venue-arb?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
+    apiGet<BoardEnvelope<VenueArbRow>>(
+      `/api/venue-arb?quote=${encodeURIComponent(quote)}&limit=${limit}`,
+      signal,
+    ),
 
   derivatives: (symbol: string, signal?: AbortSignal) =>
     apiGet<DerivativesInfo>(`/api/derivatives/${encodeURIComponent(symbol)}`, signal),
@@ -218,16 +222,16 @@ export const api = {
     ),
 
   funding: (quote = 'USDT', limit = 30, signal?: AbortSignal) =>
-    apiGet<FundingRow[]>(`/api/funding?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
+    apiGet<BoardEnvelope<FundingRow>>(`/api/funding?quote=${encodeURIComponent(quote)}&limit=${limit}`, signal),
 
   fundingDispersion: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
-    apiGet<FundingDispersionRow[]>(
+    apiGet<BoardEnvelope<FundingDispersionRow>>(
       `/api/funding-dispersion?quote=${encodeURIComponent(quote)}&limit=${limit}`,
       signal,
     ),
 
   oiConcentration: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
-    apiGet<OiConcentrationRow[]>(
+    apiGet<BoardEnvelope<OiConcentrationRow>>(
       `/api/oi-concentration?quote=${encodeURIComponent(quote)}&limit=${limit}`,
       signal,
     ),

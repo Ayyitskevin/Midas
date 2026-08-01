@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { massBoard, type MassSort, type MassState } from '@/lib/massIndex';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const PRESETS: { label: string; emaPeriod: number }[] = [
 const SUM = 25;
 const BULGE = 27;
 const TRIGGER = 26.5;
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: MassSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: MassSort;
-  onSort: (c: MassSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function StateCell({ state }: { state: MassState }) {
   if (state === 'fired') return <span className="font-semibold text-term-amber">FIRE</span>;

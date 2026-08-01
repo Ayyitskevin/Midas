@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { williamsBoard, type WrSort, type WrZone } from '@/lib/williamsR';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -22,31 +23,6 @@ const PERIODS: { label: string; period: number }[] = [
 const ZONE_LABEL: Record<WrZone, string> = { overbought: 'OB', oversold: 'OS', neutral: '·' };
 const zoneColor = (zone: WrZone) =>
   zone === 'overbought' ? 'text-term-down' : zone === 'oversold' ? 'text-term-up' : 'text-term-text';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: WrSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: WrSort;
-  onSort: (c: WrSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function WilliamsRModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

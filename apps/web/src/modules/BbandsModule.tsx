@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { bandsBoard, type BBSort } from '@/lib/bollinger';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const PERIODS: { label: string; period: number }[] = [
 
 // Amber when price has pushed outside the bands (%B < 0 or > 1).
 const pctBColor = (v: number) => (v > 1 || v < 0 ? 'text-term-amber' : 'text-term-text');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: BBSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: BBSort;
-  onSort: (c: BBSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function BbandsModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

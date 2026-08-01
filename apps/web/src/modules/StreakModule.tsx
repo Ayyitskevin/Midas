@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { streakBoard, type StreakSort } from '@/lib/streaks';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -18,31 +19,6 @@ const TIMEFRAMES: { label: string; interval: Interval; range: Range }[] = [
 
 const curColor = (v: number) => (v > 0 ? 'text-term-up' : v < 0 ? 'text-term-down' : 'text-term-muted');
 const fmtCur = (v: number) => (v > 0 ? `+${v}` : `${v}`);
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: StreakSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: StreakSort;
-  onSort: (c: StreakSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function StreakModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

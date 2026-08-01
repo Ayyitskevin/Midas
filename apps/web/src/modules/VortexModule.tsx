@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { vortexBoard, type VtxSort, type VtxCross } from '@/lib/vortex';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const PERIODS: { label: string; period: number }[] = [
 
 // Green when +VI leads (uptrend), red when −VI leads (downtrend).
 const diffColor = (v: number) => (v > 0 ? 'text-term-up' : v < 0 ? 'text-term-down' : 'text-term-text');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: VtxSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: VtxSort;
-  onSort: (c: VtxSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: VtxCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

@@ -7,6 +7,7 @@ import { coppockBoard, type CoppockSort, type CoppockTurn } from '@/lib/coppock'
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PRESETS: { label: string; roc1: number; roc2: number; wma: number }[] = [
   { label: '14·11·10', roc1: 14, roc2: 11, wma: 10 }, // Coppock standard
   { label: '24·18·12', roc1: 24, roc2: 18, wma: 12 }, // longer / slower
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: CoppockSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: CoppockSort;
-  onSort: (c: CoppockSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function TurnCell({ turn }: { turn: CoppockTurn }) {
   if (turn === 'up') return <span className="text-term-up">↑</span>;

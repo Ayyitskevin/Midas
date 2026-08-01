@@ -7,6 +7,7 @@ import { tsiBoard, type TsiSort } from '@/lib/tsi';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ const SIGNALS: { label: string; period: number }[] = [
 ];
 
 const ZONE_LABEL: Record<string, string> = { ob: '+ ob', os: '− os', mid: '· mid' };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TsiSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TsiSort;
-  onSort: (c: TsiSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function zoneClass(zone: string) {
   return zone === 'ob' ? 'text-term-up' : zone === 'os' ? 'text-term-down' : 'text-term-dim';

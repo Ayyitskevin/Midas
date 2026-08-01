@@ -2,10 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { streamStatusView } from '@/lib/streamStatus';
 
 describe('streamStatusView', () => {
-  it('open + live stream → LIVE regardless of subscriptions', () => {
-    const v = streamStatusView('open', 0, true);
+  it('open + live stream + active subscriptions → LIVE', () => {
+    const v = streamStatusView('open', 3, true);
     expect(v.label).toBe('LIVE');
     expect(v.tone).toBe('live');
+  });
+
+  it('open with ZERO subscriptions is never LIVE — nothing is streaming', () => {
+    // An idle open socket delivers no data, so the badge must not claim
+    // liveness (the client closes such sockets, but even the transient window
+    // reads IDLE).
+    const v = streamStatusView('open', 0, true);
+    expect(v.label).toBe('IDLE');
+    expect(v.tone).toBe('idle');
   });
 
   it('open but synthetic stream → SIM (never label fake prints LIVE)', () => {
@@ -19,7 +28,7 @@ describe('streamStatusView', () => {
   it('defaults to LIVE when stream liveness is unknown (health not yet loaded)', () => {
     // No 3rd arg → streamLive defaults true, so a not-yet-loaded health poll
     // does not flash SIM over a genuinely live ccxt feed.
-    expect(streamStatusView('open', 0).label).toBe('LIVE');
+    expect(streamStatusView('open', 3).label).toBe('LIVE');
   });
 
   it('connecting → CONNECTING', () => {

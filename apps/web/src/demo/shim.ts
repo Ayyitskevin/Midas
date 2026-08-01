@@ -3,6 +3,7 @@ import type { HealthResponse, SystemStatus, TradingStatus } from '@midas/shared'
 import {
   DEMO_SOURCE,
   balancesFor,
+  boardEnvelope,
   coinUniverseFor,
   derivativesFor,
   dexPoolsFor,
@@ -152,28 +153,40 @@ function handle(method: string, url: URL): Response | null {
       return d ? json(d) : notFound(seg(3));
     }
     case path === '/api/funding':
-      return json(fundingRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 30), now));
+      // The fan-out boards answer in the shared BoardEnvelope shape, exactly
+      // like the server (provenance 'synthetic', asOf now, cachedAt null).
+      return json(boardEnvelope(fundingRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 30), now), now));
     case path === '/api/funding-dispersion':
-      return json(fundingDispersionRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
+      return json(boardEnvelope(fundingDispersionRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path.startsWith('/api/funding-history/'):
       return json(fundingHistoryFor(seg(3), numParam(url.searchParams.get('limit'), 90), now));
     case path.startsWith('/api/exchange-quotes/'):
       return json(venueQuotes(seg(3), now));
     case path === '/api/venue-arb':
-      return json(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
+      return json(boardEnvelope(venueArbRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path === '/api/oi-concentration':
-      return json(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now));
+      return json(boardEnvelope(oiConcentrationRows(url.searchParams.get('quote') ?? 'USDT', numParam(url.searchParams.get('limit'), 15), now), now));
     case path.startsWith('/api/venue-derivatives/'):
       return json(venueDerivatives(seg(3), now));
-    case path === '/api/screener':
+    case path === '/api/screener': {
+      const sort = url.searchParams.get('sort') ?? 'volume';
+      // Mirror the server's edge validation: an unknown sort is a 400, not a
+      // silent fallback to volume order.
+      if (!['volume', 'change', 'price'].includes(sort)) {
+        return json(
+          { error: 'ProviderError', message: 'Invalid screener sort — expected one of: volume, change, price', statusCode: 400 },
+          400,
+        );
+      }
       return json(
         screenerRows(
           url.searchParams.get('quote') ?? 'USDT',
-          url.searchParams.get('sort') ?? 'volume',
+          sort,
           numParam(url.searchParams.get('limit'), 50),
           now,
         ),
       );
+    }
     case path === '/api/coins':
       return json(coinUniverseFor(numParam(url.searchParams.get('limit'), 100), now));
     case path === '/api/liquidations':

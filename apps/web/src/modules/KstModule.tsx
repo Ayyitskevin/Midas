@@ -7,6 +7,7 @@ import { kstBoard, type KstSort } from '@/lib/kst';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const SIGNALS: { label: string; period: number }[] = [
   { label: '9', period: 9 },
   { label: '6', period: 6 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: KstSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: KstSort;
-  onSort: (c: KstSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function KstModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

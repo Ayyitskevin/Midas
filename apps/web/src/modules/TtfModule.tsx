@@ -7,6 +7,7 @@ import { ttfBoard, type TtfSort, type TtfZone, type TtfBar } from '@/lib/ttf';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -24,31 +25,6 @@ const ZONE_LABEL: Record<TtfZone, string> = { up: '▲ buy', down: '▼ sell', n
 
 function zoneClass(z: TtfZone) {
   return z === 'up' ? 'text-term-up' : z === 'down' ? 'text-term-down' : 'text-term-dim';
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TtfSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TtfSort;
-  onSort: (c: TtfSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function TtfModule({ panel }: ModuleProps) {

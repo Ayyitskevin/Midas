@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { ttmBoard, type TtmSort, type TtmRow } from '@/lib/ttm';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PRESETS: { label: string; period: number; bbMult: number; kcMult: number }
 ];
 
 const momColor = (dir: TtmRow['momDir']) => (dir === 'up' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TtmSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TtmSort;
-  onSort: (c: TtmSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function SqueezeCell({ row }: { row: TtmRow }) {
   if (row.squeeze === 'on') return <span className="text-term-amber">● ON</span>;

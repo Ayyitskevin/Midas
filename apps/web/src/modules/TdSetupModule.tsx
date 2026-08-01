@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { tdSetupBoard, type TdSetupSort, type TdDirection, type TdBar } from '@/lib/tdSetup';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -18,31 +19,6 @@ function DirCell({ direction }: { direction: TdDirection }) {
   if (direction === 'buy') return <span className="text-term-up">BUY ↓</span>;
   if (direction === 'sell') return <span className="text-term-down">SELL ↑</span>;
   return <span className="text-term-dim">·</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TdSetupSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TdSetupSort;
-  onSort: (c: TdSetupSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function TdSetupModule({ panel }: ModuleProps) {

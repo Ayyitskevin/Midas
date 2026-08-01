@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { vrsiBoard, type VrsiSort, type VrsiZone, type VrsiDir } from '@/lib/vrsi';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -27,31 +28,6 @@ const zoneClass = (z: VrsiZone) =>
 const DIR_GLYPH: Record<VrsiDir, string> = { up: '▲', down: '▼', flat: '–' };
 const dirClass = (d: VrsiDir) =>
   d === 'up' ? 'text-term-up' : d === 'down' ? 'text-term-down' : 'text-term-muted';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: VrsiSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: VrsiSort;
-  onSort: (c: VrsiSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function VrsiModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

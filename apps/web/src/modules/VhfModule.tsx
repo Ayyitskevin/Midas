@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { vhfBoard, type VhfSort } from '@/lib/vhf';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PERIODS: { label: string; period: number }[] = [
 ];
 
 const REGIME_LABEL: Record<string, string> = { trend: '▲ trend', chop: '· chop', mid: '— mid' };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: VhfSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: VhfSort;
-  onSort: (c: VhfSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function regimeClass(regime: string) {
   return regime === 'trend' ? 'text-term-up' : regime === 'chop' ? 'text-term-down' : 'text-term-dim';

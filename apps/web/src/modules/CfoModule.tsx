@@ -7,6 +7,7 @@ import { cfoBoard, type CfoSort } from '@/lib/cfo';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; period: number }[] = [
   { label: '14', period: 14 },
   { label: '9', period: 9 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: CfoSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: CfoSort;
-  onSort: (c: CfoSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function CfoModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

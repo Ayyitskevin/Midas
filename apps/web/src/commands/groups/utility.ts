@@ -8,7 +8,10 @@ export const UTILITY_COMMANDS: CommandDef[] = [
     title: 'Alerts',
     module: 'ALERT',
     requiresSymbol: false,
-    description: 'Price & funding alerts — fire a toast / notification when a threshold is crossed.',
+    symbolOptional: true,
+    args: 'price',
+    description:
+      'Price & funding alerts — fire a toast / notification when a threshold is crossed. Quick-arm from the command line: `BTC/USDT ALERT 70000` (crosses), `ALERT > 70000` (rises ≥) or `ALERT < 70000` (falls ≤). Command-line alerts are local — they fire while this terminal tab is open.',
   },
   {
     code: 'N',
@@ -16,6 +19,7 @@ export const UTILITY_COMMANDS: CommandDef[] = [
     title: 'News',
     module: 'N',
     requiresSymbol: false,
+    symbolOptional: true,
     description: 'Headlines for a security, or top market news when no symbol is given.',
   },
   {
@@ -136,7 +140,9 @@ export const UTILITY_COMMANDS: CommandDef[] = [
     title: 'Security Finder',
     module: 'SECF',
     requiresSymbol: false,
-    description: 'Search for securities by ticker or name.',
+    args: 'text',
+    description:
+      'Search for securities by ticker or name (`SECF bitcoin`). Ticker collides with a command (ARB, COMP, W, FLOW…)? Prefix it with `$` — `$ARB` forces symbol resolution — or use the pair form `ARB/USDT`.',
   },
   {
     code: 'BOARDS',
@@ -153,6 +159,7 @@ export const UTILITY_COMMANDS: CommandDef[] = [
     title: 'Help',
     module: 'HELP',
     requiresSymbol: false,
-    description: 'List of available commands and how to use the terminal.',
+    description:
+      'List of available commands and how to use the terminal. Grammar: SYMBOL COMMAND [args] — e.g. `BTC/USDT GP 1h`, `BTC/USDT ALERT > 70000`; `$` forces a ticker that shadows a command (`$ARB`).',
   },
 ];

@@ -6,6 +6,7 @@ import { efficiencyBoard, type EfficiencySort } from '@/lib/efficiency';
 import { fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -14,31 +15,6 @@ const base = (sym: string) => sym.replace(/\/.*$/, '');
 
 const dirArrow = (d: number) => (d > 0 ? '▲' : d < 0 ? '▼' : '–');
 const dirColor = (d: number) => (d > 0 ? 'text-term-up' : d < 0 ? 'text-term-down' : 'text-term-muted');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: EfficiencySort;
-  label: string;
-  align: 'left' | 'right';
-  sort: EfficiencySort;
-  onSort: (c: EfficiencySort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function EfficiencyModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

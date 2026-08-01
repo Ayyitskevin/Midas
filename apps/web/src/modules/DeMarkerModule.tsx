@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { deMarkerBoard, type DeMarkerSort, type DeMarkerZone, type DeMarkerBar } from '@/lib/deMarker';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ function ZoneCell({ zone }: { zone: DeMarkerZone }) {
   if (zone === 'overbought') return <span className="text-term-down">OB</span>;
   if (zone === 'oversold') return <span className="text-term-up">OS</span>;
   return <span className="text-term-dim">·</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: DeMarkerSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: DeMarkerSort;
-  onSort: (c: DeMarkerSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function DeMarkerModule({ panel }: ModuleProps) {

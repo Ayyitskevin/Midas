@@ -3,6 +3,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtPrice } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { VenuePricePoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -31,14 +32,15 @@ export function VenueArbModule({ panel }: ModuleProps) {
   );
 
   // The server ranks widest-dispersion first — where venues most disagree.
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">ARB SCREENER</span>
-        <span className="text-term-dim">cross-venue · USDT</span>
+        {data ? <BoardMetaBadge meta={data.meta} /> : <span className="text-term-dim">cross-venue · USDT</span>}
       </div>
+      {data && <BoardMetaNote meta={data.meta} />}
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading venues" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}

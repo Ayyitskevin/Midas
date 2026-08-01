@@ -7,6 +7,7 @@ import { fisherBoard, type FisherSort, type FisherCross } from '@/lib/fisher';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; period: number }[] = [
   { label: '9', period: 9 },
   { label: '5', period: 5 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: FisherSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: FisherSort;
-  onSort: (c: FisherSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: FisherCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

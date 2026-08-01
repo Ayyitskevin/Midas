@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { donchianBoard, type DonSort } from '@/lib/donchian';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -22,31 +23,6 @@ const PERIODS: { label: string; period: number }[] = [
 
 // Amber when price has pushed outside the channel (a fresh breakout).
 const posColor = (v: number) => (v > 100 || v < 0 ? 'text-term-amber' : 'text-term-text');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: DonSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: DonSort;
-  onSort: (c: DonSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function DonchianModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
-import { computeArb, type VenueLevel } from '@/lib/arb';
+import { computeVenueArbRow } from '@midas/shared';
 import { Loading, ErrorMsg } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -16,7 +16,18 @@ function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: 
   );
 }
 
-const pct3 = (v: number | null): string => (v == null ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(3)}%`);
+// Same units as the XARB screener: spreads and dispersion in basis points.
+/** Basis points, e.g. 12.5 → "12.5 bp". */
+function fmtBps(bps: number | null): string {
+  if (bps == null) return '—';
+  return `${bps.toFixed(1)} bp`;
+}
+
+/** Signed bps for the crossed/normal spread, e.g. -3.2 → "−3.2 bp". */
+function fmtSpread(bps: number | null): string {
+  if (bps == null) return '—';
+  return `${bps >= 0 ? '+' : '−'}${Math.abs(bps).toFixed(1)} bp`;
+}
 
 export function ArbModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
@@ -42,8 +53,8 @@ export function ArbModule({ panel }: ModuleProps) {
     return <div className="p-3 text-xs text-term-muted">No venue quotes for {symbol}.</div>;
   }
 
-  const levels: VenueLevel[] = venues.map((q) => ({ exchange: q.exchange, bid: q.bid, ask: q.ask, price: q.price }));
-  const arb = computeArb(levels);
+  // Same computation as the XARB screener (shared, bps, same-venue legs guarded).
+  const arb = computeVenueArbRow(symbol, venues);
   const sorted = [...venues].sort((a, b) => b.price - a.price);
 
   return (
@@ -61,8 +72,8 @@ export function ArbModule({ panel }: ModuleProps) {
             </span>
           )}
         </div>
-        <div className={`font-mono text-xl ${arb.spreadPct != null ? changeClass(arb.spreadPct) : 'text-term-text'}`}>
-          {pct3(arb.spreadPct)}
+        <div className={`font-mono text-xl ${arb.spreadBps != null ? changeClass(arb.spreadBps) : 'text-term-text'}`}>
+          {fmtSpread(arb.spreadBps)}
         </div>
         {arb.bestAsk && arb.bestBid && (
           <div className="text-2xs text-term-muted">
@@ -73,10 +84,10 @@ export function ArbModule({ panel }: ModuleProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <Stat label="Venues" value={arb.venues} />
+        <Stat label="Venues" value={arb.venues.length} />
         <Stat
           label="Price dispersion"
-          value={pct3(arb.dispersionPct)}
+          value={fmtBps(arb.dispersionBps)}
           hint={
             arb.priceMin != null && arb.priceMax != null
               ? `${fmtPrice(arb.priceMin)}–${fmtPrice(arb.priceMax)}`

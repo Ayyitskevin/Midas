@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { sinewaveBoard, type SinewaveSort, type SinewaveDir } from '@/lib/sinewave';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -15,31 +16,6 @@ const INTERVAL: Interval = '1d';
 const RANGE: Range = '1y';
 
 const dirClass = (d: SinewaveDir) => (d === 'bull' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: SinewaveSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: SinewaveSort;
-  onSort: (c: SinewaveSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function SinewaveModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

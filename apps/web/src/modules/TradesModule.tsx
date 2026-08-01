@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Trade } from '@midas/shared';
-import { useStream } from '@/lib/stream';
+import { useStream, useStreamStatus } from '@/lib/stream';
 import { fmtPrice } from '@/lib/format';
 import { EmptyState } from '@/components/Feedback';
+import { FreshnessAge } from '@/components/Freshness';
 import type { ModuleProps } from './types';
 
 const MAX = 60;
@@ -14,13 +15,19 @@ function fmtClock(ms: number): string {
 export function TradesModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   const [trades, setTrades] = useState<Trade[]>([]);
+  // Receipt time of the last print — this panel is purely stream-driven, so a
+  // disconnected socket or a silent feed shows up as an amber age.
+  const [lastPrintAt, setLastPrintAt] = useState<number | null>(null);
+  const streamStatus = useStreamStatus();
 
   useEffect(() => {
     setTrades([]);
+    setLastPrintAt(null);
   }, [symbol]);
 
   const onTrade = useCallback((data: unknown) => {
     setTrades((prev) => [data as Trade, ...prev].slice(0, MAX));
+    setLastPrintAt(Date.now());
   }, []);
   useStream('trades', symbol, onTrade);
 
@@ -31,7 +38,12 @@ export function TradesModule({ panel }: ModuleProps) {
       <table className="w-full text-2xs">
         <thead className="sticky top-0 bg-term-panel">
           <tr className="text-term-muted">
-            <th className="px-2 py-1 text-left font-normal">TIME</th>
+            <th className="px-2 py-1 text-left font-normal">
+              <span className="flex items-center gap-1.5">
+                TIME
+                <FreshnessAge fetchedAt={lastPrintAt} staleAfterMs={30_000} streamLive={streamStatus === 'open'} />
+              </span>
+            </th>
             <th className="px-2 py-1 text-right font-normal">PRICE</th>
             <th className="px-2 py-1 text-right font-normal">SIZE</th>
           </tr>

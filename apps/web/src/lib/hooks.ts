@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createLatestGate } from './latestGate';
+import { stream } from './stream';
 
 export interface AsyncState<T> {
   data: T | null;
   error: string | null;
   loading: boolean;
+  /** Epoch ms of the last successful fetch; null until the first success and
+   * after any dep change / disable (mirrors the data-reset semantics). */
+  fetchedAt: number | null;
   refresh: () => void;
 }
 
@@ -12,17 +16,24 @@ export interface AsyncState<T> {
  * Run an async function on mount and whenever `deps` change, with optional
  * polling. Aborts in-flight requests on unmount / dep change via the provided
  * AbortSignal. Polled refreshes do not toggle `loading`, so the UI doesn't
- * flicker on every tick.
+ * flicker on every tick. When `deps` change (e.g. a linked-group symbol
+ * switch), the previous params' data is dropped so panels render their
+ * loading/unavailable state instead of stale values under the new header.
+ *
+ * `fallbackIntervalMs` polls only while the live stream is not open (static
+ * demo, WS outage); when the socket is open the stream keeps panels fresh and
+ * REST stays quiet.
  */
 export function useFetch<T>(
   fn: (signal: AbortSignal) => Promise<T>,
   deps: unknown[],
-  options: { intervalMs?: number; enabled?: boolean } = {},
+  options: { intervalMs?: number; fallbackIntervalMs?: number; enabled?: boolean } = {},
 ): AsyncState<T> {
-  const { intervalMs, enabled = true } = options;
+  const { intervalMs, fallbackIntervalMs, enabled = true } = options;
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(enabled);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
 
   const fnRef = useRef(fn);
   fnRef.current = fn;
@@ -43,6 +54,7 @@ export function useFetch<T>(
       if (isCurrent()) {
         setData(result);
         setError(null);
+        setFetchedAt(Date.now());
       }
     } catch (err) {
       if (isCurrent() && (err as Error).name !== 'AbortError') {
@@ -57,9 +69,17 @@ export function useFetch<T>(
 
   useEffect(() => {
     if (!enabled) {
+      setData(null);
+      setError(null);
       setLoading(false);
+      setFetchedAt(null);
       return;
     }
+    // Drop the previous params' data (and error) so a dep change never renders
+    // the old values under the new header while the refetch is in flight.
+    setData(null);
+    setError(null);
+    setFetchedAt(null);
     const controller = new AbortController();
     run(controller.signal, true);
 
@@ -69,14 +89,21 @@ export function useFetch<T>(
     if (intervalMs && intervalMs > 0) {
       timer = setInterval(() => run(controller.signal, false), intervalMs);
     }
+    let fallbackTimer: ReturnType<typeof setInterval> | undefined;
+    if (fallbackIntervalMs && fallbackIntervalMs > 0) {
+      fallbackTimer = setInterval(() => {
+        if (stream.getStatus() !== 'open') run(controller.signal, false);
+      }, fallbackIntervalMs);
+    }
     return () => {
       controller.abort();
       if (timer) clearInterval(timer);
+      if (fallbackTimer) clearInterval(fallbackTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, intervalMs, enabled]);
+  }, [...deps, intervalMs, fallbackIntervalMs, enabled]);
 
   const refresh = useCallback(() => manualRef.current(), []);
 
-  return { data, error, loading, refresh };
+  return { data, error, loading, fetchedAt, refresh };
 }

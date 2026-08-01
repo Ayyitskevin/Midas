@@ -7,6 +7,7 @@ import { coralBoard, type CoralSort, type CoralDir } from '@/lib/coral';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PERIODS: { label: string; length: number }[] = [
   { label: '21', length: 21 },
   { label: '34', length: 34 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: CoralSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: CoralSort;
-  onSort: (c: CoralSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function DirCell({ dir, flip }: { dir: CoralDir; flip: boolean }) {
   return (

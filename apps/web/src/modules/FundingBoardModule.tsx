@@ -5,6 +5,7 @@ import { changeClass, fmtCompact, fmtPrice } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { annualizedFundingPct, sortFundingRows, type FundingSortKey } from '@/lib/funding';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { ModuleProps } from './types';
 
 /** Format a funding rate (fraction) as a signed percent. */
@@ -37,7 +38,7 @@ export function FundingBoardModule({ panel }: ModuleProps) {
     intervalMs: 15_000,
   });
 
-  const rows = useMemo(() => (data ? sortFundingRows(data, sortKey, dir) : []), [data, sortKey, dir]);
+  const rows = useMemo(() => (data ? sortFundingRows(data.rows, sortKey, dir) : []), [data, sortKey, dir]);
 
   const sortBy = (key: FundingSortKey) => {
     if (key === sortKey) setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -65,13 +66,18 @@ export function FundingBoardModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">FUNDING RATES</span>
-        <span className="text-term-dim">perps · USDT · 8h</span>
+        {data ? (
+          <BoardMetaBadge meta={data.meta} />
+        ) : (
+          <span className="text-term-dim">perps · USDT · per-interval</span>
+        )}
       </div>
+      {data && <BoardMetaNote meta={data.meta} />}
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading funding" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
-        {data && data.length === 0 && <EmptyState>No perp funding available.</EmptyState>}
-        {data && data.length > 0 && (
+        {data && data.rows.length === 0 && <EmptyState>No perp funding available.</EmptyState>}
+        {data && data.rows.length > 0 && (
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-term-panel">
               <tr className="text-2xs text-term-muted">
@@ -96,9 +102,12 @@ export function FundingBoardModule({ panel }: ModuleProps) {
                   </td>
                   <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.fundingRate)}`}>
                     {fmtPct(r.fundingRate, 4)}
+                    {r.fundingIntervalHours != null && (
+                      <span className="ml-0.5 text-2xs text-term-dim">/{r.fundingIntervalHours}h</span>
+                    )}
                   </td>
                   <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.fundingRate)}`}>
-                    {fmtAnnual(annualizedFundingPct(r.fundingRate))}
+                    {fmtAnnual(annualizedFundingPct(r.fundingRate, r.fundingIntervalHours))}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
                     {untilNext(r.nextFundingTime)}

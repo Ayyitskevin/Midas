@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SearchResult } from '@midas/shared';
 import { api } from '@/lib/api';
-import { COMMANDS } from '@/commands/registry';
+import { COMMANDS, commandUsesSymbol } from '@/commands/registry';
 import { openSymbol, runCommand } from '@/commands/execute';
 import { usePanels } from '@/store/usePanels';
 import { rankByFuzzy } from '@/lib/fuzzy';
@@ -81,7 +81,7 @@ export function CommandPalette() {
       primary: c.code,
       secondary: c.title,
       hint: c.requiresSymbol ? (activeSymbol ?? 'needs symbol') : undefined,
-      run: () => runCommand(c.requiresSymbol ? `${activeSymbol ?? ''} ${c.code}`.trim() : c.code),
+      run: () => runCommand(commandUsesSymbol(c) ? `${activeSymbol ?? ''} ${c.code}`.trim() : c.code),
     }));
     const symItems: Item[] = results.slice(0, 6).map((s) => ({
       kind: 'symbol',

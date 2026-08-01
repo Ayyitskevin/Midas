@@ -7,6 +7,7 @@ import { drawdownBoard, type DrawdownSort } from '@/lib/drawdown';
 import { fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -40,31 +41,6 @@ function Underwater({ dd, minDD }: { dd: number[]; minDD: number }) {
       <path d={area} fill="rgba(239,77,86,0.18)" />
       <polyline points={curve} fill="none" stroke="rgba(239,77,86,0.85)" strokeWidth={1} />
     </svg>
-  );
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: DrawdownSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: DrawdownSort;
-  onSort: (c: DrawdownSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
   );
 }
 

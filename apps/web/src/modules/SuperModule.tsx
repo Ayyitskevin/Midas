@@ -7,6 +7,7 @@ import { superBoard, type SuperSort } from '@/lib/supertrend';
 import { fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -22,31 +23,6 @@ const PRESETS: { label: string; period: number; mult: number }[] = [
 ];
 
 const signColor = (v: number) => (v > 0 ? 'text-term-up' : v < 0 ? 'text-term-down' : 'text-term-muted');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: SuperSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: SuperSort;
-  onSort: (c: SuperSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function SuperModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

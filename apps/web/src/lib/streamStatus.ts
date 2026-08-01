@@ -28,6 +28,17 @@ export function streamStatusView(
   streamLive = true,
 ): StreamStatusView {
   if (status === 'open') {
+    // An open socket with zero subscriptions streams nothing — never show LIVE
+    // (or SIM) over it. Transient by design (the client closes an idle socket),
+    // but the badge must not claim liveness even for that window.
+    if (subCount === 0) {
+      return {
+        tone: 'idle',
+        label: 'IDLE',
+        dotClass: 'text-term-dim',
+        title: 'Connected — no live subscriptions',
+      };
+    }
     if (!streamLive) {
       return {
         tone: 'simulated',

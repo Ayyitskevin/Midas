@@ -10,12 +10,32 @@ const src = (symbol: string, fundingRate: number | null, markPrice: number | nul
   nextFundingTime: null,
 });
 
+const srcWithInterval = (
+  symbol: string,
+  fundingRate: number | null,
+  fundingIntervalHours: number | null,
+): CarrySource => ({ ...src(symbol, fundingRate, 100), fundingIntervalHours });
+
 describe('computeCarry', () => {
   it('annualizes funding and computes the basis vs spot', () => {
-    const r = computeCarry(src('BTC/USDT', 0.0001, 101), 100);
-    expect(r.aprPct).toBeCloseTo(annualizedFundingPct(0.0001)!); // reuses the shared factor
+    const r = computeCarry({ ...srcWithInterval('BTC/USDT', 0.0001, 8), markPrice: 101 }, 100);
+    expect(r.aprPct).toBeCloseTo(annualizedFundingPct(0.0001, 8)!); // reuses the shared factor
     expect(r.basisPct).toBeCloseTo(1); // 101 vs 100
     expect(r.side).toBe('short-perp'); // positive funding → short the perp to collect
+  });
+
+  it('scales the APR with the actual settlement interval (1h/4h/8h)', () => {
+    const rate = 0.0001;
+    const apr = (h: number) => computeCarry(srcWithInterval('X', rate, h), 100).aprPct!;
+    expect(apr(1)).toBeCloseTo(annualizedFundingPct(rate, 1)!); // 24 settlements/day
+    expect(apr(4)).toBeCloseTo(annualizedFundingPct(rate, 4)!);
+    expect(apr(8)).toBeCloseTo(annualizedFundingPct(rate, 8)!);
+    expect(apr(1)).toBeCloseTo(apr(8) * 8); // cadence matters, not an 8h assumption
+  });
+
+  it('renders APR null when the interval is unknown — honest beats helpful', () => {
+    expect(computeCarry(srcWithInterval('X', 0.0001, null), 100).aprPct).toBeNull();
+    expect(computeCarry(src('X', 0.0001, 100), 100).aprPct).toBeNull(); // field omitted
   });
 
   it('names the long-perp leg when funding is negative, flat when ~0', () => {
@@ -33,9 +53,9 @@ describe('computeCarry', () => {
 
 describe('sortCarry', () => {
   const rows: CarryRow[] = [
-    computeCarry(src('A', 0.0001, 100), 100), // apr+
-    computeCarry(src('B', -0.0003, 100), 100), // apr−
-    computeCarry(src('C', 0.0002, 100), 100), // apr++
+    computeCarry(srcWithInterval('A', 0.0001, 8), 100), // apr+
+    computeCarry(srcWithInterval('B', -0.0003, 8), 100), // apr−
+    computeCarry(srcWithInterval('C', 0.0002, 8), 100), // apr++
   ];
 
   it('ranks by APR descending by default direction', () => {

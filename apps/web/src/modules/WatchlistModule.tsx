@@ -6,6 +6,7 @@ import { navigate } from '@/commands/execute';
 import { useWatchlist } from '@/store/useWatchlist';
 import { Loading, ErrorMsg } from '@/components/Feedback';
 import { Sparkline } from '@/components/Sparkline';
+import { FreshnessAge } from '@/components/Freshness';
 import type { ModuleProps } from './types';
 
 /** Recent close series per symbol for the sparkline column (24h of hourly candles). */
@@ -71,7 +72,7 @@ export function WatchlistModule({ panel }: ModuleProps) {
     setEditingId(null);
   };
 
-  const { data, error, loading, refresh } = useFetch(
+  const { data, error, loading, fetchedAt, refresh } = useFetch(
     (signal) => api.quotes(symbols, signal),
     [symbols.join(',')],
     { intervalMs: 5000, enabled: symbols.length > 0 },
@@ -141,6 +142,10 @@ export function WatchlistModule({ panel }: ModuleProps) {
         >
           +
         </button>
+        {/* Quotes poll every 5s — amber past 10s. */}
+        <span className="ml-auto shrink-0 pl-2">
+          <FreshnessAge fetchedAt={fetchedAt} staleAfterMs={10_000} />
+        </span>
       </div>
       <div className="scroll-term flex-1 overflow-auto">
         <table className="w-full text-xs">

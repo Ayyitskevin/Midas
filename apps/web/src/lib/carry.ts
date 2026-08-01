@@ -10,6 +10,11 @@ import { annualizedFundingPct } from './funding';
 export interface CarrySource {
   symbol: string;
   fundingRate: number | null;
+  /**
+   * Hours between funding settlements; null/omitted when the venue does not
+   * report it — the APR then renders null rather than assuming 8h.
+   */
+  fundingIntervalHours?: number | null;
   markPrice: number | null;
   openInterestValue: number | null;
   nextFundingTime: number | null;
@@ -45,7 +50,7 @@ export function computeCarry(src: CarrySource, spot: number | null): CarryRow {
   return {
     symbol: src.symbol,
     fundingRate: fr,
-    aprPct: annualizedFundingPct(fr),
+    aprPct: annualizedFundingPct(fr, src.fundingIntervalHours ?? null),
     basisPct,
     oi: src.openInterestValue,
     nextFundingTime: src.nextFundingTime,

@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { alligatorBoard, type AlligatorSort, type GatorState, type AlligatorBar } from '@/lib/alligator';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ function StateCell({ state }: { state: GatorState }) {
   if (state === 'up') return <span className="text-term-up">FEED ↑</span>;
   if (state === 'down') return <span className="text-term-down">FEED ↓</span>;
   return <span className="text-term-dim">SLEEP</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: AlligatorSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: AlligatorSort;
-  onSort: (c: AlligatorSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function AlligatorModule({ panel }: ModuleProps) {

@@ -3,6 +3,7 @@ import type {
   AccountFills,
   AccountPositions,
   Balances,
+  BoardEnvelope,
   Candle,
   CoinRef,
   CoinUniverse,
@@ -319,6 +320,14 @@ export function orderBookFor(symbol: string, depth: number, now: number): OrderB
   return { symbol: `${asset.base}/${QUOTE_CCY}`, bids, asks, timestamp: now };
 }
 
+// Deterministic per-symbol funding cadence (hours), mirroring the server mock
+// (apps/server/src/providers/mock/derivatives.ts): SOL funds hourly, DOGE on a
+// 4h cadence, everything else 8h. Without a known interval the shared
+// funding-dispersion compute excludes the venue entirely — an unknown cadence
+// must never be silently treated as 8h.
+const FUNDING_INTERVAL_HOURS: Record<string, number> = { SOL: 1, DOGE: 4 };
+const fundingIntervalFor = (base: string): number => FUNDING_INTERVAL_HOURS[base] ?? 8;
+
 export function derivativesFor(symbol: string, now: number): DerivativesInfo | null {
   const asset = assetFor(symbol);
   if (!asset) return null;
@@ -326,10 +335,15 @@ export function derivativesFor(symbol: string, now: number): DerivativesInfo | n
   const hour = Math.floor(now / 3_600_000);
   const funding = ((u(`${asset.base}:f${Math.floor(hour / 8)}`) - 0.45) * 0.0004);
   const oi = (asset.price > 1000 ? 80_000 : 4_000_000) * (0.7 + u(`${asset.base}:oi`) * 0.6);
+  const intervalHours = fundingIntervalFor(asset.base);
+  const stepMs = intervalHours * 3_600_000;
   return {
     symbol: `${asset.base}/${QUOTE_CCY}:${QUOTE_CCY}`,
     fundingRate: funding,
-    nextFundingTime: (Math.floor(now / 28_800_000) + 1) * 28_800_000,
+    fundingIntervalHours: intervalHours,
+    // Next settlement at the next boundary of this symbol's cadence (like the
+    // server mock's nextFundingBoundary), not a blanket 8h boundary.
+    nextFundingTime: (Math.floor(now / stepMs) + 1) * stepMs,
     markPrice: mark,
     indexPrice: mark * (1 - funding / 3),
     openInterest: oi,
@@ -345,11 +359,25 @@ export function fundingRows(quote: string, limit: number, now: number): FundingR
     return {
       symbol: `${a.base}/${quote}`,
       fundingRate: d.fundingRate,
+      fundingIntervalHours: d.fundingIntervalHours ?? null,
       nextFundingTime: d.nextFundingTime,
       markPrice: d.markPrice,
       openInterestValue: d.openInterestValue,
     };
   });
+}
+
+/**
+ * Wrap a fan-out board in the shared BoardEnvelope — the exact shape the
+ * server returns for /api/funding, /api/funding-dispersion, /api/venue-arb and
+ * /api/oi-concentration. The demo never caches and never drops a symbol, so
+ * cachedAt is null and partial is false; provenance is always synthetic.
+ */
+export function boardEnvelope<T>(rows: T[], now: number): BoardEnvelope<T> {
+  return {
+    rows,
+    meta: { provenance: 'synthetic', source: DEMO_SOURCE, asOf: now, cachedAt: null, partial: false, note: NOTE },
+  };
 }
 
 export function fundingDispersionRows(quote: string, limit: number, now: number): FundingDispersionRow[] {
@@ -403,6 +431,7 @@ export function venueDerivatives(symbol: string, now: number): VenueDerivatives[
   return VENUES.map((v) => ({
     exchange: v,
     fundingRate: (base.fundingRate ?? 0) + (u(`${v}:${symbol}:vf`) - 0.5) * 0.0002,
+    fundingIntervalHours: base.fundingIntervalHours ?? null,
     nextFundingTime: base.nextFundingTime,
     markPrice: (base.markPrice ?? 0) * (1 + (u(`${v}:${symbol}:vm`) - 0.5) * 0.001),
     openInterestValue: (base.openInterestValue ?? 0) * (0.2 + u(`${v}:${symbol}:vo`)),

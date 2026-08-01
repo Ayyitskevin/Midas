@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { inertiaBoard, type InertiaSort, type InertiaSide } from '@/lib/inertia';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -23,31 +24,6 @@ const SIDE_LABEL: Record<InertiaSide, string> = { up: '▲ bull', down: '▼ bea
 
 function sideClass(s: InertiaSide) {
   return s === 'up' ? 'text-term-up' : 'text-term-down';
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: InertiaSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: InertiaSort;
-  onSort: (c: InertiaSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function InertiaModule({ panel }: ModuleProps) {

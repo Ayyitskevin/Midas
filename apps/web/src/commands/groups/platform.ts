@@ -67,6 +67,7 @@ export const PLATFORM_COMMANDS: CommandDef[] = [
     title: 'Fills',
     module: 'FILLS',
     requiresSymbol: false,
+    symbolOptional: true,
     description:
       'Your own executions (my-trades) — time, symbol, side, price, amount, cost, fee and maker/taker for recent fills on the connected account, with a live/demo data-honesty badge. Symbol-aware: some exchanges (e.g. Binance) only serve fills per symbol, so open it as BTC/USDT FILLS there; account-wide where the venue supports it. Read-only and non-custodial; synthetic demo fills until read-only keys are configured.',
   },
@@ -103,6 +104,7 @@ export const PLATFORM_COMMANDS: CommandDef[] = [
     title: 'Execution Quality',
     module: 'XQL',
     requiresSymbol: false,
+    symbolOptional: true,
     description:
       'Execution quality from your own fills — maker/taker mix, fee totals by currency, total notional, and realized slippage vs the estimates the order ticket recorded at placement (notional-weighted, with an honest coverage % since fills placed outside this browser have no baseline). Per-symbol breakdown; symbol-aware for venues that only serve fills per symbol (BTC/USDT XQL). Read-only.',
   },

@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { adxBoard, ADX_TREND, type AdxSort } from '@/lib/adx';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PERIODS: { label: string; period: number }[] = [
 ];
 
 const adxColor = (v: number) => (v >= ADX_TREND ? 'text-term-amber' : v < 20 ? 'text-term-muted' : 'text-term-text');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: AdxSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: AdxSort;
-  onSort: (c: AdxSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function AdxModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

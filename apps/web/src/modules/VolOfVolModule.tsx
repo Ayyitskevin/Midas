@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { vovBoard, type VovSort } from '@/lib/volOfVol';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -17,31 +18,6 @@ const TIMEFRAMES: { label: string; interval: Interval; range: Range }[] = [
   { label: '1Y', interval: '1d', range: '1y' },
   { label: '2Y', interval: '1d', range: '2y' },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: VovSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: VovSort;
-  onSort: (c: VovSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function VolOfVolModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);
