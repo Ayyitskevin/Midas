@@ -470,7 +470,7 @@ describe('login per-IP aggregate ceiling (credential stuffing brake)', () => {
   // Bare Fastify + registerAuthRoutes so the throttle can be injected with a
   // low IP ceiling (buildApp does not expose it). Injected apps share no state
   // with the buildApp instances above.
-  const loginApp = async (ipMaxFails: number, lockoutMs = 60_000) => {
+  const loginApp = async (ipMaxFails: number, lockoutMs = 60_000, now: () => number = Date.now) => {
     process.env.LOG_LEVEL = 'silent';
     const app = Fastify();
     registerAuthRoutes(app, {
@@ -478,6 +478,7 @@ describe('login per-IP aggregate ceiling (credential stuffing brake)', () => {
       allowSignup: true,
       secret: 'test-secret',
       users: new UserRepo(),
+      now,
       throttle: createLoginThrottle(5, lockoutMs, 10_000, ipMaxFails),
     });
     await app.ready();
@@ -487,7 +488,8 @@ describe('login per-IP aggregate ceiling (credential stuffing brake)', () => {
     app.inject({ method: 'POST', url: '/api/auth/login', payload: { username, password } });
 
   it('locks the IP after N failures across DIFFERENT usernames, then resets after the cooldown', async () => {
-    const app = await loginApp(3, 150);
+    let nowMs = 10_000;
+    const app = await loginApp(3, 150, () => nowMs);
     try {
       // Each failure is a fresh username|ip pair — the per-pair lockout (5)
       // never trips, but the aggregate per-IP ceiling (3) does.
@@ -498,8 +500,10 @@ describe('login per-IP aggregate ceiling (credential stuffing brake)', () => {
       expect(blocked.statusCode).toBe(429);
       expect(blocked.json().message).toMatch(/try again in \d+s/i);
 
-      // After the cooldown the counter resets: failures are plain 401s again.
-      await new Promise((r) => setTimeout(r, 250));
+      // The ceiling holds until the exact cooldown boundary, then resets.
+      nowMs += 149;
+      expect((await login(app, 'u5', 'wrong1')).statusCode).toBe(429);
+      nowMs += 1;
       expect((await login(app, 'u5', 'wrong1')).statusCode).toBe(401);
     } finally {
       await app.close();
