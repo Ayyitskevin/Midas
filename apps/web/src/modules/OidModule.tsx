@@ -3,13 +3,16 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice } from '@/lib/format';
 import { sparklinePath } from '@/lib/sparkline';
-import { optionsBadge, type OptionsTone } from '@/lib/optionsView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import { OI_DELTA_WINDOWS, type OiDeltaClassification, type OiDeltaWindow } from '@midas/shared';
 import type { ModuleProps } from './types';
 
-const TONE: Record<OptionsTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+type LegacyTone = 'live' | 'synthetic' | 'unavailable';
+
+const TONE: Record<LegacyTone, string> = {
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -60,8 +63,28 @@ export function OidModule({ panel }: ModuleProps) {
   if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data) return <EmptyState>No OI delta for {symbol}.</EmptyState>;
 
-  const badge = optionsBadge(data.provenance, data.note);
+  // Legacy fallback only. Unlike the options helper, OID must name its actual
+  // selected CCXT source rather than claiming every live read is Deribit.
+  const legacyBadge: { label: string; tone: LegacyTone; detail: string } =
+    data.provenance === 'live'
+      ? {
+          label: `live · ${data.source || 'unknown source'}`,
+          tone: 'live',
+          detail: data.note ?? `Live OI history from ${data.source || 'an unknown source'}.`,
+        }
+      : data.provenance === 'synthetic'
+        ? {
+            label: 'synthetic',
+            tone: 'synthetic',
+            detail: data.note ?? 'Synthetic OI history — not real market data.',
+          }
+        : {
+            label: 'unavailable',
+            tone: 'unavailable',
+            detail: data.note ?? 'OI history unavailable.',
+          };
   const quadrant = data.classification ? QUADRANT[data.classification] : null;
+  const actionable = isReceiptActionable(data.receipt);
   const spark = sparklinePath(
     data.points.map((p) => p.openInterestValue),
     240,
@@ -74,13 +97,20 @@ export function OidModule({ panel }: ModuleProps) {
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-text">{data.symbol}</span>
         {quadrant ? (
-          <span className={`rounded-sm border px-1.5 py-0.5 font-semibold ${quadrant.cls}`}>{quadrant.label}</span>
+          <span className={`rounded-sm border px-1.5 py-0.5 font-semibold ${actionable ? quadrant.cls : 'border-term-border text-term-muted'}`}>{quadrant.label}</span>
         ) : (
           <span className="text-term-dim">no clear quadrant</span>
         )}
-        <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-          {badge.label}
-        </span>
+        {data.receipt ? (
+          <SourceBadge receipt={data.receipt} compact className="ml-auto" />
+        ) : (
+          <span
+            className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[legacyBadge.tone]}`}
+            title={legacyBadge.tone === 'live' ? `${legacyBadge.detail} Freshness is unknown because this legacy payload has no receipt.` : legacyBadge.detail}
+          >
+            {legacyBadge.label}{legacyBadge.tone === 'live' ? ' · freshness unknown' : ''}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-1 border-b border-term-border px-2 py-1 text-2xs">
@@ -113,13 +143,13 @@ export function OidModule({ panel }: ModuleProps) {
             </div>
             <div className="flex justify-between py-0.5">
               <span className="text-term-muted">Δ OI</span>
-              <span className={`tabular-nums font-semibold ${changeCls(data.oiChangePct)}`}>
+              <span className={`tabular-nums font-semibold ${actionable ? changeCls(data.oiChangePct) : 'text-term-muted'}`}>
                 {fmtPct(data.oiChangePct)}
               </span>
             </div>
             <div className="flex justify-between py-0.5">
               <span className="text-term-muted">Δ PRICE</span>
-              <span className={`tabular-nums font-semibold ${changeCls(data.priceChangePct)}`}>
+              <span className={`tabular-nums font-semibold ${actionable ? changeCls(data.priceChangePct) : 'text-term-muted'}`}>
                 {fmtPct(data.priceChangePct)}
               </span>
             </div>
@@ -127,7 +157,7 @@ export function OidModule({ panel }: ModuleProps) {
           <div className="px-2 pb-1">
             {spark ? (
               <svg width="100%" height="48" viewBox="0 0 240 48" preserveAspectRatio="none" aria-hidden>
-                <path d={spark} fill="none" stroke="currentColor" strokeWidth="1" className="text-term-amber" />
+                <path d={spark} fill="none" stroke="currentColor" strokeWidth="1" className={actionable ? 'text-term-amber' : 'text-term-muted'} />
               </svg>
             ) : (
               <span className="text-2xs text-term-dim">no history</span>
@@ -141,8 +171,8 @@ export function OidModule({ panel }: ModuleProps) {
       )}
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        OI↑+price↑ = <span className="text-term-up">long buildup</span> · OI↑+price↓ ={' '}
-        <span className="text-term-down">short buildup</span> · OI↓ = <span className="text-term-amber">unwind / covering</span>
+        OI↑+price↑ = <span className={actionable ? 'text-term-up' : 'text-term-muted'}>long buildup</span> · OI↑+price↓ ={' '}
+        <span className={actionable ? 'text-term-down' : 'text-term-muted'}>short buildup</span> · OI↓ = <span className={actionable ? 'text-term-amber' : 'text-term-muted'}>unwind / covering</span>
       </div>
     </div>
   );

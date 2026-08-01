@@ -4,6 +4,9 @@ import { fmtPrice } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isActionableVenueArb } from '@/lib/clientArb';
+import { isReceiptFresh } from '@/lib/receiptView';
 import type { VenuePricePoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -62,18 +65,21 @@ export function VenueArbModule({ panel }: ModuleProps) {
                 <th className="px-2 py-1 text-right font-normal">SPREAD</th>
                 <th
                   className="px-2 py-1 text-right font-normal"
-                  title="SPREAD minus round-trip reference taker fees (base tier; excludes withdrawal/transfer)"
+                  title="SPREAD minus reference taker fees when both leg sizes and timestamps are known"
                 >
                   NET
                 </th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const actionable = isActionableVenueArb(r);
+                const visibleNet = isReceiptFresh(r.receipt) ? r.netSpreadBps : null;
+                return (
                 <tr
                   key={r.symbol}
                   className={`border-b border-term-border/30 hover:bg-term-header/60 ${
-                    r.netCrossed ? 'bg-term-up/10' : ''
+                    actionable ? 'bg-term-up/10' : ''
                   }`}
                   title={venuesTitle(r.venues)}
                 >
@@ -85,6 +91,7 @@ export function VenueArbModule({ panel }: ModuleProps) {
                       {r.symbol}
                     </button>
                     <span className="ml-1 text-term-dim">·{r.venues.length}</span>
+                    {r.receipt && <SourceBadge receipt={r.receipt} compact className="ml-1" />}
                   </td>
                   <td className="px-2 py-1 text-right font-semibold tabular-nums text-term-amber">
                     {fmtBps(r.dispersionBps)}
@@ -112,18 +119,19 @@ export function VenueArbModule({ panel }: ModuleProps) {
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtSpread(r.spreadBps)}</td>
                   <td
                     className={`px-2 py-1 text-right font-semibold tabular-nums ${
-                      r.netCrossed ? 'text-term-up' : 'text-term-muted'
+                      actionable ? 'text-term-up' : 'text-term-muted'
                     }`}
                   >
-                    {r.netCrossed && (
+                    {actionable && (
                       <span className="mr-1 rounded-sm bg-term-up/20 px-1 py-0.5 text-2xs font-semibold uppercase text-term-up">
                         net arb
                       </span>
                     )}
-                    {fmtSpread(r.netSpreadBps)}
+                    {fmtSpread(visibleNet)}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -131,7 +139,8 @@ export function VenueArbModule({ panel }: ModuleProps) {
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
         DISP = cross-venue price dispersion (bp) · <span className="text-term-accent">BUY</span> lowest ask /{' '}
         <span className="text-term-up">SELL</span> highest bid · SPREAD &gt; 0 = crossed book (gross) · NET = SPREAD −
-        round-trip reference taker fees (base tier, ignores withdrawal/transfer — verify tiers before trading)
+        round-trip reference taker fees, only with known size and aligned timestamps (base tier, ignores
+        withdrawal/transfer — inspect the receipt)
       </div>
     </div>
   );

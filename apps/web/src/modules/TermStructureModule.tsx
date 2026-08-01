@@ -4,10 +4,12 @@ import { useFetch } from '@/lib/hooks';
 import { fmtPrice } from '@/lib/format';
 import { classifyTermStructure, fmtBasis, fmtDays, fmtExpiry, optionsBadge, type OptionsTone } from '@/lib/optionsView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 const TONE: Record<OptionsTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -36,7 +38,10 @@ export function TermStructureModule({ panel }: ModuleProps) {
   if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data) return <EmptyState>No term structure for {symbol}.</EmptyState>;
 
-  const shapeCls =
+  const actionable = isReceiptActionable(data.receipt);
+  const shapeCls = !actionable
+    ? 'text-term-muted'
+    :
     shape === 'contango' ? 'text-term-up' : shape === 'backwardation' ? 'text-term-down' : 'text-term-amber';
 
   return (
@@ -45,11 +50,13 @@ export function TermStructureModule({ panel }: ModuleProps) {
         <span className="font-semibold text-term-text">{data.underlying}</span>
         <span className="text-term-dim">dated futures vs perp</span>
         {shape && <span className={`font-semibold ${shapeCls}`}>{shape}</span>}
-        {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-            {badge.label}
+        {data.receipt ? (
+          <SourceBadge receipt={data.receipt} compact className="ml-auto" />
+        ) : badge ? (
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}>
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       {data.points.length === 0 ? (
@@ -88,7 +95,9 @@ export function TermStructureModule({ panel }: ModuleProps) {
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtDays(p.daysToExpiry)}</td>
                   <td
                     className={`px-2 py-1 text-right tabular-nums ${
-                      p.annualizedBasisPct > 0.5
+                      !actionable
+                        ? 'text-term-muted'
+                        : p.annualizedBasisPct > 0.5
                         ? 'text-term-up'
                         : p.annualizedBasisPct < -0.5
                           ? 'text-term-down'
@@ -105,8 +114,8 @@ export function TermStructureModule({ panel }: ModuleProps) {
       )}
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        Annualized simple basis vs the perpetual · <span className="text-term-up">green</span> = contango /{' '}
-        <span className="text-term-down">red</span> = backwardation · Deribit dated futures
+        Annualized simple basis vs the perpetual · <span className={actionable ? 'text-term-up' : 'text-term-muted'}>green</span> = contango /{' '}
+        <span className={actionable ? 'text-term-down' : 'text-term-muted'}>red</span> = backwardation · Deribit dated futures
       </div>
     </div>
   );

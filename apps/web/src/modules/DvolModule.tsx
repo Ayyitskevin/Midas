@@ -3,10 +3,11 @@ import { useFetch } from '@/lib/hooks';
 import { sparklinePath } from '@/lib/sparkline';
 import { optionsBadge, type OptionsTone } from '@/lib/optionsView';
 import { Loading, ErrorMsg } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { DvolSnapshot } from '@midas/shared';
 
 const TONE: Record<OptionsTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -31,9 +32,13 @@ function DvolRow({ snapshot }: { snapshot: DvolSnapshot }) {
       ) : (
         <span className="text-2xs text-term-dim">no history</span>
       )}
-      <span className={`ml-auto rounded-sm border px-1.5 py-0.5 text-2xs ${TONE[badge.tone]}`} title={badge.detail}>
-        {badge.label}
-      </span>
+      {snapshot.receipt ? (
+        <SourceBadge receipt={snapshot.receipt} compact className="ml-auto" />
+      ) : (
+        <span className={`ml-auto rounded-sm border px-1.5 py-0.5 text-2xs ${TONE[badge.tone]}`} title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}>
+          {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
+        </span>
+      )}
     </div>
   );
 }

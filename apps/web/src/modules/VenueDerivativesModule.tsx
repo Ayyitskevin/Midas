@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact } from '@/lib/format';
-import { summarizeVenueDerivatives } from '@/lib/venueDerivatives';
+import { inspectVenueDerivativesSummary } from '@/lib/venueDerivatives';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 /** Funding fraction → signed percent, e.g. 0.0001 → "+0.0100%". */
@@ -35,7 +36,11 @@ export function VenueDerivativesModule({ panel }: ModuleProps) {
     { intervalMs: 8000, enabled: Boolean(symbol) },
   );
 
-  const stats = useMemo(() => (data ? summarizeVenueDerivatives(data) : null), [data]);
+  const inspected = useMemo(
+    () => (data && data.length > 0 ? inspectVenueDerivativesSummary(data, symbol ?? '') : null),
+    [data, symbol],
+  );
+  const stats = inspected?.stats ?? null;
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} venues`} />;
@@ -48,13 +53,23 @@ export function VenueDerivativesModule({ panel }: ModuleProps) {
       {stats && (
         <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
           <span className="text-term-muted">
-            {stats.venues} venues · OI ${fmtCompact(stats.totalOi)}
+            {stats.venues} venues · {stats.totalOi == null ? 'OI unknown' : `OI $${fmtCompact(stats.totalOi)}`}
           </span>
-          {stats.spread != null && (
-            <span className="tabular-nums text-term-muted" title="Funding spread across venues (long the cheapest, short the dearest)">
-              Δfund <span className="text-term-amber">{(stats.spread * 100).toFixed(4)}%</span>
-            </span>
-          )}
+          <span className="flex items-center gap-1 tabular-nums text-term-muted">
+            {stats.spread != null && (
+              <span title="Funding spread across venues (long the cheapest, short the dearest)">
+                Δfund (8h eq){' '}
+                <span className={inspected?.actionable ? 'text-term-amber' : ''}>
+                  {(stats.spread * 100).toFixed(4)}%
+                </span>
+              </span>
+            )}
+            {inspected?.receipt ? (
+              <SourceBadge receipt={inspected.receipt} compact />
+            ) : (
+              <span className="text-term-down">source unknown</span>
+            )}
+          </span>
         </div>
       )}
       <div className="scroll-term flex-1 overflow-auto">
@@ -66,13 +81,14 @@ export function VenueDerivativesModule({ panel }: ModuleProps) {
               <th className="px-2 py-1 text-right font-normal">OI</th>
               <th className="px-2 py-1 text-right font-normal">MARK</th>
               <th className="px-2 py-1 text-right font-normal">NEXT</th>
+              <th className="px-2 py-1 text-right font-normal">SOURCE</th>
             </tr>
           </thead>
           <tbody>
             {data.map((v) => {
               // Highlight the funding extremes — the arb legs (cheapest long / dearest long).
-              const isMin = stats?.minVenue === v.exchange && stats?.spread != null && stats.spread > 0;
-              const isMax = stats?.maxVenue === v.exchange && stats?.spread != null && stats.spread > 0;
+              const isMin = inspected?.actionable && stats?.minVenue === v.exchange && stats?.spread != null && stats.spread > 0;
+              const isMax = inspected?.actionable && stats?.maxVenue === v.exchange && stats?.spread != null && stats.spread > 0;
               const fundCls = isMin
                 ? 'font-semibold text-term-up'
                 : isMax
@@ -81,12 +97,20 @@ export function VenueDerivativesModule({ panel }: ModuleProps) {
               return (
                 <tr key={v.exchange} className="border-b border-term-border/30 hover:bg-term-header/60">
                   <td className="px-2 py-1 font-medium text-term-text">{v.exchange}</td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${fundCls}`}>{fmtFunding(v.fundingRate)}</td>
+                  <td className={`px-2 py-1 text-right tabular-nums ${fundCls}`}>
+                    {fmtFunding(v.fundingRate)}
+                    <span className="ml-0.5 text-term-dim">
+                      {v.fundingIntervalHours != null ? `/${v.fundingIntervalHours}h` : '/?'}
+                    </span>
+                  </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
                     {v.openInterestValue != null ? `$${fmtCompact(v.openInterestValue)}` : '—'}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">{fmtMark(v.markPrice)}</td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-dim">{fmtNextFunding(v.nextFundingTime)}</td>
+                  <td className="px-2 py-1 text-right">
+                    {v.receipt ? <SourceBadge receipt={v.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                  </td>
                 </tr>
               );
             })}
@@ -95,7 +119,8 @@ export function VenueDerivativesModule({ panel }: ModuleProps) {
       </div>
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
         Funding &amp; OI for {symbol} across venues · <span className="text-term-up">green</span> = cheapest to long /{' '}
-        <span className="text-term-down">red</span> = dearest · Δfund = cross-venue funding spread (arb signal)
+        <span className="text-term-down">red</span> = dearest · Δfund = cadence-normalized 8h-equivalent spread;
+        unknown cadence is excluded
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { FundingRow } from '@midas/shared';
-import { annualizedFundingPct, sortFundingRows } from '@/lib/funding';
+import { createDataReceipt, type DataReceipt, type FundingRow } from '@midas/shared';
+import { annualizedFundingPct, inspectFundingRow, sortFundingRows } from '@/lib/funding';
 
 const row = (symbol: string, fundingRate: number | null, oi: number | null): FundingRow => ({
   symbol,
@@ -12,7 +12,6 @@ const row = (symbol: string, fundingRate: number | null, oi: number | null): Fun
 
 describe('annualizedFundingPct', () => {
   it('annualizes an 8h funding rate', () => {
-    expect(annualizedFundingPct(0.0001)).toBeCloseTo(10.95); // 0.01% × 3 × 365
     expect(annualizedFundingPct(0.0001, 8)).toBeCloseTo(10.95);
   });
 
@@ -33,8 +32,58 @@ describe('annualizedFundingPct', () => {
   });
 
   it('passes null through', () => {
-    expect(annualizedFundingPct(null)).toBeNull();
+    expect(annualizedFundingPct(null, null)).toBeNull();
     expect(annualizedFundingPct(null, 8)).toBeNull();
+  });
+});
+
+const NOW = Date.parse('2026-08-01T12:00:00.000Z');
+
+function evidence(ageMs = 1_000): DataReceipt {
+  return createDataReceipt(
+    {
+      providerId: 'ccxt',
+      providerVersion: '1',
+      source: 'ccxt:binance',
+      venue: 'binance',
+      datasetFamily: 'funding',
+      instrument: 'BTC/USDT',
+      provenance: 'live',
+      sourceAsOf: NOW - ageMs,
+      observedAt: NOW - ageMs,
+      maxAgeMs: 5_000,
+    },
+    NOW,
+  );
+}
+
+describe('inspectFundingRow', () => {
+  const complete = (receipt: DataReceipt | undefined = evidence()): FundingRow => ({
+    ...row('BTC/USDT', 0.0001, 1_000_000),
+    fundingIntervalHours: 8,
+    receipt,
+  });
+
+  it('names the annualization formula and retains the input receipt', () => {
+    const input = complete();
+    const inspected = inspectFundingRow(input, NOW);
+    expect(inspected.annualizedPct).toBeCloseTo(10.95);
+    expect(inspected.receipt).toMatchObject({
+      derivation: 'derived',
+      methodology: { id: 'funding-annualized', version: '1.0' },
+      inputReceiptIds: [input.receipt!.receiptId],
+    });
+    expect(inspected.actionable).toBe(true);
+  });
+
+  it('suppresses annualized values for missing, stale, or unknown-cadence evidence', () => {
+    expect(inspectFundingRow({ ...complete(), receipt: undefined }, NOW).annualizedPct).toBeNull();
+    expect(inspectFundingRow(complete(evidence(5_001)), NOW)).toMatchObject({
+      annualizedPct: null,
+      actionable: false,
+      receipt: { freshness: { state: 'stale' } },
+    });
+    expect(inspectFundingRow({ ...complete(), fundingIntervalHours: null }, NOW).annualizedPct).toBeNull();
   });
 });
 

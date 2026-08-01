@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { summarizeFunding } from '@/lib/fundingHistory';
+import { inspectFundingSummary } from '@/lib/fundingHistory';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 const pctRate = (r: number | null) => (r == null ? '—' : `${(r * 100).toFixed(4)}%`);
@@ -22,7 +24,10 @@ export function FundingHistoryModule({ panel }: ModuleProps) {
     () => (data ?? []).filter((p) => p.fundingRate != null && Number.isFinite(p.fundingRate)),
     [data],
   );
-  const summary = useMemo(() => summarizeFunding(data ?? []), [data]);
+  const inspected = useMemo(() => inspectFundingSummary(data ?? [], symbol ?? 'unknown'), [data, symbol]);
+  const summary = inspected.summary;
+  const currentReceipt = rated[rated.length - 1]?.receipt;
+  const trustedSummary = isReceiptActionable(inspected.receipt);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -53,11 +58,11 @@ export function FundingHistoryModule({ panel }: ModuleProps) {
           y={up ? mid - h : mid}
           width={Math.max(0.6, barW * 0.8)}
           height={Math.max(0, h)}
-          fill={up ? 'rgba(38,194,129,0.75)' : 'rgba(239,77,86,0.75)'}
+          fill={trustedSummary ? (up ? 'rgba(38,194,129,0.75)' : 'rgba(239,77,86,0.75)') : 'rgba(122,127,135,0.45)'}
         />
       );
     });
-  }, [rated, size]);
+  }, [rated, size, trustedSummary]);
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol} funding`} />;
@@ -67,19 +72,23 @@ export function FundingHistoryModule({ panel }: ModuleProps) {
   return (
     <div className="flex h-full flex-col text-2xs">
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1">
-        <span className="text-term-dim">funding history · {summary.count} settlements (8h)</span>
+        <span className="text-term-dim">
+          funding history · {summary.count} settlements · {summary.intervalHours == null ? 'cadence unknown' : `${summary.intervalHours}h cadence`}
+        </span>
+        {inspected.receipt && <SourceBadge receipt={inspected.receipt} compact />}
         <span className="ml-auto tabular-nums">
           <span className="text-term-muted">now </span>
-          <span className={aprClass(summary.currentApr)}>
+          <span className={trustedSummary ? aprClass(summary.currentApr) : 'text-term-muted'}>
             {pctRate(summary.current)} · {pctApr(summary.currentApr)} APR
           </span>
+          {currentReceipt && <SourceBadge receipt={currentReceipt} compact className="ml-1" />}
         </span>
       </div>
 
       <div className="grid grid-cols-4 gap-1 p-2 tabular-nums">
         <div className="flex flex-col">
           <span className="text-term-dim">AVG APR</span>
-          <span className={aprClass(summary.averageApr)}>{pctApr(summary.averageApr)}</span>
+          <span className={trustedSummary ? aprClass(summary.averageApr) : 'text-term-muted'}>{pctApr(summary.averageApr)}</span>
         </div>
         <div className="flex flex-col">
           <span className="text-term-dim">% POSITIVE</span>
@@ -87,11 +96,11 @@ export function FundingHistoryModule({ panel }: ModuleProps) {
         </div>
         <div className="flex flex-col">
           <span className="text-term-dim">MIN</span>
-          <span className="text-term-down">{pctRate(summary.min)}</span>
+          <span className={trustedSummary ? 'text-term-down' : 'text-term-muted'}>{pctRate(summary.min)}</span>
         </div>
         <div className="flex flex-col">
           <span className="text-term-dim">MAX</span>
-          <span className="text-term-up">{pctRate(summary.max)}</span>
+          <span className={trustedSummary ? 'text-term-up' : 'text-term-muted'}>{pctRate(summary.max)}</span>
         </div>
       </div>
 
@@ -107,7 +116,8 @@ export function FundingHistoryModule({ panel }: ModuleProps) {
       </div>
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        Funding paid each 8h settlement (oldest → newest) · green = longs pay (positive), red = shorts pay
+        Funding per reported settlement (oldest → newest) · APR requires one explicit common cadence · aggregate color is
+        suppressed when required evidence is not fresh
       </div>
     </div>
   );

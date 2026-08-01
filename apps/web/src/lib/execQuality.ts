@@ -1,4 +1,8 @@
-import type { AccountFill } from '@midas/shared';
+import {
+  deriveDataReceipt,
+  type AccountFill,
+  type DataReceipt,
+} from '@midas/shared';
 import { fillSlippageBps, type FillBaseline } from './postTradeSlippage';
 
 /**
@@ -30,6 +34,12 @@ export interface ExecQuality {
   slipCoveragePct: number;
   /** Largest notional first. */
   bySymbol: SymbolQuality[];
+}
+
+export interface InspectedExecQuality {
+  quality: ExecQuality;
+  /** Covers fill-only aggregates; browser-local slippage is explicitly excluded. */
+  receipt: DataReceipt | null;
 }
 
 export function computeExecQuality(
@@ -85,4 +95,55 @@ export function computeExecQuality(
       }))
       .sort((a, z) => z.notional - a.notional),
   };
+}
+
+/**
+ * Receipt the aggregates that depend only on account fills. Placement
+ * baselines live in this browser and have no receipt, so slippage remains a
+ * separately labeled illustrative value and is not claimed by this lineage.
+ */
+export function inspectExecQuality(
+  fills: AccountFill[],
+  baselines: Record<string, FillBaseline>,
+  inputReceipt: DataReceipt | undefined,
+  evaluatedAtMs: number = Date.now(),
+): InspectedExecQuality {
+  const quality = computeExecQuality(fills, baselines);
+  if (inputReceipt === undefined) return { quality, receipt: null };
+  try {
+    return {
+      quality,
+      receipt: deriveDataReceipt(
+        {
+          providerId: 'midas-web',
+          providerVersion: '1.0',
+          source: 'Midas client execution-quality reducer',
+          venue: inputReceipt.venue,
+          datasetFamily: 'account-fills',
+          instrument: inputReceipt.instrument,
+          coverage: `${fills.length} account fill(s); slippage excluded from receipt scope`,
+          provenance: inputReceipt.provenance,
+          expectedCadenceMs: inputReceipt.expectedCadenceMs,
+          units: { notional: 'quote currency', makerShare: 'percent', fees: 'reported fee currency' },
+          methodology: {
+            id: 'execution-quality-fill-aggregates',
+            version: '1.0',
+            formula:
+              'fills=count; notional=sum(fill cost); maker share=count(maker)/count(known maker-or-taker); fees=sum by currency; symbols grouped by symbol; browser-local slippage is excluded',
+          },
+          inputReceipts: [inputReceipt],
+          limitations: [
+            'Slippage uses unreceipted browser-local placement estimates and is not covered by this derived receipt.',
+          ],
+          note:
+            inputReceipt.provenance === 'live'
+              ? null
+              : `Derived from ${inputReceipt.provenance} account-fill evidence.`,
+        },
+        evaluatedAtMs,
+      ),
+    };
+  } catch {
+    return { quality, receipt: null };
+  }
 }

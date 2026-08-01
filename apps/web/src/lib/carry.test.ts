@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { computeCarry, sortCarry, type CarrySource, type CarryRow } from '@/lib/carry';
+import { createDataReceipt, type FundingRow, type Quote, type TrustDatasetFamily } from '@midas/shared';
+import {
+  computeCarry,
+  computeInspectedCarry,
+  sortCarry,
+  type CarrySource,
+  type CarryRow,
+} from '@/lib/carry';
 import { annualizedFundingPct } from '@/lib/funding';
 
 const src = (symbol: string, fundingRate: number | null, markPrice: number | null): CarrySource => ({
@@ -71,5 +78,117 @@ describe('sortCarry', () => {
     const withNull = [...rows, computeCarry(src('Z', null, 100), 100)];
     const sorted = sortCarry(withNull, 'apr', 'desc');
     expect(sorted[sorted.length - 1].symbol).toBe('Z');
+  });
+});
+
+const NOW = Date.parse('2026-08-01T12:00:00.000Z');
+
+function evidence(
+  family: TrustDatasetFamily,
+  instrument = 'BTC/USDT',
+  ageMs = 1_000,
+  provenance: 'live' | 'synthetic' = 'live',
+) {
+  return createDataReceipt(
+    {
+      providerId: provenance === 'synthetic' ? 'mock' : 'ccxt',
+      providerVersion: '1',
+      source: provenance === 'synthetic' ? 'mock' : 'ccxt:binance',
+      venue: provenance === 'synthetic' ? null : 'binance',
+      datasetFamily: family,
+      instrument,
+      provenance,
+      sourceAsOf: NOW - ageMs,
+      observedAt: NOW - ageMs,
+      maxAgeMs: 5_000,
+      units: {},
+      limitations: provenance === 'synthetic' ? ['Synthetic test evidence.'] : [],
+      note: provenance === 'synthetic' ? 'Synthetic test evidence.' : null,
+    },
+    NOW,
+  );
+}
+
+function fundingRow(receipt = evidence('funding')): FundingRow {
+  return {
+    symbol: 'BTC/USDT',
+    fundingRate: 0.0001,
+    fundingIntervalHours: 8,
+    nextFundingTime: NOW + 3_600_000,
+    markPrice: 101,
+    openInterestValue: 1_000_000,
+    receipt,
+  };
+}
+
+function quote(receipt = evidence('quote')): Quote {
+  return {
+    symbol: 'BTC/USDT',
+    name: 'BTC / USDT',
+    currency: 'USDT',
+    exchange: 'Binance',
+    marketState: 'REGULAR',
+    price: 100,
+    previousClose: 99,
+    open: 99,
+    dayHigh: 102,
+    dayLow: 98,
+    change: 1,
+    changePercent: 1.01,
+    volume: 1_000,
+    marketCap: null,
+    fiftyTwoWeekHigh: null,
+    fiftyTwoWeekLow: null,
+    asOf: NOW - 1_000,
+    receipt,
+  };
+}
+
+describe('computeInspectedCarry', () => {
+  it('retains both funding and quote lineage with a versioned formula', () => {
+    const funding = fundingRow();
+    const spot = quote();
+    const inspected = computeInspectedCarry(funding, spot, NOW);
+    expect(inspected.receipt).toMatchObject({
+      derivation: 'derived',
+      provenance: 'live',
+      freshness: { state: 'fresh' },
+      methodology: { id: 'funding-carry', version: '1.0' },
+      inputReceiptIds: [funding.receipt!.receiptId, spot.receipt!.receiptId],
+    });
+    expect(inspected.basisPct).toBeCloseTo(1);
+    expect(inspected.aprPct).not.toBeNull();
+    expect(inspected.actionable).toBe(true);
+  });
+
+  it('suppresses the derived signal when either required input is stale', () => {
+    const staleQuote = quote(evidence('quote', 'BTC/USDT', 5_001));
+    const inspected = computeInspectedCarry(fundingRow(), staleQuote, NOW);
+    expect(inspected.receipt?.freshness.state).toBe('stale');
+    expect(inspected).toMatchObject({ aprPct: null, basisPct: null, side: 'flat', actionable: false });
+    expect(inspected.fundingRate).toBe(0.0001);
+  });
+
+  it('fails closed for missing or mismatched evidence instead of inventing values', () => {
+    expect(computeInspectedCarry({ ...fundingRow(), receipt: undefined }, quote(), NOW)).toMatchObject({
+      receipt: null,
+      aprPct: null,
+      basisPct: null,
+      actionable: false,
+    });
+    expect(
+      computeInspectedCarry(fundingRow(), { ...quote(evidence('quote', 'ETH/USDT')), symbol: 'ETH/USDT' }, NOW),
+    ).toMatchObject({ receipt: null, aprPct: null, basisPct: null, actionable: false });
+  });
+
+  it('keeps synthetic demo evidence visible but non-actionable', () => {
+    const inspected = computeInspectedCarry(
+      fundingRow(evidence('funding', 'BTC/USDT', 1_000, 'synthetic')),
+      quote(evidence('quote', 'BTC/USDT', 1_000, 'synthetic')),
+      NOW,
+    );
+    expect(inspected.receipt?.provenance).toBe('synthetic');
+    expect(inspected.basisPct).toBeCloseTo(1);
+    expect(inspected.actionable).toBe(false);
   });
 });

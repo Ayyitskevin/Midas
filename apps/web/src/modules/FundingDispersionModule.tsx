@@ -4,6 +4,8 @@ import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { FundingVenuePoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -67,10 +69,13 @@ export function FundingDispersionModule({ panel }: ModuleProps) {
                 </th>
                 <th className="px-2 py-1 text-right font-normal">MEAN</th>
                 <th className="px-2 py-1 text-right font-normal">OI</th>
+                <th className="px-2 py-1 text-right font-normal">SOURCE</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const actionable = isReceiptActionable(r.receipt);
+                return (
                 <tr
                   key={r.symbol}
                   className="border-b border-term-border/30 hover:bg-term-header/60"
@@ -85,23 +90,27 @@ export function FundingDispersionModule({ panel }: ModuleProps) {
                     </button>
                     <span className="ml-1 text-term-dim">·{r.venues.length}</span>
                   </td>
-                  <td className="px-2 py-1 text-right font-semibold tabular-nums text-term-amber">
+                  <td className={`px-2 py-1 text-right font-semibold tabular-nums ${actionable ? 'text-term-amber' : 'text-term-muted'}`}>
                     {fmtBps(r.spreadBps)}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">
-                    <span className="text-term-up">{fmtPct(r.minRate)}</span>
+                    <span className={actionable ? 'text-term-up' : 'text-term-muted'}>{fmtPct(r.minRate)}</span>
                     <span className="ml-1 text-term-dim">{r.lowVenue ?? ''}</span>
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">
-                    <span className="text-term-down">{fmtPct(r.maxRate)}</span>
+                    <span className={actionable ? 'text-term-down' : 'text-term-muted'}>{fmtPct(r.maxRate)}</span>
                     <span className="ml-1 text-term-dim">{r.highVenue ?? ''}</span>
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtPct(r.meanRate)}</td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
                     {r.totalOiValue != null ? `$${fmtCompact(r.totalOiValue)}` : '—'}
                   </td>
+                  <td className="px-2 py-1 text-right">
+                    {r.receipt ? <SourceBadge receipt={r.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

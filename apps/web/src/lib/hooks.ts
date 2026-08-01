@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { DataReceipt } from '@midas/shared';
 import { createLatestGate } from './latestGate';
+import { effectiveReceiptFreshness } from './receiptView';
 import { stream } from './stream';
 
 export interface AsyncState<T> {
@@ -7,7 +9,7 @@ export interface AsyncState<T> {
   error: string | null;
   loading: boolean;
   /** Epoch ms of the last successful fetch; null until the first success and
-   * after any dep change / disable (mirrors the data-reset semantics). */
+   * after any dep change, disable, or current fetch failure. */
   fetchedAt: number | null;
   refresh: () => void;
 }
@@ -58,12 +60,33 @@ export function useFetch<T>(
       }
     } catch (err) {
       if (isCurrent() && (err as Error).name !== 'AbortError') {
+        // Fail closed: a failed refresh cannot leave the prior observation
+        // visible/actionable under a frozen receipt.
+        setData(null);
         setError((err as Error).message || 'Request failed');
+        setFetchedAt(null);
       }
     } finally {
       if (isCurrent()) setLoading(false);
     }
   }, []);
+
+  // Re-render when the earliest fresh receipt in the current payload crosses
+  // its max-age boundary, even if no new response arrives.
+  useEffect(() => {
+    const now = Date.now();
+    const expiry = earliestReceiptExpiry(data, now);
+    if (expiry === null) return;
+    const remaining = expiry - now + 1;
+    if (remaining <= 0) return;
+    const timer = setTimeout(() => {
+      // Persist the elapsed state and clone every changed ancestor. This also
+      // invalidates nested memo dependencies such as `data.rows`, not only the
+      // response root, while leaving unrelated branches referentially stable.
+      setData((current) => refreshReceiptFreshness(current, Date.now()));
+    }, Math.min(remaining, 2_000_000_000));
+    return () => clearTimeout(timer);
+  }, [data, fetchedAt]);
 
   const manualRef = useRef<() => void>(() => {});
 
@@ -106,4 +129,109 @@ export function useFetch<T>(
   const refresh = useCallback(() => manualRef.current(), []);
 
   return { data, error, loading, fetchedAt, refresh };
+}
+
+function refreshReceiptFreshness<T>(value: T, nowMs: number): T {
+  return refreshReceiptFreshnessValue(value, nowMs, new WeakMap()) as T;
+}
+
+function refreshReceiptFreshnessValue(
+  value: unknown,
+  nowMs: number,
+  seen: WeakMap<object, unknown>,
+): unknown {
+  if (value === null || typeof value !== 'object') return value;
+  const existing = seen.get(value);
+  if (existing !== undefined) return existing;
+
+  const record = value as Record<string, unknown>;
+  if (isReceiptRecord(record)) {
+    const nextFreshness = effectiveReceiptFreshness(record as unknown as DataReceipt, nowMs);
+    const currentFreshness = record.freshness as DataReceipt['freshness'];
+    if (
+      nextFreshness.state === currentFreshness.state &&
+      nextFreshness.ageMs === currentFreshness.ageMs
+    ) return value;
+    const next = { ...record, freshness: nextFreshness };
+    seen.set(value, next);
+    return next;
+  }
+
+  if (Array.isArray(value)) {
+    const next: unknown[] = [];
+    seen.set(value, next);
+    let changed = false;
+    for (const child of value) {
+      const refreshed = refreshReceiptFreshnessValue(child, nowMs, seen);
+      next.push(refreshed);
+      if (refreshed !== child) changed = true;
+    }
+    if (!changed) {
+      seen.set(value, value);
+      return value;
+    }
+    return next;
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  const next: Record<string, unknown> = {};
+  seen.set(value, next);
+  let changed = false;
+  for (const [key, child] of Object.entries(record)) {
+    const refreshed = refreshReceiptFreshnessValue(child, nowMs, seen);
+    next[key] = refreshed;
+    if (refreshed !== child) changed = true;
+  }
+  if (!changed) {
+    seen.set(value, value);
+    return value;
+  }
+  return next;
+}
+
+function isReceiptRecord(record: Record<string, unknown>): boolean {
+  const freshness = record.freshness;
+  return (
+    record.schemaVersion === '1.0' &&
+    typeof record.receiptId === 'string' &&
+    (typeof record.sourceAsOf === 'string' || record.sourceAsOf === null) &&
+    (typeof record.maxAgeMs === 'number' || record.maxAgeMs === null) &&
+    freshness !== null &&
+    typeof freshness === 'object' &&
+    typeof (freshness as Record<string, unknown>).state === 'string'
+  );
+}
+
+function earliestReceiptExpiry(
+  value: unknown,
+  nowMs: number,
+  seen = new Set<object>(),
+): number | null {
+  if (value === null || typeof value !== 'object') return null;
+  if (seen.has(value)) return null;
+  seen.add(value);
+  const record = value as Record<string, unknown>;
+  let earliest: number | null = null;
+  if (
+    record.schemaVersion === '1.0' &&
+    typeof record.sourceAsOf === 'string' &&
+    typeof record.maxAgeMs === 'number' &&
+    Number.isFinite(record.maxAgeMs) &&
+    record.freshness !== null &&
+    typeof record.freshness === 'object' &&
+    (record.freshness as Record<string, unknown>).state === 'fresh'
+  ) {
+    const sourceAsOf = Date.parse(record.sourceAsOf);
+    const expiry = sourceAsOf + record.maxAgeMs;
+    // Stored receipt freshness is an observation-time claim. Once its timer
+    // fires, skip that elapsed boundary so a later receipt in the same payload
+    // gets its own re-render instead of being starved by the first expiry.
+    if (Number.isFinite(sourceAsOf) && expiry >= nowMs) earliest = expiry;
+  }
+  for (const child of Array.isArray(value) ? value : Object.values(record)) {
+    const candidate = earliestReceiptExpiry(child, nowMs, seen);
+    if (candidate !== null && (earliest === null || candidate < earliest)) earliest = candidate;
+  }
+  return earliest;
 }

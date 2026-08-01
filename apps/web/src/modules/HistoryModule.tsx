@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react';
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { buildHistory, historySummary, type HistorySort } from '@/lib/history';
+import { buildHistory, inspectHistorySummary, type HistorySort } from '@/lib/history';
 import { fmtPrice, fmtCompact, fmtSignedPercent, changeClass } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { SortHead } from '@/components/SortHead';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 const TIMEFRAMES: { label: string; interval: Interval; range: Range; intraday: boolean }[] = [
@@ -38,7 +40,12 @@ export function HistoryModule({ panel }: ModuleProps) {
 
   const candles = data?.candles ?? [];
   const rows = useMemo(() => buildHistory(candles, sort, 'desc'), [candles, sort]);
-  const summary = useMemo(() => historySummary(candles), [candles]);
+  const inspected = useMemo(
+    () => inspectHistorySummary(candles, data?.receipt, symbol ?? '', `${tf.interval}/${tf.range}`),
+    [candles, data?.receipt, symbol, tf.interval, tf.range],
+  );
+  const summary = inspected.summary;
+  const actionable = isReceiptActionable(inspected.receipt);
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
   if (loading && !data) return <Loading label={`Loading ${symbol}`} />;
@@ -50,6 +57,7 @@ export function HistoryModule({ panel }: ModuleProps) {
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1">
         <span className="text-term-dim">historical prices · {summary.n} bars</span>
         <div className="ml-auto flex items-center gap-1">
+          {data?.receipt && <SourceBadge receipt={data.receipt} compact />}
           {TIMEFRAMES.map((t, i) => (
             <button
               key={t.label}
@@ -66,20 +74,21 @@ export function HistoryModule({ panel }: ModuleProps) {
 
       {/* Period summary strip */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 border-b border-term-border px-2 py-1 text-term-muted">
+        {inspected.receipt && <SourceBadge receipt={inspected.receipt} compact />}
         <span>
-          H <span className="text-term-text">{fmtPrice(summary.periodHigh)}</span>
+          H <span className={actionable ? 'text-term-text' : 'text-term-muted'}>{fmtPrice(summary.periodHigh)}</span>
         </span>
         <span>
-          L <span className="text-term-text">{fmtPrice(summary.periodLow)}</span>
+          L <span className={actionable ? 'text-term-text' : 'text-term-muted'}>{fmtPrice(summary.periodLow)}</span>
         </span>
         <span>
-          Δ <span className={changeClass(summary.totalChangePct)}>{fmtSignedPercent(summary.totalChangePct)}</span>
+          Δ <span className={actionable ? changeClass(summary.totalChangePct) : 'text-term-muted'}>{fmtSignedPercent(summary.totalChangePct)}</span>
         </span>
         <span>
-          Vol⌀ <span className="text-term-text">{fmtCompact(summary.avgVolume)}</span>
+          Vol⌀ <span className={actionable ? 'text-term-text' : 'text-term-muted'}>{fmtCompact(summary.avgVolume)}</span>
         </span>
         <span>
-          <span className="text-term-up">{summary.upDays}▲</span> / <span className="text-term-down">{summary.downDays}▼</span>
+          <span className={actionable ? 'text-term-up' : 'text-term-muted'}>{summary.upDays}▲</span> / <span className={actionable ? 'text-term-down' : 'text-term-muted'}>{summary.downDays}▼</span>
         </span>
       </div>
 
@@ -101,10 +110,10 @@ export function HistoryModule({ panel }: ModuleProps) {
               <tr key={r.time} className="border-b border-term-border/20 hover:bg-term-header/40">
                 <td className="px-2 py-0.5 text-left text-term-text">{fmtRowDate(r.time, tf.intraday)}</td>
                 <td className="px-2 py-0.5 text-right text-term-muted">{fmtPrice(r.open)}</td>
-                <td className="px-2 py-0.5 text-right text-term-up">{fmtPrice(r.high)}</td>
-                <td className="px-2 py-0.5 text-right text-term-down">{fmtPrice(r.low)}</td>
+                <td className={`px-2 py-0.5 text-right ${actionable ? 'text-term-up' : 'text-term-muted'}`}>{fmtPrice(r.high)}</td>
+                <td className={`px-2 py-0.5 text-right ${actionable ? 'text-term-down' : 'text-term-muted'}`}>{fmtPrice(r.low)}</td>
                 <td className="px-2 py-0.5 text-right font-semibold text-term-text">{fmtPrice(r.close)}</td>
-                <td className={`px-2 py-0.5 text-right ${changeClass(r.changePct)}`}>
+                <td className={`px-2 py-0.5 text-right ${actionable ? changeClass(r.changePct) : 'text-term-muted'}`}>
                   {r.changePct === null ? '—' : fmtSignedPercent(r.changePct)}
                 </td>
                 <td className="px-2 py-0.5 text-right text-term-muted">{fmtCompact(r.volume)}</td>
@@ -115,7 +124,7 @@ export function HistoryModule({ panel }: ModuleProps) {
       </div>
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
-        OHLCV history · CHG% vs the prior bar's close · click DATE / CHG% / VOL to sort · the tabular complement to the chart (G).
+        OHLCV history · {inspected.receipt ? 'local row/summary reducer is receipted above' : 'local row/summary reducer is unreceipted · illustrative'} · CHG% vs the prior bar's close · click DATE / CHG% / VOL to sort.
       </div>
     </div>
   );

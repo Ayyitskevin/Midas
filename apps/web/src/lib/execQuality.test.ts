@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { AccountFill } from '@midas/shared';
-import { computeExecQuality } from './execQuality';
+import { createDataReceipt, type AccountFill } from '@midas/shared';
+import { computeExecQuality, inspectExecQuality } from './execQuality';
 import type { FillBaseline } from './postTradeSlippage';
 
 const fill = (over: Partial<AccountFill>): AccountFill => ({
@@ -76,5 +76,39 @@ describe('computeExecQuality', () => {
     const q = computeExecQuality([fill({ fee: 0.5, feeCurrency: null })], {});
     expect(q.feeTotals).toEqual([{ currency: '?', total: 0.5 }]);
     expect(q.bySymbol[0].avgSlipBps).toBeNull();
+  });
+});
+
+describe('inspectExecQuality', () => {
+  const now = Date.parse('2026-08-01T12:00:00.000Z');
+  const input = createDataReceipt({
+    providerId: 'test-account',
+    providerVersion: '1',
+    source: 'test fills',
+    datasetFamily: 'account-fills',
+    instrument: 'BTC/USDT',
+    provenance: 'live',
+    sourceAsOf: now,
+    observedAt: now,
+    maxAgeMs: 30_000,
+  }, now);
+
+  it('receipts fill-only aggregates while explicitly excluding local slippage', () => {
+    const inspected = inspectExecQuality(
+      [fill({ orderId: 'o1', timestamp: now })],
+      { o1: baseline('o1', 99) },
+      input,
+      now,
+    );
+    expect(inspected.quality.avgSlipBps).not.toBeNull();
+    expect(inspected.receipt).toMatchObject({
+      derivation: 'derived',
+      provenance: 'live',
+      inputReceiptIds: [input.receiptId],
+      freshness: { state: 'fresh', ageMs: 0 },
+      methodology: { id: 'execution-quality-fill-aggregates', version: '1.0' },
+    });
+    expect(inspected.receipt?.limitations.join(' ')).toMatch(/slippage.*not covered/i);
+    expect(inspectExecQuality([], {}, undefined, now).receipt).toBeNull();
   });
 });

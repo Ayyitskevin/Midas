@@ -3,8 +3,11 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice, fmtTimeAgo } from '@/lib/format';
 import { navigate } from '@/commands/execute';
-import { liquidationsFeedBadge, summarizeLiquidations } from '@/lib/liquidations';
+import { inspectLiquidationsSummary, liquidationsFeedBadge } from '@/lib/liquidations';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
+import { isPartialEvidenceLimitation } from '@midas/shared';
 import type { ModuleProps } from './types';
 
 export function LiquidationsModule({ panel }: ModuleProps) {
@@ -16,30 +19,39 @@ export function LiquidationsModule({ panel }: ModuleProps) {
 
   const events = useMemo(() => data?.events ?? [], [data]);
   const meta = data?.meta;
+  const receipt = meta?.receipt ?? data?.receipt;
   const badge = meta ? liquidationsFeedBadge(meta) : null;
-  const summary = useMemo(() => summarizeLiquidations(events), [events]);
+  const inspected = useMemo(
+    () => inspectLiquidationsSummary(events, receipt),
+    [events, receipt],
+  );
+  const summary = inspected.summary;
+  const actionable = isReceiptActionable(inspected.receipt);
+  const partialEvidence = Boolean(receipt?.limitations.some(isPartialEvidenceLimitation));
   const longPct = summary.total > 0 ? (summary.longValue / summary.total) * 100 : 0;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">LIQUIDATIONS</span>
-        {meta && badge && (
+        {receipt ? (
+          <SourceBadge receipt={receipt} />
+        ) : meta && badge ? (
           <span className="flex items-center gap-1 text-term-dim">
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
-                badge.liveTone ? 'bg-term-up' : 'bg-term-amber'
+                badge.liveTone ? 'bg-term-dim' : 'bg-term-amber'
               }`}
-              title={badge.title}
+              title={badge.liveTone ? `${badge.title} Freshness unknown: no receipt.` : badge.title}
             />
             <span className="text-term-muted">{meta.source}</span>
             <span>
               ·{' '}
-              {badge.label === 'demo' ? 'demo' : badge.label === 'live' ? 'live' : 'no feed'}
+              {badge.label === 'demo' ? 'demo' : badge.label === 'live' ? 'live · freshness unknown' : 'no feed'}
             </span>
             <span>· {fmtTimeAgo(meta.asOf)}</span>
           </span>
-        )}
+        ) : null}
       </div>
 
       {/* Honesty banner — why the feed may be empty/partial or under-reported. */}
@@ -56,19 +68,22 @@ export function LiquidationsModule({ panel }: ModuleProps) {
       )}
 
       {/* Long vs short summary */}
-      <div className="border-b border-term-border px-2 py-1.5">
-        <div className="mb-1 flex items-center justify-between text-2xs tabular-nums">
-          <span className="text-term-down">
-            LONG ${fmtCompact(summary.longValue)} <span className="text-term-dim">({summary.longCount})</span>
-          </span>
-          <span className="text-term-up">
-            <span className="text-term-dim">({summary.shortCount})</span> ${fmtCompact(summary.shortValue)} SHORT
-          </span>
+      {data && events.length > 0 && meta?.available === true && receipt?.provenance !== 'unavailable' && (
+        <div className="border-b border-term-border px-2 py-1.5">
+          <div className="mb-1 flex items-center justify-between text-2xs tabular-nums">
+            <span className={actionable ? 'text-term-down' : 'text-term-muted'}>
+              LONG ${fmtCompact(summary.longValue)} <span className="text-term-dim">({summary.longCount})</span>
+            </span>
+            {inspected.receipt && <SourceBadge receipt={inspected.receipt} compact />}
+            <span className={actionable ? 'text-term-up' : 'text-term-muted'}>
+              <span className="text-term-dim">({summary.shortCount})</span> ${fmtCompact(summary.shortValue)} SHORT
+            </span>
+          </div>
+          <div className={`flex h-1.5 overflow-hidden rounded-sm ${actionable ? 'bg-term-up' : 'bg-term-border'}`}>
+            <div className={actionable ? 'bg-term-down' : 'bg-term-muted'} style={{ width: `${longPct}%` }} title={`Longs ${longPct.toFixed(0)}%`} />
+          </div>
         </div>
-        <div className="flex h-1.5 overflow-hidden rounded-sm bg-term-up">
-          <div className="bg-term-down" style={{ width: `${longPct}%` }} title={`Longs ${longPct.toFixed(0)}%`} />
-        </div>
-      </div>
+      )}
 
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading liquidations" />}
@@ -77,6 +92,8 @@ export function LiquidationsModule({ panel }: ModuleProps) {
           <EmptyState>
             {meta && !meta.available
               ? 'This source publishes no liquidation feed — connect an exchange that does.'
+              : partialEvidence
+                ? 'Liquidation evidence is partial; no complete event result can be asserted.'
               : 'No liquidations in the recent window.'}
           </EmptyState>
         )}
@@ -96,7 +113,7 @@ export function LiquidationsModule({ panel }: ModuleProps) {
                 const isLong = l.side === 'sell';
                 return (
                   <tr key={`${l.symbol}-${l.timestamp}-${i}`} className="border-b border-term-border/30 hover:bg-term-header/60">
-                    <td className={`px-2 py-0.5 font-medium ${isLong ? 'text-term-down' : 'text-term-up'}`}>
+                    <td className={`px-2 py-0.5 font-medium ${actionable ? (isLong ? 'text-term-down' : 'text-term-up') : 'text-term-muted'}`}>
                       {isLong ? 'LONG' : 'SHORT'}
                     </td>
                     <td className="px-2 py-0.5">

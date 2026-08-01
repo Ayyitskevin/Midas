@@ -3,9 +3,10 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact, fmtPrice } from '@/lib/format';
 import { navigate } from '@/commands/execute';
-import { annualizedFundingPct, sortFundingRows, type FundingSortKey } from '@/lib/funding';
+import { inspectFundingRow, sortFundingRows, type FundingSortKey } from '@/lib/funding';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 /** Format a funding rate (fraction) as a signed percent. */
@@ -38,7 +39,10 @@ export function FundingBoardModule({ panel }: ModuleProps) {
     intervalMs: 15_000,
   });
 
-  const rows = useMemo(() => (data ? sortFundingRows(data.rows, sortKey, dir) : []), [data, sortKey, dir]);
+  const rows = useMemo(
+    () => (data ? sortFundingRows(data.rows, sortKey, dir).map((row) => inspectFundingRow(row)) : []),
+    [data, sortKey, dir],
+  );
 
   const sortBy = (key: FundingSortKey) => {
     if (key === sortKey) setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -87,10 +91,13 @@ export function FundingBoardModule({ panel }: ModuleProps) {
                 {th(null, 'NEXT', 'text-right')}
                 {th(null, 'MARK', 'text-right')}
                 {th('oi', 'OI', 'text-right')}
+                {th(null, 'SOURCE', 'text-right')}
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((inspected) => {
+                const r = inspected.row;
+                return (
                 <tr key={r.symbol} className="border-b border-term-border/30 hover:bg-term-header/60">
                   <td className="px-2 py-1">
                     <button
@@ -100,24 +107,32 @@ export function FundingBoardModule({ panel }: ModuleProps) {
                       {r.symbol}
                     </button>
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.fundingRate)}`}>
+                  <td className={`px-2 py-1 text-right tabular-nums ${inspected.actionable ? changeClass(r.fundingRate) : 'text-term-muted'}`}>
                     {fmtPct(r.fundingRate, 4)}
                     {r.fundingIntervalHours != null && (
                       <span className="ml-0.5 text-2xs text-term-dim">/{r.fundingIntervalHours}h</span>
                     )}
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.fundingRate)}`}>
-                    {fmtAnnual(annualizedFundingPct(r.fundingRate, r.fundingIntervalHours))}
+                  <td className={`px-2 py-1 text-right tabular-nums ${inspected.actionable ? changeClass(inspected.annualizedPct) : 'text-term-muted'}`}>
+                    {fmtAnnual(inspected.annualizedPct)}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
                     {untilNext(r.nextFundingTime)}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">{r.markPrice != null ? fmtPrice(r.markPrice) : '—'}</td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
-                    ${fmtCompact(r.openInterestValue)}
+                    {r.openInterestValue == null ? '—' : `$${fmtCompact(r.openInterestValue)}`}
+                  </td>
+                  <td className="px-2 py-1 text-right">
+                    {inspected.receipt ? (
+                      <SourceBadge receipt={inspected.receipt} compact />
+                    ) : (
+                      <span className="text-term-down">unknown</span>
+                    )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

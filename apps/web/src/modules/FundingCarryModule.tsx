@@ -3,9 +3,10 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
-import { computeCarry, sortCarry, type CarrySortKey, type CarrySide } from '@/lib/carry';
+import { computeInspectedCarry, sortCarry, type CarrySortKey, type CarrySide } from '@/lib/carry';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const fmtRate = (r: number | null): string => (r == null ? '—' : `${r >= 0 ? '+' : ''}${(r * 100).toFixed(4)}%`);
@@ -38,24 +39,12 @@ export function FundingCarryModule({ panel }: ModuleProps) {
     intervalMs: 15_000,
     enabled: symbols.length > 0,
   });
-  const spotBy = useMemo(() => new Map((quotes ?? []).map((q) => [q.symbol, q.price])), [quotes]);
+  const quoteBy = useMemo(() => new Map((quotes ?? []).map((quote) => [quote.symbol, quote])), [quotes]);
 
   const rows = useMemo(() => {
-    const carry = fundingRows.map((r) =>
-      computeCarry(
-        {
-          symbol: r.symbol,
-          fundingRate: r.fundingRate,
-          fundingIntervalHours: r.fundingIntervalHours ?? null,
-          markPrice: r.markPrice,
-          openInterestValue: r.openInterestValue,
-          nextFundingTime: r.nextFundingTime,
-        },
-        spotBy.get(r.symbol) ?? null,
-      ),
-    );
+    const carry = fundingRows.map((row) => computeInspectedCarry(row, quoteBy.get(row.symbol) ?? null));
     return sortCarry(carry, sortKey, dir);
-  }, [fundingRows, spotBy, sortKey, dir]);
+  }, [fundingRows, quoteBy, sortKey, dir]);
 
   const sortBy = (key: CarrySortKey) => {
     if (key === sortKey) setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -104,6 +93,7 @@ export function FundingCarryModule({ panel }: ModuleProps) {
                 {th(null, 'CARRY', 'text-left')}
                 {th('oi', 'OI', 'text-right')}
                 {th(null, 'NEXT', 'text-right')}
+                {th(null, 'SOURCE', 'text-right')}
               </tr>
             </thead>
             <tbody>
@@ -117,18 +107,23 @@ export function FundingCarryModule({ panel }: ModuleProps) {
                       {r.symbol}
                     </button>
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.fundingRate)}`}>
+                  <td className={`px-2 py-1 text-right tabular-nums ${r.actionable ? changeClass(r.fundingRate) : 'text-term-muted'}`}>
                     {fmtRate(r.fundingRate)}
                   </td>
-                  <td className={`px-2 py-1 text-right font-medium tabular-nums ${changeClass(r.aprPct)}`}>
+                  <td className={`px-2 py-1 text-right font-medium tabular-nums ${r.actionable ? changeClass(r.aprPct) : 'text-term-muted'}`}>
                     {fmtPctVal(r.aprPct)}
                   </td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.basisPct)}`}>
+                  <td className={`px-2 py-1 text-right tabular-nums ${r.actionable ? changeClass(r.basisPct) : 'text-term-muted'}`}>
                     {fmtPctVal(r.basisPct, 2)}
                   </td>
                   <td className="px-2 py-1 text-left text-2xs text-term-muted">{SIDE_LABEL[r.side]}</td>
-                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">${fmtCompact(r.oi)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">
+                    {r.oi == null ? '—' : `$${fmtCompact(r.oi)}`}
+                  </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-dim">{untilNext(r.nextFundingTime)}</td>
+                  <td className="px-2 py-1 text-right">
+                    {r.receipt ? <SourceBadge receipt={r.receipt} compact /> : <span className="text-term-down">unknown</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -137,7 +132,8 @@ export function FundingCarryModule({ panel }: ModuleProps) {
       </div>
       <p className="border-t border-term-border px-2 py-1 text-2xs leading-relaxed text-term-dim">
         APR = funding annualized at each venue&apos;s actual settlement interval (— when unreported). Basis = perp vs
-        spot. Carry names the leg that collects funding (delta-neutral); gross of fees.
+        spot. Carry names the leg that collects funding (delta-neutral) only when both source receipts are fresh;
+        gross of fees. Inspect each row for full funding + quote lineage.
       </p>
     </div>
   );

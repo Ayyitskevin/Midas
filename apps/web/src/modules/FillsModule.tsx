@@ -6,10 +6,12 @@ import { fillsBadge, type AccountTone } from '@/lib/accountReadsView';
 import { fillSlippageBps, fmtBps } from '@/lib/postTradeSlippage';
 import { useFillBaselines } from '@/store/useFillBaselines';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
+import { isReceiptActionable } from '@/lib/receiptView';
 import type { ModuleProps } from './types';
 
 const TONE: Record<AccountTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -45,6 +47,7 @@ export function FillsModule({ panel }: ModuleProps) {
   useAccountRefresh(refresh);
 
   const badge = data ? fillsBadge(data) : null;
+  const actionable = isReceiptActionable(data?.receipt);
   // Placement-time estimates recorded by TICKET in this browser — the join
   // key is the fill's orderId. Fills placed elsewhere have no baseline.
   const baselines = useFillBaselines((s) => s.baselines);
@@ -55,11 +58,13 @@ export function FillsModule({ panel }: ModuleProps) {
         <span className="font-semibold text-term-text">Fills</span>
         <span className="text-term-dim">{symbol ?? 'all symbols'}</span>
         {data && data.fills.length > 0 && <span className="text-term-dim">{data.fills.length}</span>}
-        {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-            {badge.label}
+        {data?.receipt ? (
+          <SourceBadge receipt={data.receipt} compact className="ml-auto" />
+        ) : badge ? (
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}>
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="scroll-term min-h-0 flex-1 overflow-auto">
@@ -98,7 +103,7 @@ export function FillsModule({ panel }: ModuleProps) {
                   <tr key={f.id} className="border-b border-term-border/20 hover:bg-term-header/40">
                     <td className="px-2 py-0.5 text-term-dim">{fmtTime(f.timestamp)}</td>
                     <td className="px-2 py-0.5 text-term-text">{f.symbol}{f.venue && <span className="ml-1 text-term-dim" title={`venue: ${f.venue}`}>·{f.venue}</span>}</td>
-                    <td className={`px-2 py-0.5 ${f.side === 'buy' ? 'text-term-up' : 'text-term-down'}`}>
+                    <td className={`px-2 py-0.5 ${actionable ? (f.side === 'buy' ? 'text-term-up' : 'text-term-down') : 'text-term-muted'}`}>
                       {f.side.toUpperCase()}
                     </td>
                     <td className="px-2 py-0.5 text-right">{fmtPrice(f.price)}</td>
@@ -108,9 +113,8 @@ export function FillsModule({ panel }: ModuleProps) {
                       {f.fee == null ? '—' : `${f.fee.toLocaleString(undefined, { maximumFractionDigits: 6 })}${f.feeCurrency ? ` ${f.feeCurrency}` : ''}`}
                     </td>
                     <td
-                      className={`px-2 py-0.5 text-right ${
-                        slip == null ? 'text-term-dim' : slip > 0 ? 'text-term-down' : 'text-term-up'
-                      }`}
+                      className="px-2 py-0.5 text-right text-term-muted"
+                      title={slip == null ? undefined : 'Illustrative: compared with an unreceipted browser-local placement estimate.'}
                     >
                       {slip == null ? '—' : fmtBps(slip)}
                     </td>
@@ -127,6 +131,9 @@ export function FillsModule({ panel }: ModuleProps) {
 
       {data && data.provenance !== 'unavailable' && (
         <div className="flex items-center gap-2 border-t border-term-border px-2 py-1 text-2xs text-term-dim">
+          <span title="SLIP joins account fills to a browser-local estimate that has no source receipt.">
+            SLIP local/unreceipted · illustrative
+          </span>
           <span className="ml-auto" title="Midas reads your fills — it never moves funds.">
             non-custodial · read-only
           </span>

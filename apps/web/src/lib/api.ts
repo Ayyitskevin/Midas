@@ -17,6 +17,7 @@ import type {
   CancelResult,
   CoinUniverse,
   DerivativesInfo,
+  DataStatusResponse,
   DexPools,
   DvolSnapshot,
   OpenOrders,
@@ -122,6 +123,7 @@ async function apiSend<T>(
 
 export const api = {
   health: (signal?: AbortSignal) => apiGet<HealthResponse>('/api/health', signal),
+  dataStatus: (signal?: AbortSignal) => apiGet<DataStatusResponse>('/api/data/status', signal),
 
   quote: (symbol: string, signal?: AbortSignal) =>
     apiGet<Quote>(`/api/quote/${encodeURIComponent(symbol)}`, signal),

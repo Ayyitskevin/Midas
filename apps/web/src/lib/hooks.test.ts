@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, renderHook } from '@testing-library/react';
+import { useMemo } from 'react';
 import { useFetch } from './hooks';
 import { stream } from './stream';
+import { createDataReceipt } from '@midas/shared';
+import { isReceiptActionable } from './receiptView';
 
 /** A promise resolved/rejected from the test, to control response ordering. */
 function deferred<T>() {
@@ -95,6 +98,164 @@ describe('useFetch', () => {
     expect(result.current.error).toBeNull();
     expect(result.current.data).toBeNull();
     expect(result.current.loading).toBe(false);
+  });
+
+  it('fails closed by clearing prior data when a current refresh fails', async () => {
+    const first = deferred<string>();
+    const second = deferred<string>();
+    const fn = vi
+      .fn<(signal: AbortSignal) => Promise<string>>()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    const { result } = renderHook(() => useFetch(fn, ['BTC/USDT']));
+
+    await act(async () => {
+      first.resolve('fresh-data');
+      await first.promise;
+    });
+    expect(result.current.data).toBe('fresh-data');
+
+    await act(async () => {
+      result.current.refresh();
+    });
+    await act(async () => {
+      second.reject(new Error('poll failed'));
+      await second.promise.catch(() => {});
+    });
+    expect(result.current.data).toBeNull();
+    expect(result.current.fetchedAt).toBeNull();
+    expect(result.current.error).toBe('poll failed');
+  });
+
+  it('re-renders receipted data when its wall-clock freshness expires', async () => {
+    vi.useFakeTimers();
+    const now = Date.parse('2026-08-01T12:00:00.000Z');
+    vi.setSystemTime(now);
+    const payload = {
+      receipt: createDataReceipt(
+        {
+          providerId: 'test',
+          providerVersion: '1',
+          source: 'test',
+          datasetFamily: 'quote',
+          instrument: 'BTC/USDT',
+          provenance: 'live',
+          sourceAsOf: now,
+          observedAt: now,
+          maxAgeMs: 1_000,
+        },
+        now,
+      ),
+    };
+    const fn = vi
+      .fn<(signal: AbortSignal) => Promise<typeof payload>>()
+      .mockResolvedValue(payload);
+    const { result } = renderHook(() => {
+      const state = useFetch(fn, ['BTC/USDT']);
+      return {
+        ...state,
+        actionable: useMemo(
+          () => isReceiptActionable(state.data?.receipt),
+          [state.data],
+        ),
+      };
+    });
+    await act(async () => Promise.resolve());
+    expect(result.current.actionable).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(result.current.data?.receipt.receiptId).toBe(payload.receipt.receiptId);
+    expect(result.current.data?.receipt.sourceAsOf).toBe(payload.receipt.sourceAsOf);
+    expect(result.current.data?.receipt.freshness).toEqual({ state: 'stale', ageMs: 1_001 });
+    expect(result.current.data).not.toBe(payload);
+    expect(result.current.actionable).toBe(false);
+  });
+
+  it('expires a zero-max-age receipt immediately after its exact boundary', async () => {
+    vi.useFakeTimers();
+    const now = Date.parse('2026-08-01T12:00:00.000Z');
+    vi.setSystemTime(now);
+    const payload = {
+      receipt: createDataReceipt({
+        providerId: 'test',
+        providerVersion: '1',
+        source: 'test',
+        datasetFamily: 'quote',
+        instrument: 'BTC/USDT',
+        provenance: 'live',
+        sourceAsOf: now,
+        observedAt: now,
+        maxAgeMs: 0,
+      }, now),
+    };
+    const { result } = renderHook(() => useFetch(() => Promise.resolve(payload), ['quote']));
+    await act(async () => Promise.resolve());
+    expect(isReceiptActionable(result.current.data?.receipt)).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(result.current.data?.receipt.freshness).toEqual({ state: 'stale', ageMs: 1 });
+    expect(isReceiptActionable(result.current.data?.receipt)).toBe(false);
+  });
+
+  it('schedules each future freshness boundary in a payload', async () => {
+    vi.useFakeTimers();
+    const now = Date.parse('2026-08-01T12:00:00.000Z');
+    vi.setSystemTime(now);
+    const payload = {
+      receipts: [
+        createDataReceipt({
+          providerId: 'test',
+          providerVersion: '1',
+          source: 'test',
+          datasetFamily: 'quote',
+          instrument: 'BTC/USDT',
+          provenance: 'live',
+          sourceAsOf: now,
+          observedAt: now,
+          maxAgeMs: 1_000,
+        }, now),
+        createDataReceipt({
+          providerId: 'test',
+          providerVersion: '1',
+          source: 'test',
+          datasetFamily: 'quote',
+          instrument: 'ETH/USDT',
+          provenance: 'live',
+          sourceAsOf: now,
+          observedAt: now,
+          maxAgeMs: 2_000,
+        }, now),
+      ],
+    };
+    const fn = vi
+      .fn<(signal: AbortSignal) => Promise<typeof payload>>()
+      .mockResolvedValue(payload);
+    const { result } = renderHook(() => {
+      const state = useFetch(fn, ['quotes']);
+      return {
+        ...state,
+        actionable: useMemo(
+          () => state.data?.receipts.map((receipt) => isReceiptActionable(receipt)) ?? [],
+          [state.data?.receipts],
+        ),
+      };
+    });
+    await act(async () => Promise.resolve());
+    expect(result.current.actionable).toEqual([true, true]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_001);
+    });
+    expect(result.current.actionable).toEqual([false, true]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(result.current.actionable).toEqual([false, false]);
   });
 
   it('discards an out-of-order earlier response (latest wins)', async () => {

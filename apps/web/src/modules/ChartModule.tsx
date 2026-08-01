@@ -12,12 +12,10 @@ import {
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { useStream, useStreamStatus } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
 import { useAlerts } from '@/store/useAlerts';
 import { useDrawings, type Drawing } from '@/store/useDrawings';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
-import { INTERVAL_SECONDS, candleBucketStart } from '@/lib/candleBucket';
 import { alertOpForLevel, opSymbol } from '@/lib/alerts';
 import {
   CHART_DOWN as DOWN,
@@ -29,6 +27,9 @@ import {
 } from '@/lib/chartSeries';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { FreshnessAge } from '@/components/Freshness';
+import { SourceBadge } from '@/components/SourceInspector';
+import { inspectChartCalculations } from '@/lib/chartTrust';
+import { isReceiptActionable } from '@/lib/receiptView';
 import { bollinger, ema, fibLevels, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
 
@@ -158,10 +159,6 @@ export function ChartModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
   const interval = (panel.params?.interval as Interval) ?? '1d';
   const range = (panel.params?.range as Range) ?? '6mo';
-  // Latest interval in a ref so the stream callback (stable, empty deps) can
-  // read it without resubscribing on every interval change.
-  const intervalRef = useRef(interval);
-  intervalRef.current = interval;
   const setPanelParams = usePanels((s) => s.setPanelParams);
   const alerts = useAlerts((s) => s.alerts);
   const priceAlerts = useMemo(
@@ -172,9 +169,9 @@ export function ChartModule({ panel }: ModuleProps) {
   const { data, error, loading, fetchedAt, refresh } = useFetch(
     (signal) => api.history(symbol as string, interval, range, signal),
     [symbol, interval, range],
-    // The trades stream keeps the chart moving; when it's down (static demo,
-    // WS outage) fall back to slow REST polling so the panel doesn't freeze.
-    { enabled: Boolean(symbol), fallbackIntervalMs: 15_000 },
+    // Keep one inspectable source of truth. Stream trades do not carry
+    // receipts, so they must not mutate receipted history candles.
+    { enabled: Boolean(symbol), intervalMs: 15_000 },
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -220,15 +217,22 @@ export function ChartModule({ panel }: ModuleProps) {
   const [tool, setTool] = useState<Tool>('none');
   // True after the first click of a two-click tool, awaiting the second.
   const [pending, setPending] = useState(false);
-  const [livePrice, setLivePrice] = useState<number | null>(null);
-  // Receipt time of the last streamed print — drives the freshness indicator
-  // (the trades stream is what keeps the chart moving between REST loads).
-  const [lastTickAt, setLastTickAt] = useState<number | null>(null);
-  const streamStatus = useStreamStatus();
   // Volume-profile overlay bars (in pixel coords) and a tick that forces a
   // recompute when the price scale moves (pan/zoom/resize).
   const [vpBars, setVpBars] = useState<VpBar[]>([]);
   const [vpTick, setVpTick] = useState(0);
+  const inspectedCalculations = useMemo(
+    () => inspectChartCalculations(
+      data?.candles ?? [],
+      data?.receipt,
+      symbol ?? '',
+      interval,
+      range,
+      ind,
+    ),
+    [data?.candles, data?.receipt, symbol, interval, range, ind],
+  );
+  const calculationsActionable = isReceiptActionable(inspectedCalculations.receipt);
 
   // Tear down every rendered drawing. Chart-only: the persisted store is
   // untouched, so this is safe to run on symbol switch before restoring the
@@ -408,55 +412,11 @@ export function ChartModule({ panel }: ModuleProps) {
     }
   }, [priceAlerts]);
 
-  // Live chart: feed streamed trade prints into the forming (last) candle.
-  useStream(
-    'trades',
-    symbol,
-    useCallback((d: unknown) => {
-      const price = (d as { price?: number }).price;
-      const ts = (d as { timestamp?: number }).timestamp;
-      const bar = lastBarRef.current;
-      const candle = candleRef.current;
-      if (!bar || !candle || typeof price !== 'number') return;
-      setLastTickAt(Date.now());
-
-      // Roll a fresh candle when the print's timestamp crosses into a new
-      // interval bucket — otherwise every print folds into the last candle,
-      // ballooning its range at a stale timestamp and no new bar ever forms.
-      const stepSec = INTERVAL_SECONDS[intervalRef.current] ?? 0;
-      const bucket = ts != null && stepSec > 0 ? candleBucketStart(ts, stepSec) : (bar.time as number);
-      if (bucket > (bar.time as number)) {
-        const fresh = { time: bucket, open: price, high: price, low: price, close: price };
-        lastBarRef.current = fresh;
-        candle.update({ time: bucket as UTCTimestamp, open: price, high: price, low: price, close: price });
-        setLivePrice(price);
-        return;
-      }
-
-      bar.close = price;
-      if (price > bar.high) bar.high = price;
-      if (price < bar.low) bar.low = price;
-      candle.update({
-        time: bar.time as UTCTimestamp,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-      });
-      setLivePrice(price);
-    }, []),
-  );
-
   // On mount and every symbol change: tear down the old chart's drawings and
   // render the NEW symbol's persisted set, so one symbol's levels never leak
   // onto another's chart. Off-screen drawings (outside the loaded range) are
-  // restored too — the chart clips them until they scroll into view. Also drop
-  // the forming-candle ref the live trades stream folds into. The trades
-  // stream resubscribes to the new symbol before its history reloads; without
-  // nulling this, the new symbol's prints would fold into the PREVIOUS
-  // symbol's last candle (ballooning its range at a stale price) until the
-  // history push re-seeds lastBarRef. With it null, the stream callback
-  // early-returns until the new candles land.
+  // restored too — the chart clips them until they scroll into view. Drop the
+  // prior symbol's last-bar reference while its receipted history reloads.
   useEffect(() => {
     clearDrawings();
     const chart = chartRef.current;
@@ -468,8 +428,6 @@ export function ChartModule({ panel }: ModuleProps) {
     }
     setTool('none');
     lastBarRef.current = null;
-    setLivePrice(null);
-    setLastTickAt(null);
   }, [symbol, clearDrawings]);
 
   // Push new data into the series whenever it changes.
@@ -478,6 +436,14 @@ export function ChartModule({ panel }: ModuleProps) {
     const volume = volumeRef.current;
     const chart = chartRef.current;
     if (!candle || !volume || !chart || !data) return;
+
+    const candleTone = calculationsActionable ? null : '#7a7f87';
+    candle.applyOptions({
+      upColor: candleTone ?? UP,
+      downColor: candleTone ?? DOWN,
+      wickUpColor: candleTone ?? UP,
+      wickDownColor: candleTone ?? DOWN,
+    });
 
     candle.setData(
       data.candles.map((c) => ({
@@ -492,7 +458,9 @@ export function ChartModule({ panel }: ModuleProps) {
       data.candles.map((c) => ({
         time: c.time as UTCTimestamp,
         value: c.volume,
-        color: c.close >= c.open ? 'rgba(38,194,129,0.35)' : 'rgba(239,77,86,0.35)',
+        color: calculationsActionable
+          ? c.close >= c.open ? 'rgba(38,194,129,0.35)' : 'rgba(239,77,86,0.35)'
+          : 'rgba(122,127,135,0.25)',
       })),
     );
     chart.timeScale().fitContent();
@@ -501,8 +469,7 @@ export function ChartModule({ panel }: ModuleProps) {
     lastBarRef.current = last
       ? { time: last.time, open: last.open, high: last.high, low: last.low, close: last.close }
       : null;
-    setLivePrice(null);
-  }, [data]);
+  }, [data, calculationsActionable]);
 
   // Indicator overlays — rebuilt when data or the enabled studies change.
   useEffect(() => {
@@ -514,7 +481,7 @@ export function ChartModule({ panel }: ModuleProps) {
 
     const addLine = (points: LinePoint[], color: string) => {
       const series = addLineChartSeries(chart, {
-        color,
+        color: calculationsActionable ? color : '#7a7f87',
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: false,
@@ -533,7 +500,7 @@ export function ChartModule({ panel }: ModuleProps) {
       addLine(bands.middle, 'rgba(122,127,135,0.4)');
     }
     if (ind.vwap) addLine(vwap(data.candles), '#e6e6e6');
-  }, [data, ind]);
+  }, [data, ind, calculationsActionable]);
 
   // Volume-profile overlay: bucket volume by price, then map each bucket to
   // pixel coordinates via the candle series. Recomputed on data, toggle, and
@@ -584,13 +551,13 @@ export function ChartModule({ panel }: ModuleProps) {
 
     const chart = createChart(el, SUBPANE_OPTIONS);
     const series = addLineChartSeries(chart, {
-      color: '#c08cff',
+      color: calculationsActionable ? '#c08cff' : '#7a7f87',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: true,
     });
-    series.createPriceLine({ price: 70, color: 'rgba(239,77,86,0.45)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
-    series.createPriceLine({ price: 30, color: 'rgba(38,194,129,0.45)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
+    series.createPriceLine({ price: 70, color: calculationsActionable ? 'rgba(239,77,86,0.45)' : 'rgba(122,127,135,0.35)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '70' });
+    series.createPriceLine({ price: 30, color: calculationsActionable ? 'rgba(38,194,129,0.45)' : 'rgba(122,127,135,0.35)', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: '30' });
     rsiChartRef.current = chart;
     rsiSeriesRef.current = series;
 
@@ -602,7 +569,7 @@ export function ChartModule({ panel }: ModuleProps) {
       rsiChartRef.current = null;
       rsiSeriesRef.current = null;
     };
-  }, [ind.rsi]);
+  }, [ind.rsi, calculationsActionable]);
 
   // Feed the RSI series.
   useEffect(() => {
@@ -633,14 +600,14 @@ export function ChartModule({ panel }: ModuleProps) {
     const chart = createChart(el, SUBPANE_OPTIONS);
     const hist = addHistogramChartSeries(chart, { priceLineVisible: false, lastValueVisible: false });
     const macdLine = addLineChartSeries(chart, {
-      color: '#4cc2ff',
+      color: calculationsActionable ? '#4cc2ff' : '#7a7f87',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: true,
       crosshairMarkerVisible: false,
     });
     const signalLine = addLineChartSeries(chart, {
-      color: '#ffb000',
+      color: calculationsActionable ? '#ffb000' : '#7a7f87',
       lineWidth: 1,
       priceLineVisible: false,
       lastValueVisible: false,
@@ -662,7 +629,7 @@ export function ChartModule({ panel }: ModuleProps) {
       macdLineRef.current = null;
       macdSignalRef.current = null;
     };
-  }, [ind.macd]);
+  }, [ind.macd, calculationsActionable]);
 
   // Feed the MACD series.
   useEffect(() => {
@@ -677,17 +644,14 @@ export function ChartModule({ panel }: ModuleProps) {
       m.histogram.map((p) => ({
         time: p.time as UTCTimestamp,
         value: p.value,
-        color: p.value >= 0 ? 'rgba(38,194,129,0.5)' : 'rgba(239,77,86,0.5)',
+        color: calculationsActionable
+          ? p.value >= 0 ? 'rgba(38,194,129,0.5)' : 'rgba(239,77,86,0.5)'
+          : 'rgba(122,127,135,0.35)',
       })),
     );
-  }, [data, ind.macd]);
+  }, [data, ind.macd, calculationsActionable]);
 
-  const perf = useMemo(() => {
-    if (!data || data.candles.length < 2) return null;
-    const first = data.candles[0].close;
-    const last = data.candles[data.candles.length - 1].close;
-    return { first, last };
-  }, [data]);
+  const perf = inspectedCalculations.performance;
 
   if (!symbol) return <EmptyState>No symbol selected.</EmptyState>;
 
@@ -698,28 +662,19 @@ export function ChartModule({ panel }: ModuleProps) {
           <span className="text-sm font-bold text-term-amber">{symbol}</span>
           {perf &&
             (() => {
-              // Derive the % from the SHOWN (live) price so the header stays
-              // internally consistent as prints tick in — not frozen at load.
-              const shown = livePrice ?? perf.last;
-              const pct = perf.first === 0 ? 0 : ((shown - perf.first) / perf.first) * 100;
+              const shown = perf.last;
+              const pct = perf.percent;
               return (
                 <>
                   <span className="text-xs tabular-nums">{fmtPrice(shown)}</span>
-                  <span className={`text-2xs tabular-nums ${changeClass(pct)}`}>
+                  <span className={`text-2xs tabular-nums ${calculationsActionable ? changeClass(pct) : 'text-term-muted'}`}>
                     {fmtSignedPercent(pct)} <span className="text-term-dim">{range}</span>
                   </span>
                 </>
               );
             })()}
-          {/* Freshness: stream ticks once the socket has fed the chart, else the
-           * REST history load. Only penalize a dead socket once stream data is
-           * actually on screen — a REST-only (fallback/static-demo) chart isn't
-           * stream-driven. 30s ≈ 2x the REST fallback cadence. */}
-          <FreshnessAge
-            fetchedAt={lastTickAt ?? fetchedAt}
-            staleAfterMs={30_000}
-            streamLive={lastTickAt != null ? streamStatus === 'open' : undefined}
-          />
+          <FreshnessAge fetchedAt={fetchedAt} staleAfterMs={30_000} />
+          {data?.receipt && <SourceBadge receipt={data.receipt} compact />}
         </div>
         <div className="no-drag flex gap-0.5">
           {PRESETS.map((p) => {
@@ -742,6 +697,7 @@ export function ChartModule({ panel }: ModuleProps) {
       </div>
       <div className="no-drag flex items-center gap-1 border-b border-term-border px-2 py-0.5 text-2xs">
         <span className="mr-1 text-term-dim">studies</span>
+        {inspectedCalculations.receipt && <SourceBadge receipt={inspectedCalculations.receipt} compact />}
         {([
           ['sma', 'SMA 20'],
           ['ema', 'EMA 50'],
@@ -803,7 +759,9 @@ export function ChartModule({ panel }: ModuleProps) {
                   top: b.top,
                   height: b.height,
                   width: `${b.widthPct}%`,
-                  background: b.poc ? 'rgba(255,176,0,0.40)' : 'rgba(76,194,255,0.18)',
+                  background: calculationsActionable
+                    ? b.poc ? 'rgba(255,176,0,0.40)' : 'rgba(76,194,255,0.18)'
+                    : 'rgba(122,127,135,0.20)',
                 }}
               />
             ))}

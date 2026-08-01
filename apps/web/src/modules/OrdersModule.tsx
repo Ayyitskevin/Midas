@@ -6,10 +6,11 @@ import { useTradingStatus } from '@/lib/useTradingStatus';
 import { fmtCompact, fmtPrice } from '@/lib/format';
 import { ordersBadge, type AccountTone } from '@/lib/accountReadsView';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const TONE: Record<AccountTone, string> = {
-  live: 'border-term-up/50 text-term-up',
+  live: 'border-term-border text-term-muted',
   synthetic: 'border-term-amber/50 text-term-amber',
   unavailable: 'border-term-border text-term-dim',
 };
@@ -74,11 +75,13 @@ export function OrdersModule(_props: ModuleProps) {
         <span className="font-semibold text-term-text">Open Orders</span>
         <span className="text-term-dim">{canCancel ? 'read + cancel' : 'read-only'}</span>
         {data && data.orders.length > 0 && <span className="text-term-dim">{data.orders.length}</span>}
-        {badge && (
-          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.detail}>
-            {badge.label}
+        {data?.receipt ? (
+          <SourceBadge receipt={data.receipt} compact className="ml-auto" />
+        ) : badge ? (
+          <span className={`ml-auto rounded-sm border px-1.5 py-0.5 ${TONE[badge.tone]}`} title={badge.tone === 'live' ? `${badge.detail} Freshness unknown: no receipt.` : badge.detail}>
+            {badge.label}{badge.tone === 'live' ? ' · freshness unknown' : ''}
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className="scroll-term min-h-0 flex-1 overflow-auto">

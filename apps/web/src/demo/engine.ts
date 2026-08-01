@@ -1,4 +1,5 @@
 import { computeFundingDispersion, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
+import { demoReceipt } from './trust';
 import type {
   AccountFills,
   AccountPositions,
@@ -403,7 +404,15 @@ export function fundingHistoryFor(symbol: string, limit: number, now: number): F
   const anchor = Math.floor(now / 28_800_000) * 28_800_000;
   for (let i = limit - 1; i >= 0; i--) {
     const t = anchor - i * 28_800_000;
-    out.push({ time: t, fundingRate: (u(`${asset.base}:fh${t}`) - 0.45) * 0.0004 });
+    out.push({
+      time: t,
+      fundingRate: (u(`${asset.base}:fh${t}`) - 0.45) * 0.0004,
+      fundingIntervalHours: 8,
+      receipt: demoReceipt('funding-history', symbol, now, {
+        sourceAsOf: t,
+        units: { fundingRate: 'fraction', fundingIntervalHours: 'hours' },
+      }),
+    });
   }
   return out;
 }
@@ -415,21 +424,32 @@ export function venueQuotes(symbol: string, now: number): VenueQuote[] {
   return VENUES.map((v) => {
     const skew = (u(`${v}:${asset.base}:q`) - 0.5) * 0.0016;
     const price = mid * (1 + skew);
-    return {
+    const topSize = (asset.price > 1_000 ? 0.5 : 300) * (0.5 + u(`${v}:${asset.base}:top-size`));
+    const value: VenueQuote = {
       exchange: v,
       price,
       bid: price * 0.9998,
       ask: price * 1.0002,
+      bidSize: topSize,
+      askSize: topSize * (0.8 + u(`${v}:${asset.base}:ask-size`) * 0.4),
       changePercent: quoteFor(symbol, now)!.changePercent + (u(`${v}:${asset.base}:c`) - 0.5) * 0.4,
       volume: (asset.price > 1000 ? 20_000 : 2_000_000) * (0.4 + u(`${v}:${asset.base}:v`)),
       timestamp: now,
+    };
+    return {
+      ...value,
+      receipt: demoReceipt('venue-quotes', symbol, now, {
+        venue: v,
+        sourceAsOf: now,
+        units: { price: 'quote', bid: 'quote', ask: 'quote', bidSize: 'base', askSize: 'base' },
+      }),
     };
   });
 }
 
 export function venueArbRows(quote: string, limit: number, now: number): VenueArbRow[] {
   return ASSETS.slice(0, limit)
-    .map((a) => computeVenueArbRow(`${a.base}/${quote}`, venueQuotes(`${a.base}/${quote}`, now)))
+    .map((a) => computeVenueArbRow(`${a.base}/${quote}`, venueQuotes(`${a.base}/${quote}`, now), now))
     .filter((r) => r.dispersionBps !== null)
     .sort((a, b) => (b.dispersionBps ?? 0) - (a.dispersionBps ?? 0));
 }
@@ -437,15 +457,39 @@ export function venueArbRows(quote: string, limit: number, now: number): VenueAr
 export function venueDerivatives(symbol: string, now: number): VenueDerivatives[] {
   const base = derivativesFor(symbol, now);
   if (!base) return [];
-  return VENUES.map((v) => ({
-    exchange: v,
-    fundingRate: (base.fundingRate ?? 0) + (u(`${v}:${symbol}:vf`) - 0.5) * 0.0002,
-    fundingIntervalHours: base.fundingIntervalHours ?? null,
-    nextFundingTime: base.nextFundingTime,
-    markPrice: (base.markPrice ?? 0) * (1 + (u(`${v}:${symbol}:vm`) - 0.5) * 0.001),
-    openInterestValue: (base.openInterestValue ?? 0) * (0.2 + u(`${v}:${symbol}:vo`)),
-    timestamp: now,
-  }));
+  return VENUES.map((v) => {
+    const value: VenueDerivatives = {
+      exchange: v,
+      fundingRate:
+        base.fundingRate == null
+          ? null
+          : base.fundingRate + (u(`${v}:${symbol}:vf`) - 0.5) * 0.0002,
+      fundingIntervalHours: base.fundingIntervalHours ?? null,
+      nextFundingTime: base.nextFundingTime,
+      markPrice:
+        base.markPrice == null
+          ? null
+          : base.markPrice * (1 + (u(`${v}:${symbol}:vm`) - 0.5) * 0.001),
+      openInterestValue:
+        base.openInterestValue == null
+          ? null
+          : base.openInterestValue * (0.2 + u(`${v}:${symbol}:vo`)),
+      timestamp: now,
+    };
+    return {
+      ...value,
+      receipt: demoReceipt('venue-derivatives', symbol, now, {
+        venue: v,
+        sourceAsOf: now,
+        units: {
+          fundingRate: 'fraction per settlement',
+          fundingIntervalHours: 'hours',
+          markPrice: 'quote',
+          openInterestValue: 'quote',
+        },
+      }),
+    };
+  });
 }
 
 export function oiConcentrationRows(quote: string, limit: number, now: number): OiConcentrationRow[] {
