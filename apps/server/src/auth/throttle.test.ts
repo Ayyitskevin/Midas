@@ -45,3 +45,45 @@ describe('createLoginThrottle', () => {
     expect(t.size()).toBeLessThanOrEqual(3);
   });
 });
+
+describe('per-IP aggregate ceiling', () => {
+  it('locks an IP at the ceiling regardless of how many pairs were sprayed', () => {
+    const t = createLoginThrottle(5, 60_000, 10_000, 3);
+    t.failIp('9.9.9.9', 0);
+    t.failIp('9.9.9.9', 1000);
+    expect(t.checkIp('9.9.9.9', 2000)).toBeNull(); // 2 fails — still allowed
+    t.failIp('9.9.9.9', 2000);
+    expect(t.checkIp('9.9.9.9', 3000)).toBe(59_000); // locked; 60s from last fail
+    expect(t.checkIp('8.8.8.8', 3000)).toBeNull(); // other IPs unaffected
+  });
+
+  it('serves the lockout then grants a fresh slate', () => {
+    const t = createLoginThrottle(5, 10_000, 10_000, 2);
+    t.failIp('1.1.1.1', 0);
+    t.failIp('1.1.1.1', 0);
+    expect(t.checkIp('1.1.1.1', 5000)).toBe(5000);
+    expect(t.checkIp('1.1.1.1', 10_000)).toBeNull(); // lockout served
+    expect(t.ipSize()).toBe(0); // slate wiped
+  });
+
+  it('restarts a stale IP streak instead of accumulating forever', () => {
+    const t = createLoginThrottle(5, 10_000, 10_000, 2);
+    t.failIp('1.1.1.1', 0);
+    t.failIp('1.1.1.1', 50_000); // 50s of quiet > lockout → fail #1, not #2
+    expect(t.checkIp('1.1.1.1', 50_001)).toBeNull();
+  });
+
+  it('is NOT reset by a successful login (else one known account resets the budget)', () => {
+    const t = createLoginThrottle(5, 10_000, 10_000, 2);
+    t.failIp('1.1.1.1', 0);
+    t.succeed('alice|1.1.1.1'); // valid login clears the pair only
+    t.failIp('1.1.1.1', 1000);
+    expect(t.checkIp('1.1.1.1', 2000)).toBe(9000); // ceiling tripped on fail #2
+  });
+
+  it('bounds the per-IP map under an address spray', () => {
+    const t = createLoginThrottle(5, 60_000, 3, 100);
+    for (let i = 0; i < 10; i++) t.failIp(`10.0.0.${i}`, i);
+    expect(t.ipSize()).toBeLessThanOrEqual(3);
+  });
+});

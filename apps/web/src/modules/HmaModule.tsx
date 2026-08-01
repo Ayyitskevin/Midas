@@ -7,6 +7,7 @@ import { hmaBoard, type HmaSort, type HmaDir } from '@/lib/hma';
 import { fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -24,31 +25,6 @@ const PRESETS: { label: string; period: number }[] = [
 const DIR_GLYPH: Record<HmaDir, string> = { up: '▲', down: '▼', flat: '–' };
 const dirClass = (d: HmaDir) =>
   d === 'up' ? 'text-term-up' : d === 'down' ? 'text-term-down' : 'text-term-muted';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: HmaSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: HmaSort;
-  onSort: (c: HmaSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function HmaModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

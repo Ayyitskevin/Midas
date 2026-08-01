@@ -5,6 +5,7 @@ import { useFetch } from '@/lib/hooks';
 import { buildHistory, historySummary, type HistorySort } from '@/lib/history';
 import { fmtPrice, fmtCompact, fmtSignedPercent, changeClass } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const TIMEFRAMES: { label: string; interval: Interval; range: Range; intraday: boolean }[] = [
@@ -22,31 +23,6 @@ const fmtRowDate = (ms: number, intraday: boolean): string => {
   const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' });
   return `${date} ${time}`;
 };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: HistorySort;
-  label: string;
-  align: 'left' | 'right';
-  sort: HistorySort;
-  onSort: (c: HistorySort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function HistoryModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;

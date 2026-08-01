@@ -7,6 +7,7 @@ import { m2Board, type M2Sort } from '@/lib/m2';
 import { fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const BENCH = 'BTC/USDT';
@@ -21,31 +22,6 @@ const TIMEFRAMES: { label: string; interval: Interval; range: Range }[] = [
 ];
 
 const m2Color = (v: number) => (v >= 0 ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: M2Sort;
-  label: string;
-  align: 'left' | 'right';
-  sort: M2Sort;
-  onSort: (c: M2Sort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function M2Module({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

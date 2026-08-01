@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { rviBoard, type RviSort, type RviZone } from '@/lib/rvi';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -26,31 +27,6 @@ function ZoneCell({ zone }: { zone: RviZone }) {
   if (zone === 'high') return <span className="text-term-up">HIGH</span>;
   if (zone === 'low') return <span className="text-term-down">LOW</span>;
   return <span className="text-term-dim">·</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: RviSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: RviSort;
-  onSort: (c: RviSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function RviModule({ panel }: ModuleProps) {

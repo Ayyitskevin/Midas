@@ -16,7 +16,9 @@ export const MARKET_COMMANDS: CommandDef[] = [
     title: 'Price Graph',
     module: 'GP',
     requiresSymbol: true,
-    description: 'Historical price chart (daily candles).',
+    args: 'interval',
+    description:
+      'Historical price chart. Optional interval arg — `BTC/USDT GP 1h` (5m 15m 30m 1h 1D 1W) overrides your default timeframe; without one the chart opens at your PREF default.',
     params: { interval: '1d', range: '6mo' },
   },
   {
@@ -25,7 +27,9 @@ export const MARKET_COMMANDS: CommandDef[] = [
     title: 'Intraday Graph',
     module: 'GP',
     requiresSymbol: true,
-    description: 'Intraday price chart (5-minute candles).',
+    args: 'interval',
+    description:
+      'Intraday price chart (5-minute candles). Optional interval arg — `SOL/USDT GIP 15m` (5m 15m 30m 1h 1D 1W).',
     params: { interval: '5m', range: '1d' },
   },
   {

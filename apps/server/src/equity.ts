@@ -54,6 +54,13 @@ export class EquityRepo {
  * Turn one pair of account reads into an equity point — or null when the
  * account is not honestly readable (no keys / provider error): a gap in the
  * series is truthful, a synthetic point is not. Pure.
+ *
+ * `totalUsd` is true account equity: the wallet total plus live perp
+ * unrealized P&L (perp margin stays inside the wallet balance, so there is no
+ * double count). When the positions read is not live — or positions are open
+ * but none report a P&L — the point keeps the wallet-only figure and marks
+ * uPnL unknown (null) rather than fabricating a 0; with no open positions the
+ * uPnL is honestly 0.
  */
 export function composeEquityPoint(
   balances: Balances,
@@ -61,10 +68,14 @@ export function composeEquityPoint(
   at: number,
 ): EquityPoint | null {
   if (balances.provenance !== 'live' || balances.totalValueUsd == null) return null;
+  const upnl =
+    positions.provenance === 'live'
+      ? positions.totalUnrealizedPnlUsd ?? (positions.positions.length === 0 ? 0 : null)
+      : null;
   return {
     at,
-    totalUsd: balances.totalValueUsd,
-    unrealizedPnlUsd: positions.provenance === 'live' ? positions.totalUnrealizedPnlUsd : null,
+    totalUsd: balances.totalValueUsd + (upnl ?? 0),
+    unrealizedPnlUsd: upnl,
   };
 }
 

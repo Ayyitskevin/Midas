@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mapCcxtBalance, sumValueUsd, ccxtKeysConfigured, STABLES } from './balances';
+import { mapCcxtBalance, sumValueUsd, unpricedCaveat, ccxtKeysConfigured, STABLES } from './balances';
 
 // A representative slice of a ccxt fetchBalance() result. ccxt stamps `free`,
 // `used` and `total` dicts plus per-asset objects and an `info` blob; the mapper
@@ -50,6 +50,22 @@ describe('sumValueUsd', () => {
 
   it('is null when nothing can be priced', () => {
     expect(sumValueUsd([{ asset: 'WIF', free: 1, used: 0, total: 1, valueUsd: null }])).toBeNull();
+  });
+});
+
+describe('unpricedCaveat', () => {
+  it('is null when every held asset is priced', () => {
+    expect(unpricedCaveat(mapCcxtBalance(FIXTURE, priceUsd))).toBeNull();
+  });
+
+  it('counts unpriced assets and calls the total a floor (singular and plural)', () => {
+    const one = [
+      { asset: 'BTC', free: 1, used: 0, total: 1, valueUsd: 60_000 },
+      { asset: 'WIF', free: 100, used: 0, total: 100, valueUsd: null },
+    ];
+    expect(unpricedCaveat(one)).toBe('1 asset could not be priced (no USDT market); the USD total is a floor.');
+    const two = [...one, { asset: 'POPCAT', free: 5, used: 0, total: 5, valueUsd: null }];
+    expect(unpricedCaveat(two)).toBe('2 assets could not be priced (no USDT market); the USD total is a floor.');
   });
 });
 

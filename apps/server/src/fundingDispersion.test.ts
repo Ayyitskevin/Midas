@@ -2,9 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { computeFundingDispersion, type VenueDerivatives } from '@midas/shared';
 import { createTtlCache } from './ttlCache';
 
-const venue = (exchange: string, fundingRate: number | null, oi: number | null = null): VenueDerivatives => ({
+const venue = (
+  exchange: string,
+  fundingRate: number | null,
+  oi: number | null = null,
+  fundingIntervalHours: number | null = 8,
+): VenueDerivatives => ({
   exchange,
   fundingRate,
+  fundingIntervalHours,
   nextFundingTime: 1_000,
   markPrice: 100,
   openInterestValue: oi,
@@ -23,12 +29,60 @@ describe('computeFundingDispersion', () => {
     expect(row.minRate).toBe(-0.0002);
     expect(row.highVenue).toBe('bybit'); // dearest → short it
     expect(row.lowVenue).toBe('okx'); // cheapest → long it
-    // spread = (0.0003 − −0.0002) = 0.0005 → 5 bps
+    // spread = (0.0003 − −0.0002) = 0.0005 → 5 bps (all 8h venues: normalized = raw)
     expect(row.spreadBps).toBeCloseTo(5, 10);
     expect(row.meanRate).toBeCloseTo((0.0001 - 0.0002 + 0.0003) / 3, 12);
     expect(row.totalOiValue).toBe(6_000);
-    // venues returned sorted dearest → cheapest
+    // venues returned sorted by normalized rate, dearest → cheapest
     expect(row.venues.map((v) => v.exchange)).toEqual(['bybit', 'binance', 'okx']);
+  });
+
+  it('normalizes mixed funding cadences to a per-8h basis before comparing', () => {
+    // hyperliquid funds hourly: a raw 0.015%/1h rate is 0.12% per 8h — 4x the
+    // raw 0.03%/8h rate. Comparing raw rates would rank binance dearest; the
+    // normalized comparison correctly ranks the hourly venue dearest.
+    const row = computeFundingDispersion('ETH/USDT', [
+      venue('hyperliquid', 0.00015, null, 1),
+      venue('binance', 0.0003, null, 8),
+    ]);
+    expect(row.highVenue).toBe('hyperliquid'); // 0.00015 × 8 = 0.0012 normalized
+    expect(row.lowVenue).toBe('binance'); // 0.0003 normalized
+    expect(row.maxRate).toBeCloseTo(0.0012, 12);
+    expect(row.minRate).toBeCloseTo(0.0003, 12);
+    // spread = (0.0012 − 0.0003) → 9 bps on the per-8h basis
+    expect(row.spreadBps).toBeCloseTo(9, 10);
+    // venue points keep the RAW per-interval rate, labeled with its cadence
+    expect(row.venues.find((v) => v.exchange === 'hyperliquid')).toMatchObject({
+      fundingRate: 0.00015,
+      fundingIntervalHours: 1,
+    });
+  });
+
+  it('excludes venues with an unknown interval from the spread rather than comparing them raw', () => {
+    const row = computeFundingDispersion('SOL/USDT', [
+      venue('binance', 0.0001, null, 8),
+      venue('okx', 0.0002, null, 8),
+      venue('mystery', 0.01, null, null), // extreme raw rate, no cadence — must not skew the spread
+    ]);
+    expect(row.venues.map((v) => v.exchange)).toEqual(['okx', 'binance']);
+    expect(row.spreadBps).toBeCloseTo(1, 10); // (0.0002 − 0.0001) → 1 bp, unmoved by 'mystery'
+    // …but its OI still counts toward the aggregate
+    const withOi = computeFundingDispersion('SOL/USDT', [
+      venue('binance', 0.0001, 500, 8),
+      venue('mystery', 0.01, 1_500, null),
+    ]);
+    expect(withOi.totalOiValue).toBe(2_000);
+    expect(withOi.spreadBps).toBeNull(); // only one comparable venue → no arb signal
+  });
+
+  it('normalizes a 4h venue by doubling its raw rate onto the per-8h basis', () => {
+    const row = computeFundingDispersion('DOGE/USDT', [
+      venue('binance', 0.0002, null, 4), // 0.0004 per-8h-equivalent
+      venue('okx', 0.0003, null, 8),
+    ]);
+    expect(row.highVenue).toBe('binance');
+    expect(row.maxRate).toBeCloseTo(0.0004, 12);
+    expect(row.spreadBps).toBeCloseTo(1, 10);
   });
 
   it('ignores venues with no funding rate and needs ≥ 2 venues for a spread', () => {

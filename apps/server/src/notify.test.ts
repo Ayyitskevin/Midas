@@ -109,6 +109,28 @@ describe('WebhookNotifier', () => {
     expect((captured as Error).message).toBe('down');
   });
 
+  it('attaches a timeout AbortSignal to the delivery request', async () => {
+    let signal: AbortSignal | undefined;
+    const stub = (async (_url: string | URL, init?: RequestInit) => {
+      signal = init?.signal as AbortSignal;
+      return { ok: true } as Response;
+    }) as typeof fetch;
+    await new WebhookNotifier('http://hook', stub).deliver([trg()]);
+    expect(signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('reports a non-ok HTTP status via onError (message-only, no URL/payload)', async () => {
+    let captured: unknown;
+    const stub = (async () => ({ ok: false, status: 401 }) as Response) as typeof fetch;
+    await new WebhookNotifier('http://hook.example/SECRET-TOKEN', stub, (e) => {
+      captured = e;
+    }).deliver([trg()]);
+    const message = (captured as Error).message;
+    expect(message).toContain('401');
+    expect(message).not.toContain('SECRET-TOKEN');
+    expect(message).not.toContain('BTC/USDT');
+  });
+
   it('marks the posted payload synthetic when constructed synthetic', async () => {
     const calls: Array<{ body: WebhookBody }> = [];
     const stub = (async (_url: string | URL, init?: RequestInit) => {

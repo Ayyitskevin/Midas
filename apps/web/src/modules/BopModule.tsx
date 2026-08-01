@@ -7,6 +7,7 @@ import { bopBoard, type BopSort } from '@/lib/bop';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; period: number }[] = [
   { label: '14', period: 14 },
   { label: '7', period: 7 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: BopSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: BopSort;
-  onSort: (c: BopSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function BopModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

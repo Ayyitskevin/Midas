@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { tcfBoard, type TcfSort, type TcfRegime } from '@/lib/tcf';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -18,31 +19,6 @@ const PERIODS: { label: string; length: number }[] = [
   { label: '35', length: 35 },
   { label: '20', length: 20 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: TcfSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: TcfSort;
-  onSort: (c: TcfSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function RegimeCell({ regime }: { regime: TcfRegime }) {
   if (regime === 'up') return <span className="text-term-up">▲ UP</span>;

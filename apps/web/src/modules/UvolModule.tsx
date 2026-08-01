@@ -7,6 +7,7 @@ import { volSurgeBoard, type VolSurgeSort } from '@/lib/volumeSurge';
 import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -31,31 +32,6 @@ function DirGlyph({ d }: { d: number }) {
   if (d > 0) return <span className="text-term-up">▲</span>;
   if (d < 0) return <span className="text-term-down">▼</span>;
   return <span className="text-term-muted">·</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: VolSurgeSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: VolSurgeSort;
-  onSort: (c: VolSurgeSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function UvolModule({ panel }: ModuleProps) {

@@ -12,7 +12,7 @@ import {
 import type { Interval, Range } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
-import { useStream } from '@/lib/stream';
+import { useStream, useStreamStatus } from '@/lib/stream';
 import { usePanels } from '@/store/usePanels';
 import { useAlerts } from '@/store/useAlerts';
 import { changeClass, fmtPrice, fmtSignedPercent } from '@/lib/format';
@@ -27,6 +27,7 @@ import {
   createPrimaryChartSeries,
 } from '@/lib/chartSeries';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { FreshnessAge } from '@/components/Freshness';
 import { bollinger, ema, fibLevels, macd, rsi, sma, volumeProfile, vwap, type LinePoint } from '@/lib/indicators';
 import type { ModuleProps } from './types';
 
@@ -105,10 +106,12 @@ export function ChartModule({ panel }: ModuleProps) {
     [alerts, symbol],
   );
 
-  const { data, error, loading, refresh } = useFetch(
+  const { data, error, loading, fetchedAt, refresh } = useFetch(
     (signal) => api.history(symbol as string, interval, range, signal),
     [symbol, interval, range],
-    { enabled: Boolean(symbol) },
+    // The trades stream keeps the chart moving; when it's down (static demo,
+    // WS outage) fall back to slow REST polling so the panel doesn't freeze.
+    { enabled: Boolean(symbol), fallbackIntervalMs: 15_000 },
   );
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -154,6 +157,10 @@ export function ChartModule({ panel }: ModuleProps) {
   // True after the first click of a two-click tool, awaiting the second.
   const [pending, setPending] = useState(false);
   const [livePrice, setLivePrice] = useState<number | null>(null);
+  // Receipt time of the last streamed print — drives the freshness indicator
+  // (the trades stream is what keeps the chart moving between REST loads).
+  const [lastTickAt, setLastTickAt] = useState<number | null>(null);
+  const streamStatus = useStreamStatus();
   // Volume-profile overlay bars (in pixel coords) and a tick that forces a
   // recompute when the price scale moves (pan/zoom/resize).
   const [vpBars, setVpBars] = useState<VpBar[]>([]);
@@ -352,6 +359,7 @@ export function ChartModule({ panel }: ModuleProps) {
       const bar = lastBarRef.current;
       const candle = candleRef.current;
       if (!bar || !candle || typeof price !== 'number') return;
+      setLastTickAt(Date.now());
 
       // Roll a fresh candle when the print's timestamp crosses into a new
       // interval bucket — otherwise every print folds into the last candle,
@@ -391,6 +399,7 @@ export function ChartModule({ panel }: ModuleProps) {
     setTool('none');
     lastBarRef.current = null;
     setLivePrice(null);
+    setLastTickAt(null);
   }, [symbol, clearDrawings]);
 
   // Push new data into the series whenever it changes.
@@ -632,6 +641,15 @@ export function ChartModule({ panel }: ModuleProps) {
                 </>
               );
             })()}
+          {/* Freshness: stream ticks once the socket has fed the chart, else the
+           * REST history load. Only penalize a dead socket once stream data is
+           * actually on screen — a REST-only (fallback/static-demo) chart isn't
+           * stream-driven. 30s ≈ 2x the REST fallback cadence. */}
+          <FreshnessAge
+            fetchedAt={lastTickAt ?? fetchedAt}
+            staleAfterMs={30_000}
+            streamLive={lastTickAt != null ? streamStatus === 'open' : undefined}
+          />
         </div>
         <div className="no-drag flex gap-0.5">
           {PRESETS.map((p) => {

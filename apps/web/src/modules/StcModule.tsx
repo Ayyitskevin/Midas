@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { stcBoard, type StcSort } from '@/lib/stc';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ const CYCLES: { label: string; cycle: number }[] = [
 ];
 
 const ZONE_LABEL: Record<string, string> = { bull: '▲ bull', bear: '▼ bear', mid: '· mid' };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: StcSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: StcSort;
-  onSort: (c: StcSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function zoneClass(zone: string) {
   return zone === 'bull' ? 'text-term-up' : zone === 'bear' ? 'text-term-down' : 'text-term-dim';

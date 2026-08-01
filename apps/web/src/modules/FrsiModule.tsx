@@ -7,6 +7,7 @@ import { frsiBoard, type FrsiSort, type FrsiCross } from '@/lib/frsi';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PERIODS: { label: string; rsiPeriod: number }[] = [
   { label: '9', rsiPeriod: 9 },
   { label: '14', rsiPeriod: 14 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: FrsiSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: FrsiSort;
-  onSort: (c: FrsiSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: FrsiCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

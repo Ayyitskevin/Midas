@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { hurstBoard, type HurstSort, type HurstRegime } from '@/lib/hurst';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const REGIME: Record<HurstRegime, { chip: string; cls: string; fill: string }> =
   meanrev: { chip: 'REVERT', cls: 'text-term-accent', fill: 'rgba(76,194,255,0.25)' },
   random: { chip: 'RANDOM', cls: 'text-term-muted', fill: 'rgba(122,127,135,0.22)' },
 };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: HurstSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: HurstSort;
-  onSort: (c: HurstSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function HurstModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

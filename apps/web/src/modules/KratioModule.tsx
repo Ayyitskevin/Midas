@@ -7,6 +7,7 @@ import { kratioBoard, type KSort } from '@/lib/kratio';
 import { fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const TIMEFRAMES: { label: string; interval: Interval; range: Range }[] = [
 
 const kColor = (v: number | null) =>
   v == null ? 'text-term-muted' : v >= 0 ? 'text-term-up' : 'text-term-down';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: KSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: KSort;
-  onSort: (c: KSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function KratioModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

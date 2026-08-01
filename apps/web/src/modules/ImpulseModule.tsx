@@ -8,6 +8,7 @@ import { impulseBoard, type ImpulseSort, type Impulse } from '@/lib/impulse';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const IMPULSE_LABEL: Record<Impulse, string> = { bull: '▲ BULL', bear: '▼ BE
 
 function impulseClass(im: Impulse) {
   return im === 'bull' ? 'text-term-up' : im === 'bear' ? 'text-term-down' : 'text-term-dim';
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: ImpulseSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: ImpulseSort;
-  onSort: (c: ImpulseSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function ImpulseModule({ panel }: ModuleProps) {

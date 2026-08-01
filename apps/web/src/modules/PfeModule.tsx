@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { pfeBoard, type PfeSort, type PfeZone } from '@/lib/pfe';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -26,31 +27,6 @@ function ZoneCell({ zone }: { zone: PfeZone }) {
   if (zone === 'up') return <span className="text-term-up">TREND ↑</span>;
   if (zone === 'down') return <span className="text-term-down">TREND ↓</span>;
   return <span className="text-term-dim">CHOP</span>;
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: PfeSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: PfeSort;
-  onSort: (c: PfeSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function PfeModule({ panel }: ModuleProps) {

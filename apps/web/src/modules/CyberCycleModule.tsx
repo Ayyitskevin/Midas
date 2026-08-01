@@ -7,6 +7,7 @@ import { cyberCycleBoard, type CyberCycleSort, type CyberCycleCross } from '@/li
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const ALPHAS: { label: string; alpha: number }[] = [
   { label: '.07', alpha: 0.07 },
   { label: '.14', alpha: 0.14 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: CyberCycleSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: CyberCycleSort;
-  onSort: (c: CyberCycleSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: CyberCycleCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

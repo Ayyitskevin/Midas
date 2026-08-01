@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { parabolicSarBoard, type SarSort, type SarSide, type SarRow } from '@/lib/parabolicSar';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PRESETS: { label: string; af0: number; afMax: number }[] = [
 ];
 
 const sideColor = (side: SarSide) => (side === 'long' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: SarSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: SarSort;
-  onSort: (c: SarSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function FlipCell({ row }: { row: SarRow }) {
   if (!row.flip) return <span className="text-term-dim">·</span>;

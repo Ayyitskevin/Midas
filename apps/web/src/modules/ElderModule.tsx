@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { elderBoard, type ElderSort, type ElderTrend } from '@/lib/elder';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const PERIODS: { label: string; period: number }[] = [
 ];
 
 const trendColor = (t: ElderTrend) => (t === 'up' ? 'text-term-up' : 'text-term-down');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: ElderSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: ElderSort;
-  onSort: (c: ElderSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function ElderModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

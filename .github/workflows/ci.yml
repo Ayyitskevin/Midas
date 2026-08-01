@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Typecheck & build
@@ -27,6 +34,11 @@ jobs:
       - name: Reviewer launcher tests
         run: pnpm test:reviewer
 
+      - name: Repo and release-governance policy
+        run: |
+          pnpm check:repo-policy
+          pnpm check:governance
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -35,6 +47,9 @@ jobs:
 
       - name: Bundle budget
         run: node scripts/check-bundle.mjs
+
+      - name: Static demo build
+        run: pnpm --filter @midas/web build:demo
 
       - name: Test
         run: pnpm test

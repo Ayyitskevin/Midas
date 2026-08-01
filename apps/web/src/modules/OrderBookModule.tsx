@@ -3,8 +3,9 @@ import type { OrderBook, OrderBookLevel } from '@midas/shared';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { emitPricePick } from '@/lib/accountBus';
-import { useStream } from '@/lib/stream';
+import { useStream, useStreamStatus } from '@/lib/stream';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { FreshnessAge } from '@/components/Freshness';
 import type { ModuleProps } from './types';
 
 const DISPLAY_LEVELS = 14;
@@ -37,28 +38,45 @@ function cumulate(levels: OrderBookLevel[]): Row[] {
 
 export function OrderBookModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  // REST for instant first paint; the live WebSocket stream takes over once connected.
-  const { data: fetched, error, loading, refresh } = useFetch(
+  // REST for instant first paint; the live WebSocket stream takes over once
+  // connected. When the socket is down (static demo, WS outage) REST keeps
+  // polling at a fallback cadence instead of freezing.
+  const { data: fetched, error, loading, fetchedAt, refresh } = useFetch(
     (signal) => api.orderbook(symbol as string, 25, signal),
     [symbol],
-    { enabled: Boolean(symbol) },
+    { enabled: Boolean(symbol), fallbackIntervalMs: 5_000 },
   );
 
   const [live, setLive] = useState<OrderBook | null>(null);
-  useEffect(() => setLive(null), [symbol]);
+  // Receipt time of the last streamed book — the freshness clock while the
+  // stream owns the panel (REST fetchedAt covers the fallback/static-demo case).
+  const [lastBookAt, setLastBookAt] = useState<number | null>(null);
+  const streamStatus = useStreamStatus();
+  useEffect(() => {
+    setLive(null);
+    setLastBookAt(null);
+  }, [symbol]);
   useStream(
     'orderbook',
     symbol,
-    useCallback((d: unknown) => setLive(d as OrderBook), []),
+    useCallback(
+      (d: unknown) => {
+        const book = d as OrderBook;
+        // Ignore a queued emit from the previous symbol's subscription — it
+        // would render the old book under the new symbol (and feed its prices
+        // to the linked order ticket on a level click).
+        if (book.symbol?.toUpperCase() !== symbol?.toUpperCase()) return;
+        setLive(book);
+        setLastBookAt(Date.now());
+      },
+      [symbol],
+    ),
   );
 
-  // After a symbol switch, `live` is reset to null (above) but useFetch still
-  // holds the PREVIOUS symbol's REST book until the refetch resolves — and its
-  // `loading` flag is true during that window. Showing that stale snapshot would
-  // render the old book under the new symbol and, on a level click, send the
-  // wrong symbol's price to the linked order ticket. Suppress it until the
-  // refetch lands.
-  const data = live ?? (loading ? null : fetched);
+  // useFetch drops the previous symbol's REST book on a symbol switch, so
+  // `fetched` is never stale across symbols; the stream payload is gated by
+  // the symbol check above.
+  const data = live ?? fetched;
 
   const view = useMemo(() => {
     if (!data) return null;
@@ -82,7 +100,16 @@ export function OrderBookModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col text-2xs">
       <div className="grid grid-cols-2 border-b border-term-border px-2 py-1 text-term-muted">
         <span>PRICE</span>
-        <span className="text-right">SIZE</span>
+        <span className="flex items-center justify-end gap-2">
+          {/* Stream book age once live, else the REST snapshot age. 10s ≈ 2x
+           * the REST fallback cadence. */}
+          <FreshnessAge
+            fetchedAt={lastBookAt ?? fetchedAt}
+            staleAfterMs={10_000}
+            streamLive={live ? streamStatus === 'open' : undefined}
+          />
+          SIZE
+        </span>
       </div>
 
       {/* Asks — worst at top, best ask just above the spread. */}

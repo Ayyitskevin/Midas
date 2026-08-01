@@ -7,6 +7,7 @@ import { cgBoard, type CgSort, type CgCross } from '@/lib/cg';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; length: number }[] = [
   { label: '10', length: 10 },
   { label: '20', length: 20 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: CgSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: CgSort;
-  onSort: (c: CgSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: CgCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

@@ -2,7 +2,11 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   DEMO_SYMBOLS,
   balancesFor,
+  boardEnvelope,
+  derivativesFor,
   fillsFor,
+  fundingDispersionRows,
+  fundingRows,
   historyFor,
   liquidationsFeed,
   newsFor,
@@ -18,6 +22,8 @@ import {
   solanaTrendingFor,
   solanaValidatorsFor,
   solanaWalletFor,
+  venueArbRows,
+  venueDerivatives,
 } from './engine';
 import { installDemoShim } from './shim';
 
@@ -85,6 +91,42 @@ describe('demo engine', () => {
     for (let i = 1; i < rows.length; i++) {
       expect(rows[i].price).toBeLessThanOrEqual(rows[i - 1].price);
     }
+  });
+
+  it('derivatives carry a deterministic funding interval, mirroring the server mock', () => {
+    // SOL funds hourly, DOGE on a 4h cadence, everything else 8h — the same
+    // cadences as apps/server/src/providers/mock/derivatives.ts. Without the
+    // interval the funding-dispersion compute excludes the venue entirely.
+    expect(derivativesFor('SOL/USDT', NOW)!.fundingIntervalHours).toBe(1);
+    expect(derivativesFor('DOGE/USDT', NOW)!.fundingIntervalHours).toBe(4);
+    expect(derivativesFor('BTC/USDT', NOW)!.fundingIntervalHours).toBe(8);
+    // The next settlement respects the cadence (an hourly perp settles within the hour).
+    const sol = derivativesFor('SOL/USDT', NOW)!;
+    expect(sol.nextFundingTime! - NOW).toBeLessThanOrEqual(3_600_000);
+    // …and every venue row carries the interval too.
+    expect(venueDerivatives('SOL/USDT', NOW).every((v) => v.fundingIntervalHours === 1)).toBe(true);
+  });
+
+  it('the funding-dispersion board is non-empty (venues are not dropped for an unknown interval)', () => {
+    const rows = fundingDispersionRows('USDT', 15, NOW);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) {
+      expect(r.spreadBps).not.toBeNull();
+      expect(r.venues.length).toBeGreaterThanOrEqual(2);
+    }
+    // Funding rows on the plain funding board carry the interval label too.
+    expect(fundingRows('USDT', 30, NOW).find((r) => r.symbol === 'SOL/USDT')!.fundingIntervalHours).toBe(1);
+  });
+
+  it('boardEnvelope mirrors the server shape: synthetic, real asOf, cachedAt null, partial false', () => {
+    const env = boardEnvelope(venueArbRows('USDT', 5, NOW), NOW);
+    expect(env.rows.length).toBeGreaterThan(0);
+    expect(env.meta.provenance).toBe('synthetic');
+    expect(env.meta.source).toBe('demo');
+    expect(env.meta.asOf).toBe(NOW);
+    expect(env.meta.cachedAt).toBeNull();
+    expect(env.meta.partial).toBe(false);
+    expect(env.meta.note).toMatch(/Static demo/);
   });
 
   it('history resolves unknown interval/range to the server defaults (1d / 6mo)', () => {
@@ -284,6 +326,36 @@ describe('demo shim', () => {
     const res = await fetch('/api/ai/chat', { method: 'POST', body: '{}' });
     expect(res.status).toBe(503);
     expect((await res.json()).error).toBe('NotConfigured');
+  });
+
+  it('the fan-out boards answer in the server BoardEnvelope shape', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    for (const path of ['/api/funding', '/api/funding-dispersion', '/api/venue-arb', '/api/oi-concentration']) {
+      const body = await (await fetch(`${path}?quote=USDT&limit=5`)).json();
+      expect(Array.isArray(body.rows), path).toBe(true);
+      expect(body.rows.length, path).toBeGreaterThan(0);
+      expect(body.meta, path).toMatchObject({
+        provenance: 'synthetic',
+        source: 'demo',
+        cachedAt: null,
+        partial: false,
+      });
+      expect(typeof body.meta.asOf, path).toBe('number');
+    }
+    // The funding-dispersion board specifically must not come up empty — every
+    // demo venue reports its funding interval, so none are excluded.
+    const dispersion = await (await fetch('/api/funding-dispersion?quote=USDT&limit=15')).json();
+    expect(dispersion.rows.every((r: { spreadBps: number | null }) => r.spreadBps !== null)).toBe(true);
+  });
+
+  it('rejects an invalid screener sort like the server (400, not silent volume order)', async () => {
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+    const bad = await fetch('/api/screener?sort=bogus');
+    expect(bad.status).toBe(400);
+    const ok = await fetch('/api/screener?sort=change&limit=3');
+    expect(ok.status).toBe(200);
   });
 
   it('non-numeric query params fall back to defaults instead of an empty response', async () => {

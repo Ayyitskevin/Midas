@@ -2,10 +2,19 @@ import { describe, it, expect } from 'vitest';
 import { streamStatusView } from '@/lib/streamStatus';
 
 describe('streamStatusView', () => {
-  it('open + live stream → LIVE regardless of subscriptions', () => {
-    const v = streamStatusView('open', 0, true);
+  it('open + live stream + active subscriptions → LIVE', () => {
+    const v = streamStatusView('open', 3, true);
     expect(v.label).toBe('LIVE');
     expect(v.tone).toBe('live');
+  });
+
+  it('open with ZERO subscriptions is never LIVE — nothing is streaming', () => {
+    // An idle open socket delivers no data, so the badge must not claim
+    // liveness (the client closes such sockets, but even the transient window
+    // reads IDLE).
+    const v = streamStatusView('open', 0, true);
+    expect(v.label).toBe('IDLE');
+    expect(v.tone).toBe('idle');
   });
 
   it('open but synthetic stream → SIM (never label fake prints LIVE)', () => {
@@ -18,7 +27,7 @@ describe('streamStatusView', () => {
 
   it('open + unknown streamLive never claims LIVE (avoids mock flash)', () => {
     // Health not loaded yet: socket may be open on mock/yahoo — must not say LIVE.
-    const v = streamStatusView('open', 0);
+    const v = streamStatusView('open', 1);
     expect(v.label).not.toBe('LIVE');
     expect(v.label).toBe('OPEN');
     expect(v.tone).not.toBe('live');
@@ -27,8 +36,8 @@ describe('streamStatusView', () => {
   });
 
   it('only explicit streamLive=true yields LIVE', () => {
-    expect(streamStatusView('open', 0, true).label).toBe('LIVE');
-    expect(streamStatusView('open', 0, false).label).toBe('SIM');
+    expect(streamStatusView('open', 1, true).label).toBe('LIVE');
+    expect(streamStatusView('open', 1, false).label).toBe('SIM');
   });
 
   it('connecting → CONNECTING', () => {

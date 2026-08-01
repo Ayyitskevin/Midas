@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { leadLagBoard, type LeadLagSort } from '@/lib/leadLag';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const BENCH = 'BTC/USDT';
@@ -23,31 +24,6 @@ const TIMEFRAMES: { label: string; interval: Interval; range: Range }[] = [
 const lagColor = (v: number) =>
   v < 0 ? 'text-term-accent' : v > 0 ? 'text-term-muted' : 'text-term-text';
 const fmtLag = (v: number) => (v === 0 ? '0' : v > 0 ? `+${v}d` : `${v}d`);
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: LeadLagSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: LeadLagSort;
-  onSort: (c: LeadLagSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function LeadLagModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

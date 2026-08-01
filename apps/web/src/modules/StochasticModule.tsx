@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { stochasticBoard, type StochSort, type StochZone, type StochCross } from '@/lib/stochastic';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -22,31 +23,6 @@ const PRESETS: { label: string; period: number; smoothK: number; smoothD: number
 const ZONE_LABEL: Record<StochZone, string> = { overbought: 'OB', oversold: 'OS', neutral: '·' };
 const zoneColor = (zone: StochZone) =>
   zone === 'overbought' ? 'text-term-down' : zone === 'oversold' ? 'text-term-up' : 'text-term-text';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: StochSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: StochSort;
-  onSort: (c: StochSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: StochCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

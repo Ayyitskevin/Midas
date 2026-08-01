@@ -7,6 +7,7 @@ import { kvoBoard, type KvoSort, type KvoBar } from '@/lib/kvo';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -23,31 +24,6 @@ const SIGNALS: { label: string; period: number }[] = [
   { label: '13', period: 13 },
   { label: '9', period: 9 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: KvoSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: KvoSort;
-  onSort: (c: KvoSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function KvoModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

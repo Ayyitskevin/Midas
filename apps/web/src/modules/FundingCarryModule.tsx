@@ -5,6 +5,7 @@ import { changeClass, fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { computeCarry, sortCarry, type CarrySortKey, type CarrySide } from '@/lib/carry';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { ModuleProps } from './types';
 
 const fmtRate = (r: number | null): string => (r == null ? '—' : `${r >= 0 ? '+' : ''}${(r * 100).toFixed(4)}%`);
@@ -31,7 +32,8 @@ export function FundingCarryModule({ panel }: ModuleProps) {
     { intervalMs: 15_000 },
   );
 
-  const symbols = useMemo(() => (funding ?? []).map((r) => r.symbol), [funding]);
+  const fundingRows = useMemo(() => funding?.rows ?? [], [funding]);
+  const symbols = useMemo(() => fundingRows.map((r) => r.symbol), [fundingRows]);
   const { data: quotes } = useFetch((signal) => api.quotes(symbols, signal), [symbols.join(',')], {
     intervalMs: 15_000,
     enabled: symbols.length > 0,
@@ -39,11 +41,12 @@ export function FundingCarryModule({ panel }: ModuleProps) {
   const spotBy = useMemo(() => new Map((quotes ?? []).map((q) => [q.symbol, q.price])), [quotes]);
 
   const rows = useMemo(() => {
-    const carry = (funding ?? []).map((r) =>
+    const carry = fundingRows.map((r) =>
       computeCarry(
         {
           symbol: r.symbol,
           fundingRate: r.fundingRate,
+          fundingIntervalHours: r.fundingIntervalHours ?? null,
           markPrice: r.markPrice,
           openInterestValue: r.openInterestValue,
           nextFundingTime: r.nextFundingTime,
@@ -52,7 +55,7 @@ export function FundingCarryModule({ panel }: ModuleProps) {
       ),
     );
     return sortCarry(carry, sortKey, dir);
-  }, [funding, spotBy, sortKey, dir]);
+  }, [fundingRows, spotBy, sortKey, dir]);
 
   const sortBy = (key: CarrySortKey) => {
     if (key === sortKey) setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
@@ -79,13 +82,18 @@ export function FundingCarryModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">FUNDING CARRY</span>
-        <span className="text-term-dim">perps · USDT · APR &amp; basis</span>
+        {funding ? (
+          <BoardMetaBadge meta={funding.meta} />
+        ) : (
+          <span className="text-term-dim">perps · USDT · APR &amp; basis</span>
+        )}
       </div>
+      {funding && <BoardMetaNote meta={funding.meta} />}
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !funding && <Loading label="Loading funding" />}
         {error && !funding && <ErrorMsg message={error} onRetry={refresh} />}
-        {funding && funding.length === 0 && <EmptyState>No perp funding available.</EmptyState>}
-        {funding && funding.length > 0 && (
+        {funding && funding.rows.length === 0 && <EmptyState>No perp funding available.</EmptyState>}
+        {funding && funding.rows.length > 0 && (
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-term-panel">
               <tr className="text-2xs text-term-muted">
@@ -128,8 +136,8 @@ export function FundingCarryModule({ panel }: ModuleProps) {
         )}
       </div>
       <p className="border-t border-term-border px-2 py-1 text-2xs leading-relaxed text-term-dim">
-        APR = funding annualized. Basis = perp vs spot. Carry names the leg that collects funding (delta-neutral); gross
-        of fees.
+        APR = funding annualized at each venue&apos;s actual settlement interval (— when unreported). Basis = perp vs
+        spot. Carry names the leg that collects funding (delta-neutral); gross of fees.
       </p>
     </div>
   );

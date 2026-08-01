@@ -7,6 +7,7 @@ import { sharpeBoard, type SharpeSort } from '@/lib/sharpe';
 import { fmtSignedPercent, changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ function ratioColor(v: number | null): string {
   if (v == null) return 'text-term-dim';
   if (v < 0) return 'text-term-down';
   return v >= 1.5 ? 'text-term-amber' : 'text-term-up';
-}
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: SharpeSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: SharpeSort;
-  onSort: (c: SharpeSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
 }
 
 export function SharpeModule({ panel }: ModuleProps) {

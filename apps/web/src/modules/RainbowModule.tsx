@@ -7,6 +7,7 @@ import { rainbowBoard, type RainbowSort, type RainbowBar } from '@/lib/rainbow';
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; lookback: number }[] = [
   { label: '10', lookback: 10 },
   { label: '20', lookback: 20 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: RainbowSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: RainbowSort;
-  onSort: (c: RainbowSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function RainbowModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

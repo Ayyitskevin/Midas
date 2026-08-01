@@ -3,6 +3,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtCompact } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { VenueOiPoint } from '@midas/shared';
 import type { ModuleProps } from './types';
 
@@ -39,14 +40,19 @@ export function OiConcentrationModule({ panel }: ModuleProps) {
   );
 
   // The server ranks biggest total OI first — the markets that matter.
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-term-border px-2 py-1 text-2xs">
         <span className="font-semibold text-term-amber">OI BY VENUE</span>
-        <span className="text-term-dim">cross-venue crowding · USDT</span>
+        {data ? (
+          <BoardMetaBadge meta={data.meta} />
+        ) : (
+          <span className="text-term-dim">cross-venue crowding · USDT</span>
+        )}
       </div>
+      {data && <BoardMetaNote meta={data.meta} />}
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Loading open interest" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}

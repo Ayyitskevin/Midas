@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SearchResult } from '@midas/shared';
 import { api } from '@/lib/api';
-import { COMMANDS } from '@/commands/registry';
+import { COMMANDS, commandUsesSymbol, lookupCommand } from '@/commands/registry';
+import { INTERVAL_ARG_CHOICES } from '@/commands/parser';
 import { openCommand, openSymbol, runCommand } from '@/commands/execute';
 import { usePanels } from '@/store/usePanels';
 
@@ -9,7 +10,8 @@ interface Suggestion {
   kind: 'command' | 'symbol';
   primary: string;
   secondary: string;
-  run: () => void;
+  /** Runs the suggestion; returns false when it failed (error already shown). */
+  run: () => boolean;
 }
 
 export function CommandBar() {
@@ -70,18 +72,42 @@ export function CommandBar() {
     const tokens = raw.toUpperCase().split(/\s+/);
     const list: Suggestion[] = [];
 
+    // "<cmd> " or "<symbol> <cmd> " with a trailing space: when the command
+    // takes an interval arg, offer the accepted intervals directly.
+    const endsWithSpace = /\s$/.test(value);
+    const lastCmd = lookupCommand(tokens[tokens.length - 1]);
+    if (endsWithSpace && lastCmd?.args === 'interval') {
+      const prefix = tokens.length >= 2 ? `${tokens[0]} ${lastCmd.code}` : lastCmd.code;
+      for (const iv of INTERVAL_ARG_CHOICES) {
+        list.push({
+          kind: 'command',
+          primary: `${prefix} ${iv}`,
+          secondary: `${lastCmd.title} at ${iv}`,
+          run: () => {
+            const r = runCommand(`${prefix} ${iv}`);
+            if (!r.ok) setError(r.error ?? 'Unknown command');
+            return r.ok;
+          },
+        });
+      }
+      return list;
+    }
+
     if (tokens.length >= 2) {
       // "<symbol> <partial-command>" → suggest matching commands.
       const symbol = tokens[0];
       const partial = tokens[tokens.length - 1];
       for (const c of COMMANDS) {
         if (c.code.startsWith(partial) || c.aliases.some((a) => a.startsWith(partial))) {
-          const usesSymbol = c.requiresSymbol || c.code === 'N';
+          const usesSymbol = commandUsesSymbol(c);
           list.push({
             kind: 'command',
             primary: `${symbol} ${c.code}`,
             secondary: c.title,
-            run: () => openCommand(c, usesSymbol ? symbol : null),
+            run: () => {
+              openCommand(c, usesSymbol ? symbol : null);
+              return true;
+            },
           });
         }
       }
@@ -97,16 +123,33 @@ export function CommandBar() {
               const input = c.requiresSymbol ? `${activeSymbol ?? ''} ${c.code}`.trim() : c.code;
               const r = runCommand(input);
               if (!r.ok) setError(r.error ?? 'Unknown command');
+              return r.ok;
             },
           });
         }
+      }
+      // A bare token that exactly names a command wins as a command — but it
+      // may be a ticker (ARB, COMP, W…). Surface the escape hatch alongside.
+      if (lookupCommand(partial) && /^[A-Z]{1,5}$/.test(partial)) {
+        list.push({
+          kind: 'symbol',
+          primary: `$${partial}`,
+          secondary: `${partial} as a symbol — $ forces it (or ${partial}/USDT)`,
+          run: () => {
+            openSymbol(partial);
+            return true;
+          },
+        });
       }
       for (const s of searchResults.slice(0, 6)) {
         list.push({
           kind: 'symbol',
           primary: s.symbol,
           secondary: s.name,
-          run: () => openSymbol(s.symbol),
+          run: () => {
+            openSymbol(s.symbol);
+            return true;
+          },
         });
       }
     }
@@ -129,8 +172,8 @@ export function CommandBar() {
   }
 
   function runSuggestion(s: Suggestion) {
-    s.run();
-    postSuccess();
+    // Skip postSuccess on failure so the error message isn't wiped the same tick.
+    if (s.run()) postSuccess();
   }
 
   function submitRaw() {

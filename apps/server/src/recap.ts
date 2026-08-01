@@ -16,6 +16,12 @@ export interface EquityChange {
   endUsd: number;
   startAt: number;
   endAt: number;
+  /**
+   * True when both endpoint snapshots carried live perp unrealized P&L, so
+   * both totals are full account equity. False means at least one endpoint is
+   * a wallet-only figure and the line must say so.
+   */
+  includesLiveUnrealizedPnl: boolean;
 }
 
 /**
@@ -37,7 +43,15 @@ export function equityChange(points: EquityPoint[], sinceMs: number, nowMs: numb
   }
   const baseline = start ?? firstInPeriod;
   if (!baseline || !end || end.at <= baseline.at) return null;
-  return { startUsd: baseline.totalUsd, endUsd: end.totalUsd, startAt: baseline.at, endAt: end.at };
+  return {
+    startUsd: baseline.totalUsd,
+    endUsd: end.totalUsd,
+    startAt: baseline.at,
+    endAt: end.at,
+    // Full account equity only when both endpoints include live perp uPnL;
+    // a null uPnL at either end means that figure is wallet-only.
+    includesLiveUnrealizedPnl: baseline.unrealizedPnlUsd != null && end.unrealizedPnlUsd != null,
+  };
 }
 
 export interface FillRecap {
@@ -215,7 +229,8 @@ export function recapLines(recap: DigestRecap): string[] {
     const delta = endUsd - startUsd;
     const pct = startUsd !== 0 ? (delta / Math.abs(startUsd)) * 100 : null;
     lines.push(
-      `• Equity: ${usd(startUsd)} → ${usd(endUsd)} (${signedUsd(delta)}${pct != null ? `, ${signedPct(pct)}` : ''})`,
+      `• Equity: ${usd(startUsd)} → ${usd(endUsd)} (${signedUsd(delta)}${pct != null ? `, ${signedPct(pct)}` : ''})` +
+        (recap.equity.includesLiveUnrealizedPnl ? '' : ' — wallet balance only; live perp uPnL unavailable'),
     );
   }
   if (recap.fills) {

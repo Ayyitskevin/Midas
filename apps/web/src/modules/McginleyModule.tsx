@@ -7,6 +7,7 @@ import { mcginleyBoard, type McginleySort, type McginleyDir } from '@/lib/mcginl
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -19,31 +20,6 @@ const PERIODS: { label: string; period: number }[] = [
   { label: '14', period: 14 },
   { label: '22', period: 22 },
 ];
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: McginleySort;
-  label: string;
-  align: 'left' | 'right';
-  sort: McginleySort;
-  onSort: (c: McginleySort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function DirCell({ dir }: { dir: McginleyDir }) {
   return <span className={dir === 'up' ? 'text-term-up' : 'text-term-down'}>{dir === 'up' ? '▲ UP' : '▼ DN'}</span>;

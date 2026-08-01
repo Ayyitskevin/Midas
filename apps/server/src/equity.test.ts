@@ -28,10 +28,10 @@ const positions = (over: Partial<AccountPositions> = {}): AccountPositions => ({
 });
 
 describe('composeEquityPoint', () => {
-  it('captures value + uPnL from live reads', () => {
+  it('adds live perp uPnL to the wallet total — true account equity', () => {
     expect(composeEquityPoint(balances(), positions(), 7)).toEqual({
       at: 7,
-      totalUsd: 1000,
+      totalUsd: 1025, // 1000 wallet + 25 live uPnL
       unrealizedPnlUsd: 25,
     });
   });
@@ -42,8 +42,32 @@ describe('composeEquityPoint', () => {
     expect(composeEquityPoint(balances({ totalValueUsd: null }), positions(), 7)).toBeNull();
   });
 
-  it('keeps the point but nulls uPnL when positions are not live', () => {
+  it('keeps the wallet-only figure and nulls uPnL when positions are not live', () => {
     const p = composeEquityPoint(balances(), positions({ provenance: 'unavailable' }), 7);
+    expect(p?.totalUsd).toBe(1000);
+    expect(p?.unrealizedPnlUsd).toBeNull();
+  });
+
+  it('treats uPnL as honestly 0 when no positions are open', () => {
+    const p = composeEquityPoint(balances(), positions({ totalUnrealizedPnlUsd: null, positions: [] }), 7);
+    expect(p?.totalUsd).toBe(1000);
+    expect(p?.unrealizedPnlUsd).toBe(0);
+  });
+
+  it('degrades to wallet-only (never a fabricated 0) when open positions report no P&L', () => {
+    const open = {
+      symbol: 'BTC/USDT:USDT',
+      side: 'long' as const,
+      contracts: 1,
+      notionalUsd: null,
+      entryPrice: null,
+      markPrice: null,
+      unrealizedPnlUsd: null,
+      pnlPct: null,
+      liquidationPrice: null,
+      leverage: null,
+    };
+    const p = composeEquityPoint(balances(), positions({ totalUnrealizedPnlUsd: null, positions: [open] }), 7);
     expect(p?.totalUsd).toBe(1000);
     expect(p?.unrealizedPnlUsd).toBeNull();
   });
@@ -77,7 +101,7 @@ describe('equity loop + route', () => {
     await new Promise((r) => setTimeout(r, 30));
     loop.stop();
     expect(repo.points().length).toBeGreaterThan(0);
-    expect(repo.points()[0]).toEqual({ at: 42, totalUsd: 1000, unrealizedPnlUsd: 25 });
+    expect(repo.points()[0]).toEqual({ at: 42, totalUsd: 1025, unrealizedPnlUsd: 25 });
 
     const app = Fastify();
     registerEquityRoute(app, { repo, watching: true });

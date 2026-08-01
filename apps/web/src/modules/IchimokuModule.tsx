@@ -7,6 +7,7 @@ import { ichimokuBoard, type IchiSort, type IchiCloud, type IchiColor, type Ichi
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -23,31 +24,6 @@ const PRESETS: { label: string; tenkan: number; kijun: number; senkouB: number }
 const CLOUD_LABEL: Record<IchiCloud, string> = { above: 'ABOVE', below: 'BELOW', inside: 'IN' };
 const cloudColorClass = (c: IchiCloud) =>
   c === 'above' ? 'text-term-up' : c === 'below' ? 'text-term-down' : 'text-term-muted';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: IchiSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: IchiSort;
-  onSort: (c: IchiSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function CrossCell({ cross }: { cross: IchiCross }) {
   if (cross === 'bull') return <span className="text-term-up">↑</span>;

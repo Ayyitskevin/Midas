@@ -2,6 +2,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact, fmtPrice, fmtTimeAgo } from '@/lib/format';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { FreshnessAge } from '@/components/Freshness';
 import type { ModuleProps } from './types';
 
 function fmtFunding(rate: number | null): string {
@@ -22,7 +23,7 @@ function fmtCountdown(target: number | null): string {
 
 export function DerivativesModule({ panel }: ModuleProps) {
   const symbol = panel.symbol;
-  const { data, error, loading, refresh } = useFetch(
+  const { data, error, loading, fetchedAt, refresh } = useFetch(
     (signal) => api.derivatives(symbol as string, signal),
     [symbol],
     { intervalMs: 10_000, enabled: Boolean(symbol) },
@@ -33,8 +34,12 @@ export function DerivativesModule({ panel }: ModuleProps) {
   if (error && !data) return <ErrorMsg message={error} onRetry={refresh} />;
   if (!data) return <EmptyState>No derivatives for {symbol}.</EmptyState>;
 
+  // Label the actual settlement cadence — never claim 8h when it is unknown.
+  const fundingLabel =
+    data.fundingIntervalHours != null ? `Funding (${data.fundingIntervalHours}h)` : 'Funding';
+
   const stats: Array<[string, string, string?]> = [
-    ['Funding (8h)', fmtFunding(data.fundingRate), changeClass(data.fundingRate)],
+    [fundingLabel, fmtFunding(data.fundingRate), changeClass(data.fundingRate)],
     ['Next Funding', fmtCountdown(data.nextFundingTime)],
     ['Open Interest', data.openInterest != null ? fmtCompact(data.openInterest) : '—'],
     ['OI Notional', data.openInterestValue != null ? `$${fmtCompact(data.openInterestValue)}` : '—'],
@@ -52,7 +57,13 @@ export function DerivativesModule({ panel }: ModuleProps) {
           </div>
         ))}
       </div>
-      <div className="term-label px-3 py-1">Recent liquidations</div>
+      <div className="term-label flex items-center justify-between px-3 py-1">
+        Recent liquidations
+        {/* Polls every 10s — amber past 20s. normal-case: term-label uppercases. */}
+        <span className="normal-case">
+          <FreshnessAge fetchedAt={fetchedAt} staleAfterMs={20_000} />
+        </span>
+      </div>
       <div className="scroll-term flex-1 overflow-auto">
         {data.recentLiquidations.length === 0 ? (
           <div className="p-3 text-2xs text-term-muted">No recent liquidations.</div>

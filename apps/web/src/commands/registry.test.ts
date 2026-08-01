@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { COMMANDS, lookupCommand } from './registry';
 import { MODULE_META } from '../modules/meta';
 
@@ -51,5 +52,15 @@ describe('command registry integrity', () => {
       expect(cmd.title.trim().length, `${cmd.code} title`).toBeGreaterThan(0);
       expect(cmd.description.trim().length, `${cmd.code} description`).toBeGreaterThan(20);
     }
+  });
+
+  it('every command code is documented in the README command table', () => {
+    // The README is the public command reference; a command that ships without
+    // a row is undiscoverable. Codes appear there as backtick-quoted tokens.
+    const readme = readFileSync(new URL('../../../../README.md', import.meta.url), 'utf8');
+    const missing = COMMANDS.filter((cmd) => !readme.includes(`\`${cmd.code}\``)).map(
+      (cmd) => cmd.code,
+    );
+    expect(missing).toEqual([]);
   });
 });

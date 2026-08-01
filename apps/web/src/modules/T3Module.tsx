@@ -7,6 +7,7 @@ import { t3Board, type T3Sort, type T3Dir } from '@/lib/t3';
 import { fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -25,31 +26,6 @@ const VFACTOR = 0.7;
 const DIR_GLYPH: Record<T3Dir, string> = { up: '▲', down: '▼', flat: '–' };
 const dirClass = (d: T3Dir) =>
   d === 'up' ? 'text-term-up' : d === 'down' ? 'text-term-down' : 'text-term-muted';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: T3Sort;
-  label: string;
-  align: 'left' | 'right';
-  sort: T3Sort;
-  onSort: (c: T3Sort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function T3Module({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

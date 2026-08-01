@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { createProvider } from './providers';
 import { buildApp } from './app';
 import { AlertRepo } from './alerts/repo';
@@ -9,7 +9,8 @@ import { UserRepo } from './auth/users';
 import { hashPassword, verifyPassword, DUMMY_PASSWORD_HASH } from './auth/password';
 import { signToken, verifyToken } from './auth/token';
 import { isPublicPath } from './auth/guard';
-import { signupCredentialError } from './auth/routes';
+import { signupCredentialError, registerAuthRoutes } from './auth/routes';
+import { createLoginThrottle } from './auth/throttle';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -166,6 +167,27 @@ describe('auth API + guard', () => {
     // (Timing parity is handled by always running a scrypt verify — see the
     // DUMMY_PASSWORD_HASH path in the login route.)
     expect(unknownUser.json().message).toBe(wrongPass.json().message);
+  });
+
+  it('rejects an over-long username at login before it becomes a throttle-map key', async () => {
+    // Same bound as signup (64), enforced before the username|ip key is built —
+    // otherwise a 1 MiB username would be stored in the in-memory throttle map.
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'a'.repeat(65), password: 'whatever1' },
+    });
+    expect(res.statusCode).toBe(401);
+    // Generic body, identical to a wrong password: no enumeration oracle.
+    expect(res.json().message).toBe('Invalid username or password');
+    // No throttle state was created from the unbounded input: a valid login
+    // right after still succeeds.
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'alice', password: 'hunter2' },
+    });
+    expect(ok.statusCode).toBe(200);
   });
 
   it('rejects a duplicate username', async () => {
@@ -441,6 +463,67 @@ describe('signup hardening (DoS brakes)', () => {
     }
     expect(codes).toContain(400);
     expect(codes[codes.length - 1]).toBe(429);
+  });
+});
+
+describe('login per-IP aggregate ceiling (credential stuffing brake)', () => {
+  // Bare Fastify + registerAuthRoutes so the throttle can be injected with a
+  // low IP ceiling (buildApp does not expose it). Injected apps share no state
+  // with the buildApp instances above.
+  const loginApp = async (ipMaxFails: number, lockoutMs = 60_000) => {
+    process.env.LOG_LEVEL = 'silent';
+    const app = Fastify();
+    registerAuthRoutes(app, {
+      enabled: true,
+      allowSignup: true,
+      secret: 'test-secret',
+      users: new UserRepo(),
+      throttle: createLoginThrottle(5, lockoutMs, 10_000, ipMaxFails),
+    });
+    await app.ready();
+    return app;
+  };
+  const login = (app: FastifyInstance, username: string, password: string) =>
+    app.inject({ method: 'POST', url: '/api/auth/login', payload: { username, password } });
+
+  it('locks the IP after N failures across DIFFERENT usernames, then resets after the cooldown', async () => {
+    const app = await loginApp(3, 150);
+    try {
+      // Each failure is a fresh username|ip pair — the per-pair lockout (5)
+      // never trips, but the aggregate per-IP ceiling (3) does.
+      for (const name of ['u1', 'u2', 'u3']) {
+        expect((await login(app, name, 'wrong1')).statusCode).toBe(401);
+      }
+      const blocked = await login(app, 'u4', 'wrong1');
+      expect(blocked.statusCode).toBe(429);
+      expect(blocked.json().message).toMatch(/try again in \d+s/i);
+
+      // After the cooldown the counter resets: failures are plain 401s again.
+      await new Promise((r) => setTimeout(r, 250));
+      expect((await login(app, 'u5', 'wrong1')).statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('still locks a single username|ip pair below the IP ceiling, and the success path is unaffected', async () => {
+    const app = await loginApp(100); // ceiling far away — only the pair lockout can fire
+    try {
+      await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'carol', password: 'correct-horse' } });
+      expect((await login(app, 'carol', 'correct-horse')).statusCode).toBe(200); // success path fine
+
+      expect((await login(app, 'carol', 'wrong1')).statusCode).toBe(401);
+      expect((await login(app, 'carol', 'wrong2')).statusCode).toBe(401);
+      expect((await login(app, 'carol', 'wrong3')).statusCode).toBe(401);
+      expect((await login(app, 'carol', 'wrong4')).statusCode).toBe(401);
+      expect((await login(app, 'carol', 'wrong5')).statusCode).toBe(401);
+      // 5 consecutive pair failures → the pair (not the IP) is locked out.
+      expect((await login(app, 'carol', 'correct-horse')).statusCode).toBe(429);
+      // Another username from the same IP is untouched by the pair lockout.
+      expect((await login(app, 'dave', 'wrong1')).statusCode).toBe(401);
+    } finally {
+      await app.close();
+    }
   });
 });
 

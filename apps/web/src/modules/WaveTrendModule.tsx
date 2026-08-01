@@ -7,6 +7,7 @@ import { waveTrendBoard, type WaveTrendSort, type WaveTrendBar } from '@/lib/wav
 import { changeClass } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -24,31 +25,6 @@ const PRESETS: { label: string; n1: number; n2: number }[] = [
 ];
 
 const ZONE_LABEL: Record<string, string> = { ob: '+ ob', os: '− os', mid: '· mid' };
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: WaveTrendSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: WaveTrendSort;
-  onSort: (c: WaveTrendSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 function zoneClass(zone: string) {
   return zone === 'ob' ? 'text-term-down' : zone === 'os' ? 'text-term-up' : 'text-term-dim';

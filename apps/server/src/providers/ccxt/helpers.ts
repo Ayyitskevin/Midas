@@ -120,9 +120,33 @@ export function toPerpSymbol(spot: string): string {
   return spot.includes(':') ? spot : `${spot}:${spot.split('/')[1] ?? 'USDT'}`;
 }
 
+/**
+ * Normalize a ccxt funding interval to hours. The unified `interval` field is
+ * a cadence string ('1h', '4h', '8h'), but some venues expose a millisecond
+ * number instead (e.g. via a `fundingInterval` field); both normalize here.
+ * Anything unrecognized returns null — funding cadence varies by venue, so
+ * callers must never fall back to the common 8h assumption.
+ */
+export function fundingIntervalHours(raw: unknown): number | null {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return raw / 3_600_000; // millisecond cadence, e.g. 28_800_000 → 8
+  }
+  if (typeof raw === 'string') {
+    const m = /^(\d+(?:\.\d+)?)\s*([smhd])$/i.exec(raw.trim());
+    if (!m) return null;
+    const n = Number(m[1]);
+    const unit = m[2].toLowerCase();
+    const hours = unit === 's' ? n / 3600 : unit === 'm' ? n / 60 : unit === 'h' ? n : n * 24;
+    return hours > 0 ? hours : null;
+  }
+  return null;
+}
+
 /** A perp's funding snapshot; every field null when unavailable. */
 export interface FundingSnapshot {
   fundingRate: number | null;
+  /** Settlement interval in hours; null when the venue does not report it. */
+  fundingIntervalHours: number | null;
   nextFundingTime: number | null;
   markPrice: number | null;
   indexPrice: number | null;
@@ -134,12 +158,23 @@ export interface FundingSnapshot {
  * a spot-only venue degrades a field rather than throwing.
  */
 export async function readFunding(ex: Exchange, perp: string): Promise<FundingSnapshot> {
-  const empty: FundingSnapshot = { fundingRate: null, nextFundingTime: null, markPrice: null, indexPrice: null };
+  const empty: FundingSnapshot = {
+    fundingRate: null,
+    fundingIntervalHours: null,
+    nextFundingTime: null,
+    markPrice: null,
+    indexPrice: null,
+  };
   if (!ex.has['fetchFundingRate']) return empty;
   try {
     const f = await ex.fetchFundingRate(perp);
+    // ccxt's unified field is `interval`; a few venues carry `fundingInterval`
+    // instead — read both, never assume a cadence.
+    const rawInterval =
+      f.interval ?? (f as unknown as { fundingInterval?: unknown }).fundingInterval ?? null;
     return {
       fundingRate: f.fundingRate ?? null,
+      fundingIntervalHours: fundingIntervalHours(rawInterval),
       nextFundingTime: f.fundingTimestamp ?? f.nextFundingTimestamp ?? null,
       markPrice: f.markPrice ?? null,
       indexPrice: f.indexPrice ?? null,

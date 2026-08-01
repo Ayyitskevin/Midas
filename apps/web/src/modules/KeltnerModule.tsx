@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { keltnerBoard, type KeltSort } from '@/lib/keltner';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -21,31 +22,6 @@ const PRESETS: { label: string; period: number; mult: number }[] = [
 
 // Amber when price has pushed outside the channel.
 const posColor = (v: number) => (v > 100 || v < 0 ? 'text-term-amber' : 'text-term-text');
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: KeltSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: KeltSort;
-  onSort: (c: KeltSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function KeltnerModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);

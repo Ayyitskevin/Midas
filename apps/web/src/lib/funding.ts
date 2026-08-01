@@ -1,12 +1,19 @@
 import type { FundingRow } from '@midas/shared';
 
 /**
- * Annualized funding rate as a percent, assuming funding settles every
- * `intervalHours` (8h is the common perp cadence). null in → null out.
+ * Annualized funding rate as a percent. Pass the venue's actual settlement
+ * interval: funding cadence varies by venue (1h on Hyperliquid-style venues,
+ * 4h on some perps, 8h commonly) and the APR scales with it — an 8h assumption
+ * can be off by 2-8x. Pass null when the interval is unknown → null out (honest
+ * beats helpful). An omitted argument keeps the legacy 8h assumption for the
+ * older single-venue callers that predate per-symbol intervals. null rate in →
+ * null out.
  */
-export function annualizedFundingPct(rate: number | null, intervalHours = 8): number | null {
-  if (rate == null) return null;
-  return rate * (24 / intervalHours) * 365 * 100;
+export function annualizedFundingPct(rate: number | null, intervalHours?: number | null): number | null {
+  if (rate == null || intervalHours === null) return null;
+  const hours = intervalHours ?? 8;
+  if (!Number.isFinite(hours) || hours <= 0) return null;
+  return rate * (24 / hours) * 365 * 100;
 }
 
 export type FundingSortKey = 'symbol' | 'funding' | 'oi';

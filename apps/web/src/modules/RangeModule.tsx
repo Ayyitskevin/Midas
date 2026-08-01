@@ -6,6 +6,7 @@ import { useWatchlist } from '@/store/useWatchlist';
 import { rangeBoard, type RangeSort } from '@/lib/range';
 import { navigate } from '@/commands/execute';
 import { EmptyState, Loading, ErrorMsg } from '@/components/Feedback';
+import { SortHead } from '@/components/SortHead';
 import type { ModuleProps } from './types';
 
 const MAX = 24;
@@ -20,31 +21,6 @@ const fmtPct = (v: number) => `${v.toFixed(1)}%`;
 const fmtExp = (v: number) => `${v.toFixed(2)}×`;
 const expColor = (v: number, isWide: boolean, isNR: boolean) =>
   isWide ? 'text-term-amber' : isNR ? 'text-term-accent' : v >= 1 ? 'text-term-text' : 'text-term-muted';
-
-function SortHead({
-  col,
-  label,
-  align,
-  sort,
-  onSort,
-}: {
-  col: RangeSort;
-  label: string;
-  align: 'left' | 'right';
-  sort: RangeSort;
-  onSort: (c: RangeSort) => void;
-}) {
-  return (
-    <th className={`px-2 py-1 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
-      <button
-        onClick={() => onSort(col)}
-        className={`no-drag hover:text-term-amber ${sort === col ? 'text-term-amber' : 'text-term-muted'}`}
-      >
-        {label}
-      </button>
-    </th>
-  );
-}
 
 export function RangeModule({ panel }: ModuleProps) {
   const watchlist = useWatchlist((s) => s.symbols);
