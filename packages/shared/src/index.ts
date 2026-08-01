@@ -11,6 +11,7 @@
 
 export * from './chart';
 export * from './market';
+export * from './board';
 export * from './solana';
 export * from './account';
 export * from './system';

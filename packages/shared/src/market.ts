@@ -206,8 +206,15 @@ export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueA
  */
 export interface VenueDerivatives {
   exchange: string;
-  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  /** Funding rate as a fraction (0.0001 = 0.01%) per settlement interval; null if unavailable. */
   fundingRate: number | null;
+  /**
+   * Hours between funding settlements (1 = hourly, 4/8 = the common cadences);
+   * null when the venue does not report it. Funding cadence varies by venue, so
+   * consumers must never assume 8h — an unknown interval means no annualized or
+   * cross-venue-normalized figure can be honestly derived from `fundingRate`.
+   */
+  fundingIntervalHours?: number | null;
   /** Epoch millis of the next funding. */
   nextFundingTime: number | null;
   markPrice: number | null;
@@ -315,8 +322,13 @@ export interface DexPools {
 export interface DerivativesInfo {
   /** The perp symbol the data is for (e.g. BTC/USDT:USDT). */
   symbol: string;
-  /** Current funding rate as a fraction (0.0001 = 0.01%). */
+  /** Current funding rate as a fraction (0.0001 = 0.01%) per settlement interval. */
   fundingRate: number | null;
+  /**
+   * Hours between funding settlements (1 = hourly, 4/8 = the common cadences);
+   * null when the venue does not report it — never assume 8h when annualizing.
+   */
+  fundingIntervalHours?: number | null;
   /** Epoch millis of the next funding. */
   nextFundingTime: number | null;
   markPrice: number | null;
@@ -333,8 +345,13 @@ export interface DerivativesInfo {
 export interface FundingRow {
   /** Display symbol, e.g. BTC/USDT. */
   symbol: string;
-  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  /** Funding rate as a fraction (0.0001 = 0.01%) per settlement interval; null if unavailable. */
   fundingRate: number | null;
+  /**
+   * Hours between funding settlements; null when the venue does not report it.
+   * Annualized figures must be omitted (null), not computed on an assumed 8h.
+   */
+  fundingIntervalHours?: number | null;
   /** Epoch millis of the next funding. */
   nextFundingTime: number | null;
   markPrice: number | null;
@@ -345,8 +362,10 @@ export interface FundingRow {
 /** One venue's funding rate for a perp, in the cross-venue dispersion board. */
 export interface FundingVenuePoint {
   exchange: string;
-  /** Funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
+  /** Raw per-interval funding rate as a fraction (0.0001 = 0.01%); null if unavailable. */
   fundingRate: number | null;
+  /** This venue's settlement interval in hours; null when unreported. */
+  fundingIntervalHours?: number | null;
   /** Epoch millis of the next funding. */
   nextFundingTime: number | null;
 }
@@ -356,23 +375,29 @@ export interface FundingVenuePoint {
  * across the compare set, reduced to the spread (the arb signal). Extends the
  * single-perp {@link VenueDerivatives} view to a whole board, so the widest
  * cross-venue funding spreads (the best funding-arb candidates) sort to the top.
+ *
+ * Venues settle funding on different cadences (1h, 4h, 8h), so every venue's
+ * rate is normalized to a per-8h-equivalent before the extremes, mean and
+ * spread are computed — `minRate`/`maxRate`/`meanRate`/`spreadBps` are all on
+ * that normalized basis. The raw per-interval rates stay on the venue points
+ * alongside their intervals.
  */
 export interface FundingDispersionRow {
   /** Display symbol, e.g. BTC/USDT. */
   symbol: string;
-  /** Per-venue funding points that reported a rate, sorted dearest → cheapest. */
+  /** Per-venue funding points with a known interval, sorted by normalized (per-8h) rate, dearest → cheapest. */
   venues: FundingVenuePoint[];
-  /** Lowest funding across venues (fraction); null if none reported. */
+  /** Lowest normalized (per-8h) funding across venues (fraction); null if none comparable. */
   minRate: number | null;
-  /** Highest funding across venues (fraction); null if none reported. */
+  /** Highest normalized (per-8h) funding across venues (fraction); null if none comparable. */
   maxRate: number | null;
-  /** Mean funding across the reporting venues (fraction); null if none. */
+  /** Mean normalized (per-8h) funding across the comparable venues (fraction); null if none. */
   meanRate: number | null;
-  /** (max − min) funding in basis points — the arb signal; null with < 2 venues. */
+  /** (max − min) normalized funding in basis points — the arb signal; null with < 2 comparable venues. */
   spreadBps: number | null;
-  /** Venue with the highest funding (dearest to be long → short it); null if none. */
+  /** Venue with the highest normalized funding (dearest to be long → short it); null if none. */
   highVenue: string | null;
-  /** Venue with the lowest funding (cheapest to be long → long it); null if none. */
+  /** Venue with the lowest normalized funding (cheapest to be long → long it); null if none. */
   lowVenue: string | null;
   /** Aggregate open-interest notional across venues (quote units); null if none. */
   totalOiValue: number | null;
@@ -382,31 +407,50 @@ export interface FundingDispersionRow {
  * Reduce a perp's per-venue derivatives into a cross-venue funding-dispersion
  * row: the funding extremes and their spread (the funding-arb signal — long the
  * cheapest-funded venue, short the dearest), the mean, and aggregate open
- * interest. Pure; ignores venues that report no funding rate. Returned venues
- * are sorted by funding rate, dearest first. `spreadBps` is null (no arb signal)
- * unless at least two venues report a rate.
+ * interest. Pure.
+ *
+ * Funding settles on different cadences per venue, so each venue's rate is
+ * first normalized to a per-8h-equivalent (rate × 8 / intervalHours) — a 0.01%
+ * hourly rate is 8× a 0.01% 8h rate, and comparing raw per-interval rates
+ * would fabricate (or erase) the spread exactly when intervals differ. Venues
+ * that report no funding rate, or no settlement interval, are excluded from
+ * the comparison rather than silently compared raw; `spreadBps` is null (no
+ * arb signal) unless at least two venues are comparable.
  */
 export function computeFundingDispersion(
   symbol: string,
   rows: VenueDerivatives[],
 ): FundingDispersionRow {
-  const funded = rows
+  const comparable = rows
     .filter(
-      (r): r is VenueDerivatives & { fundingRate: number } =>
-        r.fundingRate != null && Number.isFinite(r.fundingRate),
+      (r): r is VenueDerivatives & { fundingRate: number; fundingIntervalHours: number } =>
+        r.fundingRate != null &&
+        Number.isFinite(r.fundingRate) &&
+        r.fundingIntervalHours != null &&
+        Number.isFinite(r.fundingIntervalHours) &&
+        r.fundingIntervalHours > 0,
     )
-    .map((r) => ({ exchange: r.exchange, fundingRate: r.fundingRate, nextFundingTime: r.nextFundingTime }))
-    .sort((a, b) => b.fundingRate - a.fundingRate); // dearest → cheapest
+    .map((r) => ({
+      point: {
+        exchange: r.exchange,
+        fundingRate: r.fundingRate, // raw per-interval rate, labeled by fundingIntervalHours
+        fundingIntervalHours: r.fundingIntervalHours,
+        nextFundingTime: r.nextFundingTime,
+      },
+      normalized: (r.fundingRate * 8) / r.fundingIntervalHours, // per-8h-equivalent
+    }))
+    .sort((a, b) => b.normalized - a.normalized); // dearest → cheapest
 
-  const maxRate = funded.length ? funded[0].fundingRate : null;
-  const minRate = funded.length ? funded[funded.length - 1].fundingRate : null;
-  const highVenue = funded.length ? funded[0].exchange : null;
-  const lowVenue = funded.length ? funded[funded.length - 1].exchange : null;
-  const meanRate = funded.length
-    ? funded.reduce((s, p) => s + p.fundingRate, 0) / funded.length
+  const venues = comparable.map((c) => c.point);
+  const maxRate = comparable.length ? comparable[0].normalized : null;
+  const minRate = comparable.length ? comparable[comparable.length - 1].normalized : null;
+  const highVenue = comparable.length ? comparable[0].point.exchange : null;
+  const lowVenue = comparable.length ? comparable[comparable.length - 1].point.exchange : null;
+  const meanRate = comparable.length
+    ? comparable.reduce((s, c) => s + c.normalized, 0) / comparable.length
     : null;
   const spreadBps =
-    funded.length >= 2 && maxRate !== null && minRate !== null ? (maxRate - minRate) * 10_000 : null;
+    comparable.length >= 2 && maxRate !== null && minRate !== null ? (maxRate - minRate) * 10_000 : null;
 
   let totalOiValue: number | null = null;
   for (const r of rows) {
@@ -415,7 +459,7 @@ export function computeFundingDispersion(
     }
   }
 
-  return { symbol, venues: funded, minRate, maxRate, meanRate, spreadBps, highVenue, lowVenue, totalOiValue };
+  return { symbol, venues, minRate, maxRate, meanRate, spreadBps, highVenue, lowVenue, totalOiValue };
 }
 
 /** One venue's open interest for a perp, in the cross-venue OI/crowding board. */

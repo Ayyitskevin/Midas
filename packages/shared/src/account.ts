@@ -39,7 +39,11 @@ export interface Balances {
   provenance: BalancesProvenance;
   /** Honest caveat: why the data is synthetic/unavailable, or null when live. */
   note: string | null;
-  /** Total portfolio value in USD across priced assets; null if nothing could be priced. */
+  /**
+   * Total portfolio value in USD across priced assets; null if nothing could
+   * be priced. A floor when some held assets are unpriced — the note then
+   * says how many were excluded.
+   */
   totalValueUsd: number | null;
   balances: AccountBalance[];
   /** Epoch millis the snapshot was assembled. */
@@ -248,9 +252,18 @@ export interface AccountOrderEvent {
 export interface EquityPoint {
   /** Epoch millis the snapshot was taken. */
   at: number;
-  /** Total account value in USD across priced assets. */
+  /**
+   * Account equity in USD: wallet value across priced assets plus live perp
+   * unrealized P&L when it was known at snapshot time. When uPnL was unknown
+   * (`unrealizedPnlUsd` null) this is the wallet-only figure — a floor, never
+   * a fabricated total.
+   */
   totalUsd: number;
-  /** Unrealized P&L across open positions at that moment; null if unknown. */
+  /**
+   * Unrealized P&L across open positions at that moment (included in
+   * `totalUsd`); null when unknown — positions read not live, or open
+   * positions reporting no P&L. Honestly 0 when no positions were open.
+   */
   unrealizedPnlUsd: number | null;
 }
 
