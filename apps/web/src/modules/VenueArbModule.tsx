@@ -60,6 +60,12 @@ export function VenueArbModule({ panel }: ModuleProps) {
                   SELL
                 </th>
                 <th className="px-2 py-1 text-right font-normal">SPREAD</th>
+                <th
+                  className="px-2 py-1 text-right font-normal"
+                  title="SPREAD minus round-trip reference taker fees (base tier; excludes withdrawal/transfer)"
+                >
+                  NET
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -67,7 +73,7 @@ export function VenueArbModule({ panel }: ModuleProps) {
                 <tr
                   key={r.symbol}
                   className={`border-b border-term-border/30 hover:bg-term-header/60 ${
-                    r.crossed ? 'bg-term-up/10' : ''
+                    r.netCrossed ? 'bg-term-up/10' : ''
                   }`}
                   title={venuesTitle(r.venues)}
                 >
@@ -103,17 +109,18 @@ export function VenueArbModule({ panel }: ModuleProps) {
                       '—'
                     )}
                   </td>
+                  <td className="px-2 py-1 text-right tabular-nums text-term-muted">{fmtSpread(r.spreadBps)}</td>
                   <td
-                    className={`px-2 py-1 text-right tabular-nums ${
-                      r.crossed ? 'font-semibold text-term-up' : 'text-term-muted'
+                    className={`px-2 py-1 text-right font-semibold tabular-nums ${
+                      r.netCrossed ? 'text-term-up' : 'text-term-muted'
                     }`}
                   >
-                    {r.crossed && (
+                    {r.netCrossed && (
                       <span className="mr-1 rounded-sm bg-term-up/20 px-1 py-0.5 text-2xs font-semibold uppercase text-term-up">
-                        arb
+                        net arb
                       </span>
                     )}
-                    {fmtSpread(r.spreadBps)}
+                    {fmtSpread(r.netSpreadBps)}
                   </td>
                 </tr>
               ))}
@@ -123,7 +130,8 @@ export function VenueArbModule({ panel }: ModuleProps) {
       </div>
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
         DISP = cross-venue price dispersion (bp) · <span className="text-term-accent">BUY</span> lowest ask /{' '}
-        <span className="text-term-up">SELL</span> highest bid · SPREAD &gt; 0 = crossed book (arb, gross of fees)
+        <span className="text-term-up">SELL</span> highest bid · SPREAD &gt; 0 = crossed book (gross) · NET = SPREAD −
+        round-trip reference taker fees (base tier, ignores withdrawal/transfer — verify tiers before trading)
       </div>
     </div>
   );

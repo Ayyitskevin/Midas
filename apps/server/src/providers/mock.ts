@@ -6,11 +6,14 @@ import type {
   CoinUniverse,
   DerivativesInfo,
   DexPools,
+  DvolSnapshot,
+  DvolSymbol,
   FundingHistoryPoint,
   HistoryResponse,
   LiquidationsProvenance,
   NewsItem,
   OpenOrders,
+  OptionsChain,
   OrderBook,
   Quote,
   ScreenerRow,
@@ -23,6 +26,7 @@ import type {
   SolanaTrending,
   SolanaValidators,
   SolanaWallet,
+  TermStructure,
   VenueDerivatives,
   VenueQuote,
 } from '@midas/shared';
@@ -58,6 +62,7 @@ import {
 } from './mock/solana';
 import { mockBalances, mockFills, mockOpenOrders, mockPositions } from './mock/account';
 import { mockCoinUniverse } from './mock/coins';
+import { mockDvol, mockOptionsChain, mockTermStructure } from './mock/options';
 
 /**
  * Deterministic synthetic data provider. Prices wiggle minute-to-minute (so the
@@ -159,6 +164,15 @@ export class MockProvider implements DataProvider {
   }
   getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
     return mockFundingHistory(symbol, limit);
+  }
+  getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
+    return mockDvol(symbol);
+  }
+  getFuturesTermStructure(symbol: string): Promise<TermStructure> {
+    return mockTermStructure(symbol);
+  }
+  getOptionsChain(symbol: string, expiry?: number | 'nearest'): Promise<OptionsChain> {
+    return mockOptionsChain(symbol, expiry);
   }
   screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
     return mockScreen(opts);

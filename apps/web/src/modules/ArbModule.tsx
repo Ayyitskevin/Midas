@@ -61,19 +61,28 @@ export function ArbModule({ panel }: ModuleProps) {
     <div className="no-drag scroll-term flex h-full flex-col gap-2 overflow-y-auto p-2">
       <div
         className={`rounded-sm border px-3 py-2 ${
-          arb.crossed ? 'border-term-up/40 bg-term-up/10' : 'border-term-border bg-term-panel/40'
+          arb.netCrossed ? 'border-term-up/40 bg-term-up/10' : 'border-term-border bg-term-panel/40'
         }`}
       >
         <div className="flex items-center justify-between">
-          <span className="text-2xs uppercase tracking-wide text-term-dim">Best cross-venue spread</span>
-          {arb.crossed && (
+          <span className="text-2xs uppercase tracking-wide text-term-dim">
+            Best cross-venue spread, net of reference taker fees
+          </span>
+          {arb.netCrossed && (
             <span className="rounded-sm bg-term-up/20 px-1.5 py-0.5 text-2xs font-semibold uppercase text-term-up">
-              Arb
+              Net arb
             </span>
           )}
         </div>
-        <div className={`font-mono text-xl ${arb.spreadBps != null ? changeClass(arb.spreadBps) : 'text-term-text'}`}>
-          {fmtSpread(arb.spreadBps)}
+        <div
+          className={`font-mono text-xl font-semibold ${
+            arb.netSpreadBps != null ? changeClass(arb.netSpreadBps) : 'text-term-text'
+          }`}
+        >
+          {fmtSpread(arb.netSpreadBps)}
+        </div>
+        <div className="text-2xs text-term-muted">
+          Gross {fmtSpread(arb.spreadBps)} − fees {fmtBps(arb.feeBps)} round trip
         </div>
         {arb.bestAsk && arb.bestBid && (
           <div className="text-2xs text-term-muted">
@@ -130,8 +139,9 @@ export function ArbModule({ panel }: ModuleProps) {
       </table>
 
       <p className="px-1 text-2xs leading-relaxed text-term-dim">
-        Gross of fees &amp; transfer. A real arb must clear taker fees on both legs (and withdrawal). Highlighted: best
-        bid (sell) and best ask (buy).
+        Net = gross spread − reference base-tier taker fees on both legs. Withdrawal/transfer costs are NOT included —
+        a real arb must also clear those, and fee tiers drift, so verify before trading. Green only when the spread is
+        positive net of reference fees. Highlighted: best bid (sell) and best ask (buy).
       </p>
     </div>
   );

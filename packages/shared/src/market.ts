@@ -5,6 +5,7 @@
  */
 
 import type { Interval, Range } from './chart';
+import { netSpreadBps, roundTripFeesBps } from './fees';
 
 /** Trading status of a symbol's primary exchange. */
 export type MarketState =
@@ -136,6 +137,19 @@ export interface VenueArbRow {
   spreadBps: number | null;
   /** True when the highest bid exceeds the lowest ask across venues — a gross-of-fees arb. */
   crossed: boolean;
+  /**
+   * Round-trip reference taker fees (buy leg + sell leg) in bps, from the static
+   * reference schedule in fees.ts; null when the legs are unresolved or either
+   * venue is missing from the schedule. Excludes withdrawal/transfer costs.
+   */
+  feeBps: number | null;
+  /**
+   * `spreadBps − feeBps` — the crossed spread net of reference taker fees; null
+   * when the spread or either venue's fee tier is unknown (never assumed 0).
+   */
+  netSpreadBps: number | null;
+  /** True only when the spread stays positive NET of reference taker fees — the actionable signal. */
+  netCrossed: boolean;
   /** (max − min) / min of last price across venues, in bps — how much venues disagree; null with < 2. */
   dispersionBps: number | null;
   /** Cheapest last price across venues; null if none. */
@@ -147,10 +161,13 @@ export interface VenueArbRow {
 /**
  * Reduce a symbol's per-venue quotes into a cross-venue arb row: the best bid
  * (sell here) and best ask (buy here) across venues, their spread in bps (the
- * arb signal — positive means a crossed, gross-of-fees arb), and the last-price
- * dispersion (how much venues disagree). Pure; ignores venues with a
- * non-positive price and bid/ask legs that are null or ≤ 0. `spreadBps` and
- * `dispersionBps` are null unless at least two venues quote.
+ * arb signal — positive means a crossed, gross-of-fees arb), that spread net of
+ * reference taker fees (`feeBps`/`netSpreadBps`/`netCrossed` — the actionable
+ * figure), and the last-price dispersion (how much venues disagree). Pure;
+ * ignores venues with a non-positive price and bid/ask legs that are null or
+ * ≤ 0. `spreadBps` and `dispersionBps` are null unless at least two venues
+ * quote; the net fields are null whenever the spread or a leg's fee tier is
+ * unknown.
  */
 export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueArbRow {
   const venues: VenuePricePoint[] = quotes
@@ -181,6 +198,11 @@ export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueA
   const crossVenue = bestBid !== null && bestAsk !== null && bestBid.exchange !== bestAsk.exchange;
   const spread = crossVenue && bestBid && bestAsk ? bestBid.value - bestAsk.value : null;
   const spreadBps = spread !== null && bestAsk ? (spread / bestAsk.value) * 10_000 : null;
+  // Net of reference taker fees (buy at bestAsk's venue, sell at bestBid's).
+  // Null whenever the spread or either venue's fee tier is unknown — a gross
+  // crossed book with unknown fees is not shown as actionable.
+  const feeBps = crossVenue && bestBid && bestAsk ? roundTripFeesBps(bestAsk.exchange, bestBid.exchange) : null;
+  const net = crossVenue && bestBid && bestAsk ? netSpreadBps(spreadBps, bestAsk.exchange, bestBid.exchange) : null;
   const dispersionBps =
     priced >= 2 && priceMin !== null && priceMax !== null && priceMin > 0
       ? ((priceMax - priceMin) / priceMin) * 10_000
@@ -193,6 +215,9 @@ export function computeVenueArbRow(symbol: string, quotes: VenueQuote[]): VenueA
     bestAsk,
     spreadBps,
     crossed: spread !== null && spread > 0,
+    feeBps,
+    netSpreadBps: net,
+    netCrossed: net !== null && net > 0,
     dispersionBps,
     priceMin,
     priceMax,
