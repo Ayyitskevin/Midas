@@ -11,6 +11,7 @@ import type {
   DvolSnapshot,
   DvolSymbol,
   DataReceipt,
+  Liquidation,
   LiquidationsProvenance,
   LiquidationSourceCapability,
   FundingHistoryPoint,
@@ -41,6 +42,7 @@ import type {
   TermStructure,
   TermStructurePoint,
   VenueDerivatives,
+  VenueLiquidations,
   VenueQuote,
 } from '@midas/shared';
 import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, partialEvidenceLimitation, summarizeOiDelta, withReceiptLimitations } from '@midas/shared';
@@ -148,8 +150,46 @@ function sourceTimestampOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+/**
+ * Parse a ccxt `fetchLiquidations` response into the unified shape.
+ *
+ * Shared by the single-venue derivatives snapshot and the cross-venue fan-out so
+ * the two cannot drift into disagreeing about what counts as a usable event.
+ *
+ * ccxt's unified liquidation shape has no top-level `side` — it lives,
+ * venue-specifically, inside `info`. A row whose side, price, amount or
+ * timestamp cannot be read is dropped and counted, never defaulted: guessing
+ * 'buy' would render every liquidation as a short.
+ */
+function parseLiquidationRows(response: unknown): { recent: Liquidation[]; omitted: number } {
+  if (!Array.isArray(response)) throw new Error('malformed liquidation response');
+  const rows = response as Array<{
+    side?: string;
+    price?: number;
+    amount?: number;
+    contracts?: number;
+    timestamp?: number;
+    info?: { side?: string };
+  }>;
+  const recent: Liquidation[] = [];
+  let omitted = 0;
+  for (const l of rows.slice(0, 20)) {
+    const rawSide = (l.side ?? l.info?.side ?? '').toString().toLowerCase();
+    const side = rawSide === 'sell' ? ('sell' as const) : rawSide === 'buy' ? ('buy' as const) : null;
+    const price = positiveFiniteOrNull(l.price);
+    const amount = positiveFiniteOrNull(l.amount ?? l.contracts);
+    const timestamp = sourceTimestampOrNull(l.timestamp);
+    if (!side || price === null || amount === null || timestamp === null) {
+      omitted += 1;
+      continue;
+    }
+    recent.push({ side, price, amount, timestamp });
+  }
+  return { recent, omitted };
+}
+
 function crossVenuePartialLimitation(
-  family: 'quote' | 'derivatives',
+  family: 'quote' | 'derivatives' | 'liquidations',
   attempted: number,
   returned: number,
   failed: number,
@@ -908,35 +948,11 @@ export class CcxtProvider implements DataProvider {
     if (this.exchange.has['fetchLiquidations']) {
       try {
         const response = await this.exchange.fetchLiquidations(perp, undefined, 20);
-        if (!Array.isArray(response)) throw new Error('malformed liquidation response');
-        const liqs = response as unknown as Array<{
-          side?: string;
-          price?: number;
-          amount?: number;
-          contracts?: number;
-          timestamp?: number;
-          info?: { side?: string };
-        }>;
-        // ccxt's unified liquidation shape has no top-level `side` — it lives,
-        // venue-specifically, inside `info`. Read it from there; when the side
-        // (or a usable price) can't be determined, drop the row rather than
-        // fabricating 'buy' (which would render every liquidation as a short).
-        const recent: DerivativesInfo['recentLiquidations'] = [];
-        for (const l of liqs.slice(0, 20)) {
-          const rawSide = (l.side ?? l.info?.side ?? '').toString().toLowerCase();
-          const side = rawSide === 'sell' ? ('sell' as const) : rawSide === 'buy' ? ('buy' as const) : null;
-          const price = positiveFiniteOrNull(l.price);
-          const amount = positiveFiniteOrNull(l.amount ?? l.contracts);
-          const timestamp = sourceTimestampOrNull(l.timestamp);
-          if (!side || price === null || amount === null || timestamp === null) {
-            omittedLiquidations += 1;
-            continue;
-          }
-          recent.push({ side, price, amount, timestamp });
-        }
+        const { recent, omitted } = parseLiquidationRows(response);
+        omittedLiquidations += omitted;
         out.recentLiquidations = recent;
         liquidationsState = 'ok';
-        liquidationsMalformed = liqs.length > 0 && recent.length === 0;
+        liquidationsMalformed = (response as unknown[]).length > 0 && recent.length === 0;
         liquidationsSourceAsOf = recent.length > 0
           ? Math.max(...recent.map((liquidation) => liquidation.timestamp))
           : null;
@@ -1058,11 +1074,101 @@ export class CcxtProvider implements DataProvider {
     return out;
   }
 
+  /**
+   * Recent public liquidations for one perp across the configured venue set.
+   *
+   * Cost is bounded by capability, not by policy: a venue that does not declare
+   * `fetchLiquidations` returns `available: false` with **zero network cost**,
+   * and on the default compare set most venues are in exactly that state. The
+   * fan-out is therefore far narrower than N venues in practice, and the route's
+   * single-flight TTL collapses concurrent callers onto one sweep.
+   *
+   * `Promise.allSettled` per venue: one dead venue degrades to `available:false`
+   * and is visible as reduced coverage. It never fails the feed — losing five
+   * good venues because a sixth timed out is the opposite of honest.
+   */
+  async getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]> {
+    const perp = toPerpSymbol(this.normalize(symbol));
+    const settled = await Promise.allSettled(
+      this.getCompareExchanges().map(async (ex): Promise<VenueLiquidations> => {
+        const available = Boolean(ex.has['fetchLiquidations']);
+        if (!available) {
+          return withProviderReceipt(this, {
+            exchange: ex.id,
+            available: false,
+            liquidations: [],
+            timestamp: null,
+          }, {
+            datasetFamily: 'liquidations',
+            source: `ccxt:${ex.id}`,
+            instrument: perp,
+            venue: ex.id,
+            provenance: 'unavailable',
+            sourceAsOf: null,
+            coverage: 'venue publishes no public liquidation feed',
+            units: { price: 'quote-asset', amount: 'base-asset' },
+            note: `${ex.id} exposes no public liquidation feed.`,
+          }, this.now());
+        }
+        const { recent, omitted } = parseLiquidationRows(
+          await ex.fetchLiquidations(perp, undefined, 20),
+        );
+        const sourceAsOf = recent.length > 0
+          ? Math.max(...recent.map((liquidation) => liquidation.timestamp))
+          : null;
+        return withProviderReceipt(this, {
+          exchange: ex.id,
+          available: true,
+          liquidations: recent,
+          timestamp: sourceAsOf,
+        }, {
+          datasetFamily: 'liquidations',
+          source: `ccxt:${ex.id}`,
+          instrument: perp,
+          venue: ex.id,
+          provenance: 'live',
+          sourceAsOf,
+          coverage: `${recent.length} recent public liquidation event(s)`,
+          units: { price: 'quote-asset', amount: 'base-asset' },
+          limitations: [
+            ...(omitted > 0
+              ? [partialEvidenceLimitation(`${omitted} malformed liquidation row(s) were omitted.`)]
+              : []),
+            LIQUIDATION_THROTTLE_NOTE,
+          ],
+        }, this.now());
+      }),
+    );
+    const values = settled
+      .filter((result): result is PromiseFulfilledResult<VenueLiquidations> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    const failures = settled.length - values.length;
+    if (values.length === 0 && settled.length > 0) {
+      throw new ProviderError(
+        `${this.name} ${perp}: every configured venue liquidation read failed`,
+        502,
+        perp,
+      );
+    }
+    if (failures === 0) return values;
+    const limitation = crossVenuePartialLimitation('liquidations', settled.length, values.length, failures);
+    return values.map((value) => withRowReceiptLimitation(value, limitation, perp));
+  }
+
   liquidationsProvenance(): LiquidationsProvenance {
-    const available = Boolean(this.exchange.has['fetchLiquidations']);
-    const note = available
-      ? LIQUIDATION_THROTTLE_NOTE
-      : `${this.name} exposes no public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE at a venue that publishes liquidations, or use cross-exchange aggregation.`;
+    const sources = this.liquidationSourceCapabilities();
+    const publishing = sources.filter((capability) => capability.available);
+    // Availability is now a property of the configured SET, not the primary
+    // venue. The default primary (Binance) publishes nothing, but the compare
+    // set may — gating the fan-out on the primary alone is what made a stock
+    // install show an empty feed while venues with real data sat unread.
+    const available = publishing.length > 0;
+    const primaryPublishes = Boolean(this.exchange.has['fetchLiquidations']);
+    const note = !available
+      ? `No configured venue exposes a public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE or MIDAS_CCXT_COMPARE at venues that publish liquidations.`
+      : primaryPublishes
+        ? LIQUIDATION_THROTTLE_NOTE
+        : `${this.exchangeId} publishes no public liquidation feed; events come from ${publishing.length} other configured venue(s). ${LIQUIDATION_THROTTLE_NOTE}`;
     const receipt = available
       ? providerReceipt(this, {
           datasetFamily: 'liquidations',
@@ -1084,10 +1190,10 @@ export class CcxtProvider implements DataProvider {
       source: this.name,
       available,
       note,
-      // The feed reads the primary venue only; `sources` names every venue it
-      // *could* read so the panel can say "1 of N sampled" instead of implying
-      // one venue is the market.
-      sources: this.liquidationSourceCapabilities(),
+      // Every venue the fan-out will attempt — the denominator of coverage.
+      sources,
+      // The primary venue: the M2 denominator, i.e. what a single-source feed
+      // would have shown. Not a claim that only this venue is read.
       sampledSource: this.exchangeId,
       receipt,
     };

@@ -58,18 +58,44 @@ describe('demo engine', () => {
     const feed = liquidationsFeed('USDT', 30, NOW);
     // Fidelity contract: the static demo replaces the whole server, so a field
     // the panel reads must exist here in the same shape or the demo diverges.
-    expect(feed.meta.coverage).toEqual({ configured: 1, sampled: 1, reporting: 1, ratio: 1 });
-    expect(feed.meta.sources).toHaveLength(1);
-    expect(feed.meta.sources[0]).toMatchObject({
-      source: 'demo',
-      sampled: true,
-      synthetic: true,
+    // The demo fans out across the same six venues, with the same two lacking a
+    // public feed as the server mock — so it exercises partial coverage.
+    expect(feed.meta.coverage).toEqual({ configured: 6, sampled: 6, reporting: 4, ratio: 4 / 6 });
+    expect(feed.meta.sources).toHaveLength(6);
+    for (const source of feed.meta.sources) {
+      expect(source.synthetic).toBe(true);
       // Fabricated events have no upstream stream to be throttled by.
-      throttled: false,
-    });
-    expect(feed.meta.sources[0].eventCount).toBe(feed.events.length);
-    expect(feed.meta.sources[0].lastEventAt).toBe(NOW);
-    expect(feed.meta.sources[0].ageMs).toBe(0);
+      expect(source.throttled).toBe(false);
+    }
+    const feedless = feed.meta.sources.filter((s) => !s.available).map((s) => s.source);
+    expect(feedless).toEqual(['binance', 'coinbase']);
+    for (const source of feed.meta.sources.filter((s) => s.available)) {
+      expect(source.eventCount).toBeGreaterThan(0);
+      expect(source.stale).toBe(false);
+    }
+  });
+
+  it('tags every demo event with the venue it came from', () => {
+    const feed = liquidationsFeed('USDT', 30, NOW);
+    expect(feed.events.length).toBeGreaterThan(0);
+    const venues = new Set(feed.events.map((e) => e.source));
+    // An untagged event in a merged cross-venue stream cannot be attributed.
+    expect(venues.has(undefined)).toBe(false);
+    expect([...venues].sort()).toEqual(['bitfinex', 'kraken', 'kucoin', 'okx']);
+    // Newest-first, like the server feed.
+    for (let i = 1; i < feed.events.length; i++) {
+      expect(feed.events[i - 1].timestamp).toBeGreaterThanOrEqual(feed.events[i].timestamp);
+    }
+  });
+
+  it('reports no multiple when the reference venue published nothing', () => {
+    const feed = liquidationsFeed('USDT', 30, NOW);
+    // The demo mirrors the real default: the primary venue has no public feed,
+    // so the union has no finite ratio to report — null, never Infinity.
+    expect(feed.meta.aggregate.referenceSource).toBe('binance');
+    expect(feed.meta.aggregate.referenceValue).toBe(0);
+    expect(feed.meta.aggregate.multiple).toBeNull();
+    expect(feed.meta.aggregate.totalValue).toBeGreaterThan(0);
   });
 
   it('candles are well-formed: ascending time, high ≥ open/close ≥ low', () => {

@@ -35,6 +35,7 @@ import type {
   SolanaWallet,
   TermStructure,
   VenueDerivatives,
+  VenueLiquidations,
   VenueQuote,
   ProviderCapabilityManifest,
 } from '@midas/shared';
@@ -73,6 +74,12 @@ export interface DataProvider {
   getDerivatives(symbol: string): Promise<DerivativesInfo>;
   /** Per-venue funding & open interest for a perp, across the compare set (crypto only). */
   getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]>;
+  /**
+   * Recent public liquidations for a perp across the configured venue set.
+   * A venue with no public feed returns `available: false` rather than throwing,
+   * so one silent venue reduces coverage instead of failing the feed.
+   */
+  getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]>;
   /** Provenance + availability of the liquidation feed, for honest labeling. */
   liquidationsProvenance(): LiquidationsProvenance;
   /** On-chain/DEX pool snapshot for a base asset, honestly labeled live/synthetic/unavailable. */

@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeLiquidationSourceStatuses, computeLiquidationsCoverage, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
+import { computeFundingDispersion, computeLiquidationSourceStatuses, computeLiquidationsAggregate, computeLiquidationsCoverage, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import { demoReceipt } from './trust';
 import type {
   AccountFills,
@@ -43,6 +43,7 @@ import type {
   SolanaValidator,
   SolanaValidators,
   SolanaWallet,
+  SymbolVenueLiquidations,
   TermStructure,
   TermStructurePoint,
   VenueArbRow,
@@ -751,46 +752,87 @@ export function searchFor(query: string): SearchResult[] {
     }));
 }
 
+/**
+ * Demo venues without a public liquidation feed. Mirrors both reality (Binance
+ * removed its public stream in 2021) and the server mock's fixture, so the demo
+ * exercises the same partial-coverage branches the real panel hits.
+ */
+const NO_LIQUIDATION_FEED_VENUES = new Set(['binance', 'coinbase']);
+
 export function liquidationsFeed(quote: string, limit: number, now: number): LiquidationsFeed {
-  const events = [];
-  for (let i = 0; i < Math.min(limit, 25); i++) {
-    const a = ASSETS[Math.floor(u(`liq:a${i}:${Math.floor(now / 60_000)}`) * ASSETS.length)];
-    const price = priceAt(a, now - i * 47_000);
-    const amount = (a.price > 1000 ? 0.6 : 4_000) * (0.2 + u(`liq:s${i}`) * 2);
-    events.push({
-      symbol: `${a.base}/${quote}`,
-      side: u(`liq:d${i}:${Math.floor(now / 60_000)}`) > 0.45 ? ('sell' as const) : ('buy' as const),
-      price,
-      amount,
-      value: price * amount,
-      timestamp: now - i * 47_000,
-    });
-  }
-  // Mirror the server's per-source meta exactly (fidelity contract) by running
-  // the same shared reducers, not a hand-copied shape that can silently drift.
-  // One fabricated source: available (it does emit events) but never throttled,
-  // because there is no upstream stream behind it.
+  // Fan out across the demo venue set exactly as the server does, then reduce
+  // with the SAME shared helpers — a hand-copied shape is how demo and server
+  // silently drift apart.
+  const symbols = Array.from(
+    new Set(
+      Array.from({ length: Math.min(limit, 25) }, (_, i) => {
+        const a = ASSETS[Math.floor(u(`liq:a${i}:${Math.floor(now / 60_000)}`) * ASSETS.length)];
+        return `${a.base}/${quote}`;
+      }),
+    ),
+  );
+  const perSymbol: SymbolVenueLiquidations[] = symbols.map((symbol) => ({
+    symbol,
+    venues: VENUES.map((venue) => {
+      if (NO_LIQUIDATION_FEED_VENUES.has(venue)) {
+        return { exchange: venue, available: true as const, liquidations: [], timestamp: null };
+      }
+      const asset = assetFor(symbol)!;
+      const liquidations = Array.from({ length: 3 }, (_, i) => {
+        const timestamp = now - i * 47_000 - hash(`${symbol}:${venue}`) % 9_000;
+        const price = priceAt(asset, timestamp);
+        return {
+          side: u(`liq:d:${symbol}:${venue}:${i}`) > 0.45 ? ('sell' as const) : ('buy' as const),
+          price,
+          amount: (asset.price > 1000 ? 0.6 : 4_000) * (0.2 + u(`liq:s:${symbol}:${venue}:${i}`) * 2),
+          timestamp,
+        };
+      });
+      return {
+        exchange: venue,
+        available: true as const,
+        liquidations,
+        timestamp: Math.max(...liquidations.map((l) => l.timestamp)),
+      };
+    }).map((venue) => ({
+      ...venue,
+      // The two feedless venues report available:false, like the server mock.
+      available: !NO_LIQUIDATION_FEED_VENUES.has(venue.exchange),
+    })),
+  }));
+
+  // VENUES[0] is the primary — the single-source reference the multiple is
+  // measured against. It publishes nothing, mirroring the real default.
+  const aggregate = computeLiquidationsAggregate(perSymbol, VENUES[0]);
   const sources = computeLiquidationSourceStatuses(
-    [{ source: DEMO_SOURCE, available: true, throttled: false, synthetic: true, note: NOTE }],
-    [
-      {
-        source: DEMO_SOURCE,
-        eventCount: events.length,
-        lastEventAt: events.length > 0 ? events[0].timestamp : null,
-      },
-    ],
+    VENUES.map((venue) => ({
+      source: venue,
+      available: !NO_LIQUIDATION_FEED_VENUES.has(venue),
+      // Fabricated events have no upstream stream to throttle.
+      throttled: false,
+      synthetic: true,
+      note: NOTE,
+    })),
+    aggregate.observations,
     now,
   );
   return {
-    events,
+    events: aggregate.events.slice(0, 120),
     meta: {
       source: DEMO_SOURCE,
       available: true,
       synthetic: true, // demo events are fabricated in-browser — never shown as 'live'
       note: NOTE,
       asOf: now,
+      sampledSource: VENUES[0],
       sources,
       coverage: computeLiquidationsCoverage(sources),
+      aggregate: {
+        totalValue: aggregate.totalValue,
+        referenceSource: aggregate.referenceSource,
+        referenceValue: aggregate.referenceValue,
+        multiple: aggregate.multiple,
+      },
     },
   };
 }

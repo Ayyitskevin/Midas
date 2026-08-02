@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   computeFundingDispersion,
+  computeLiquidationsAggregate,
   computeOiConcentration,
   computeVenueArbRow,
   isInterval,
@@ -20,7 +21,6 @@ import type {
   FundingRow,
   HealthResponse,
   Interval,
-  LiquidationEvent,
   LiquidationsFeed,
   OiConcentrationRow,
   OiDelta,
@@ -30,6 +30,7 @@ import type {
   ScreenerRow,
   TermStructure,
   VenueArbRow,
+  VenueLiquidations,
   DataReceipt,
   TrustDatasetFamily,
 } from '@midas/shared';
@@ -1214,8 +1215,11 @@ export function registerMarketRoutes(
     const quote = normalizeQuote(req.query.quote);
     const limitRaw = Number(req.query.limit);
     // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the feed.
+    // The ceiling matches the cross-venue boards (30) rather than the old
+    // single-source 60: this route now fans each symbol across the configured
+    // venue set, so it carries their cost shape and gets their bound.
     const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
+      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 30;
     let computed = false;
     const entry = await liquidationsCache.get(`${quote}|${limit}`, async () => {
       computed = true;
@@ -1235,15 +1239,19 @@ export function registerMarketRoutes(
           )
         : [];
       let failed = 0;
+      // Each symbol is read across the whole configured venue set. A symbol
+      // whose entire fan-out fails drops out and is counted; a single venue
+      // failing inside a fan-out is the provider's business and shows up as
+      // reduced coverage, not as a lost symbol.
       const perSymbol = await Promise.all(
-        rows.map(async (r): Promise<{ events: LiquidationEvent[]; receipt: DataReceipt } | null> => {
+        rows.map(async (r): Promise<{ venues: VenueLiquidations[]; symbol: string } | null> => {
           try {
-            const raw = await trackProviderCall(provider, 'derivatives', dataStatus, () =>
-              provider.getDerivatives(r.symbol),
+            const raw = await trackProviderCall(provider, 'liquidations', dataStatus, () =>
+              provider.getVenueLiquidations(r.symbol),
             );
-            const d = attachProviderReceipt(
+            const venues = attachProviderReceiptRows(
               provider,
-              'derivatives',
+              'liquidations',
               raw,
               String(req.id),
               dataStatus,
@@ -1251,17 +1259,7 @@ export function registerMarketRoutes(
               undefined,
               { instrument: r.symbol },
             );
-            return {
-              receipt: d.receipt,
-              events: d.recentLiquidations.map((liquidation) => ({
-                symbol: r.symbol,
-                side: liquidation.side,
-                price: liquidation.price,
-                amount: liquidation.amount,
-                value: liquidation.price * liquidation.amount,
-                timestamp: liquidation.timestamp,
-              })),
-            };
+            return { symbol: r.symbol, venues };
           } catch {
             failed += 1;
             return null;
@@ -1269,32 +1267,44 @@ export function registerMarketRoutes(
         }),
       );
       const successful = perSymbol.filter(
-        (result): result is { events: LiquidationEvent[]; receipt: DataReceipt } => result !== null,
+        (result): result is { venues: VenueLiquidations[]; symbol: string } => result !== null,
       );
-      const eventful = successful.filter((result) => result.events.length > 0);
-      const events = eventful
-        .flatMap((result) => result.events)
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 120);
+      // Union, never average and never deduplicated: each venue's liquidations
+      // are its own disjoint real events. See computeLiquidationsAggregate.
+      const aggregate = computeLiquidationsAggregate(successful, provenance.sampledSource ?? null);
+      const events = aggregate.events.slice(0, 120);
+      const venueReceipts = successful.flatMap((result) =>
+        result.venues.map((venue) => venue.receipt).filter((r): r is DataReceipt => r !== undefined),
+      );
       const limitations = [
         ...(failed > 0
-          ? [partialEvidenceLimitation(`${failed} of ${rows.length} symbol liquidation read(s) failed.`)]
+          ? [partialEvidenceLimitation(`${failed} of ${rows.length} symbol liquidation fan-out(s) failed.`)]
+          : []),
+        ...(aggregate.events.length > events.length
+          ? [
+              partialEvidenceLimitation(
+                `${aggregate.events.length - events.length} older event(s) beyond the 120-event display cap were dropped.`,
+              ),
+            ]
           : []),
         'Public exchange liquidation feeds may be throttled or incomplete; event totals are not exhaustive.',
+        'Cross-venue totals are a union of independently throttled feeds — a lower bound, never the market total.',
       ];
       const receipt = deriveRouteReceipt(
         provider,
         {
           family: 'liquidations',
-          coverage: `${rows.length} screened perpetual symbol(s); latest 120 events retained.`,
-          inputReceipts: [
-            provenance.receipt,
-            ...successful.map((result) => result.receipt),
-          ],
+          coverage:
+            `${rows.length} screened perpetual symbol(s) fanned across ` +
+            `${aggregate.observations.length} venue(s); latest 120 events retained.`,
+          inputReceipts: [provenance.receipt, ...venueReceipts],
           methodology: {
             id: 'midas.liquidations-feed',
-            version: '1.0',
-            formula: 'eventNotional = observedPrice * observedBaseAmount; merge newest-first; retain 120',
+            version: '2.0',
+            formula:
+              'eventNotional = observedPrice * observedBaseAmount; ' +
+              'cross-venue union (never averaged or deduplicated); merge newest-first; retain 120; ' +
+              'multiple = totalValue / referenceVenueValue (lower bound)',
           },
           units: { price: 'quote currency', amount: 'base asset', value: 'quote currency' },
           limitations,
@@ -1306,26 +1316,23 @@ export function registerMarketRoutes(
         dataStatus,
         failed > 0 ? 'partial' : null,
       );
-      // What the one sampled venue actually produced this sweep. Only recorded
-      // when a read was attempted: an unavailable provider is "not sampled",
-      // which is a different (and honest) claim from "sampled, produced zero".
-      // The count is pre-retention — the 120-event cap is a display limit, not
-      // a statement about what the source published.
-      const observedEvents = eventful.flatMap((result) => result.events);
-      const observations = provenance.available
-        ? [
-            {
-              source: provenance.sampledSource ?? provenance.source,
-              eventCount: observedEvents.length,
-              lastEventAt: observedEvents.reduce<number | null>(
-                (newest, e) => (newest === null || e.timestamp > newest ? e.timestamp : newest),
-                null,
-              ),
-            },
-          ]
-        : [];
+      // One observation per venue actually read, counted pre-retention: the
+      // 120-event display cap says nothing about what a venue published. A
+      // venue never reached stays absent here and reports "not sampled" — a
+      // different claim from "sampled, produced zero".
       const meta = withDataReceipt(
-        normalizeLiquidationsMeta(provenance, Date.now(), observations),
+        normalizeLiquidationsMeta(
+          provenance,
+          Date.now(),
+          aggregate.observations,
+          undefined,
+          {
+            totalValue: aggregate.totalValue,
+            referenceSource: aggregate.referenceSource,
+            referenceValue: aggregate.referenceValue,
+            multiple: aggregate.multiple,
+          },
+        ),
         receipt,
       );
       const feed = withDataReceipt({ events, meta }, receipt);

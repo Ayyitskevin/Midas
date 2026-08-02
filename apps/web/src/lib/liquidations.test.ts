@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createDataReceipt, type LiquidationEvent, type LiquidationSourceStatus } from '@midas/shared';
+import { createDataReceipt, type LiquidationEvent, type LiquidationSourceStatus, type LiquidationsAggregateMeta } from '@midas/shared';
 import {
   inspectLiquidationSources,
   inspectLiquidationsSummary,
@@ -199,5 +199,64 @@ describe('inspectLiquidationSources', () => {
       coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
     });
     expect(view?.rows[0].detail).toContain('2m');
+  });
+});
+
+describe('inspectLiquidationSources — the aggregate multiple', () => {
+  const status = (over: Partial<LiquidationSourceStatus> & { source: string }): LiquidationSourceStatus => ({
+    sampled: true,
+    available: true,
+    throttled: true,
+    synthetic: false,
+    eventCount: 1,
+    lastEventAt: 900,
+    ageMs: 100,
+    stale: false,
+    note: null,
+    ...over,
+  });
+  const view = (aggregate: LiquidationsAggregateMeta | undefined) =>
+    inspectLiquidationSources({
+      sources: [status({ source: 'okx' }), status({ source: 'binance' })],
+      coverage: { configured: 2, sampled: 2, reporting: 2, ratio: 1 },
+      aggregate,
+    });
+
+  it('phrases the multiple against one venue, never against the market', () => {
+    const v = view({ totalValue: 420, referenceSource: 'binance', referenceValue: 100, multiple: 4.2 });
+    expect(v?.multipleLabel).toBe('4.2x vs binance alone');
+    expect(v?.multipleTitle).toMatch(/lower bound on under-reporting, not a recovered total/i);
+    expect(v?.multipleTitle).toMatch(/itself throttled/i);
+    // It must never claim to have recovered the documented 6-20x gap.
+    expect(v?.multipleTitle).not.toMatch(/actual|true volume|complete/i);
+  });
+
+  it('rounds large multiples to a whole number and keeps small ones precise', () => {
+    expect(view({ totalValue: 1, referenceSource: 'binance', referenceValue: 1, multiple: 12.7 })?.multipleLabel)
+      .toBe('13x vs binance alone');
+    expect(view({ totalValue: 1, referenceSource: 'binance', referenceValue: 1, multiple: 1.25 })?.multipleLabel)
+      .toBe('1.3x vs binance alone');
+  });
+
+  it('says the reference venue shows none instead of hiding the finding', () => {
+    // The default install: the primary venue publishes nothing at all.
+    const v = view({ totalValue: 5_000, referenceSource: 'binance', referenceValue: 0, multiple: null });
+    expect(v?.multipleLabel).toBe('binance alone shows none');
+    expect(v?.multipleTitle).toMatch(/single-source feed would show an empty panel/i);
+  });
+
+  it('shows nothing when there is no reference or no aggregate at all', () => {
+    expect(view(undefined)?.multipleLabel).toBeNull();
+    expect(view({ totalValue: 100, referenceSource: null, referenceValue: null, multiple: null })?.multipleLabel)
+      .toBeNull();
+    expect(view({ totalValue: 0, referenceSource: 'binance', referenceValue: 0, multiple: null })?.multipleLabel)
+      .toBeNull();
+  });
+
+  it('refuses a non-finite or non-positive multiple rather than rendering it', () => {
+    for (const multiple of [Number.POSITIVE_INFINITY, Number.NaN, 0, -2]) {
+      expect(view({ totalValue: 100, referenceSource: 'binance', referenceValue: 10, multiple })?.multipleLabel)
+        .toBeNull();
+    }
   });
 });
