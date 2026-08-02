@@ -387,13 +387,226 @@ export interface LiquidationsProvenance {
   synthetic?: boolean;
   /** Honest caveat: why the feed may be empty/partial, the throttling warning, etc. */
   note?: string;
+  /**
+   * Every venue this provider is *configured* to read liquidations from — the
+   * denominator of source coverage. Declared capability only: it says nothing
+   * about whether a venue was read for any particular sweep, and nothing about
+   * how many events it produced. Providers that read exactly one venue may omit
+   * it; the feed then reports a single-source status derived from the flat
+   * fields above.
+   */
+  sources?: LiquidationSourceCapability[];
+  /**
+   * Which of {@link sources} the feed's events actually come from. Present
+   * because `source` is a display name (`ccxt:binance`) while `sources` is keyed
+   * by venue id (`binance`) — the observation has to be matched to the right
+   * capability, not guessed by position.
+   */
+  sampledSource?: string;
   receipt?: DataReceipt;
+}
+
+/**
+ * One venue a provider can read liquidations from, as a *declared capability*.
+ *
+ * `throttled` is deliberately capability-derived and never inferred from how
+ * many events were observed: every public exchange liquidation stream is
+ * documented as throttled to ~1/sec and under-reporting many-fold, so a venue
+ * that publishes at all publishes a throttled feed. Counting events instead
+ * would mislabel a genuinely quiet market as "throttled" and a busy throttled
+ * feed as complete.
+ */
+export interface LiquidationSourceCapability {
+  /** Venue id (`binance`, `okx`) or `mock`/`demo` for synthetic sources. */
+  source: string;
+  /** Whether this venue exposes a public liquidation feed at all. */
+  available: boolean;
+  /** Whether that public feed is a throttled stream. Capability, not event count. */
+  throttled: boolean;
+  /** True when this source fabricates events (mock/demo). Never rendered live. */
+  synthetic?: boolean;
+  /** Honest one-line reason — the throttle caveat, or why there is no feed. */
+  note?: string | null;
+}
+
+/** What one liquidation source actually produced during a single feed sweep. */
+export interface LiquidationSourceObservation {
+  /** Must match a {@link LiquidationSourceCapability.source} (case-insensitive). */
+  source: string;
+  /** Events observed from this source in this sweep. */
+  eventCount: number;
+  /** Newest observed event time, or null when the source produced nothing. */
+  lastEventAt: number | null;
+}
+
+/**
+ * A configured liquidation source's declared capability joined with what it
+ * actually produced this sweep.
+ *
+ * `stale` is a three-state value on purpose. `null` means *unknown*, and unknown
+ * is never rounded to a reassuring `false`: a source that was read but produced
+ * no events is indistinguishable from a quiet market, and a source whose newest
+ * event is ahead of our clock has told us nothing trustworthy about freshness.
+ */
+export interface LiquidationSourceStatus {
+  source: string;
+  /** True when this source was actually read for this feed. */
+  sampled: boolean;
+  available: boolean;
+  throttled: boolean;
+  synthetic: boolean;
+  eventCount: number;
+  lastEventAt: number | null;
+  /** `asOf − lastEventAt`; null when no event time is known. Negative = clock skew. */
+  ageMs: number | null;
+  /** `ageMs > maxAgeMs`; null when freshness is unknowable (see above). */
+  stale: boolean | null;
+  note: string | null;
+}
+
+/** How much of the configured source set this feed actually covers. */
+export interface LiquidationsCoverage {
+  /** Sources the provider is configured to read — the denominator. */
+  configured: number;
+  /** Sources actually read this sweep. */
+  sampled: number;
+  /** Sources that returned at least one event. */
+  reporting: number;
+  /** `reporting / configured`; null when nothing is configured. */
+  ratio: number | null;
+}
+
+/**
+ * How long a liquidation source may go without a new event before it is stale.
+ *
+ * Derived, not chosen. The `liquidations` dataset family declares
+ * `expectedCadenceMs: 1_000` and `maxAgeMs: 60_000` in the provider capability
+ * manifest — the documented ~1/sec public-stream throttle. 60s is 60x that
+ * expected cadence, so a venue that publishes nothing for a full minute has
+ * stopped publishing rather than merely gone quiet between ticks. It is also
+ * well above both the panel's 8s poll and the route's cache TTL, so a `stale`
+ * label can never be an artifact of Midas's own caching.
+ */
+export const LIQUIDATION_SOURCE_MAX_AGE_MS = 60_000;
+
+const liquidationSourceKey = (source: string): string => source.trim().toLowerCase();
+
+/**
+ * Join declared source capabilities with observed events into per-source status.
+ *
+ * Pure and clock-injected — `asOf` is a parameter so freshness boundaries are
+ * testable rather than wall-clock dependent. An observation whose source matches
+ * no declared capability is appended as its own status rather than dropped:
+ * silently discarding sampled evidence is exactly the failure this contract
+ * exists to prevent.
+ */
+export function computeLiquidationSourceStatuses(
+  capabilities: LiquidationSourceCapability[],
+  observations: LiquidationSourceObservation[],
+  asOf: number,
+  maxAgeMs: number = LIQUIDATION_SOURCE_MAX_AGE_MS,
+): LiquidationSourceStatus[] {
+  const observed = new Map<string, LiquidationSourceObservation>();
+  for (const o of observations) observed.set(liquidationSourceKey(o.source), o);
+
+  const matched = new Set<string>();
+  const statuses = capabilities.map((cap) => {
+    const key = liquidationSourceKey(cap.source);
+    const o = observed.get(key);
+    if (o) matched.add(key);
+    return liquidationSourceStatus(cap, o, asOf, maxAgeMs);
+  });
+
+  for (const o of observations) {
+    const key = liquidationSourceKey(o.source);
+    if (matched.has(key) || key === '') continue;
+    matched.add(key);
+    statuses.push(
+      liquidationSourceStatus(
+        { source: o.source, available: true, throttled: true, note: null },
+        o,
+        asOf,
+        maxAgeMs,
+      ),
+    );
+  }
+  return statuses;
+}
+
+function liquidationSourceStatus(
+  cap: LiquidationSourceCapability,
+  o: LiquidationSourceObservation | undefined,
+  asOf: number,
+  maxAgeMs: number,
+): LiquidationSourceStatus {
+  const synthetic = Boolean(cap.synthetic);
+  const sampled = o !== undefined;
+  const eventCount = o && Number.isFinite(o.eventCount) ? Math.max(0, Math.floor(o.eventCount)) : 0;
+  const lastEventAt =
+    o && o.lastEventAt != null && Number.isFinite(o.lastEventAt) ? o.lastEventAt : null;
+  const ageMs = lastEventAt === null ? null : asOf - lastEventAt;
+
+  let stale: boolean | null;
+  let note = cap.note ?? null;
+  if (!cap.available) {
+    stale = null;
+    note = cap.note ?? `${cap.source} exposes no public liquidation feed.`;
+  } else if (!sampled) {
+    stale = null;
+    note = 'Configured for cross-venue reads but not sampled by this feed.';
+  } else if (ageMs === null) {
+    stale = null;
+    note = 'Sampled but produced no events — a quiet market and a dropped feed look identical here.';
+  } else if (ageMs < 0) {
+    stale = null;
+    note = 'Newest event is ahead of this clock; freshness is unknown, not fresh.';
+  } else {
+    stale = ageMs > maxAgeMs;
+  }
+
+  return {
+    source: cap.source,
+    sampled,
+    available: cap.available,
+    // A source with no public feed has nothing to throttle, and fabricated
+    // events are not a throttled upstream stream.
+    throttled: cap.available && !synthetic && cap.throttled,
+    synthetic,
+    eventCount,
+    lastEventAt,
+    ageMs,
+    stale,
+    note,
+  };
+}
+
+/** Reduce per-source status into the feed's source-coverage ratio. */
+export function computeLiquidationsCoverage(
+  statuses: LiquidationSourceStatus[],
+): LiquidationsCoverage {
+  const configured = statuses.length;
+  return {
+    configured,
+    sampled: statuses.filter((s) => s.sampled).length,
+    reporting: statuses.filter((s) => s.eventCount > 0).length,
+    ratio: configured > 0 ? statuses.filter((s) => s.eventCount > 0).length / configured : null,
+  };
 }
 
 /** {@link LiquidationsProvenance} stamped with the time the feed was assembled. */
 export interface LiquidationsMeta extends LiquidationsProvenance {
   /** Epoch millis the feed was assembled. */
   asOf: number;
+  /**
+   * Per-source status for every configured source. Required, not optional: an
+   * aggregate that hides how many of its sources were absent or stale
+   * manufactures confidence it has not earned. This narrows the provenance's
+   * declared {@link LiquidationSourceCapability} list — a status carries every
+   * capability field plus what the source actually produced.
+   */
+  sources: LiquidationSourceStatus[];
+  /** Source coverage for this sweep. */
+  coverage: LiquidationsCoverage;
 }
 
 /** The market-wide liquidations feed plus its provenance metadata. */

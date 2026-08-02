@@ -180,6 +180,19 @@ timestamps are all known. A theoretical crossed book is not advertised as an
 executable net opportunity. Liquidation estimates are never relabeled as
 observed public liquidation events.
 
+The liquidations feed additionally reports its own source coverage. Meta names
+every venue the provider is configured to read, which of them the sweep actually
+sampled, and the resulting `reporting / configured` ratio, so a single-venue read
+is never presented as the market. Per-source availability and throttle state are
+derived from declared venue capability, never from observed event volume: a quiet
+market and a throttled feed are different claims. Per-source staleness is
+three-state. A source that was read but produced no events, one whose newest
+event is ahead of the evaluation clock, and one that was never sampled all report
+unknown freshness rather than fresh. The staleness boundary is the `liquidations`
+family's declared `maxAgeMs`, not an independent constant. Aggregate event totals
+remain a lower bound across sampled venues; no correction factor is applied to
+estimate unobserved liquidations.
+
 ## Static demo
 
 The browser-only demo uses deterministic synthetic receipts. The same fixture

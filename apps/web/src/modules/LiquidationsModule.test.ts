@@ -44,11 +44,15 @@ describe('LiquidationsModule provenance', () => {
         synthetic: true,
         note: 'Synthetic demo liquidations — not a live feed.',
         asOf: Date.now(),
+        sources: [
+          { source: 'mock', sampled: true, available: true, throttled: false, synthetic: true, eventCount: 1, lastEventAt: Date.now(), ageMs: 0, stale: false, note: 'demo' },
+        ],
+        coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
     expect(await screen.findByText('LIQUIDATIONS')).toBeTruthy();
-    expect(screen.getByText('mock')).toBeTruthy();
+    expect(screen.getAllByText('mock').length).toBeGreaterThan(0);
     expect(screen.getByText('· demo')).toBeTruthy();
     expect(screen.getByText(/Synthetic demo liquidations/)).toBeTruthy();
     // The synthetic event still renders as a row — labeled, never hidden.
@@ -64,6 +68,10 @@ describe('LiquidationsModule provenance', () => {
         available: false,
         note: 'This source publishes no public liquidation feed.',
         asOf: Date.now(),
+        sources: [
+          { source: 'binance', sampled: false, available: false, throttled: false, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+        ],
+        coverage: { configured: 1, sampled: 0, reporting: 0, ratio: 0 },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
@@ -80,11 +88,19 @@ describe('LiquidationsModule provenance', () => {
       events: [
         { symbol: 'ETH/USDT', side: 'buy', price: 3_000, amount: 2, value: 6_000, timestamp: Date.now() },
       ],
-      meta: { source: 'bybit', available: true, asOf: Date.now() },
+      meta: {
+        source: 'bybit',
+        available: true,
+        asOf: Date.now(),
+        sources: [
+          { source: 'bybit', sampled: true, available: true, throttled: true, synthetic: false, eventCount: 1, lastEventAt: Date.now(), ageMs: 0, stale: false, note: null },
+        ],
+        coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
+      },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
     expect(await screen.findByText('· live · freshness unknown')).toBeTruthy();
-    expect(screen.getByText('bybit')).toBeTruthy();
+    expect(screen.getAllByText('bybit').length).toBeGreaterThan(0);
     expect(screen.getByText('ETH/USDT')).toBeTruthy();
   });
 
@@ -113,6 +129,10 @@ describe('LiquidationsModule provenance', () => {
         note: 'Public feed may be incomplete.',
         asOf: now,
         receipt,
+        sources: [
+          { source: 'test-liquidations', sampled: true, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+        ],
+        coverage: { configured: 1, sampled: 1, reporting: 0, ratio: 0 },
       },
     });
 
@@ -121,5 +141,62 @@ describe('LiquidationsModule provenance', () => {
     expect(screen.getByText(/partial; no complete event result can be asserted/i)).toBeTruthy();
     expect(screen.queryByText(/LONG\s+\$0/)).toBeNull();
     expect(screen.queryByText(/\$0\s+SHORT/)).toBeNull();
+  });
+  it('shows how many configured venues the feed actually reads', async () => {
+    const now = Date.now();
+    liquidationsMock.mockResolvedValue({
+      events: [
+        { symbol: 'BTC/USDT', side: 'sell', price: 50_000, amount: 0.5, value: 25_000, timestamp: now },
+      ],
+      meta: {
+        source: 'ccxt:binance',
+        available: true,
+        note: 'Exchange liquidation streams are throttled.',
+        asOf: now,
+        sampledSource: 'binance',
+        // The stock install: one venue read out of six configured, and the one
+        // read is the venue that removed its public stream.
+        sources: [
+          { source: 'binance', sampled: true, available: false, throttled: false, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+          { source: 'okx', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+          { source: 'kraken', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+          { source: 'bitfinex', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+          { source: 'kucoin', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+          { source: 'coinbase', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
+        ],
+        coverage: { configured: 6, sampled: 1, reporting: 0, ratio: 0 },
+      },
+    });
+    render(createElement(LiquidationsModule, { panel: PANEL }));
+    expect(await screen.findByText(/1 of 6 venues sampled · 0 reporting/)).toBeTruthy();
+    expect(screen.getByText('no feed')).toBeTruthy();
+    expect(screen.getAllByText('not sampled')).toHaveLength(5);
+    // Events render, but nothing in the source strip claims a live venue.
+    expect(screen.getByText('BTC/USDT')).toBeTruthy();
+    expect(screen.queryByText('live')).toBeNull();
+  });
+
+  it('never paints a synthetic source with the live tone', async () => {
+    const now = Date.now();
+    liquidationsMock.mockResolvedValue({
+      events: [
+        { symbol: 'BTC/USDT', side: 'sell', price: 50_000, amount: 0.5, value: 25_000, timestamp: now },
+      ],
+      meta: {
+        source: 'demo',
+        available: true,
+        synthetic: true,
+        note: 'Synthetic demo liquidations — not a live feed.',
+        asOf: now,
+        sources: [
+          { source: 'demo', sampled: true, available: true, throttled: false, synthetic: true, eventCount: 1, lastEventAt: now, ageMs: 0, stale: false, note: 'demo' },
+        ],
+        coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
+      },
+    });
+    render(createElement(LiquidationsModule, { panel: PANEL }));
+    // stale:false would read as 'live' for a real venue; synthetic wins.
+    expect(await screen.findByText('demo', { selector: 'span.text-term-dim' })).toBeTruthy();
+    expect(screen.queryByText('live')).toBeNull();
   });
 });

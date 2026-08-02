@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtCompact, fmtPrice, fmtTimeAgo } from '@/lib/format';
 import { navigate } from '@/commands/execute';
-import { inspectLiquidationsSummary, liquidationsFeedBadge } from '@/lib/liquidations';
+import { inspectLiquidationSources, inspectLiquidationsSummary, liquidationsFeedBadge } from '@/lib/liquidations';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { SourceBadge } from '@/components/SourceInspector';
 import { isReceiptActionable } from '@/lib/receiptView';
@@ -21,6 +21,7 @@ export function LiquidationsModule({ panel }: ModuleProps) {
   const meta = data?.meta;
   const receipt = meta?.receipt ?? data?.receipt;
   const badge = meta ? liquidationsFeedBadge(meta) : null;
+  const sources = useMemo(() => inspectLiquidationSources(meta), [meta]);
   const inspected = useMemo(
     () => inspectLiquidationsSummary(events, receipt),
     [events, receipt],
@@ -64,6 +65,33 @@ export function LiquidationsModule({ panel }: ModuleProps) {
           }`}
         >
           ⚠ {meta.note}
+        </div>
+      )}
+
+      {/* Per-source coverage — how many configured venues this feed actually
+          reads, and each one's throttle/staleness state. A single-venue read
+          presented without this reads as "the market". */}
+      {sources && (
+        <div className="border-b border-term-border px-2 py-1 text-2xs">
+          <div
+            className={`mb-0.5 ${sources.partialCoverage ? 'text-term-amber' : 'text-term-dim'}`}
+            title={sources.coverageTitle}
+          >
+            SOURCES · {sources.coverageLabel}
+          </div>
+          <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+            {sources.rows.map((row) => (
+              <span key={row.source} className="flex items-center gap-1" title={row.detail}>
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    row.tone === 'ok' ? 'bg-term-up' : row.tone === 'warn' ? 'bg-term-amber' : 'bg-term-dim'
+                  }`}
+                />
+                <span className="text-term-muted">{row.source}</span>
+                <span className={row.tone === 'warn' ? 'text-term-amber' : 'text-term-dim'}>{row.state}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 

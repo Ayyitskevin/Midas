@@ -7,6 +7,25 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Per-source liquidation coverage:** `/api/liquidations` now reports which
+  venues it is *configured* to read, which one it actually sampled, and each
+  one's state — so a single-venue read can no longer be mistaken for the market.
+  Every source carries capability-derived `available`/`throttled` flags (never
+  inferred from how many events happened to arrive) plus `lastEventAt`, `ageMs`
+  and a three-state `stale`, where `null` means genuinely unknown: a venue that
+  was read but produced nothing, or whose newest event is ahead of our clock,
+  is never rounded up to "fresh". The feed also carries a source-coverage ratio
+  (`reporting / configured`), and the `LIQS` panel renders both — a stock
+  install reads **"1 of 6 venues sampled · 0 reporting"** instead of showing an
+  empty panel with a live-looking dot, because the default exchange (Binance)
+  removed its public liquidation stream in 2021. The staleness boundary is not a
+  round number: it reuses the `liquidations` dataset family's declared
+  `maxAgeMs` (60s, 60x the documented ~1/sec throttle cadence, and well above
+  both the 8s panel poll and the 15s route cache, so `stale` can never be an
+  artifact of Midas's own latency). Totals remain a labeled lower bound —
+  liquidation feeds are documented to under-report many-fold and no fudge factor
+  is applied to guess the "real" number. The static demo mirrors the same shape
+  with every source `synthetic: true`.
 - **Peer-review readiness layer:** AGPL-3.0-only metadata and license, explicit
   agent/contributor policy, a credential-free loopback reviewer launcher for the
   static synthetic demo, and a focused reviewer guide with reproducible gates.

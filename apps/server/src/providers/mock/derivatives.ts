@@ -89,11 +89,16 @@ export async function mockDerivatives(symbol: string): Promise<DerivativesInfo> 
 }
 
 export function mockLiquidationsProvenance(): LiquidationsProvenance {
+  const note = 'Synthetic liquidations for offline/demo use — not real market data.';
   return {
     source: 'mock',
     available: true,
     synthetic: true, // fabricated events — the panel shows 'demo', never a green 'live'
-    note: 'Synthetic liquidations for offline/demo use — not real market data.',
+    note,
+    // One fabricated source, labeled as such. `throttled: false` because there
+    // is no upstream stream to throttle — the events are made up here.
+    sources: [{ source: 'mock', available: true, throttled: false, synthetic: true, note }],
+    sampledSource: 'mock',
   };
 }
 
