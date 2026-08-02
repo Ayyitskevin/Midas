@@ -319,6 +319,8 @@ export class YahooProvider implements DataProvider {
       source: this.name,
       available: false,
       note,
+      sources: [{ source: this.name, available: false, throttled: false, synthetic: false, note }],
+      sampledSource: this.name,
       receipt: providerUnavailableReceipt(this, {
         datasetFamily: 'liquidations',
         coverage: 'availability declaration only',

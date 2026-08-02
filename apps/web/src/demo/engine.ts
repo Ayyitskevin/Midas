@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
+import { computeFundingDispersion, computeLiquidationSourceStatuses, computeLiquidationsCoverage, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import { demoReceipt } from './trust';
 import type {
   AccountFills,
@@ -766,6 +766,21 @@ export function liquidationsFeed(quote: string, limit: number, now: number): Liq
       timestamp: now - i * 47_000,
     });
   }
+  // Mirror the server's per-source meta exactly (fidelity contract) by running
+  // the same shared reducers, not a hand-copied shape that can silently drift.
+  // One fabricated source: available (it does emit events) but never throttled,
+  // because there is no upstream stream behind it.
+  const sources = computeLiquidationSourceStatuses(
+    [{ source: DEMO_SOURCE, available: true, throttled: false, synthetic: true, note: NOTE }],
+    [
+      {
+        source: DEMO_SOURCE,
+        eventCount: events.length,
+        lastEventAt: events.length > 0 ? events[0].timestamp : null,
+      },
+    ],
+    now,
+  );
   return {
     events,
     meta: {
@@ -774,6 +789,8 @@ export function liquidationsFeed(quote: string, limit: number, now: number): Liq
       synthetic: true, // demo events are fabricated in-browser — never shown as 'live'
       note: NOTE,
       asOf: now,
+      sources,
+      coverage: computeLiquidationsCoverage(sources),
     },
   };
 }

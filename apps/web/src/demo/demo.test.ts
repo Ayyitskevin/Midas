@@ -54,6 +54,24 @@ describe('demo engine', () => {
     expect(feed.meta.source).toBe('demo');
   });
 
+  it('mirrors the server per-source meta shape, every source synthetic', () => {
+    const feed = liquidationsFeed('USDT', 30, NOW);
+    // Fidelity contract: the static demo replaces the whole server, so a field
+    // the panel reads must exist here in the same shape or the demo diverges.
+    expect(feed.meta.coverage).toEqual({ configured: 1, sampled: 1, reporting: 1, ratio: 1 });
+    expect(feed.meta.sources).toHaveLength(1);
+    expect(feed.meta.sources[0]).toMatchObject({
+      source: 'demo',
+      sampled: true,
+      synthetic: true,
+      // Fabricated events have no upstream stream to be throttled by.
+      throttled: false,
+    });
+    expect(feed.meta.sources[0].eventCount).toBe(feed.events.length);
+    expect(feed.meta.sources[0].lastEventAt).toBe(NOW);
+    expect(feed.meta.sources[0].ageMs).toBe(0);
+  });
+
   it('candles are well-formed: ascending time, high ≥ open/close ≥ low', () => {
     const h = historyFor('SOL/USDT', '1h', '1mo', NOW)!;
     expect(h.candles.length).toBeGreaterThan(100);

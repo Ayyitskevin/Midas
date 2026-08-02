@@ -1306,7 +1306,28 @@ export function registerMarketRoutes(
         dataStatus,
         failed > 0 ? 'partial' : null,
       );
-      const meta = withDataReceipt(normalizeLiquidationsMeta(provenance, Date.now()), receipt);
+      // What the one sampled venue actually produced this sweep. Only recorded
+      // when a read was attempted: an unavailable provider is "not sampled",
+      // which is a different (and honest) claim from "sampled, produced zero".
+      // The count is pre-retention — the 120-event cap is a display limit, not
+      // a statement about what the source published.
+      const observedEvents = eventful.flatMap((result) => result.events);
+      const observations = provenance.available
+        ? [
+            {
+              source: provenance.sampledSource ?? provenance.source,
+              eventCount: observedEvents.length,
+              lastEventAt: observedEvents.reduce<number | null>(
+                (newest, e) => (newest === null || e.timestamp > newest ? e.timestamp : newest),
+                null,
+              ),
+            },
+          ]
+        : [];
+      const meta = withDataReceipt(
+        normalizeLiquidationsMeta(provenance, Date.now(), observations),
+        receipt,
+      );
       const feed = withDataReceipt({ events, meta }, receipt);
       return { payload: feed, storedAt: Date.now() };
     });

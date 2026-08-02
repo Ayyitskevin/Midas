@@ -2,6 +2,7 @@ import {
   deriveDataReceipt,
   type DataReceipt,
   type LiquidationEvent,
+  type LiquidationSourceStatus,
   type LiquidationsMeta,
   type LiquidationsProvenance,
 } from '@midas/shared';
@@ -63,6 +64,106 @@ export function liquidationsFeedBadge(
     label,
     title: meta.note?.trim() || 'Source publishes liquidations',
     liveTone: true,
+  };
+}
+
+/**
+ * The state word shown next to one liquidation source.
+ *
+ * `quiet` and `skewed` exist because they are NOT `live`: a source that was read
+ * but produced nothing, or whose newest event is ahead of our clock, has told us
+ * nothing about its freshness. Collapsing either into `live` would be the
+ * synthetic-as-live bug in a different costume.
+ */
+export type LiquidationSourceState =
+  | 'live'
+  | 'stale'
+  | 'quiet'
+  | 'skewed'
+  | 'no feed'
+  | 'not sampled'
+  | 'demo';
+
+export interface LiquidationSourceRow {
+  source: string;
+  state: LiquidationSourceState;
+  /** `ok` paints green, `warn` amber, `dim` grey. Only a proven-fresh real source is `ok`. */
+  tone: 'ok' | 'warn' | 'dim';
+  detail: string;
+}
+
+export interface LiquidationSourcesView {
+  rows: LiquidationSourceRow[];
+  /** e.g. "1 of 6 venues sampled · 1 reporting". */
+  coverageLabel: string;
+  coverageTitle: string;
+  /** True when the feed reads fewer venues than are configured. */
+  partialCoverage: boolean;
+}
+
+function liquidationSourceRow(s: LiquidationSourceStatus): LiquidationSourceRow {
+  const age = s.ageMs === null ? null : fmtDurationMs(s.ageMs);
+  // Order matters: synthetic is checked first so a demo source can never fall
+  // through to a live-toned branch.
+  if (s.synthetic) {
+    return { source: s.source, state: 'demo', tone: 'dim', detail: s.note ?? 'Fabricated events — not a live feed.' };
+  }
+  if (!s.available) {
+    return { source: s.source, state: 'no feed', tone: 'dim', detail: s.note ?? 'No public liquidation feed.' };
+  }
+  if (!s.sampled) {
+    return { source: s.source, state: 'not sampled', tone: 'dim', detail: s.note ?? 'Configured but not read by this feed.' };
+  }
+  if (s.stale === true) {
+    return {
+      source: s.source,
+      state: 'stale',
+      tone: 'warn',
+      detail: `No event for ${age ?? 'an unknown time'} — the feed has gone quiet or dropped.`,
+    };
+  }
+  if (s.stale === false) {
+    return {
+      source: s.source,
+      state: 'live',
+      tone: 'ok',
+      detail: `${s.eventCount} event(s), newest ${age ?? 'unknown'} ago. Throttled stream — sizes are a lower bound.`,
+    };
+  }
+  if (s.ageMs !== null && s.ageMs < 0) {
+    return { source: s.source, state: 'skewed', tone: 'warn', detail: s.note ?? 'Newest event is ahead of this clock; freshness unknown.' };
+  }
+  return { source: s.source, state: 'quiet', tone: 'dim', detail: s.note ?? 'Read, but produced no events; freshness unknown.' };
+}
+
+function fmtDurationMs(ms: number): string {
+  const s = Math.round(Math.abs(ms) / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.round(s / 60);
+  return m < 60 ? `${m}m` : `${Math.round(m / 60)}h`;
+}
+
+/**
+ * Render-ready per-source state and the coverage ratio.
+ *
+ * The ratio is surfaced rather than summarized away: a feed that reads 1 of 6
+ * configured venues and reports one aggregate number is the exact false
+ * confidence this panel exists to avoid.
+ */
+export function inspectLiquidationSources(
+  meta: Pick<LiquidationsMeta, 'sources' | 'coverage'> | undefined,
+): LiquidationSourcesView | null {
+  if (!meta?.sources?.length || !meta.coverage) return null;
+  const { configured, sampled, reporting, ratio } = meta.coverage;
+  const pct = ratio === null ? null : `${Math.round(ratio * 100)}%`;
+  return {
+    rows: meta.sources.map(liquidationSourceRow),
+    coverageLabel: `${sampled} of ${configured} venue${configured === 1 ? '' : 's'} sampled · ${reporting} reporting`,
+    coverageTitle:
+      `${reporting} of ${configured} configured venue(s) returned at least one event` +
+      `${pct === null ? '' : ` (${pct} source coverage)`}. ` +
+      'Totals are a lower bound across the sampled venues, never the market total.',
+    partialCoverage: sampled < configured,
   };
 }
 

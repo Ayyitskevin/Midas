@@ -184,6 +184,89 @@ describe('GET /api/liquidations', () => {
     expect(typeof feed.meta.asOf).toBe('number');
   });
 
+  it('reports per-source status and how much of the configured set it covers', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
+    const feed = res.json();
+
+    // A feed without per-source coverage cannot be told apart from one venue
+    // presented as the whole market — the gap this route used to have.
+    expect(Array.isArray(feed.meta.sources)).toBe(true);
+    expect(feed.meta.sources.length).toBeGreaterThan(0);
+    expect(feed.meta.coverage.configured).toBe(feed.meta.sources.length);
+    expect(feed.meta.coverage.sampled).toBeLessThanOrEqual(feed.meta.coverage.configured);
+    expect(feed.meta.coverage.reporting).toBeLessThanOrEqual(feed.meta.coverage.sampled);
+    expect(feed.meta.coverage.ratio).toBeCloseTo(
+      feed.meta.coverage.reporting / feed.meta.coverage.configured,
+      10,
+    );
+
+    for (const s of feed.meta.sources) {
+      expect(typeof s.source).toBe('string');
+      expect(typeof s.sampled).toBe('boolean');
+      expect(typeof s.available).toBe('boolean');
+      expect(typeof s.throttled).toBe('boolean');
+      expect(typeof s.eventCount).toBe('number');
+      // Three-state on the wire: true, false, or an explicit unknown.
+      expect([true, false, null]).toContain(s.stale);
+      if (s.lastEventAt === null) expect(s.ageMs).toBeNull();
+      else expect(s.ageMs).toBe(feed.meta.asOf - s.lastEventAt);
+      // Fabricated events are never a throttled upstream stream.
+      if (s.synthetic) expect(s.throttled).toBe(false);
+      // Nothing to throttle where there is no public feed.
+      if (!s.available) expect(s.throttled).toBe(false);
+    }
+
+    // The app-test harness runs on the mock provider: every source must stay
+    // labeled synthetic, whatever else changed.
+    expect(feed.meta.synthetic).toBe(true);
+    expect(feed.meta.sources.every((s: { synthetic: boolean }) => s.synthetic)).toBe(true);
+  });
+
+  it('reports a source it never read as not sampled, not as zero events', async () => {
+    const noFeed = createProvider('mock');
+    const now = Date.parse('2026-08-01T12:00:00.000Z');
+    const declaration = createDataReceipt({
+      providerId: noFeed.capabilities.providerId,
+      providerVersion: noFeed.capabilities.providerVersion,
+      source: 'test-provider',
+      datasetFamily: 'liquidations',
+      provenance: 'unavailable',
+      sourceAsOf: null,
+      observedAt: now,
+      maxAgeMs: null,
+      coverage: 'public liquidation-feed capability declaration',
+      limitations: ['The configured provider has no public liquidation-event source.'],
+      note: 'The primary venue publishes no public liquidation feed.',
+    }, now);
+    noFeed.liquidationsProvenance = () => ({
+      source: 'test-provider',
+      available: false,
+      note: 'The primary venue publishes no public liquidation feed.',
+      sampledSource: 'binance',
+      // Two venues configured, the sampled one publishes nothing, the other is
+      // never read. Neither may report as "zero liquidations".
+      sources: [
+        { source: 'binance', available: false, throttled: false, synthetic: false, note: null },
+        { source: 'okx', available: true, throttled: true, synthetic: false, note: null },
+      ],
+      receipt: declaration,
+    });
+    const noFeedApp = await buildApp(noFeed);
+    await noFeedApp.ready();
+    try {
+      const res = await noFeedApp.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
+      const feed = res.json();
+      expect(feed.meta.coverage).toMatchObject({ configured: 2, sampled: 0, reporting: 0, ratio: 0 });
+      for (const s of feed.meta.sources) {
+        expect(s.sampled).toBe(false);
+        expect(s.stale).toBeNull();
+        expect(s.lastEventAt).toBeNull();
+      }
+    } finally {
+      await noFeedApp.close();
+    }
+  });
+
   it('repairs ambiguous mock provenance at the API boundary', async () => {
     const ambiguousMock = createProvider('mock');
     const receipt = ambiguousMock.liquidationsProvenance().receipt;

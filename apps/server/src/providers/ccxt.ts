@@ -12,6 +12,7 @@ import type {
   DvolSymbol,
   DataReceipt,
   LiquidationsProvenance,
+  LiquidationSourceCapability,
   FundingHistoryPoint,
   HistoryResponse,
   Interval,
@@ -92,6 +93,14 @@ import {
 export { compareExchangeIds, isKnownExchange, safeErrorLabel, toPerpSymbol } from './ccxt/helpers';
 
 const HOUR_MS = 3_600_000;
+
+/**
+ * The one caveat every publishing venue carries: public liquidation streams are
+ * throttled and documented to under-report many-fold. Shared by the feed-level
+ * provenance note and each per-source capability so they cannot drift apart.
+ */
+const LIQUIDATION_THROTTLE_NOTE =
+  'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.';
 
 /**
  * Aggregate fine-grained candles into larger buckets — standard OHLCV rollup
@@ -1011,10 +1020,48 @@ export class CcxtProvider implements DataProvider {
     }, this.now());
   }
 
+  /**
+   * Every venue this provider is configured to read liquidations from — the
+   * primary exchange plus the compare set. This is the honest denominator of
+   * source coverage: the feed currently samples only the primary, and saying so
+   * requires knowing what the other configured venues are.
+   *
+   * Capability only, no network: `getCompareExchanges()` constructs ccxt
+   * instances from the local registry and `has['fetchLiquidations']` is a static
+   * declaration, so this stays safe to call from a synchronous provenance read.
+   */
+  private liquidationSourceCapabilities(): LiquidationSourceCapability[] {
+    const seen = new Set<string>();
+    const out: LiquidationSourceCapability[] = [];
+    const push = (id: string, exchange: Exchange) => {
+      const key = id.trim().toLowerCase();
+      if (key === '' || seen.has(key)) return;
+      seen.add(key);
+      const available = Boolean(exchange.has['fetchLiquidations']);
+      out.push({
+        source: id,
+        available,
+        // Capability-derived: a venue that publishes a public liquidation feed
+        // publishes a throttled one. Never inferred from observed event counts.
+        throttled: available,
+        synthetic: false,
+        note: available ? LIQUIDATION_THROTTLE_NOTE : `${id} exposes no public liquidation feed.`,
+      });
+    };
+    push(this.exchangeId, this.exchange);
+    try {
+      for (const exchange of this.getCompareExchanges()) push(exchange.id, exchange);
+    } catch {
+      // A malformed MIDAS_CCXT_COMPARE must not take down the liquidations
+      // feed; the primary venue alone is still an honest (narrower) denominator.
+    }
+    return out;
+  }
+
   liquidationsProvenance(): LiquidationsProvenance {
     const available = Boolean(this.exchange.has['fetchLiquidations']);
     const note = available
-      ? 'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.'
+      ? LIQUIDATION_THROTTLE_NOTE
       : `${this.name} exposes no public liquidation feed (e.g. Binance removed its public stream in 2021) — showing none. Point MIDAS_CCXT_EXCHANGE at a venue that publishes liquidations, or use cross-exchange aggregation.`;
     const receipt = available
       ? providerReceipt(this, {
@@ -1033,7 +1080,17 @@ export class CcxtProvider implements DataProvider {
           units: { price: 'quote-asset', amount: 'base-asset' },
           note,
         }, this.now());
-    return { source: this.name, available, note, receipt };
+    return {
+      source: this.name,
+      available,
+      note,
+      // The feed reads the primary venue only; `sources` names every venue it
+      // *could* read so the panel can say "1 of N sampled" instead of implying
+      // one venue is the market.
+      sources: this.liquidationSourceCapabilities(),
+      sampledSource: this.exchangeId,
+      receipt,
+    };
   }
 
   async getDexPools(symbol: string): Promise<DexPools> {
