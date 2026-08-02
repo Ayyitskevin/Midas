@@ -2,6 +2,7 @@ import {
   deriveDataReceipt,
   type DataReceipt,
   type LiquidationEvent,
+  type LiquidationsAggregateMeta,
   type LiquidationSourceStatus,
   type LiquidationsMeta,
   type LiquidationsProvenance,
@@ -99,6 +100,47 @@ export interface LiquidationSourcesView {
   coverageTitle: string;
   /** True when the feed reads fewer venues than are configured. */
   partialCoverage: boolean;
+  /**
+   * e.g. "4.2x vs binance alone" — how much more the cross-venue union sees
+   * than the single reference venue. Null when there is no usable denominator.
+   */
+  multipleLabel: string | null;
+  multipleTitle: string | null;
+}
+
+/**
+ * Phrase the aggregate-vs-single-source multiple as what it is.
+ *
+ * It measures recovery against ONE venue, not against the market. Every
+ * contributing feed is independently throttled, so the union under-reports too
+ * — the wording must never imply the gap has been closed.
+ */
+function liquidationsMultiple(
+  aggregate: LiquidationsAggregateMeta | undefined,
+): { label: string; title: string } | null {
+  if (!aggregate || aggregate.referenceSource === null) return null;
+  // The default-install case: the primary venue publishes nothing, so there is
+  // no finite multiple. Saying so is stronger and more honest than showing
+  // nothing — "binance alone shows none" IS the finding.
+  if (aggregate.referenceValue === 0 && (aggregate.totalValue ?? 0) > 0) {
+    return {
+      label: `${aggregate.referenceSource} alone shows none`,
+      title:
+        `${aggregate.referenceSource} is the configured primary venue and published no liquidations in this ` +
+        'window, so a single-source feed would show an empty panel. Every event here comes from other ' +
+        'configured venues. Totals remain a lower bound — those feeds are throttled too.',
+    };
+  }
+  if (aggregate.multiple === null) return null;
+  if (!Number.isFinite(aggregate.multiple) || aggregate.multiple <= 0) return null;
+  const shown = aggregate.multiple >= 10 ? Math.round(aggregate.multiple) : aggregate.multiple.toFixed(1);
+  return {
+    label: `${shown}x vs ${aggregate.referenceSource} alone`,
+    title:
+      `Aggregating every sampled venue surfaces ${shown}x the notional that ${aggregate.referenceSource} ` +
+      'shows on its own. This is a lower bound on under-reporting, not a recovered total: ' +
+      'every venue feed in the union is itself throttled, so the true figure is higher by an unknown amount.',
+  };
 }
 
 function liquidationSourceRow(s: LiquidationSourceStatus): LiquidationSourceRow {
@@ -151,12 +193,15 @@ function fmtDurationMs(ms: number): string {
  * confidence this panel exists to avoid.
  */
 export function inspectLiquidationSources(
-  meta: Pick<LiquidationsMeta, 'sources' | 'coverage'> | undefined,
+  meta: Partial<Pick<LiquidationsMeta, 'sources' | 'coverage' | 'aggregate'>> | undefined,
 ): LiquidationSourcesView | null {
   if (!meta?.sources?.length || !meta.coverage) return null;
   const { configured, sampled, reporting, ratio } = meta.coverage;
   const pct = ratio === null ? null : `${Math.round(ratio * 100)}%`;
+  const multiple = liquidationsMultiple(meta.aggregate);
   return {
+    multipleLabel: multiple?.label ?? null,
+    multipleTitle: multiple?.title ?? null,
     rows: meta.sources.map(liquidationSourceRow),
     coverageLabel: `${sampled} of ${configured} venue${configured === 1 ? '' : 's'} sampled · ${reporting} reporting`,
     coverageTitle:

@@ -78,6 +78,15 @@ export function LiquidationsModule({ panel }: ModuleProps) {
             title={sources.coverageTitle}
           >
             SOURCES · {sources.coverageLabel}
+            {sources.multipleLabel && (
+              <>
+                {' · '}
+                <span className="text-term-amber" title={sources.multipleTitle ?? undefined}>
+                  {sources.multipleLabel}
+                </span>
+                <span className="text-term-dim"> (lower bound)</span>
+              </>
+            )}
           </div>
           <div className="flex flex-wrap gap-x-2 gap-y-0.5">
             {sources.rows.map((row) => (

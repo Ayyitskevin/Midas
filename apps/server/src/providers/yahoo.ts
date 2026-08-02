@@ -23,6 +23,7 @@ import type {
   SolanaValidators,
   SolanaWallet,
   VenueDerivatives,
+  VenueLiquidations,
   VenueQuote,
 } from '@midas/shared';
 import { partialEvidenceLimitation } from '@midas/shared';
@@ -300,6 +301,14 @@ export class YahooProvider implements DataProvider {
   async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
     throw new ProviderError(
       'Cross-exchange derivatives is a crypto feature — use the ccxt provider',
+      501,
+      symbol,
+    );
+  }
+
+  async getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]> {
+    throw new ProviderError(
+      'Cross-exchange liquidations is a crypto feature — use the ccxt provider',
       501,
       symbol,
     );

@@ -4,6 +4,7 @@ import {
   LIQUIDATION_SOURCE_MAX_AGE_MS,
   type LiquidationSourceCapability,
   type LiquidationSourceObservation,
+  type LiquidationsAggregateMeta,
   type LiquidationsMeta,
   type LiquidationsProvenance,
 } from '@midas/shared';
@@ -22,6 +23,13 @@ export function normalizeLiquidationsMeta(
   asOf: number = Date.now(),
   observations: LiquidationSourceObservation[] = [],
   maxAgeMs: number = LIQUIDATION_SOURCE_MAX_AGE_MS,
+  // Nulls, not zeros: a feed that computed no aggregate must not report one.
+  aggregate: LiquidationsAggregateMeta = {
+    totalValue: null,
+    referenceSource: null,
+    referenceValue: null,
+    multiple: null,
+  },
 ): LiquidationsMeta {
   const isMock = provenance.source.trim().toLowerCase() === 'mock';
   const synthetic = Boolean(provenance.synthetic) || isMock;
@@ -47,6 +55,7 @@ export function normalizeLiquidationsMeta(
     asOf,
     sources,
     coverage: computeLiquidationsCoverage(sources),
+    aggregate,
   };
 }
 

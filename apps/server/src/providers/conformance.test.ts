@@ -233,6 +233,7 @@ describe('provider capability conformance', () => {
       { label: 'derivatives', methods: ['getDerivatives'], datasetFamily: 'derivatives', expectation: 'receipt', run: () => provider.getDerivatives('BTC/USDT') },
       { label: 'liquidations declaration', methods: ['liquidationsProvenance'], datasetFamily: 'liquidations', expectation: 'receipt', run: () => provider.liquidationsProvenance() },
       { label: 'venue derivatives', methods: ['getVenueDerivatives'], datasetFamily: 'venue-derivatives', expectation: 'receipt', run: () => provider.getVenueDerivatives('BTC/USDT') },
+      { label: 'venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'receipt', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
       { label: 'funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '24h') },
@@ -314,6 +315,9 @@ describe('provider capability conformance', () => {
       { label: 'CCXT derivatives', methods: ['getDerivatives'], datasetFamily: 'derivatives', expectation: 'receipt', run: () => provider.getDerivatives('BTC/USDT') },
       { label: 'CCXT liquidation declaration', methods: ['liquidationsProvenance'], datasetFamily: 'liquidations', expectation: 'unavailable', run: () => provider.liquidationsProvenance() },
       { label: 'CCXT venue derivatives', methods: ['getVenueDerivatives'], datasetFamily: 'venue-derivatives', expectation: 'receipt', run: () => provider.getVenueDerivatives('BTC/USDT') },
+      // The hermetic fake exchange declares no fetchLiquidations, so every venue
+      // in the fan-out must come back honestly unavailable rather than empty-but-live.
+      { label: 'CCXT venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'unavailable', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'CCXT venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
       { label: 'CCXT funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'CCXT OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '1h') },

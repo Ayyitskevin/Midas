@@ -362,6 +362,60 @@ export interface LiquidationEvent {
   /** Notional value in the quote currency (price × amount). */
   value: number;
   timestamp: number;
+  /**
+   * Venue this event was observed on. Optional for back-compatibility with
+   * single-source feeds; a cross-venue aggregate always sets it, because an
+   * untagged event in a merged stream cannot be attributed or audited.
+   */
+  source?: string;
+}
+
+/**
+ * Recent public liquidations observed on one venue for one perp.
+ *
+ * `available: false` is a first-class result, not an error: a venue that
+ * publishes no public feed contributes an honest zero to coverage instead of
+ * failing the whole fan-out.
+ */
+export interface VenueLiquidations {
+  /** Venue display name or id. */
+  exchange: string;
+  /** Whether this venue exposes a public liquidation feed at all. */
+  available: boolean;
+  /** Events observed from this venue. Empty when unavailable or simply quiet. */
+  liquidations: Liquidation[];
+  /** Newest upstream observation time; null when nothing was observed. */
+  timestamp: number | null;
+  receipt?: DataReceipt;
+}
+
+/** One symbol's liquidations as seen across the configured venue set. */
+export interface SymbolVenueLiquidations {
+  symbol: string;
+  venues: VenueLiquidations[];
+}
+
+/**
+ * A cross-venue liquidation roll-up.
+ *
+ * `multiple` is the headline honesty number: how much larger the union across
+ * venues is than the single reference venue alone. It is a **lower bound on a
+ * lower bound** — every contributing feed is itself throttled — and must never
+ * be presented as the recovered "true" volume.
+ */
+export interface LiquidationsAggregate {
+  /** Union of every venue's events, newest first, each tagged with its source. */
+  events: LiquidationEvent[];
+  /** Per-venue observations, ready for {@link computeLiquidationSourceStatuses}. */
+  observations: LiquidationSourceObservation[];
+  /** Σ notional across every sampled venue. */
+  totalValue: number;
+  /** The venue used as the single-source denominator. */
+  referenceSource: string | null;
+  /** Σ notional from {@link referenceSource} alone; null when it was not sampled. */
+  referenceValue: number | null;
+  /** `totalValue / referenceValue`. Null when the reference contributed nothing. */
+  multiple: number | null;
 }
 
 /**
@@ -397,10 +451,12 @@ export interface LiquidationsProvenance {
    */
   sources?: LiquidationSourceCapability[];
   /**
-   * Which of {@link sources} the feed's events actually come from. Present
-   * because `source` is a display name (`ccxt:binance`) while `sources` is keyed
-   * by venue id (`binance`) — the observation has to be matched to the right
-   * capability, not guessed by position.
+   * The provider's primary venue, keyed to match {@link sources}. It is the
+   * single-source reference the cross-venue aggregate is measured against —
+   * what a one-venue feed would have shown — not a claim that only this venue
+   * is read. Present because `source` is a display name (`ccxt:binance`) while
+   * `sources` is keyed by venue id (`binance`), so the two have to be matched
+   * explicitly rather than guessed by position.
    */
   sampledSource?: string;
   receipt?: DataReceipt;
@@ -462,6 +518,27 @@ export interface LiquidationSourceStatus {
   /** `ageMs > maxAgeMs`; null when freshness is unknowable (see above). */
   stale: boolean | null;
   note: string | null;
+}
+
+/**
+ * The cross-venue roll-up facts a feed carries alongside its events.
+ *
+ * Every field is nullable because "not computed" and "computed as zero" are
+ * different claims and the panel must be able to tell them apart.
+ */
+export interface LiquidationsAggregateMeta {
+  /** Σ notional across sampled venues; null when no aggregate was computed. */
+  totalValue: number | null;
+  /** The venue used as the single-source denominator for {@link multiple}. */
+  referenceSource: string | null;
+  /** Σ notional from the reference venue alone. */
+  referenceValue: number | null;
+  /**
+   * `totalValue / referenceValue` — how much more the union sees than one venue.
+   * A **lower bound**: every contributing feed is itself throttled. This is
+   * never the recovered "true" volume and must never be labeled as such.
+   */
+  multiple: number | null;
 }
 
 /** How much of the configured source set this feed actually covers. */
@@ -580,6 +657,80 @@ function liquidationSourceStatus(
   };
 }
 
+/**
+ * Union a cross-venue liquidation read into one feed, tagged and measured.
+ *
+ * **Union, not average, and never deduplicated.** Each venue's liquidations are
+ * its own disjoint real events: a position closed on OKX is a different position
+ * from one closed on Bybit. This is the opposite of *price*, where N venues are
+ * N observations of one quantity and the honest reduction is dispersion (see
+ * `computeVenueArbRow`) — summing prices would be meaningless. Deduplicating
+ * "similar" liquidations across venues would silently delete real events, and
+ * averaging them would understate the market by a factor of the venue count.
+ *
+ * The resulting total is still a **lower bound**: every contributing feed is
+ * independently throttled and documented to under-report, so the union
+ * under-reports too. `multiple` measures how much the aggregate recovers over a
+ * single venue — not how much of the market is now captured.
+ *
+ * Pure and clock-free: ordering comes from event timestamps only.
+ */
+export function computeLiquidationsAggregate(
+  perSymbol: SymbolVenueLiquidations[],
+  referenceSource: string | null = null,
+): LiquidationsAggregate {
+  const events: LiquidationEvent[] = [];
+  const counts = new Map<string, { source: string; eventCount: number; lastEventAt: number | null }>();
+
+  for (const { symbol, venues } of perSymbol) {
+    for (const venue of venues) {
+      const key = liquidationSourceKey(venue.exchange);
+      if (key === '') continue;
+      const entry = counts.get(key) ?? { source: venue.exchange, eventCount: 0, lastEventAt: null };
+      // A venue that was read contributes an observation even with zero events —
+      // that is what distinguishes "quiet" from "never sampled" downstream.
+      counts.set(key, entry);
+      for (const l of venue.liquidations) {
+        if (!Number.isFinite(l.price) || !Number.isFinite(l.amount) || !Number.isFinite(l.timestamp)) continue;
+        events.push({
+          symbol,
+          side: l.side,
+          price: l.price,
+          amount: l.amount,
+          value: l.price * l.amount,
+          timestamp: l.timestamp,
+          source: venue.exchange,
+        });
+        entry.eventCount += 1;
+        if (entry.lastEventAt === null || l.timestamp > entry.lastEventAt) entry.lastEventAt = l.timestamp;
+      }
+    }
+  }
+
+  events.sort((a, b) => b.timestamp - a.timestamp);
+  const totalValue = events.reduce((sum, e) => sum + e.value, 0);
+
+  const referenceKey = referenceSource === null ? '' : liquidationSourceKey(referenceSource);
+  const referenceValue =
+    referenceKey === '' || !counts.has(referenceKey)
+      ? null
+      : events.reduce(
+          (sum, e) => (e.source !== undefined && liquidationSourceKey(e.source) === referenceKey ? sum + e.value : sum),
+          0,
+        );
+
+  return {
+    events,
+    observations: [...counts.values()],
+    totalValue,
+    referenceSource,
+    referenceValue,
+    // A zero denominator yields no multiple rather than Infinity: "the reference
+    // venue published nothing" is not "infinitely better coverage".
+    multiple: referenceValue !== null && referenceValue > 0 ? totalValue / referenceValue : null,
+  };
+}
+
 /** Reduce per-source status into the feed's source-coverage ratio. */
 export function computeLiquidationsCoverage(
   statuses: LiquidationSourceStatus[],
@@ -607,6 +758,8 @@ export interface LiquidationsMeta extends LiquidationsProvenance {
   sources: LiquidationSourceStatus[];
   /** Source coverage for this sweep. */
   coverage: LiquidationsCoverage;
+  /** Cross-venue roll-up facts; all-null when the feed did not fan out. */
+  aggregate: LiquidationsAggregateMeta;
 }
 
 /** The market-wide liquidations feed plus its provenance metadata. */

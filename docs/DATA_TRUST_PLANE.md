@@ -193,6 +193,18 @@ family's declared `maxAgeMs`, not an independent constant. Aggregate event total
 remain a lower bound across sampled venues; no correction factor is applied to
 estimate unobserved liquidations.
 
+Cross-venue liquidations are unioned, never averaged and never deduplicated.
+Each venue's liquidations are disjoint observed events rather than repeated
+observations of one quantity, so summation is the faithful reduction; averaging
+would understate by the venue count and cross-venue deduplication would discard
+real evidence. Every event in an aggregate carries the venue it was observed on.
+The feed also reports how much more the union observed than the configured
+primary venue alone. That ratio is evidence about one venue, not about the
+market: the contributing feeds are independently throttled, so it is published
+as a lower bound and never as a recovered total. When the primary venue observed
+nothing the ratio is undefined and reported as unknown rather than as an
+unbounded or invented value.
+
 ## Static demo
 
 The browser-only demo uses deterministic synthetic receipts. The same fixture

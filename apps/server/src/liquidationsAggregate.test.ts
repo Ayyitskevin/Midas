@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeLiquidationSourceStatuses,
+  computeLiquidationsAggregate,
   computeLiquidationsCoverage,
   LIQUIDATION_SOURCE_MAX_AGE_MS,
   type LiquidationSourceCapability,
   type LiquidationSourceObservation,
+  type VenueLiquidations,
 } from '@midas/shared';
 import { normalizeLiquidationsMeta } from './liquidationsHonesty';
 
@@ -280,5 +282,160 @@ describe('normalizeLiquidationsMeta — the feed always carries source coverage'
     );
     expect(stale.sources[0].stale).toBe(true);
     expect(stale.asOf).toBe(ASOF);
+  });
+});
+
+describe('M2 — cross-venue union, never averaged and never deduplicated', () => {
+  const liq = (price: number, amount: number, timestamp: number, side: 'buy' | 'sell' = 'sell') => ({
+    side, price, amount, timestamp,
+  });
+  const venue = (
+    exchange: string,
+    liquidations: ReturnType<typeof liq>[],
+    available = true,
+  ): VenueLiquidations => ({
+    exchange,
+    available,
+    liquidations,
+    timestamp: liquidations.length ? Math.max(...liquidations.map((l) => l.timestamp)) : null,
+  });
+
+  it('sums disjoint venue events rather than averaging them', () => {
+    const result = computeLiquidationsAggregate(
+      [{
+        symbol: 'BTC/USDT',
+        venues: [
+          venue('okx', [liq(100, 1, ASOF - 1_000)]),
+          venue('bybit', [liq(100, 1, ASOF - 2_000)]),
+          venue('kraken', [liq(100, 1, ASOF - 3_000)]),
+        ],
+      }],
+      'okx',
+    );
+    // Union: 3 events, 300 total. An average would give 100 and understate the
+    // market by the venue count; these are three separate real liquidations.
+    expect(result.events).toHaveLength(3);
+    expect(result.totalValue).toBe(300);
+    expect(result.multiple).toBe(3);
+  });
+
+  it('does not deduplicate identical-looking events across venues', () => {
+    // Same size, same instant, different venues: two real liquidations, not one.
+    const identical = liq(50_000, 2, ASOF - 5_000);
+    const result = computeLiquidationsAggregate(
+      [{ symbol: 'BTC/USDT', venues: [venue('okx', [identical]), venue('bybit', [identical])] }],
+      'okx',
+    );
+    expect(result.events).toHaveLength(2);
+    expect(result.totalValue).toBe(200_000);
+    expect(result.multiple).toBe(2);
+  });
+
+  it('tags every event with its venue and orders the union newest-first', () => {
+    const result = computeLiquidationsAggregate(
+      [
+        { symbol: 'BTC/USDT', venues: [venue('okx', [liq(1, 1, ASOF - 3_000)])] },
+        { symbol: 'ETH/USDT', venues: [venue('bybit', [liq(1, 1, ASOF - 1_000)])] },
+      ],
+      'okx',
+    );
+    expect(result.events.map((e) => e.source)).toEqual(['bybit', 'okx']);
+    expect(result.events.map((e) => e.symbol)).toEqual(['ETH/USDT', 'BTC/USDT']);
+  });
+
+  it('is 1.0 when only the reference venue reports — the single-source baseline', () => {
+    const result = computeLiquidationsAggregate(
+      [{
+        symbol: 'BTC/USDT',
+        venues: [venue('binance', [liq(100, 1, ASOF - 1_000)]), venue('okx', [])],
+      }],
+      'binance',
+    );
+    expect(result.multiple).toBe(1);
+  });
+
+  it('reports no multiple — never Infinity — when the reference venue published nothing', () => {
+    // The default install: the primary venue removed its public stream.
+    const result = computeLiquidationsAggregate(
+      [{
+        symbol: 'BTC/USDT',
+        venues: [venue('binance', [], false), venue('okx', [liq(100, 3, ASOF - 1_000)])],
+      }],
+      'binance',
+    );
+    expect(result.referenceValue).toBe(0);
+    expect(result.multiple).toBeNull();
+    expect(result.totalValue).toBe(300);
+  });
+
+  it('reports no multiple when the reference venue was not in the fan-out at all', () => {
+    const result = computeLiquidationsAggregate(
+      [{ symbol: 'BTC/USDT', venues: [venue('okx', [liq(100, 1, ASOF)])] }],
+      'hyperliquid',
+    );
+    expect(result.referenceValue).toBeNull();
+    expect(result.multiple).toBeNull();
+  });
+
+  it('accumulates one observation per venue across every symbol', () => {
+    const result = computeLiquidationsAggregate(
+      [
+        {
+          symbol: 'BTC/USDT',
+          venues: [venue('okx', [liq(1, 1, ASOF - 9_000)]), venue('bybit', [])],
+        },
+        {
+          symbol: 'ETH/USDT',
+          venues: [venue('okx', [liq(1, 1, ASOF - 1_000), liq(1, 1, ASOF - 4_000)]), venue('bybit', [])],
+        },
+      ],
+      'okx',
+    );
+    const okx = result.observations.find((o) => o.source === 'okx');
+    const bybit = result.observations.find((o) => o.source === 'bybit');
+    expect(okx).toEqual({ source: 'okx', eventCount: 3, lastEventAt: ASOF - 1_000 });
+    // Read but silent: an observation with zero events, NOT a missing entry —
+    // that is what keeps "quiet" distinguishable from "never sampled".
+    expect(bybit).toEqual({ source: 'bybit', eventCount: 0, lastEventAt: null });
+  });
+
+  it('drops non-finite rows instead of poisoning the total with NaN', () => {
+    const result = computeLiquidationsAggregate(
+      [{
+        symbol: 'BTC/USDT',
+        venues: [venue('okx', [liq(Number.NaN, 1, ASOF), liq(100, 2, ASOF - 1_000)])],
+      }],
+      'okx',
+    );
+    expect(result.events).toHaveLength(1);
+    expect(result.totalValue).toBe(200);
+  });
+
+  it('feeds straight into the source-status helper for coverage', () => {
+    const result = computeLiquidationsAggregate(
+      [{
+        symbol: 'BTC/USDT',
+        venues: [
+          venue('binance', [], false),
+          venue('okx', [liq(100, 1, ASOF - 1_000)]),
+          venue('bybit', []),
+        ],
+      }],
+      'binance',
+    );
+    const statuses = computeLiquidationSourceStatuses(
+      [noFeed('binance'), publishing('okx'), publishing('bybit')],
+      result.observations,
+      ASOF,
+      MAX_AGE,
+    );
+    expect(computeLiquidationsCoverage(statuses)).toEqual({
+      configured: 3,
+      sampled: 3,
+      reporting: 1,
+      ratio: 1 / 3,
+    });
+    expect(bySource(statuses, 'bybit').stale).toBeNull();
+    expect(bySource(statuses, 'okx').stale).toBe(false);
   });
 });

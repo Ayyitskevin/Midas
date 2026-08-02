@@ -4,6 +4,7 @@ import type {
   DexPools,
   LiquidationsProvenance,
   VenueDerivatives,
+  VenueLiquidations,
 } from '@midas/shared';
 import { gaussian, round, seeded, uniform } from '../util';
 import { COMPARE_VENUES, DEX_VENUES, resolveEntry } from './fixtures';
@@ -51,6 +52,47 @@ export async function mockVenueDerivatives(symbol: string): Promise<VenueDerivat
   });
 }
 
+/**
+ * Synthetic per-venue liquidations across the mock compare set.
+ *
+ * Two venues are deliberately given no public feed so the mock exercises the
+ * honest branches — a coverage ratio below 1 and `available: false` rows — that
+ * a fixture where everything publishes would never reach. Which two is stable,
+ * not random: drifting fixtures make coverage assertions untestable.
+ */
+export async function mockVenueLiquidations(symbol: string): Promise<VenueLiquidations[]> {
+  const entry = resolveEntry(symbol);
+  const mid = buildQuote(entry).price;
+  const minuteBucket = Math.floor(Date.now() / 60_000);
+  return COMPARE_VENUES.map((venue) => {
+    if (NO_LIQUIDATION_FEED_VENUES.has(venue)) {
+      return { exchange: venue, available: false, liquidations: [], timestamp: null };
+    }
+    const rng = seeded(entry.symbol, venue, minuteBucket, 'venueliq');
+    const liquidations = Array.from({ length: 4 }, (_, i) => {
+      const side = rng() > 0.5 ? ('buy' as const) : ('sell' as const);
+      return {
+        side,
+        price: round(mid * (1 + (side === 'buy' ? 1 : -1) * uniform(rng, 0, 0.012)), 6),
+        amount: round(uniform(rng, 0.05, 8) * (mid > 1000 ? 1 : 1000), 4),
+        timestamp: Date.now() - Math.floor(i * uniform(rng, 4_000, 30_000)),
+      };
+    });
+    return {
+      exchange: venue,
+      available: true,
+      liquidations,
+      timestamp: Math.max(...liquidations.map((liquidation) => liquidation.timestamp)),
+    };
+  });
+}
+
+/**
+ * Mock venues without a public liquidation feed. Mirrors reality: Binance
+ * removed its public stream in 2021, and spot-only venues never had one.
+ */
+const NO_LIQUIDATION_FEED_VENUES = new Set(['Binance', 'Coinbase']);
+
 export async function mockDerivatives(symbol: string): Promise<DerivativesInfo> {
   const entry = resolveEntry(symbol);
   const mid = buildQuote(entry).price;
@@ -95,10 +137,21 @@ export function mockLiquidationsProvenance(): LiquidationsProvenance {
     available: true,
     synthetic: true, // fabricated events — the panel shows 'demo', never a green 'live'
     note,
-    // One fabricated source, labeled as such. `throttled: false` because there
-    // is no upstream stream to throttle — the events are made up here.
-    sources: [{ source: 'mock', available: true, throttled: false, synthetic: true, note }],
-    sampledSource: 'mock',
+    // The same venue set the fan-out reads, labeled synthetic. `throttled:
+    // false` throughout because there is no upstream stream to throttle — the
+    // events are fabricated here.
+    sources: COMPARE_VENUES.map((venue) => ({
+      source: venue,
+      available: !NO_LIQUIDATION_FEED_VENUES.has(venue),
+      throttled: false,
+      synthetic: true,
+      note: NO_LIQUIDATION_FEED_VENUES.has(venue)
+        ? `${venue} publishes no public liquidation feed in the mock fixture.`
+        : note,
+    })),
+    // The mock's primary venue — the single-source reference for the aggregate
+    // multiple. It publishes nothing, mirroring the real default (Binance).
+    sampledSource: COMPARE_VENUES[0],
   };
 }
 

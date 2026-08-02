@@ -48,6 +48,7 @@ describe('LiquidationsModule provenance', () => {
           { source: 'mock', sampled: true, available: true, throttled: false, synthetic: true, eventCount: 1, lastEventAt: Date.now(), ageMs: 0, stale: false, note: 'demo' },
         ],
         coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
@@ -72,6 +73,7 @@ describe('LiquidationsModule provenance', () => {
           { source: 'binance', sampled: false, available: false, throttled: false, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
         ],
         coverage: { configured: 1, sampled: 0, reporting: 0, ratio: 0 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
@@ -96,6 +98,7 @@ describe('LiquidationsModule provenance', () => {
           { source: 'bybit', sampled: true, available: true, throttled: true, synthetic: false, eventCount: 1, lastEventAt: Date.now(), ageMs: 0, stale: false, note: null },
         ],
         coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
@@ -133,6 +136,7 @@ describe('LiquidationsModule provenance', () => {
           { source: 'test-liquidations', sampled: true, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
         ],
         coverage: { configured: 1, sampled: 1, reporting: 0, ratio: 0 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
 
@@ -165,6 +169,7 @@ describe('LiquidationsModule provenance', () => {
           { source: 'coinbase', sampled: false, available: true, throttled: true, synthetic: false, eventCount: 0, lastEventAt: null, ageMs: null, stale: null, note: null },
         ],
         coverage: { configured: 6, sampled: 1, reporting: 0, ratio: 0 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
@@ -192,11 +197,39 @@ describe('LiquidationsModule provenance', () => {
           { source: 'demo', sampled: true, available: true, throttled: false, synthetic: true, eventCount: 1, lastEventAt: now, ageMs: 0, stale: false, note: 'demo' },
         ],
         coverage: { configured: 1, sampled: 1, reporting: 1, ratio: 1 },
+        aggregate: { totalValue: null, referenceSource: null, referenceValue: null, multiple: null },
       },
     });
     render(createElement(LiquidationsModule, { panel: PANEL }));
     // stale:false would read as 'live' for a real venue; synthetic wins.
     expect(await screen.findByText('demo', { selector: 'span.text-term-dim' })).toBeTruthy();
     expect(screen.queryByText('live')).toBeNull();
+  });
+  it('renders the cross-venue multiple as an explicit lower bound', async () => {
+    const now = Date.now();
+    const live = (source: string, eventCount: number) => ({
+      source, sampled: true, available: true, throttled: true, synthetic: false,
+      eventCount, lastEventAt: now, ageMs: 0, stale: false, note: null,
+    });
+    liquidationsMock.mockResolvedValue({
+      events: [
+        { symbol: 'BTC/USDT', side: 'sell', price: 50_000, amount: 0.5, value: 25_000, timestamp: now, source: 'okx' },
+      ],
+      meta: {
+        source: 'ccxt:binance',
+        available: true,
+        note: 'Exchange liquidation streams are throttled.',
+        asOf: now,
+        sampledSource: 'binance',
+        sources: [live('binance', 2), live('okx', 6), live('kraken', 4)],
+        coverage: { configured: 3, sampled: 3, reporting: 3, ratio: 1 },
+        aggregate: { totalValue: 84_000, referenceSource: 'binance', referenceValue: 20_000, multiple: 4.2 },
+      },
+    });
+    render(createElement(LiquidationsModule, { panel: PANEL }));
+    expect(await screen.findByText(/4\.2x vs binance alone/)).toBeTruthy();
+    // The multiple must never appear without its lower-bound qualifier.
+    expect(screen.getByText(/\(lower bound\)/)).toBeTruthy();
+    expect(screen.getByText(/3 of 3 venues sampled · 3 reporting/)).toBeTruthy();
   });
 });

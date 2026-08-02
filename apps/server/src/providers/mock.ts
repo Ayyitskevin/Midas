@@ -30,6 +30,7 @@ import type {
   SolanaWallet,
   TermStructure,
   VenueDerivatives,
+  VenueLiquidations,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
@@ -57,6 +58,7 @@ import {
   mockDexPools,
   mockLiquidationsProvenance,
   mockVenueDerivatives,
+  mockVenueLiquidations,
 } from './mock/derivatives';
 import {
   mockSolanaDexPools,
@@ -196,6 +198,24 @@ export class MockProvider implements DataProvider {
       sourceAsOf: row.timestamp,
       units: { fundingRate: 'fraction-per-interval', openInterestValue: 'quote-asset', markPrice: 'quote-asset' },
       note: 'Synthetic venue derivatives for offline/demo use — not real market data.',
+    }, this.now()));
+  }
+  async getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]> {
+    const rows = await mockVenueLiquidations(symbol);
+    return rows.map((row) => withProviderReceipt(this, row, {
+      datasetFamily: 'liquidations',
+      instrument: symbol.toUpperCase(),
+      venue: row.exchange,
+      // Synthetic even where the fixture has no feed: an 'unavailable' venue in
+      // a fabricated world is still fabricated, and must never read as evidence
+      // that a real venue went dark.
+      provenance: 'synthetic',
+      sourceAsOf: row.timestamp,
+      coverage: row.available
+        ? `${row.liquidations.length} fabricated liquidation event(s)`
+        : 'venue publishes no liquidation feed in the mock fixture',
+      units: { price: 'quote-asset', amount: 'base-asset' },
+      note: 'Synthetic venue liquidations for offline/demo use — not real market data.',
     }, this.now()));
   }
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {

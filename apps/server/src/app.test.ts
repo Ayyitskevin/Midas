@@ -222,6 +222,50 @@ describe('GET /api/liquidations', () => {
     expect(feed.meta.sources.every((s: { synthetic: boolean }) => s.synthetic)).toBe(true);
   });
 
+  it('fans out across venues: events are venue-tagged and coverage exceeds one source', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
+    const feed = res.json();
+
+    // The whole point of the fan-out: more than one venue contributes.
+    expect(feed.meta.coverage.configured).toBeGreaterThan(1);
+    expect(feed.meta.coverage.reporting).toBeGreaterThan(1);
+    expect(feed.meta.coverage.ratio).toBeGreaterThan(1 / feed.meta.coverage.configured);
+
+    // An untagged event in a merged stream cannot be attributed or audited.
+    const tagged = feed.events.map((e: { source?: string }) => e.source);
+    expect(tagged.every((s: string | undefined) => typeof s === 'string' && s.length > 0)).toBe(true);
+    const contributing = new Set<string>(tagged);
+    expect(contributing.size).toBeGreaterThan(1);
+
+    // Every contributing venue must appear in the declared source set.
+    const declared = new Set(feed.meta.sources.map((s: { source: string }) => s.source.toLowerCase()));
+    for (const source of contributing) expect(declared.has(source.toLowerCase())).toBe(true);
+
+    // Only venues that actually reported may be counted as reporting.
+    const reporting = feed.meta.sources.filter((s: { eventCount: number }) => s.eventCount > 0);
+    expect(reporting.length).toBe(feed.meta.coverage.reporting);
+  });
+
+  it('states the aggregate as a lower bound and never as a fabricated multiple', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/liquidations?quote=USDT&limit=5' });
+    const feed = res.json();
+
+    expect(feed.meta.aggregate.totalValue).toBeGreaterThan(0);
+    // The mock's primary venue publishes nothing, mirroring the real default —
+    // so there is no finite ratio. Null, never Infinity, never invented.
+    expect(feed.meta.aggregate.referenceSource).toBe('Binance');
+    expect(feed.meta.aggregate.referenceValue).toBe(0);
+    expect(feed.meta.aggregate.multiple).toBeNull();
+
+    // The union must equal the sum of its parts — no scaling factor applied.
+    const summed = feed.events.reduce((total: number, e: { value: number }) => total + e.value, 0);
+    if (feed.events.length === feed.meta.sources.reduce((n: number, s: { eventCount: number }) => n + s.eventCount, 0)) {
+      expect(feed.meta.aggregate.totalValue).toBeCloseTo(summed, 6);
+    }
+    expect(feed.receipt.methodology.formula).toMatch(/never averaged or deduplicated/);
+    expect(feed.receipt.limitations.join(' ')).toMatch(/lower bound, never the market total/);
+  });
+
   it('reports a source it never read as not sampled, not as zero events', async () => {
     const noFeed = createProvider('mock');
     const now = Date.parse('2026-08-01T12:00:00.000Z');

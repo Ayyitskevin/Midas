@@ -7,6 +7,34 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Cross-exchange liquidations:** `/api/liquidations` now fans each screened
+  symbol across the whole configured venue set instead of reading one exchange,
+  unions the results, and tags every event with the venue it came from. This
+  also fixes the gate that made the problem invisible: feed availability was
+  derived from the **primary** venue alone, so a default install
+  (`MIDAS_CCXT_EXCHANGE=binance`, which publishes nothing) skipped the read
+  entirely and never asked the compare-set venues that do publish. Availability
+  is now a property of the configured set. Cross-venue liquidations are
+  **summed, never averaged and never deduplicated** — each venue's liquidations
+  are its own disjoint real events, unlike price, where venues are N
+  observations of one quantity; averaging would understate the market by the
+  venue count and deduplicating would silently delete real events. The feed
+  reports how much more the union sees than the primary venue alone
+  (`4.2x vs binance alone`), always rendered with an explicit **(lower bound)**
+  qualifier, because every contributing feed is itself throttled — this is
+  recovery against one venue, never a recovered market total, and no correction
+  factor is applied anywhere. When the primary venue published nothing there is
+  no finite ratio, so the panel says `binance alone shows none` rather than
+  hiding the finding behind undefined arithmetic. Fan-out cost is bounded by
+  capability rather than policy: a venue that declares no liquidation feed costs
+  zero network calls, the existing 15s single-flight cache collapses concurrent
+  polls onto one sweep, and a dead venue degrades to reduced coverage via
+  `Promise.allSettled` instead of failing the feed. The per-symbol limit ceiling
+  moves from 60 to 30, matching the other cross-venue boards now that this route
+  shares their cost shape (the terminal requests 30, so the default view is
+  unchanged). Mock and static demo fan out across the same venue set — with the
+  same two venues deliberately publishing nothing — so both exercise partial
+  coverage, all labeled `synthetic: true`.
 - **Per-source liquidation coverage:** `/api/liquidations` now reports which
   venues it is *configured* to read, which one it actually sampled, and each
   one's state — so a single-venue read can no longer be mistaken for the market.
