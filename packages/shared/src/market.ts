@@ -1036,6 +1036,212 @@ export interface ScreenerRow {
   quoteVolume: number | null;
 }
 
+/** One venue's ticker view of a screened symbol. */
+export interface VenueScreenPoint {
+  exchange: string;
+  price: number;
+  changePercent: number | null;
+  /** 24h base-asset volume. */
+  volume: number | null;
+  /** 24h quote (notional) volume. */
+  quoteVolume: number | null;
+}
+
+/**
+ * A screener row as one venue reported it.
+ *
+ * `changePercent` is nullable here, unlike {@link ScreenerRow}: a venue that
+ * omits 24h change still contributes price, volume and breadth to the
+ * cross-venue aggregate, and a fabricated 0 would read as "flat" — a claim the
+ * venue never made.
+ */
+export interface VenueScreenRow extends Omit<ScreenerRow, 'changePercent'> {
+  changePercent: number | null;
+}
+
+/** One venue's whole screener sweep — a single `fetchTickers`-shaped read. */
+export interface VenueScreen {
+  exchange: string;
+  /** False when the venue could not be screened at all; rows is then empty. */
+  available: boolean;
+  rows: VenueScreenRow[];
+  /** Upstream observation time; null when the venue omits it. */
+  timestamp: number | null;
+  receipt?: DataReceipt;
+}
+
+/**
+ * How a cross-venue aggregate was derived.
+ *
+ * Named on every row rather than inferred, because the basis changes with the
+ * evidence available: a symbol quoted by six venues with known volumes gets a
+ * volume-weighted figure, one with no reported volume anywhere gets a median,
+ * and a symbol on a single venue is just that venue. Silently switching between
+ * them would make the same column mean three different things.
+ */
+export type ScreenAggregateBasis = 'volume-weighted' | 'median' | 'single-venue';
+
+/** A screener row aggregated across every venue that quotes the symbol. */
+export interface CrossVenueScreenerRow {
+  symbol: string;
+  name: string;
+  /** Per-venue points, dearest price first. */
+  venues: VenueScreenPoint[];
+  /** How many venues quoted this symbol — the breadth signal. */
+  venueCount: number;
+  /** Reference price across venues; see {@link basis}. Null when no venue priced it. */
+  price: number | null;
+  /** Reference 24h change across venues, on the same {@link basis} as `price`. */
+  changePercent: number | null;
+  /** How `price` and `changePercent` were derived. Null when neither could be. */
+  basis: ScreenAggregateBasis | null;
+  /**
+   * Σ 24h quote volume across quoting venues; null when no venue reports it.
+   *
+   * Summed, not averaged: each venue's traded volume is its own. This is
+   * *reported* volume — exchange-reported figures are widely documented as
+   * inflated, so it is a breadth-and-scale signal, never a verified total.
+   */
+  totalQuoteVolume: number | null;
+  /** Σ 24h base-asset volume across quoting venues; null when none report it. */
+  totalVolume: number | null;
+  /** (max − min) / min of venue price in basis points; null with < 2 quoting venues. */
+  priceDispersionBps: number | null;
+  receipt?: DataReceipt;
+}
+
+const finiteOrNullValue = (value: number | null | undefined): number | null =>
+  value != null && Number.isFinite(value) ? value : null;
+
+/**
+ * Aggregate per-venue screener sweeps into one cross-venue board.
+ *
+ * Volume **sums** — each venue's traded volume is its own, so the union is the
+ * honest scale signal (the same union-not-average reasoning as cross-venue
+ * liquidations). Price does **not** sum: venues are N observations of one
+ * quantity, so the aggregate is a weighted central estimate and the spread
+ * between them is reported separately as dispersion.
+ *
+ * Pure. A symbol quoted by one venue is kept, not dropped — `venueCount` says
+ * so, which is the point of a cross-venue board.
+ */
+export function computeCrossVenueScreen(venues: VenueScreen[]): CrossVenueScreenerRow[] {
+  const bySymbol = new Map<string, { name: string; points: VenueScreenPoint[] }>();
+  for (const venue of venues) {
+    if (!venue.available) continue;
+    for (const row of venue.rows) {
+      const price = finiteOrNullValue(row.price);
+      // A venue with no usable price contributes nothing to a price aggregate;
+      // dropping it beats carrying a 0 that reads as a 100% dispersion.
+      if (price === null || price <= 0) continue;
+      const entry = bySymbol.get(row.symbol) ?? { name: row.name || row.symbol, points: [] };
+      entry.points.push({
+        exchange: venue.exchange,
+        price,
+        changePercent: finiteOrNullValue(row.changePercent),
+        volume: finiteOrNullValue(row.volume),
+        quoteVolume: finiteOrNullValue(row.quoteVolume),
+      });
+      bySymbol.set(row.symbol, entry);
+    }
+  }
+
+  const rows: CrossVenueScreenerRow[] = [];
+  for (const [symbol, { name, points }] of bySymbol) {
+    const venuePoints = [...points].sort((a, b) => b.price - a.price);
+    const weighted = venuePoints.filter(
+      (p): p is VenueScreenPoint & { quoteVolume: number } => p.quoteVolume !== null && p.quoteVolume > 0,
+    );
+    const weightTotal = weighted.reduce((sum, p) => sum + p.quoteVolume, 0);
+
+    let price: number | null;
+    let changePercent: number | null;
+    let basis: ScreenAggregateBasis | null;
+    if (venuePoints.length === 1) {
+      basis = 'single-venue';
+      price = venuePoints[0].price;
+      changePercent = venuePoints[0].changePercent;
+    } else if (weightTotal > 0) {
+      basis = 'volume-weighted';
+      price = weighted.reduce((sum, p) => sum + p.price * p.quoteVolume, 0) / weightTotal;
+      const changeWeighted = weighted.filter((p) => p.changePercent !== null);
+      const changeWeight = changeWeighted.reduce((sum, p) => sum + p.quoteVolume, 0);
+      changePercent = changeWeight > 0
+        ? changeWeighted.reduce((sum, p) => sum + (p.changePercent as number) * p.quoteVolume, 0) / changeWeight
+        : null;
+    } else {
+      // No venue reported usable volume: an unweighted median is the honest
+      // central estimate. It is labeled as such rather than passed off as the
+      // volume-weighted figure the column normally carries.
+      basis = 'median';
+      price = median(venuePoints.map((p) => p.price));
+      const changes = venuePoints
+        .map((p) => p.changePercent)
+        .filter((value): value is number => value !== null);
+      changePercent = changes.length > 0 ? median(changes) : null;
+    }
+
+    const quoteVolumes = venuePoints.map((p) => p.quoteVolume).filter((v): v is number => v !== null);
+    const baseVolumes = venuePoints.map((p) => p.volume).filter((v): v is number => v !== null);
+    const prices = venuePoints.map((p) => p.price);
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+
+    rows.push({
+      symbol,
+      name,
+      venues: venuePoints,
+      venueCount: venuePoints.length,
+      price,
+      changePercent,
+      basis,
+      totalQuoteVolume: quoteVolumes.length > 0 ? quoteVolumes.reduce((s, v) => s + v, 0) : null,
+      totalVolume: baseVolumes.length > 0 ? baseVolumes.reduce((s, v) => s + v, 0) : null,
+      priceDispersionBps: venuePoints.length >= 2 && min > 0 ? ((max - min) / min) * 10_000 : null,
+    });
+  }
+  return rows;
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+/** Sort keys the cross-venue screener board understands. */
+export const CROSS_VENUE_SCREEN_SORTS = ['volume', 'change', 'price', 'venues', 'dispersion'] as const;
+export type CrossVenueScreenSort = (typeof CROSS_VENUE_SCREEN_SORTS)[number];
+
+/**
+ * Rank a cross-venue board, descending, with unknowns last.
+ *
+ * A null metric sorts to the bottom rather than being coerced to 0 — a symbol
+ * whose dispersion is unknowable must not outrank one measured at zero.
+ */
+export function sortCrossVenueScreen(
+  rows: CrossVenueScreenerRow[],
+  sort: CrossVenueScreenSort = 'volume',
+): CrossVenueScreenerRow[] {
+  const value = (r: CrossVenueScreenerRow): number | null => {
+    switch (sort) {
+      case 'change': return r.changePercent;
+      case 'price': return r.price;
+      case 'venues': return r.venueCount;
+      case 'dispersion': return r.priceDispersionBps;
+      default: return r.totalQuoteVolume ?? r.totalVolume;
+    }
+  };
+  return [...rows].sort((a, b) => {
+    const av = value(a);
+    const bv = value(b);
+    if (av === null && bv === null) return a.symbol.localeCompare(b.symbol);
+    if (av === null) return 1;
+    if (bv === null) return -1;
+    return bv - av;
+  });
+}
+
 /** Whether a coin-universe snapshot is real, synthetic, or unavailable for this provider. */
 export type CoinUniverseProvenance = 'live' | 'synthetic' | 'unavailable';
 

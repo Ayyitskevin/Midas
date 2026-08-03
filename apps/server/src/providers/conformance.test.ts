@@ -98,6 +98,17 @@ function ccxtFixture(): { provider: CcxtProvider; malformed: CcxtProvider } {
       baseVolume: 100,
       timestamp: NOW - 1_000,
     }),
+    // The whole-ticker-set read the cross-venue screener fans across venues.
+    fetchTickers: async () => ({
+      'BTC/USDT': {
+        symbol: 'BTC/USDT', last: 65_000, percentage: 1.5625,
+        baseVolume: 100, quoteVolume: 6_500_000, timestamp: NOW - 1_000,
+      },
+      'ETH/USDT': {
+        symbol: 'ETH/USDT', last: 3_500, percentage: -0.5,
+        baseVolume: 900, quoteVolume: 3_150_000, timestamp: NOW - 2_000,
+      },
+    }),
     fetchOHLCV: async () => [
       [NOW - HOUR, 64_000, 64_100, 63_900, 64_000, 10],
       [NOW, 65_000, 65_100, 64_900, 65_000, 12],
@@ -235,6 +246,7 @@ describe('provider capability conformance', () => {
       { label: 'venue derivatives', methods: ['getVenueDerivatives'], datasetFamily: 'venue-derivatives', expectation: 'receipt', run: () => provider.getVenueDerivatives('BTC/USDT') },
       { label: 'venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'receipt', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
+      { label: 'venue screener', methods: ['getVenueScreen'], datasetFamily: 'venue-screener', expectation: 'receipt', run: () => provider.getVenueScreen({ quote: 'USDT', limit: 5 }) },
       { label: 'funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '24h') },
       { label: 'DVOL', methods: ['getDvol'], datasetFamily: 'options', expectation: 'receipt', run: () => provider.getDvol('BTC') },
@@ -319,6 +331,7 @@ describe('provider capability conformance', () => {
       // in the fan-out must come back honestly unavailable rather than empty-but-live.
       { label: 'CCXT venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'unavailable', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'CCXT venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
+      { label: 'CCXT venue screener', methods: ['getVenueScreen'], datasetFamily: 'venue-screener', expectation: 'receipt', run: () => provider.getVenueScreen({ quote: 'USDT', limit: 5 }) },
       { label: 'CCXT funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'CCXT OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '1h') },
       { label: 'CCXT DVOL', methods: ['getDvol'], datasetFamily: 'options', expectation: 'receipt', run: () => provider.getDvol('BTC') },

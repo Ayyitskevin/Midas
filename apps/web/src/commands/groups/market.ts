@@ -247,6 +247,15 @@ export const MARKET_COMMANDS: CommandDef[] = [
       'Cross-venue arb screener — for the top symbols by volume, how far the price disagrees across the compare set (Binance, OKX, Bybit, …), ranked by dispersion. Surfaces the sell-here (highest bid) and buy-here (lowest ask) legs and flags crossed books (a gross-of-fees arb). The market-wide board version of ALLQ/ARB (one symbol across venues). Crypto-only (ccxt provider).',
   },
   {
+    code: 'XSCR',
+    aliases: ['SCREENX', 'XSCREEN', 'VSCR'],
+    title: 'Cross-Venue Screener',
+    module: 'XSCR',
+    requiresSymbol: false,
+    description:
+      "Cross-venue screener — the whole market as every configured venue sees it, not just the configured primary. Volume SUMS across venues (each venue's traded volume is its own), while price does not: venues are repeated observations of one quantity, so the board shows a quote-volume-weighted price plus how far venues disagree (dispersion, bps). Every row states how many venues quote it and which basis its aggregate used (volume-weighted / median / single-venue), so a thin single-venue listing can never pass as market-wide. Sort by volume, change, price, venues or dispersion. Exchange-reported volume is widely documented as inflated, so totals are a scale signal, not a verified figure. The market-wide companion to SCR (one venue). Crypto-only (ccxt provider).",
+  },
+  {
     code: 'OIV',
     aliases: ['CROWD', 'OICONC', 'XOI'],
     title: 'OI by Venue',

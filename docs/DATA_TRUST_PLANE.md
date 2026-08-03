@@ -155,13 +155,14 @@ The bounded v1 slice covers:
 | OI history / OI delta | Observations plus versioned positioning derivation |
 | Liquidations | Observed events where supported; estimates remain explicitly derived |
 | Venue arbitrage | Versioned net-of-fees derivation with input lineage |
+| Cross-venue screener | Per-venue ticker sweeps unioned with a named aggregation basis |
 | Options analytics | DVOL, term structure, and chain where provider capability allows |
 | Read-only accounts | Balances, open orders, positions, and fills; no secret or value data in status |
 
 The structural route registry records every numeric market/read-only-account
 observation GET in the trust boundary as covered, not-applicable, or a temporary
 exemption. Funding-history remains a legacy bare array for compatibility, but
-each point carries an additive receipt. V1 leaves order-book, on-chain, screener,
+each point carries an additive receipt. V1 leaves order-book, on-chain, the single-venue screener,
 coin-universe, persisted account-event/equity projections, and single-order
 lookup as explicit follow-up work. Those exemptions carry a reason and concrete
 removal condition. They are not permission to claim live evidence without a
@@ -192,6 +193,17 @@ unknown freshness rather than fresh. The staleness boundary is the `liquidations
 family's declared `maxAgeMs`, not an independent constant. Aggregate event totals
 remain a lower bound across sampled venues; no correction factor is applied to
 estimate unobserved liquidations.
+
+The cross-venue screener sums reported volume across venues but never sums
+price: venues are repeated observations of one quantity, so the aggregate is a
+quote-volume-weighted estimate and the disagreement between venues is reported
+separately as dispersion. Where no venue reports usable volume there are no
+weights, and the unweighted median used instead is named on the row rather than
+presented as the weighted figure. Rows record how many venues quote the symbol,
+so a single-venue listing is never presented as a market-wide aggregate, and
+dispersion stays unknown below two venues rather than reporting zero
+disagreement. Exchange-reported turnover is published as a scale signal, not a
+verified total.
 
 Cross-venue liquidations are unioned, never averaged and never deduplicated.
 Each venue's liquidations are disjoint observed events rather than repeated

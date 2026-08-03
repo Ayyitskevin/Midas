@@ -35,6 +35,7 @@ const METHOD_BY_FAMILY: Record<TrustDatasetFamily, string> = {
   liquidations: 'liquidationsFeed',
   'venue-quotes': 'venueQuotes',
   'venue-arbitrage': 'venueArbRows',
+  'venue-screener': 'venueScreenerRows',
   options: 'optionsChainFor',
   balances: 'balancesFor',
   'account-orders': 'openOrdersFor',

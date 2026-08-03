@@ -384,6 +384,63 @@ describe('GET /api/liquidations', () => {
   });
 });
 
+describe('GET /api/venue-screener', () => {
+  it('returns a cross-venue board with per-row breadth and basis', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/venue-screener?quote=USDT&limit=5' });
+    expect(res.statusCode).toBe(200);
+    const board = res.json();
+    expect(board.rows.length).toBeGreaterThan(0);
+    expect(board.rows.length).toBeLessThanOrEqual(5);
+
+    for (const row of board.rows) {
+      expect(typeof row.symbol).toBe('string');
+      expect(row.venueCount).toBeGreaterThan(0);
+      expect(row.venues.length).toBe(row.venueCount);
+      expect(['volume-weighted', 'median', 'single-venue', null]).toContain(row.basis);
+      // Dispersion is unknowable below two venues — null, never a reassuring 0.
+      if (row.venueCount < 2) expect(row.priceDispersionBps).toBeNull();
+      // Volume sums across venues, so the total can never be below its largest part.
+      if (row.totalQuoteVolume !== null) {
+        const largest = Math.max(...row.venues.map((v: { quoteVolume: number | null }) => v.quoteVolume ?? 0));
+        expect(row.totalQuoteVolume).toBeGreaterThanOrEqual(largest - 1e-6);
+      }
+    }
+  });
+
+  it('reads more than one venue and says which contributed', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/venue-screener?quote=USDT&limit=10' });
+    const board = res.json();
+    const contributing = new Set<string>(
+      board.rows.flatMap((r: { venues: { exchange: string }[] }) => r.venues.map((v) => v.exchange)),
+    );
+    expect(contributing.size).toBeGreaterThan(1);
+    // The mock's last two venues list only the majors, so breadth must vary —
+    // a constant venueCount would mean the fan-out collapsed to one shape.
+    const counts = new Set(board.rows.map((r: { venueCount: number }) => r.venueCount));
+    expect(counts.size).toBeGreaterThan(1);
+  });
+
+  it('states the volume caveat and the derivation in its receipt', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/venue-screener?quote=USDT&limit=5' });
+    const board = res.json();
+    expect(board.meta.receipt.methodology.formula).toMatch(/sum\(venue quoteVolume\)/);
+    expect(board.meta.receipt.limitations.join(' ')).toMatch(/inflated/i);
+    expect(board.meta.receipt.datasetFamily).toBe('venue-screener');
+  });
+
+  it('ranks by the requested key and rejects an unknown one', async () => {
+    const byVenues = await app.inject({ method: 'GET', url: '/api/venue-screener?quote=USDT&sort=venues&limit=10' });
+    const rows = byVenues.json().rows;
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].venueCount).toBeGreaterThanOrEqual(rows[i].venueCount);
+    }
+    const bad = await app.inject({ method: 'GET', url: '/api/venue-screener?quote=USDT&sort=nope' });
+    expect(bad.statusCode).toBe(400);
+    // Never echo unbounded input back.
+    expect(bad.json().message).not.toContain('nope');
+  });
+});
+
 describe('GET /api/venue-arb', () => {
   it('returns cross-venue arb rows ranked by price dispersion, widest first', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/venue-arb?quote=USDT&limit=5' });

@@ -25,6 +25,7 @@ export const TRUST_DATASET_FAMILIES = [
   'liquidations',
   'venue-quotes',
   'venue-arbitrage',
+  'venue-screener',
   'options',
   'balances',
   'account-orders',

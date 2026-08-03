@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import {
   computeFundingDispersion,
+  computeCrossVenueScreen,
   computeLiquidationsAggregate,
+  CROSS_VENUE_SCREEN_SORTS,
+  sortCrossVenueScreen,
   computeOiConcentration,
   computeVenueArbRow,
   isInterval,
@@ -15,6 +18,8 @@ import type {
   BoardEnvelope,
   BoardProvenance,
   CoinUniverse,
+  CrossVenueScreenerRow,
+  CrossVenueScreenSort,
   DvolSnapshot,
   DvolSymbol,
   FundingDispersionRow,
@@ -77,6 +82,10 @@ const LIQUIDATIONS_TTL_MS = 15_000;
 // The screener re-reads the full ticker set per request; quote/price data is
 // fresh enough on a 15s window shared across concurrent users.
 const SCREENER_TTL_MS = 15_000;
+// One ticker sweep per venue (not per symbol), so the cross-venue screener costs
+// N calls per refresh. A 20s window matches the venue-arb board's cadence and
+// collapses concurrent users onto one sweep.
+const VENUE_SCREENER_TTL_MS = 20_000;
 // The screener sort keys the providers' sortScreener understands; anything
 // else would silently fall back to volume order, so it's rejected at the edge.
 const SCREENER_SORTS = new Set(['volume', 'change', 'price']);
@@ -650,6 +659,119 @@ export function registerMarketRoutes(
         Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 200) : 50;
       return screenerCache.get(`${quote}|${sortRaw || 'volume'}|${limit}`, () =>
         provider.screen({ quote, sort: sortRaw || undefined, limit }),
+      );
+    },
+  );
+
+  // Cross-venue screener: one ticker sweep per configured venue, unioned into a
+  // per-symbol board. Volume SUMS across venues (each venue's traded volume is
+  // its own); price does not — venues are N observations of one quantity, so the
+  // board carries a weighted central estimate plus the dispersion between them.
+  // Cost is one upstream call per venue, not per symbol, so a short TTL and the
+  // single-flight cache keep it cheap.
+  const venueScreenerCache = createTtlCache<
+    CachedReceiptPayload<BoardEnvelope<CrossVenueScreenerRow & { receipt: DataReceipt }> & { receipt: DataReceipt }>
+  >(VENUE_SCREENER_TTL_MS);
+  app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
+    DATA_ROUTE_PATHS.venueScreener,
+    async (req) => {
+      const quote = normalizeQuote(req.query.quote);
+      const sortRaw = firstStr(req.query.sort);
+      // Reject unknown sorts rather than silently falling back to volume order.
+      if (sortRaw && !(CROSS_VENUE_SCREEN_SORTS as readonly string[]).includes(sortRaw)) {
+        throw new ProviderError(
+          `Invalid screener sort — expected one of: ${CROSS_VENUE_SCREEN_SORTS.join(', ')}`,
+          400,
+        );
+      }
+      const sort = (sortRaw || 'volume') as CrossVenueScreenSort;
+      const limitRaw = Number(req.query.limit);
+      const limit =
+        Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 100) : 50;
+
+      let computed = false;
+      const entry = await venueScreenerCache.get(`${quote}|${sort}|${limit}`, async () => {
+        computed = true;
+        const raw = await trackProviderCall(provider, 'venue-screener', dataStatus, () =>
+          provider.getVenueScreen({ quote, limit }),
+        );
+        const venues = attachProviderReceiptRows(
+          provider,
+          'venue-screener',
+          raw,
+          String(req.id),
+          dataStatus,
+        );
+        const reporting = venues.filter((venue) => venue.available && venue.rows.length > 0);
+        const ranked = sortCrossVenueScreen(computeCrossVenueScreen(venues), sort).slice(0, limit);
+        const computedAt = Date.now();
+        const medianRows = ranked.filter((row) => row.basis === 'median').length;
+        const singleVenueRows = ranked.filter((row) => row.venueCount === 1).length;
+        const receipt = deriveRouteReceipt(
+          provider,
+          {
+            family: 'venue-screener',
+            coverage:
+              `${reporting.length} of ${venues.length} configured venue(s) reported; ` +
+              `${ranked.length} symbol(s) returned, ranked by ${sort}.`,
+            inputReceipts: venues.map((venue) => venue.receipt),
+            methodology: {
+              id: 'midas.cross-venue-screener',
+              version: '1.0',
+              formula:
+                'totalQuoteVolume = sum(venue quoteVolume); ' +
+                'price/changePercent = quote-volume-weighted mean, else median, else the single venue; ' +
+                'priceDispersionBps = (maxPrice - minPrice) / minPrice * 10000',
+            },
+            units: { price: 'quote currency', volume: 'base asset', quoteVolume: 'quote currency' },
+            limitations: [
+              ...(reporting.length < venues.length
+                ? [
+                    partialEvidenceLimitation(
+                      `${venues.length - reporting.length} of ${venues.length} configured venue(s) returned no screener rows.`,
+                    ),
+                  ]
+                : []),
+              ...(singleVenueRows > 0
+                ? [`${singleVenueRows} returned row(s) are quoted by a single venue; venueCount states which.`]
+                : []),
+              ...(medianRows > 0
+                ? [`${medianRows} returned row(s) had no reported volume anywhere and use an unweighted median.`]
+                : []),
+              'Exchange-reported 24h volume is widely documented as inflated; totals are a scale signal, not a verified figure.',
+            ],
+            traceId: String(req.id),
+            expectedCadenceMs: VENUE_SCREENER_TTL_MS,
+            maxAgeMs: VENUE_SCREENER_TTL_MS * 2,
+            cache: { status: 'miss', ageMs: 0 },
+          },
+          dataStatus,
+          reporting.length < venues.length ? 'partial' : null,
+        );
+        const envelope: BoardEnvelope<CrossVenueScreenerRow & { receipt: DataReceipt }> = {
+          rows: ranked.map((row) => withDataReceipt(row, receipt)),
+          meta: {
+            provenance: receipt.provenance,
+            source: receipt.source,
+            asOf: computedAt,
+            cachedAt: null,
+            partial: reporting.length < venues.length,
+            note: reporting.length < venues.length
+              ? `${reporting.length} of ${venues.length} configured venues reported.`
+              : null,
+            receipt,
+          },
+        };
+        return { payload: withDataReceipt(envelope, receipt), storedAt: computedAt };
+      });
+      const now = Date.now();
+      return transportDerivedReceipt(
+        provider,
+        entry.payload,
+        String(req.id),
+        dataStatus,
+        { status: computed ? 'miss' : 'hit', ageMs: computed ? 0 : Math.max(0, now - entry.storedAt) },
+        now,
       );
     },
   );

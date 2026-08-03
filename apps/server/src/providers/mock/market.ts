@@ -9,6 +9,8 @@ import type {
   ScreenerRow,
   SearchResult,
   VenueQuote,
+  VenueScreen,
+  VenueScreenRow,
 } from '@midas/shared';
 import type { HistoryOptions, ScreenerOptions } from '../types';
 import {
@@ -114,6 +116,44 @@ export async function mockScreen(opts: ScreenerOptions): Promise<ScreenerRow[]> 
     };
   });
   return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+}
+
+/**
+ * Synthetic per-venue screener sweeps.
+ *
+ * Venues deliberately disagree slightly on price and carry different volumes, so
+ * the cross-venue aggregate exercises weighting and dispersion rather than
+ * collapsing to one identical row repeated six times. Two venues are given a
+ * narrower listing set so `venueCount` varies across symbols.
+ */
+export async function mockVenueScreen(opts: ScreenerOptions): Promise<VenueScreen[]> {
+  const quote = (opts.quote ?? 'USDT').toUpperCase();
+  const universe = ROSTER.filter(
+    (e) => e.type === 'CRYPTOCURRENCY' && e.symbol.includes('/') && e.symbol.split('/')[1] === quote,
+  );
+  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  return COMPARE_VENUES.map((venue, venueIndex) => {
+    // The last two venues list only the majors — a realistic long tail, and it
+    // keeps venueCount from being a constant.
+    const listed = venueIndex >= COMPARE_VENUES.length - 2 ? universe.slice(0, 8) : universe;
+    const rows: VenueScreenRow[] = listed.map((e) => {
+      const q = buildQuote(e);
+      const rng = seeded(e.symbol, venue, hourBucket, 'venuescreen');
+      const price = round(q.price * (1 + gaussian(rng) * 0.0006), 8);
+      const volume = q.volume === null ? null : Math.floor(q.volume * uniform(rng, 0.05, 0.6));
+      return {
+        symbol: e.symbol,
+        name: e.name,
+        price,
+        // One venue withholds 24h change so the aggregate exercises the null
+        // path instead of always having a full weight set.
+        changePercent: venueIndex === 1 ? null : round(q.changePercent + gaussian(rng) * 0.15, 4),
+        volume,
+        quoteVolume: volume === null ? null : Math.floor(volume * price),
+      };
+    });
+    return { exchange: venue, available: true, rows, timestamp: Date.now() };
+  });
 }
 
 export async function mockHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
