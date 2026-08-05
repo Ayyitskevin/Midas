@@ -23,8 +23,12 @@ Before a Midas box is reachable by anyone but you:
    value (tokens just won't survive a restart).
 3. **Pin CORS.** Set `MIDAS_CORS_ORIGIN` to your terminal's exact origin
    (e.g. `https://midas.example.com`). The wildcard default is fine for a
-   token-authenticated API but pinning is defense-in-depth, and it is
-   **required** for the no-auth trading override.
+   token-authenticated API but pinning is defense-in-depth — and with auth
+   OFF it is load-bearing: keyed account surfaces (balances, orders,
+   positions, fills, equity, and cancel-only order DELETE) **fail closed with
+   403** while auth is disabled and CORS is a wildcard, because ACAO `*` would
+   let any web page you visit read the keyed account and cancel its resting
+   orders cross-origin.
 4. **Set a request ceiling.** `MIDAS_RATE_LIMIT_RPM=120` (or to taste) so one
    client can't monopolize the box. Demo mode turns this on automatically.
 5. **Use read-only exchange keys.** Midas has no withdrawal path and its HTTP
@@ -48,7 +52,7 @@ Before a Midas box is reachable by anyone but you:
 | `MIDAS_AUTH_ENABLED` | `false` | Require login for the whole API. **On** for any shared/exposed box. |
 | `MIDAS_AUTH_SECRET` | random/boot | HMAC key for session tokens. Set a fixed ≥16-char value; warned if weak. |
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Ongoing open registration. Default closed once your first account exists; set `true` only for deliberate open registration. |
-| `MIDAS_CORS_ORIGIN` | `*` | Allowed browser origin. Pin it; required (non-`*`) for no-auth trading. |
+| `MIDAS_CORS_ORIGIN` | `*` | Allowed browser origin. Pin it; with auth OFF a wildcard fails the keyed account surfaces closed (403). |
 | `MIDAS_RATE_LIMIT_RPM` | `0` (off) | Per-IP request ceiling. Set it on any public box. |
 | `MIDAS_TRUST_PROXY` | `0` | Trusted reverse-proxy hops. Set to `1` behind a single proxy (the shipped nginx) so per-IP controls see the real client; keep `0` if exposed directly (else `X-Forwarded-For` is spoofable). |
 | `MIDAS_TRADING_ENABLED` | `false` | Legacy compatibility flag; ignored by the execution safety hold. |
@@ -105,6 +109,13 @@ regresses:
 - **Exchange ids are allowlisted.** Keys can only be stored for a real ccxt
   exchange id — a crafted value like `constructor` is rejected at the edge,
   before anything is encrypted or stored.
+- **The default posture fails keyed account access closed.** With auth
+  disabled AND a wildcard `MIDAS_CORS_ORIGIN`, account reads
+  (balances/orders/positions/fills/equity) and cancel-only
+  `DELETE /api/orders/:id` answer an honest 403 naming both switches — an
+  arbitrary web page cannot read the keyed account or cancel its resting
+  orders cross-origin. Auth on, or a pinned origin, keeps them working.
+  Public market data is untouched.
 - **Auth is timing-safe.** Tokens verify with `timingSafeEqual`; login runs a
   scrypt compare whether or not the username exists, so response time can't
   enumerate accounts; passwords are scrypt with a per-user random salt.

@@ -17,7 +17,10 @@ describe('execution posture (fail-closed placement, cancel-only)', () => {
 
   beforeAll(async () => {
     process.env.LOG_LEVEL = 'silent';
-    app = await buildApp(createProvider('mock'));
+    // Cancel-only is exercised from the accepted no-auth posture: a PINNED
+    // CORS origin. With the default wildcard origin, keyed account surfaces
+    // (including this DELETE) fail closed — proven in keyedAccountGuard.test.ts.
+    app = await buildApp(createProvider('mock'), { corsOrigin: 'http://localhost:8080' });
     await app.ready();
   });
 

@@ -17,7 +17,7 @@ import { NotesRepo } from './notes/repo';
 import { registerSnapshotRoutes } from './snapshots/routes';
 import { UserRepo } from './auth/users';
 import { registerAuthRoutes, type AuthDeps } from './auth/routes';
-import { installAuthGuard } from './auth/guard';
+import { installAuthGuard, installKeyedAccountGuard } from './auth/guard';
 import { dirname, join } from 'node:path';
 import { registerAccountEventsRoute, type AccountWatchHandle } from './accountWatch';
 import { registerEquityRoute, type EquityRepo } from './equity';
@@ -46,6 +46,8 @@ export interface BuildAppOptions {
   userRepo?: UserRepo;
   /** Auth overrides (tests); falls back to config. */
   auth?: { enabled?: boolean; allowSignup?: boolean; secret?: string };
+  /** CORS origin override (tests); falls back to config.corsOrigin. */
+  corsOrigin?: string;
   /** Trusted reverse-proxy hop count (tests); falls back to config.trustProxy. */
   trustProxy?: number;
   /** Account order watcher (index.ts starts one when keyed + live); null/omitted = off. */
@@ -106,7 +108,8 @@ export async function buildApp(
     trustProxy: (opts.trustProxy ?? config.trustProxy) > 0 ? (opts.trustProxy ?? config.trustProxy) : false,
   });
 
-  await app.register(cors, { origin: config.corsOrigin });
+  const corsOrigin = opts.corsOrigin ?? config.corsOrigin;
+  await app.register(cors, { origin: corsOrigin });
   // Cap WS frames at the protocol layer. /api/stream is public even with auth
   // on, and a real subscribe message is ~70 bytes; without this, ws defaults to
   // buffering up to 100 MiB per frame into the heap BEFORE the app-level check
@@ -163,6 +166,10 @@ export async function buildApp(
     );
   }
   installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
+  // In the insecure default posture (auth off + wildcard CORS), keyed account
+  // surfaces fail closed with an honest 403 — see auth/guard.ts. Stands down
+  // when auth is on or the origin is pinned.
+  installKeyedAccountGuard(app, { authEnabled: authDeps.enabled, corsOrigin });
   registerAuthRoutes(app, authDeps);
 
   // Per-user exchange keys (hosted-tier): encrypted store + a provider pool
