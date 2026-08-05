@@ -144,9 +144,30 @@ export async function checkSharedHosting(root = REPO_ROOT) {
   }
 
   const accountSrc = fs.readFileSync(accountRoutesPath, 'utf8');
-  for (const needle of ['TradingSafetyHold', "app.post('/api/orders'", "app.delete('/api/orders/:id'"]) {
-    if (!accountSrc.includes(needle)) {
-      fail('hold-routes', `account routes missing ${JSON.stringify(needle)}`);
+  if (!accountSrc.includes('TradingSafetyHold')) {
+    fail('hold-routes', 'account routes missing "TradingSafetyHold"');
+  }
+  // Routes may be registered with literal paths or via DATA_ROUTE_PATHS
+  // constants; when constants are used, dataCoverage.ts must pin the literals.
+  const postRegistered =
+    accountSrc.includes("app.post('/api/orders'") ||
+    accountSrc.includes('app.post(DATA_ROUTE_PATHS.orders');
+  const deleteRegistered =
+    accountSrc.includes("app.delete('/api/orders/:id'") ||
+    (accountSrc.includes('app.delete') && accountSrc.includes('DATA_ROUTE_PATHS.order'));
+  if (!postRegistered) {
+    fail('hold-routes', 'account routes do not register POST /api/orders');
+  }
+  if (!deleteRegistered) {
+    fail('hold-routes', 'account routes do not register DELETE /api/orders/:id');
+  }
+  if (accountSrc.includes('DATA_ROUTE_PATHS')) {
+    const coveragePath = path.join(root, 'apps/server/src/dataCoverage.ts');
+    const coverageSrc = fs.existsSync(coveragePath) ? fs.readFileSync(coveragePath, 'utf8') : '';
+    for (const needle of ["orders: '/api/orders'", "order: '/api/orders/:id'"]) {
+      if (!coverageSrc.includes(needle)) {
+        fail('hold-routes', `dataCoverage.ts does not pin ${JSON.stringify(needle)}`);
+      }
     }
   }
   if (!failures.some((f) => f.startsWith('hold-routes'))) {
