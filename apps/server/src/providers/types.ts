@@ -36,6 +36,7 @@ import type {
   TermStructure,
   VenueDerivatives,
   VenueLiquidations,
+  VenueScreen,
   VenueQuote,
   ProviderCapabilityManifest,
 } from '@midas/shared';
@@ -80,6 +81,12 @@ export interface DataProvider {
    * so one silent venue reduces coverage instead of failing the feed.
    */
   getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]>;
+  /**
+   * Screen every configured venue in one sweep. One upstream call per venue
+   * (a whole ticker set), not one per symbol — a venue that fails drops to
+   * `available: false` rather than failing the board.
+   */
+  getVenueScreen(opts: ScreenerOptions): Promise<VenueScreen[]>;
   /** Provenance + availability of the liquidation feed, for honest labeling. */
   liquidationsProvenance(): LiquidationsProvenance;
   /** On-chain/DEX pool snapshot for a base asset, honestly labeled live/synthetic/unavailable. */

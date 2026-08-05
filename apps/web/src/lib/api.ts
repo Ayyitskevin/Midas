@@ -25,6 +25,8 @@ import type {
   FundingHistoryPoint,
   FundingRow,
   LiquidationsFeed,
+  CrossVenueScreenerRow,
+  CrossVenueScreenSort,
   OiConcentrationRow,
   HealthResponse,
   HistoryResponse,
@@ -241,6 +243,17 @@ export const api = {
   oiConcentration: (quote = 'USDT', limit = 15, signal?: AbortSignal) =>
     apiGet<BoardEnvelope<OiConcentrationRow>>(
       `/api/oi-concentration?quote=${encodeURIComponent(quote)}&limit=${limit}`,
+      signal,
+    ),
+
+  venueScreener: (
+    quote = 'USDT',
+    sort: CrossVenueScreenSort = 'volume',
+    limit = 50,
+    signal?: AbortSignal,
+  ) =>
+    apiGet<BoardEnvelope<CrossVenueScreenerRow>>(
+      `/api/venue-screener?quote=${encodeURIComponent(quote)}&sort=${encodeURIComponent(sort)}&limit=${limit}`,
       signal,
     ),
 

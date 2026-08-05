@@ -7,6 +7,29 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Cross-venue screener (`XSCR`):** the market as *every* configured venue sees
+  it, not just the configured primary — the last piece of the roadmap's
+  cross-exchange aggregation. Volume **sums** across venues (each venue's traded
+  volume is its own), while price does **not**: venues are repeated observations
+  of one quantity, so the board carries a quote-volume-weighted price plus the
+  dispersion between venues in basis points. Where no venue reports usable
+  volume there are no weights to apply, so the aggregate falls back to an
+  unweighted median — and **every row states which basis it used**
+  (`volume-weighted` / `median` / `single-venue`), because those are three
+  different claims and rendering them identically would make one column mean
+  three things. Each row also carries how many venues quote it, so a thin
+  single-venue listing can never pass as market-wide; dispersion stays `null`
+  below two venues rather than reporting a reassuring zero, and unknown metrics
+  sort last instead of being coerced to 0. Sortable by volume, change, price,
+  venue count or dispersion. Exchange-reported 24h volume is widely documented
+  as inflated, so totals are labeled a scale signal rather than a verified
+  figure. Cost is one ticker sweep per venue — not one per symbol — behind a 20s
+  single-flight cache, and a venue that fails degrades to reduced coverage
+  instead of failing the board. The route is fully receipted, which closes the
+  documented v1 trust-plane exemption for screener surfaces under a new
+  `venue-screener` dataset family. Mock and static demo fan out across the same
+  venue set, with two venues listing only the majors and one withholding 24h
+  change, so both exercise varying breadth and the null-weight path.
 - **Cross-exchange liquidations:** `/api/liquidations` now fans each screened
   symbol across the whole configured venue set instead of reading one exchange,
   unions the results, and tags every event with the venue it came from. This

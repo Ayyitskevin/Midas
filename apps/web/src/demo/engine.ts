@@ -1,4 +1,4 @@
-import { computeFundingDispersion, computeLiquidationSourceStatuses, computeLiquidationsAggregate, computeLiquidationsCoverage, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
+import { computeFundingDispersion, computeLiquidationSourceStatuses, computeLiquidationsAggregate, computeLiquidationsCoverage, computeCrossVenueScreen, sortCrossVenueScreen, computeMaxPainStrike, computeOiConcentration, computePutCallOiRatio, computeVenueArbRow, OI_DELTA_WINDOW_MS, summarizeOiDelta } from '@midas/shared';
 import { demoReceipt } from './trust';
 import type {
   AccountFills,
@@ -44,6 +44,10 @@ import type {
   SolanaValidators,
   SolanaWallet,
   SymbolVenueLiquidations,
+  CrossVenueScreenerRow,
+  CrossVenueScreenSort,
+  VenueScreen,
+  VenueScreenRow,
   TermStructure,
   TermStructurePoint,
   VenueArbRow,
@@ -711,6 +715,42 @@ export function optionsChainFor(symbol: string, expiry: number | 'nearest', now:
     source: DEMO_SOURCE,
     note: NOTE,
   };
+}
+
+/**
+ * Synthetic per-venue screener sweeps, mirroring the server mock: venues
+ * disagree slightly on price, carry different volumes, and the last two list
+ * only the majors so `venueCount` actually varies. One venue withholds 24h
+ * change so the aggregate exercises the null-weight path.
+ */
+export function venueScreenRows(quote: string, now: number): VenueScreen[] {
+  return VENUES.map((venue, venueIndex) => {
+    const listed = venueIndex >= VENUES.length - 2 ? ASSETS.slice(0, 8) : ASSETS;
+    const rows: VenueScreenRow[] = listed.map((a) => {
+      const q = quoteFor(`${a.base}/${quote}`, now)!;
+      const price = q.price * (1 + (u(`vscreen:p:${a.base}:${venue}`) - 0.5) * 0.0012);
+      const volume = q.volume === null ? null : q.volume * (0.05 + u(`vscreen:v:${a.base}:${venue}`) * 0.55);
+      return {
+        symbol: q.symbol,
+        name: a.name,
+        price,
+        changePercent: venueIndex === 1 ? null : q.changePercent + (u(`vscreen:c:${a.base}:${venue}`) - 0.5) * 0.3,
+        volume,
+        quoteVolume: volume === null ? null : volume * price,
+      };
+    });
+    return { exchange: venue, available: true, rows, timestamp: now };
+  });
+}
+
+/** The cross-venue screener board the demo serves, mirroring the server route. */
+export function venueScreenerRows(
+  quote: string,
+  sort: CrossVenueScreenSort,
+  limit: number,
+  now: number,
+): CrossVenueScreenerRow[] {
+  return sortCrossVenueScreen(computeCrossVenueScreen(venueScreenRows(quote, now)), sort).slice(0, limit);
 }
 
 export function screenerRows(quote: string, sort: string, limit: number, now: number): ScreenerRow[] {

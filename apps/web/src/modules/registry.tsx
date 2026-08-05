@@ -45,6 +45,7 @@ export const MODULE_COMPONENTS: Record<ModuleCode, LazyExoticComponent<Component
   FUNDR: mod(() => import('./FundingBoardModule'), 'FundingBoardModule'),
   FUNDX: mod(() => import('./FundingDispersionModule'), 'FundingDispersionModule'),
   OIV: mod(() => import('./OiConcentrationModule'), 'OiConcentrationModule'),
+  XSCR: mod(() => import('./VenueScreenerModule'), 'VenueScreenerModule'),
   OID: mod(() => import('./OidModule'), 'OidModule'),
   DVOL: mod(() => import('./DvolModule'), 'DvolModule'),
   TERM: mod(() => import('./TermStructureModule'), 'TermStructureModule'),

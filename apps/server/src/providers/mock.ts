@@ -31,6 +31,7 @@ import type {
   TermStructure,
   VenueDerivatives,
   VenueLiquidations,
+  VenueScreen,
   VenueQuote,
 } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
@@ -51,6 +52,7 @@ import {
   mockQuote,
   mockQuotes,
   mockScreen,
+  mockVenueScreen,
   mockSearch,
 } from './mock/market';
 import {
@@ -113,6 +115,7 @@ const MOCK_CAPABILITIES = buildProviderCapabilities({
     derivatives: syntheticCapability('getDerivatives', 'funding, OI and liquidation bundle', 60_000, 120_000),
     'venue-derivatives': syntheticCapability('getVenueDerivatives', 'configured mock compare venues', 60_000, 120_000),
     liquidations: syntheticCapability('liquidationsProvenance|getDerivatives', 'fabricated recent events for panel exercise', 60_000, 120_000),
+    'venue-screener': syntheticCapability('getVenueScreen', 'configured mock compare venues', 60_000, 120_000),
     'venue-quotes': syntheticCapability('getExchangeQuotes', 'configured mock compare venues', 60_000, 120_000),
     'venue-arbitrage': {
       ...syntheticCapability('getExchangeQuotes', 'derived from synthetic venue quotes', 60_000, 120_000),
@@ -198,6 +201,18 @@ export class MockProvider implements DataProvider {
       sourceAsOf: row.timestamp,
       units: { fundingRate: 'fraction-per-interval', openInterestValue: 'quote-asset', markPrice: 'quote-asset' },
       note: 'Synthetic venue derivatives for offline/demo use — not real market data.',
+    }, this.now()));
+  }
+  async getVenueScreen(opts: ScreenerOptions): Promise<VenueScreen[]> {
+    const rows = await mockVenueScreen(opts);
+    return rows.map((row) => withProviderReceipt(this, row, {
+      datasetFamily: 'venue-screener',
+      venue: row.exchange,
+      provenance: 'synthetic',
+      sourceAsOf: row.timestamp,
+      coverage: `${row.rows.length} synthetic pair(s) for this venue`,
+      units: { price: 'quote-asset', volume: 'base-asset', quoteVolume: 'quote-asset' },
+      note: 'Synthetic venue screener for offline/demo use — not real market data.',
     }, this.now()));
   }
   async getVenueLiquidations(symbol: string): Promise<VenueLiquidations[]> {

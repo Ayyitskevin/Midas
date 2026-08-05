@@ -1,4 +1,4 @@
-import { isOiDeltaWindow, MIDAS_VERSION } from '@midas/shared';
+import { CROSS_VENUE_SCREEN_SORTS, isOiDeltaWindow, MIDAS_VERSION, type CrossVenueScreenSort } from '@midas/shared';
 import type {
   BoardEnvelope,
   DataMethodology,
@@ -22,6 +22,8 @@ import {
   fundingRows,
   historyFor,
   liquidationsFeed,
+  venueScreenRows,
+  venueScreenerRows,
   newsFor,
   oiConcentrationRows,
   oiDeltaFor,
@@ -535,6 +537,49 @@ function handle(method: string, url: URL): Response | null {
             units: { fundingRate: 'fraction', markPrice: 'quote', openInterestValue: 'quote' },
           }),
         ),
+      );
+    }
+    // Cross-venue screener — synthetic parity with the server, same edge rules.
+    case path === '/api/venue-screener': {
+      const sort = url.searchParams.get('sort') ?? 'volume';
+      if (!(CROSS_VENUE_SCREEN_SORTS as readonly string[]).includes(sort)) {
+        return json(
+          {
+            error: 'ProviderError',
+            message: `Invalid screener sort — expected one of: ${CROSS_VENUE_SCREEN_SORTS.join(', ')}`,
+            statusCode: 400,
+          },
+          400,
+        );
+      }
+      const quote = url.searchParams.get('quote') ?? 'USDT';
+      const venueInputs = venueScreenRows(quote, now).map((venue) =>
+        demoReceipt('venue-screener', null, now, {
+          venue: venue.exchange,
+          sourceAsOf: venue.timestamp,
+          coverage: `${venue.rows.length} synthetic pair(s) for this venue`,
+        }),
+      );
+      const rows = venueScreenerRows(
+        quote,
+        sort as CrossVenueScreenSort,
+        numParam(url.searchParams.get('limit'), 50),
+        now,
+      ).map((row) => ({
+        ...row,
+        receipt: demoDerivedReceipt('venue-screener', row.symbol, now, venueInputs, {
+          id: 'cross-venue-screener',
+          version: '1',
+          formula:
+            'totalQuoteVolume := sum(venue quoteVolume); price := volume-weighted, else median, else single venue',
+        }),
+      }));
+      return json(
+        withDemoBoard(rows, 'venue-screener', now, {
+          id: 'cross-venue-screener-board',
+          version: '1',
+          formula: 'rows := per-symbol cross-venue aggregate, ranked by the requested key',
+        }),
       );
     }
     case path === '/api/screener': {

@@ -30,6 +30,8 @@ import type {
   ProviderCapabilityManifest,
   Quote,
   ScreenerRow,
+  VenueScreen,
+  VenueScreenRow,
   SearchResult,
   SolanaMarket,
   SolanaNetwork,
@@ -492,6 +494,7 @@ export class CcxtProvider implements DataProvider {
         derivatives: conditional('getDerivatives', Boolean(has['fetchFundingRate'] || has['fetchOpenInterest'] || has['fetchLiquidations']), 'bundled funding, OI and liquidation snapshot', 60_000, 300_000),
         'venue-derivatives': ccxtCapability({ method: 'getVenueDerivatives', support: 'conditional', auth: 'public', mode: 'live', coverage: 'configured public compare-exchange set', expectedCadenceMs: 60_000, maxAgeMs: 300_000, caveats: ['Each venue independently exposes funding/OI fields; partial rows are possible.'] }),
         liquidations: conditional('liquidationsProvenance|getDerivatives', Boolean(has['fetchLiquidations']), 'recent public liquidation events', 1_000, 60_000, ['Many exchanges expose no public feed or throttle it, so observed events can undercount the market.']),
+        'venue-screener': ccxtCapability({ method: 'getVenueScreen', support: 'conditional', auth: 'public', mode: 'live', coverage: 'whole ticker set per configured compare venue', expectedCadenceMs: 5_000, maxAgeMs: 60_000, caveats: ['Exchange-reported 24h volume is widely documented as inflated; treat it as a scale signal, not a verified total.', 'A venue that fails is reported as reduced coverage rather than failing the board.'] }),
         'venue-quotes': ccxtCapability({ method: 'getExchangeQuotes', support: 'conditional', auth: 'public', mode: 'live', coverage: 'configured public compare-exchange set', expectedCadenceMs: 5_000, maxAgeMs: 30_000, caveats: ['Venue failures are represented by partial coverage rather than fabricated quotes.'] }),
         'venue-arbitrage': ccxtCapability({ method: 'getExchangeQuotes', support: 'conditional', auth: 'public', mode: 'live', coverage: 'derived from contemporaneous executable venue quotes', expectedCadenceMs: 5_000, maxAgeMs: 30_000, methodology: { id: 'midas.venue-arbitrage-top-of-book', version: '1.0', formula: 'grossBps = (bestBid - bestAsk) / bestAsk * 10000; netBps = grossBps - referenceTakerFeesBps' }, caveats: ['Actionability additionally requires known fees, top-of-book size and bounded timestamp skew.'] }),
         options: ccxtCapability({ method: 'getDvol|getFuturesTermStructure|getOptionsChain', support: 'conditional', auth: 'public', mode: 'live', source: 'ccxt:deribit', venue: 'deribit', coverage: 'Deribit BTC/ETH public options, DVOL and dated futures', expectedCadenceMs: 60_000, maxAgeMs: 300_000, caveats: ['Options availability depends on the installed ccxt Deribit public methods and listed instruments.'] }),
@@ -2473,6 +2476,76 @@ export class CcxtProvider implements DataProvider {
       },
       note: value.note,
     }, now);
+  }
+
+  /**
+   * Screen every configured venue in one sweep.
+   *
+   * Cheap by construction: `fetchTickers()` returns a venue's whole ticker set
+   * in ONE call, so this costs one request per venue — not one per symbol. That
+   * is why a cross-venue screener is affordable where a cross-venue per-symbol
+   * board would not be.
+   *
+   * `Promise.allSettled`: a venue that fails drops to `available: false` and
+   * shows up as reduced coverage rather than failing the board.
+   */
+  async getVenueScreen(opts: ScreenerOptions): Promise<VenueScreen[]> {
+    const quote = (opts.quote ?? 'USDT').toUpperCase();
+    const settled = await Promise.allSettled(
+      this.getCompareExchanges().map(async (ex): Promise<VenueScreen> => {
+        // No explicit loadMarkets: ccxt loads them inside fetchTickers, and the
+        // sibling getExchangeQuotes fan-out doesn't either. One fewer upstream
+        // call per venue, per refresh.
+        const tickers = await ex.fetchTickers();
+        const rows: VenueScreenRow[] = [];
+        let newest: number | null = null;
+        for (const [sym, t] of Object.entries(tickers)) {
+          if (!sym.endsWith(`/${quote}`)) continue;
+          const price = tickerPrice(t);
+          // Skip pairs with no usable price rather than admitting a 0 that
+          // would read as a 100% cross-venue dispersion.
+          if (price == null) continue;
+          const timestamp = sourceTimestampOrNull(t.timestamp);
+          if (timestamp !== null && (newest === null || timestamp > newest)) newest = timestamp;
+          rows.push({
+            symbol: sym,
+            name: sym,
+            price,
+            // Unlike the single-venue screener this keeps a row whose 24h change
+            // the venue omitted: the symbol still contributes price, volume and
+            // breadth. Null stays null — a 0 here would read as "flat", a claim
+            // the venue never made.
+            changePercent: finiteOrNull(t.percentage),
+            volume: nonNegativeFiniteOrNull(t.baseVolume),
+            quoteVolume: nonNegativeFiniteOrNull(t.quoteVolume),
+          });
+        }
+        return withProviderReceipt(this, {
+          exchange: ex.id,
+          available: true,
+          rows,
+          timestamp: newest,
+        }, {
+          datasetFamily: 'venue-screener',
+          source: `ccxt:${ex.id}`,
+          venue: ex.id,
+          provenance: 'live',
+          sourceAsOf: newest,
+          coverage: `${rows.length} ${quote} pair(s) from the venue ticker set`,
+          units: { price: 'quote-asset', volume: 'base-asset', quoteVolume: 'quote-asset' },
+          limitations: [
+            'Exchange-reported 24h volume is widely documented as inflated; treat it as a scale signal, not a verified total.',
+          ],
+        }, this.now());
+      }),
+    );
+    const values = settled
+      .filter((result): result is PromiseFulfilledResult<VenueScreen> => result.status === 'fulfilled')
+      .map((result) => result.value);
+    if (values.length === 0 && settled.length > 0) {
+      throw new ProviderError(`${this.name}: every configured venue screener read failed`, 502);
+    }
+    return values;
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {

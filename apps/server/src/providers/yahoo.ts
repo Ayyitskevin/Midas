@@ -24,6 +24,7 @@ import type {
   SolanaWallet,
   VenueDerivatives,
   VenueLiquidations,
+  VenueScreen,
   VenueQuote,
 } from '@midas/shared';
 import { partialEvidenceLimitation } from '@midas/shared';
@@ -96,6 +97,7 @@ const YAHOO_CAPABILITIES = buildProviderCapabilities({
     derivatives: unsupported('getDerivatives', 'Yahoo does not provide the bundled crypto derivatives dataset.'),
     'venue-derivatives': unsupported('getVenueDerivatives', 'Yahoo does not provide cross-venue crypto derivatives.'),
     liquidations: unsupported('liquidationsProvenance', 'Yahoo does not publish crypto liquidation events.'),
+    'venue-screener': unsupported('getVenueScreen', 'Yahoo does not provide cross-venue crypto screening.'),
     'venue-quotes': unsupported('getExchangeQuotes', 'Yahoo does not provide executable cross-venue crypto quotes.'),
     'venue-arbitrage': unsupported('getExchangeQuotes', 'Yahoo cannot supply the venue evidence required for arbitrage.'),
     options: unsupported('getDvol|getFuturesTermStructure|getOptionsChain', 'This adapter has no Yahoo options/DVOL implementation.'),
@@ -303,6 +305,13 @@ export class YahooProvider implements DataProvider {
       'Cross-exchange derivatives is a crypto feature — use the ccxt provider',
       501,
       symbol,
+    );
+  }
+
+  async getVenueScreen(): Promise<VenueScreen[]> {
+    throw new ProviderError(
+      'Cross-exchange screening is a crypto feature — use the ccxt provider',
+      501,
     );
   }
 

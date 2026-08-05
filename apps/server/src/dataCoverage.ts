@@ -22,6 +22,7 @@ export const DATA_ROUTE_PATHS = {
   onChain: '/api/onchain/:symbol',
   fundingHistory: '/api/funding-history/:symbol',
   screener: '/api/screener',
+  venueScreener: '/api/venue-screener',
   coins: '/api/coins',
   dvol: '/api/options/dvol',
   optionsChain: '/api/options/chain',
@@ -122,6 +123,7 @@ export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
     path: DATA_ROUTE_PATHS.fundingHistory,
     coverage: receipt('funding-history'),
   },
+  { path: DATA_ROUTE_PATHS.venueScreener, coverage: receipt('venue-screener') },
   {
     path: DATA_ROUTE_PATHS.screener,
     coverage: exempt(

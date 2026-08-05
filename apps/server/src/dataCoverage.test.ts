@@ -97,6 +97,7 @@ describe('data receipt route coverage', () => {
       [DATA_ROUTE_PATHS.fundingDispersion, { url: '/api/funding-dispersion?quote=USDT&limit=1', location: 'board' }],
       [DATA_ROUTE_PATHS.venueArb, { url: '/api/venue-arb?quote=USDT&limit=1', location: 'board' }],
       [DATA_ROUTE_PATHS.oiConcentration, { url: '/api/oi-concentration?quote=USDT&limit=1', location: 'board' }],
+      [DATA_ROUTE_PATHS.venueScreener, { url: '/api/venue-screener?quote=USDT&limit=1', location: 'board' }],
       [DATA_ROUTE_PATHS.liquidations, { url: '/api/liquidations?quote=USDT&limit=1', location: 'direct' }],
       [DATA_ROUTE_PATHS.balances, { url: '/api/balances', location: 'direct' }],
       [DATA_ROUTE_PATHS.orders, { url: '/api/orders', location: 'direct' }],

@@ -29,6 +29,8 @@ import {
   termStructureFor,
   venueArbRows,
   venueDerivatives,
+  venueScreenRows,
+  venueScreenerRows,
 } from './engine';
 import { installDemoShim } from './shim';
 
@@ -96,6 +98,34 @@ describe('demo engine', () => {
     expect(feed.meta.aggregate.referenceValue).toBe(0);
     expect(feed.meta.aggregate.multiple).toBeNull();
     expect(feed.meta.aggregate.totalValue).toBeGreaterThan(0);
+  });
+
+  it('cross-venue screener mirrors the server: breadth varies and volume sums', () => {
+    const rows = venueScreenerRows('USDT', 'volume', 20, NOW);
+    expect(rows.length).toBeGreaterThan(0);
+    // The last two demo venues list only the majors, so venueCount must vary —
+    // a constant would mean the fan-out collapsed to one shape.
+    expect(new Set(rows.map((r) => r.venueCount)).size).toBeGreaterThan(1);
+    for (const row of rows) {
+      expect(row.venues.length).toBe(row.venueCount);
+      if (row.venueCount < 2) expect(row.priceDispersionBps).toBeNull();
+      if (row.totalQuoteVolume !== null) {
+        const largest = Math.max(...row.venues.map((v) => v.quoteVolume ?? 0));
+        expect(row.totalQuoteVolume).toBeGreaterThanOrEqual(largest - 1e-6);
+      }
+    }
+    // Ranked by summed quote volume, descending.
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i - 1].totalQuoteVolume ?? 0).toBeGreaterThanOrEqual(rows[i].totalQuoteVolume ?? 0);
+    }
+  });
+
+  it('carries a venue that withholds 24h change without inventing a zero', () => {
+    const venues = venueScreenRows('USDT', NOW);
+    const silent = venues.filter((v) => v.rows.every((r) => r.changePercent === null));
+    expect(silent).toHaveLength(1);
+    // The silent venue still contributes price and volume to the aggregate.
+    expect(silent[0].rows.every((r) => r.price > 0)).toBe(true);
   });
 
   it('candles are well-formed: ascending time, high ≥ open/close ≥ low', () => {
