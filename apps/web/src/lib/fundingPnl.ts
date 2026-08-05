@@ -1,9 +1,11 @@
 /**
  * Funding-carry P&L projection for a held perp position. Funding settles every
- * `intervalHours` (8h is the common cadence): a long pays when the rate is
- * positive and receives when negative; a short is the mirror. At a constant
- * rate the cumulative carry is linear in the number of settlements. Pure for
- * unit testing — it assumes the current rate holds for the whole horizon.
+ * `intervalHours` (the venue's actual cadence — 1h on Hyperliquid-style venues,
+ * 4/8h elsewhere): a long pays when the rate is positive and receives when
+ * negative; a short is the mirror. At a constant rate the cumulative carry is
+ * linear in the number of settlements. Pure for unit testing — it assumes the
+ * current rate holds for the whole horizon. An unknown cadence is an invalid
+ * projection, never a silent 8h assumption.
  */
 
 export type PerpSide = 'long' | 'short';
@@ -14,7 +16,11 @@ export interface FundingInputs {
   notional: number;
   /** Funding rate per interval, as a fraction (0.0001 = 0.01%). */
   rate: number;
-  intervalHours: number;
+  /**
+   * Venue-reported settlement cadence in hours; null/invalid when unknown —
+   * the projection is then invalid rather than silently assuming 8h.
+   */
+  intervalHours: number | null;
   horizonDays: number;
 }
 
@@ -35,6 +41,14 @@ export interface FundingProjection {
 
 const MAX_POINTS = 2000;
 
+/**
+ * The venue-reported settlement cadence when it is usable (finite, positive),
+ * else null — callers must never fall back to an assumed 8h.
+ */
+export function validIntervalHours(hours: number | null | undefined): number | null {
+  return hours != null && Number.isFinite(hours) && hours > 0 ? hours : null;
+}
+
 export function projectFunding({
   side,
   notional,
@@ -42,11 +56,17 @@ export function projectFunding({
   intervalHours,
   horizonDays,
 }: FundingInputs): FundingProjection {
-  const ih = Number.isFinite(intervalHours) && intervalHours > 0 ? intervalHours : 8;
-  const valid = Number.isFinite(notional) && notional > 0 && Number.isFinite(rate) && Number.isFinite(horizonDays) && horizonDays > 0;
+  const ih = validIntervalHours(intervalHours);
+  const valid =
+    ih != null &&
+    Number.isFinite(notional) &&
+    notional > 0 &&
+    Number.isFinite(rate) &&
+    Number.isFinite(horizonDays) &&
+    horizonDays > 0;
 
   const sideSign = side === 'long' ? -1 : 1; // long pays positive funding
-  const intervalsPerDay = 24 / ih;
+  const intervalsPerDay = ih != null ? 24 / ih : 0;
   const perInterval = valid ? sideSign * notional * rate : 0;
   const intervals = valid ? Math.floor(horizonDays * intervalsPerDay) : 0;
   const intervalsPerYear = intervalsPerDay * 365;

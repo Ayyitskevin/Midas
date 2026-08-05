@@ -191,9 +191,12 @@ export function OrderTicketModule({ panel }: ModuleProps) {
   const capBlock = live ? capBlockReason(estNotional, trading.data ?? null) : null;
   const sizingAsset = side === 'sell' ? base : quote;
   const sizingBalance = freeOf(sizingAsset);
+  // Venue id for fee-aware buy sizing ('ccxt:binance' → 'binance'); an unknown
+  // venue keeps the gross-of-fee size.
+  const sizingVenue = trading.data?.source?.replace(/^ccxt:/, '') ?? null;
 
   const applyQuickSize = (fraction: number) => {
-    const amt = quickSizeAmount(side, fraction, freeOf(base), freeOf(quote), priceRef ?? 0);
+    const amt = quickSizeAmount(side, fraction, freeOf(base), freeOf(quote), priceRef ?? 0, sizingVenue);
     if (amt != null && amt > 0) setAmount(String(Number(amt.toFixed(6))));
   };
 

@@ -1,5 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { projectFunding } from '@/lib/fundingPnl';
+import { projectFunding, validIntervalHours } from '@/lib/fundingPnl';
+
+describe('validIntervalHours', () => {
+  it('keeps a usable venue cadence and rejects the unknown', () => {
+    expect(validIntervalHours(8)).toBe(8);
+    expect(validIntervalHours(1)).toBe(1);
+    expect(validIntervalHours(4)).toBe(4);
+    expect(validIntervalHours(null)).toBeNull();
+    expect(validIntervalHours(undefined)).toBeNull();
+    expect(validIntervalHours(0)).toBeNull();
+    expect(validIntervalHours(-8)).toBeNull();
+    expect(validIntervalHours(NaN)).toBeNull();
+  });
+});
 
 describe('projectFunding', () => {
   const base = { notional: 10_000, rate: 0.0001, intervalHours: 8, horizonDays: 10 };
@@ -41,6 +54,28 @@ describe('projectFunding', () => {
     const p = projectFunding({ ...base, side: 'short', intervalHours: 1 });
     expect(p.intervalsPerDay).toBe(24);
     expect(p.intervals).toBe(240); // 10 days × 24
+  });
+
+  it('projects a 1h-cadence venue rate at 1h, not 8h', () => {
+    // Hyperliquid-style: 0.00125% per 1h settlement on a short over 10 days.
+    const p = projectFunding({ ...base, side: 'short', rate: 0.0000125, intervalHours: 1 });
+    expect(p.perInterval).toBeCloseTo(0.125, 9); // 10,000 × 0.0000125
+    expect(p.intervalsPerDay).toBe(24);
+    expect(p.intervals).toBe(240);
+    expect(p.daily).toBeCloseTo(3, 9);
+    expect(p.horizonTotal).toBeCloseTo(30, 9);
+    expect(p.aprPct).toBeCloseTo(10.95, 6); // 0.0000125 × 24 × 365 × 100
+    expect(p.points).toHaveLength(240);
+  });
+
+  it('is invalid when the settlement cadence is unknown — never assumes 8h', () => {
+    for (const intervalHours of [null, 0, -8, NaN]) {
+      const p = projectFunding({ ...base, side: 'long', intervalHours });
+      expect(p.valid).toBe(false);
+      expect(p.intervals).toBe(0);
+      expect(p.horizonTotal).toBe(0);
+      expect(p.points).toHaveLength(0);
+    }
   });
 
   it('is invalid for a non-positive notional or horizon', () => {

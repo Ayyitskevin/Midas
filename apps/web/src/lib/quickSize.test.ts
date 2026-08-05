@@ -20,6 +20,30 @@ describe('quickSizeAmount', () => {
     expect(quickSizeAmount('buy', 0.5, null, null, 50_000)).toBeNull(); // unknown quote balance
     expect(quickSizeAmount('sell', 0.5, null, 1000, 50_000)).toBeNull(); // unknown base balance
   });
+
+  it('reserves the venue taker fee on a buy so 100% fits once fees are deducted', () => {
+    // Binance 10 bps: $10,000 / ($50,000 × 1.001) = 0.1998001998... BTC
+    const amt = quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'binance');
+    expect(amt).toBeCloseTo(0.2 / 1.001, 12);
+    expect(amt!).toBeLessThan(0.2);
+    // Notional + fee equals the full quote budget exactly.
+    expect(amt! * 50_000 * 1.001).toBeCloseTo(10_000, 6);
+    // Kraken 80 bps: 0.2 / 1.008
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'kraken')).toBeCloseTo(0.2 / 1.008, 12);
+    // Partial fractions reserve proportionally: 25% at Binance.
+    expect(quickSizeAmount('buy', 0.25, 0, 10_000, 50_000, 'Binance')).toBeCloseTo(0.05 / 1.001, 12);
+  });
+
+  it('keeps the gross-of-fee size when the venue or its fee is unknown', () => {
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000)).toBeCloseTo(0.2); // no venue arg
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, null)).toBeCloseTo(0.2);
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'mexc')).toBeCloseTo(0.2); // not in schedule
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'mock')).toBeCloseTo(0.2); // demo provider
+  });
+
+  it('does not fee-reserve a sell (sized from the base asset)', () => {
+    expect(quickSizeAmount('sell', 1, 4, 0, 50_000, 'binance')).toBe(4);
+  });
 });
 
 const receipt = (state: DataReceipt['freshness']['state'] = 'fresh'): DataReceipt => ({
