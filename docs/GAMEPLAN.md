@@ -1,9 +1,8 @@
 # Midas game plan — principal engineer (≈6h autonomous day)
 
-**Date:** 2026-07-20  
-**Production tip:** `main` @ `bb63e19` (re-verify before each session)  
+**Date:** 2026-08-05 (status refreshed)  
+**Production tip:** `main` @ `bf7ccac` (re-verify before each session)  
 **Default branch:** `main` (protected: PR + **Typecheck & build**, no force-push/delete)  
-**Open PR this stream:** [#338](https://github.com/Ayyitskevin/Midas/pull/338) (`grok/main-restore-gameplan`)
 
 Budget: **~6 hours of autonomous principal-engineer work per day**. Prefer one
 cohesive green-light vertical per day over many partial starts. Protected
@@ -43,17 +42,19 @@ If blocked on install/CI env, record the limit; still land pure-logic tests.
 |---|---|---|
 | 0 | Restore `main` default + protection | Admin applied 2026-07-20 |
 | 1 | Repo-policy honesty gate | `scripts/check-repo-policy.mjs` + `pnpm test:reviewer` |
-| 2 | **Provenance note invariant (shared)** | `@midas/shared` `withHonestNote` / `provenanceNoteConsistent`; coin universe route + mock; tests |
+| 2 | Provenance note invariant (shared) | PR #338 — `@midas/shared` `withHonestNote` |
+| 3 | D+1 Shared-hosting operator checklist | `docs/SHARED_HOSTING.md` + `scripts/check-shared-hosting.mjs` (doc flags ⊆ `config.ts`; hold fail-closed) |
+| 4 | D+2 Stream / liquidations honesty | `apps/server/src/liquidationsHonesty.ts` + web badge tests — synthetic never labeled LIVE |
+| 5 | D+3 Docs CI / Pages operator note | PR #342 — `11d4aae` docs CI precedes Pages activation |
+| 6 | D+4 Minor Dependabot group | `f30d25f` safe patch/minor wave + stack regressions |
+| 7 | D+5 #278 friction template | PR #346 — sanitized friction intake |
 
 ### Next days (pick one per day)
 
 | Day focus | Slice | Why |
 |---|---|---|
-| D+1 | Shared-hosting operator checklist | ROADMAP Week 2 remainder — document multi-user env end-to-end without inventing product |
-| D+2 | Honesty regression: liquidations / stream badges | Ensure no synthetic feed can show LIVE |
-| D+3 | Docs CI / Pages operator note | Docs workflow fails without Pages env — document honestly |
-| D+4 | Minor Dependabot group (only if gates green) | PR #319 minor/patch — not majors (Vite 8 / charts 5) |
-| D+5 | #278 friction template | Issue/process only — no product invention |
+| D+6 | Dependabot majors triage (#343 Vite 8, actions bumps) | Review separately per `docs/DEPENDENCY_MIGRATION.md`; do not auto-merge |
+| D+7 | Data-trust plane follow-through | Keep `docs/DATA_TRUST_PLANE.md` receipt vocabulary honest as new boards land |
 
 ### Later / human-gated
 
