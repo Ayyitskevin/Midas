@@ -702,6 +702,7 @@ export function registerMarketRoutes(
         {
           symbol,
           window,
+          oiBasis: null,
           oiNow: null,
           oiThen: null,
           oiChangePct: null,

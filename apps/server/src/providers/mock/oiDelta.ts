@@ -38,22 +38,30 @@ export async function mockOiDelta(symbol: string, window: OiDeltaWindow): Promis
   // OI walk: correlated with the price returns by a per-symbol regime
   // coefficient, plus its own noise — so OI and price genuinely co-move (or
   // counter-move) and the classification is a real quadrant of the series, not
-  // a label pasted on afterwards.
+  // a label pasted on afterwards. The walk is CONTRACT-denominated (price-
+  // invariant), like the venues that report openInterestAmount; the notional
+  // leg is derived from it at each point's own price, so the delta is read on
+  // the contracts basis (see summarizeOiDelta).
   const regime = seeded(entry.symbol, day, 'oidregime');
   const corr = uniform(regime, -1, 1);
   const amp = uniform(regime, 0.5, 2.5); // OI % response per 1% of price
   const noiseRng = seeded(entry.symbol, window, day, 'oidnoise');
-  const oiBase = Math.floor(uniform(seeded(entry.symbol, day, 'oidbase'), 1_000, 250_000) * (mid > 1000 ? 1 : 1000)) * mid;
+  const oiContractBase = Math.floor(uniform(seeded(entry.symbol, day, 'oidbase'), 1_000, 250_000) * (mid > 1000 ? 1 : 1000));
   const oiCum: number[] = [0];
   for (let i = 1; i < POINTS; i++) {
     oiCum.push(oiCum[i - 1] + corr * amp * rets[i] + gaussian(noiseRng) * 0.004);
   }
 
-  const points: OiDeltaPoint[] = prices.map((price, i) => ({
-    timestamp: now - (POINTS - 1 - i) * bucketMs,
-    openInterestValue: Math.round(oiBase * Math.exp(oiCum[i])),
-    price: round(price, 6),
-  }));
+  const points: OiDeltaPoint[] = prices.map((price, i) => {
+    const roundedPrice = round(price, 6);
+    const amount = Math.round(oiContractBase * Math.exp(oiCum[i]));
+    return {
+      timestamp: now - (POINTS - 1 - i) * bucketMs,
+      openInterestAmount: amount,
+      openInterestValue: Math.round(amount * roundedPrice),
+      price: roundedPrice,
+    };
+  });
 
   return {
     symbol: perp,

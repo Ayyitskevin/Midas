@@ -566,6 +566,13 @@ export class CcxtProvider implements DataProvider {
    * closes over the same window, then reduced to the ΔOI × Δprice quadrant by
    * the shared summarizeOiDelta helper.
    *
+   * Basis: ccxt's OpenInterest structure carries openInterestAmount
+   * (contracts/base units) alongside openInterestValue (notional). The delta
+   * prefers the contract-denominated scalar — price-invariant positioning —
+   * and falls back to notional with the basis labeled on `oiBasis` plus a
+   * receipt limitation, because notional OI drifts with price and would read
+   * a flat-position rally as a buildup.
+   *
    * Alignment: each OI observation is paired with the close of the price bar
    * whose floor-aligned bucket it falls into — bucket width = the OI timeframe
    * (5m/15m/1h/4h per window). Some venues timestamp OI at the PERIOD END while

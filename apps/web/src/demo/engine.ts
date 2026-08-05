@@ -520,6 +520,7 @@ export function oiDeltaFor(symbol: string, window: OiDeltaWindow, now: number): 
     return {
       symbol: perp,
       window,
+      oiBasis: null,
       oiNow: null,
       oiThen: null,
       oiChangePct: null,
@@ -536,8 +537,9 @@ export function oiDeltaFor(symbol: string, window: OiDeltaWindow, now: number): 
   const bucketMs = OI_DELTA_WINDOW_MS[window] / N;
   const corr = u(`${asset.base}:oidregime`) * 2 - 1;
   const amp = 0.5 + u(`${asset.base}:oidamp`) * 2; // OI % response per 1% of price
-  const mid = priceAt(asset, now);
-  const oiBase = Math.floor((1_000 + u(`${asset.base}:oidbase`) * 249_000) * (asset.price > 1000 ? 1 : 1000)) * mid;
+  // Contract-denominated OI base — the walk is price-invariant, like venues
+  // that report openInterestAmount; the notional leg is derived per point.
+  const oiContractBase = Math.floor((1_000 + u(`${asset.base}:oidbase`) * 249_000) * (asset.price > 1000 ? 1 : 1000));
 
   const prices = Array.from({ length: N }, (_, i) => priceAt(asset, now - (N - 1 - i) * bucketMs));
   const oiCum: number[] = [0];
@@ -546,11 +548,16 @@ export function oiDeltaFor(symbol: string, window: OiDeltaWindow, now: number): 
     const noise = (u(`${asset.base}:oidnoise${window}:${Math.floor((now - (N - 1 - i) * bucketMs) / bucketMs)}`) - 0.5) * 0.008;
     oiCum.push(oiCum[i - 1] + corr * amp * priceRet + noise);
   }
-  const points: OiDeltaPoint[] = prices.map((price, i) => ({
-    timestamp: now - (N - 1 - i) * bucketMs,
-    openInterestValue: Math.round(oiBase * Math.exp(oiCum[i])),
-    price: Math.round(price * 1e6) / 1e6,
-  }));
+  const points: OiDeltaPoint[] = prices.map((price, i) => {
+    const roundedPrice = Math.round(price * 1e6) / 1e6;
+    const amount = Math.round(oiContractBase * Math.exp(oiCum[i]));
+    return {
+      timestamp: now - (N - 1 - i) * bucketMs,
+      openInterestAmount: amount,
+      openInterestValue: Math.round(amount * roundedPrice),
+      price: roundedPrice,
+    };
+  });
 
   return {
     symbol: perp,
