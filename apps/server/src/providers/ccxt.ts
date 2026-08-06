@@ -42,12 +42,11 @@ import type {
   SolanaValidators,
   SolanaWallet,
   TermStructure,
-  TermStructurePoint,
   VenueDerivatives,
   VenueLiquidations,
   VenueQuote,
 } from '@midas/shared';
-import { annualizedBasisPct, computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, partialEvidenceLimitation, summarizeOiDelta, withReceiptLimitations } from '@midas/shared';
+import { computeMaxPainStrike, computePutCallOiRatio, OI_DELTA_WINDOW_MS, partialEvidenceLimitation, summarizeOiDelta, withReceiptLimitations } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import {
@@ -91,7 +90,7 @@ import {
   timeframeSeconds,
   toPerpSymbol,
 } from './ccxt/helpers';
-import { baseAsset, fetchDvol, type DeribitOptionQuote } from './ccxt/options';
+import { baseAsset, fetchDvol, fetchFuturesTermStructure, type DeribitOptionQuote } from './ccxt/options';
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
@@ -2068,133 +2067,7 @@ export class CcxtProvider implements DataProvider {
    * dated futures is an honest 'unavailable'.
    */
   async getFuturesTermStructure(symbol: string): Promise<TermStructure> {
-    const base = baseAsset(this, symbol);
-    const now = this.now();
-    const unavailable = (note: string): TermStructure => {
-      const value: TermStructure = {
-        underlying: base, referencePrice: null, perpPrice: null, points: [], asOf: null,
-        provenance: 'unavailable', source: 'ccxt:deribit', note,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
-        coverage: 'Deribit dated-futures term structure', units: { price: 'USD', annualizedBasisPct: 'percent' }, note,
-      }, now) };
-    };
-    const ex = this.deribit();
-    try {
-      await ex.loadMarkets();
-    } catch (err) {
-      throw new ProviderError(`Deribit markets read failed — ${safeErrorLabel(err)}.`, 502, base);
-    }
-    const markets = Object.values(ex.markets ?? {}) as Array<{
-      symbol: string;
-      base?: string;
-      active?: boolean;
-      swap?: boolean;
-      future?: boolean;
-      expiry?: number;
-    }>;
-    const futures = markets.filter(
-      (m) => m.future === true && m.swap !== true && m.base === base && m.active !== false && typeof m.expiry === 'number' && m.expiry > now,
-    );
-    if (futures.length === 0) {
-      return unavailable(`Deribit lists no active dated ${base} futures — no term structure to show.`);
-    }
-    const perp = markets.find((m) => m.swap === true && m.base === base);
-    const wanted = [...futures.map((f) => f.symbol), ...(perp ? [perp.symbol] : [])];
-    // One batched read; a venue that rejects the batch falls back per-symbol so
-    // one bad instrument doesn't sink the board (same pattern as priceAssetsUsd).
-    const tickers: Record<string, Ticker> = {};
-    let tickerReadFailures = 0;
-    let batchFailureLabel: string | null = null;
-    try {
-      Object.assign(tickers, await ex.fetchTickers(wanted));
-    } catch (error) {
-      batchFailureLabel = safeErrorLabel(error);
-      await Promise.all(
-        wanted.map(async (s) => {
-          try {
-            tickers[s] = await ex.fetchTicker(s);
-          } catch {
-            tickerReadFailures += 1;
-            // leave this instrument unpriced — its point is dropped below
-          }
-        }),
-      );
-    }
-    if (wanted.length > 0 && Object.keys(tickers).length === 0) {
-      throw new ProviderError(
-        `Deribit futures ticker read failed — ${batchFailureLabel ?? 'error'}.`,
-        502,
-        base,
-      );
-    }
-    const perpPrice = perp ? tickerPrice(tickers[perp.symbol] ?? {}) : null;
-    const points: TermStructurePoint[] = [];
-    for (const f of futures) {
-      const price = tickerPrice(tickers[f.symbol] ?? {});
-      const days = (f.expiry! - now) / 86_400_000;
-      const basis = annualizedBasisPct(price, perpPrice, days);
-      // No price or no basis → the point is dropped, never zeroed in.
-      if (price == null || basis == null) continue;
-      points.push({ expiry: f.expiry!, futureSymbol: f.symbol, price, annualizedBasisPct: basis, daysToExpiry: days });
-    }
-    points.sort((a, b) => a.expiry - b.expiry);
-    if (points.length === 0) {
-      if (perp && Object.keys(tickers).length > 0) {
-        throw new ProviderError(
-          `Deribit returned malformed or unpriced ${base} futures tickers.`,
-          502,
-          base,
-          'malformed-upstream',
-        );
-      }
-      return unavailable(`Deribit returned no usable, perp-referenced ${base} futures prices.`);
-    }
-    const usableTickerCount = wanted.filter((tickerSymbol) => tickerPrice(tickers[tickerSymbol] ?? {}) !== null).length;
-    const omittedTickerCount = wanted.length - usableTickerCount;
-    const contributingTickers = [
-      ...(perp ? [tickers[perp.symbol]] : []),
-      ...points.map((point) => tickers[point.futureSymbol]),
-    ].filter((ticker): ticker is Ticker => ticker != null);
-    const tickerTimes = contributingTickers.map((ticker) => sourceTimestampOrNull(ticker.timestamp));
-    const sourceAsOf = tickerTimes.length > 0 && tickerTimes.every((timestamp) => timestamp !== null)
-      ? Math.min(...tickerTimes as number[])
-      : null;
-    const value: TermStructure = {
-      underlying: base,
-      referencePrice: perpPrice,
-      perpPrice,
-      points: points.slice(0, 12),
-      asOf: sourceAsOf,
-      provenance: 'live',
-      source: 'ccxt:deribit',
-      note: perpPrice == null ? 'No Deribit perpetual price — basis could not be referenced to the perp.' : null,
-    };
-    const rawInput = providerReceipt(this, {
-      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
-      provenance: 'live', sourceAsOf, coverage: 'raw Deribit futures and perpetual ticker prices',
-      units: { price: 'USD' },
-      limitations: [
-        ...(sourceAsOf === null ? ['One or more contributing Deribit tickers omitted a source timestamp.'] : []),
-        ...(omittedTickerCount > 0
-          ? [partialEvidenceLimitation(
-              `Futures ticker fan-out attempted ${wanted.length} instrument(s); ${usableTickerCount} returned usable prices, ${tickerReadFailures} reads failed, and ${Math.max(0, omittedTickerCount - tickerReadFailures)} were missing or malformed.`,
-            )]
-          : []),
-      ],
-    }, now);
-    return withProviderDerivedReceipt(this, value, {
-      datasetFamily: 'options', source: 'ccxt:deribit', instrument: base, venue: 'deribit',
-      provenance: 'live', inputReceipts: [rawInput], sourceAsOf,
-      coverage: 'Deribit dated-futures term structure',
-      units: { price: 'USD', annualizedBasisPct: 'percent' },
-      methodology: {
-        id: 'midas.annualized-simple-basis', version: '1.0.0',
-        formula: '(F/S - 1) * 365/days * 100',
-      },
-      note: value.note,
-    }, now);
+    return fetchFuturesTermStructure(this, symbol);
   }
 
   /**
