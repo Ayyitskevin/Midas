@@ -10,7 +10,6 @@ import type {
   DexPools,
   DvolSnapshot,
   DvolSymbol,
-  DataReceipt,
   LiquidationsProvenance,
   LiquidationSourceCapability,
   FundingHistoryPoint,
@@ -43,7 +42,7 @@ import type {
   VenueLiquidations,
   VenueQuote,
 } from '@midas/shared';
-import { partialEvidenceLimitation, withReceiptLimitations } from '@midas/shared';
+import { partialEvidenceLimitation } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import {
@@ -77,7 +76,6 @@ import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 import {
   TIMEFRAME_MAP,
   ccxtRegistry,
-  compareExchangeIds,
   isKnownExchange,
   readFunding,
   readOpenInterest,
@@ -99,6 +97,8 @@ import {
   fundingOmission,
   openInterestOmission,
 } from './ccxt/derivatives';
+import { buildCompareExchanges, getExchangeQuotes } from './ccxt/venueCompare';
+import { crossVenuePartialLimitation, withRowReceiptLimitation } from './ccxt/crossVenue';
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
@@ -112,35 +112,6 @@ import {
   sourceTimestampOrNull,
 } from './ccxt/coerce';
 
-
-function crossVenuePartialLimitation(
-  family: 'quote' | 'derivatives' | 'liquidations',
-  attempted: number,
-  returned: number,
-  failed: number,
-): string {
-  const unsupportedOrEmpty = attempted - returned - failed;
-  return partialEvidenceLimitation(
-    `Cross-venue ${family} fan-out attempted ${attempted} venue(s); ${returned} returned usable evidence, ` +
-    `${failed} failed, and ${unsupportedOrEmpty} returned unsupported or empty evidence.`,
-  );
-}
-
-function withRowReceiptLimitation<T extends { receipt?: DataReceipt }>(
-  value: T,
-  limitation: string,
-  instrument: string,
-): T & { receipt: DataReceipt } {
-  if (!value.receipt) {
-    throw new ProviderError(
-      `Cross-venue provider returned unreceipted evidence for ${instrument}`,
-      502,
-      instrument,
-      'malformed-upstream',
-    );
-  }
-  return { ...value, receipt: withReceiptLimitations(value.receipt, [limitation]) };
-}
 
 interface MappingSummary {
   rows: unknown[];
@@ -629,81 +600,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
-    const s = this.normalize(symbol);
-    const settled = await Promise.allSettled(
-      this.compareExchanges().map(async (ex): Promise<VenueQuote> => {
-        const t = await ex.fetchTicker(s);
-        const price = tickerPrice(t);
-        // Drop a venue whose ticker carries no usable price rather than
-        // fabricating 0 — a fake 0 reads as a ~100% cross-venue discrepancy.
-        if (price == null) {
-          throw new ProviderError(`${ex.id} ${s}: ticker has no price`, 502, s, 'malformed-upstream');
-        }
-        const previousClose = positiveFiniteOrNull(t.previousClose) ?? positiveFiniteOrNull(t.open);
-        const changePercent = finiteOrNull(t.percentage) ??
-          (previousClose === null ? null : ((price - previousClose) / previousClose) * 100);
-        if (changePercent === null) {
-          throw new ProviderError(
-            `${ex.id} ${s}: ticker has no change-percent evidence`,
-            502,
-            s,
-            'malformed-upstream',
-          );
-        }
-        const sourceTimestamp = sourceTimestampOrNull(t.timestamp);
-        const sizes = t as Ticker & { bidVolume?: number | null; askVolume?: number | null };
-        const value: VenueQuote = {
-          exchange: ex.name ?? ex.id,
-          price,
-          bid: positiveFiniteOrNull(t.bid),
-          ask: positiveFiniteOrNull(t.ask),
-          bidSize: positiveFiniteOrNull(sizes.bidVolume),
-          askSize: positiveFiniteOrNull(sizes.askVolume),
-          changePercent,
-          volume: nonNegativeFiniteOrNull(t.baseVolume),
-          timestamp: sourceTimestamp,
-        };
-        return withProviderReceipt(this, value, {
-          datasetFamily: 'venue-quotes',
-          source: `ccxt:${ex.id}`,
-          instrument: s,
-          venue: ex.id,
-          provenance: 'live',
-          sourceAsOf: sourceTimestamp,
-          units: {
-            price: 'quote-asset', bid: 'quote-asset', ask: 'quote-asset',
-            bidSize: 'base-asset', askSize: 'base-asset', volume: 'base-asset',
-          },
-          limitations: [
-            ...(sourceTimestamp === null ? ['The venue ticker omitted its source timestamp.'] : []),
-            ...(value.volume === null
-              ? [partialEvidenceLimitation('The venue ticker omitted valid 24-hour base volume.')]
-              : []),
-            ...(value.bid === null || value.ask === null
-              ? [partialEvidenceLimitation('The venue ticker omitted a valid bid or ask.')]
-              : []),
-            ...(value.bidSize === null || value.askSize === null
-              ? [partialEvidenceLimitation('The venue ticker omitted executable top-of-book size.')]
-              : []),
-          ],
-        }, this.now());
-      }),
-    );
-    const values = settled
-      .filter((r): r is PromiseFulfilledResult<VenueQuote> => r.status === 'fulfilled')
-      .map((r) => r.value);
-    const failures = settled.length - values.length;
-    if (values.length === 0 && failures > 0) {
-      const category = settled.every(
-        (result) => result.status === 'rejected' &&
-          result.reason instanceof ProviderError &&
-          result.reason.dataHealthCategory === 'malformed-upstream',
-      ) ? 'malformed-upstream' : 'upstream-unavailable';
-      throw new ProviderError(`${this.name} ${s}: every configured venue quote read failed`, 502, s, category);
-    }
-    if (failures === 0) return values;
-    const limitation = crossVenuePartialLimitation('quote', settled.length, values.length, failures);
-    return values.map((value) => withRowReceiptLimitation(value, limitation, s));
+    return getExchangeQuotes(this, symbol);
   }
 
   async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
@@ -1662,23 +1559,12 @@ export class CcxtProvider implements DataProvider {
   }
 
   /**
-   * Lazily build the set of exchanges used for the multi-exchange compare.
-   * Public so extracted ccxt/* readers satisfy CcxtReadContext.
+   * The set of exchanges used for the multi-exchange compare, built once and
+   * cached. Public so extracted ccxt/* readers satisfy CcxtReadContext.
    */
   compareExchanges(): Exchange[] {
     if (!this.compareExchangesCache) {
-      const ids = compareExchangeIds(process.env.MIDAS_CCXT_COMPARE);
-      const registry = ccxtRegistry();
-      this.compareExchangesCache = ids
-        .map((id) => {
-          // Same allowlist the primary-exchange constructor uses: `registry[id]`
-          // for an inherited Object member (constructor, toString, …) IS a
-          // function, so the typeof guard alone is bypassable.
-          if (!isKnownExchange(id)) return null;
-          const Ctor = registry[id];
-          return typeof Ctor === 'function' ? new Ctor({ enableRateLimit: true }) : null;
-        })
-        .filter((e): e is Exchange => e !== null);
+      this.compareExchangesCache = buildCompareExchanges();
     }
     return this.compareExchangesCache;
   }
