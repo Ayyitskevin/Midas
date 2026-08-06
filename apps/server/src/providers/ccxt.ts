@@ -69,7 +69,7 @@ import {
   mergeVenueRows,
   sumUnrealizedPnl,
 } from './accountReads';
-import { EXECUTION_SAFETY_HOLD_REASON, mapPlacedOrder } from '../trading';
+import { mapPlacedOrder } from '../trading';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 import {
@@ -97,6 +97,7 @@ import {
   getVenueDerivatives,
   getVenueScreen,
 } from './ccxt/venueCompare';
+import { cancelOrder, placeOrder } from './ccxt/trading';
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
@@ -128,63 +129,6 @@ function accountOmissionCaveat(mapping: MappingSummary | null, label: string): s
   if (!mapping || mapping.omitted === 0) return null;
   return partialEvidenceLimitation(
     `${mapping.omitted} of ${mapping.attempted} ${label} row(s) were malformed and omitted; aggregates are partial.`,
-  );
-}
-
-/**
- * The provider-level execution safety hold, in the exact shape the route layer
- * returns for POST /api/orders (error name TradingSafetyHold, the shared
- * reason constant, 503) so clients cannot tell the two layers apart. Placement
- * only — cancellation is live under the cancel-only posture.
- */
-function tradingSafetyHold(): ProviderError {
-  const err = new ProviderError(EXECUTION_SAFETY_HOLD_REASON, 503);
-  err.name = 'TradingSafetyHold';
-  return err;
-}
-
-/**
- * Map a failed cancel attempt to an honest outcome. The raw ccxt error message
- * is inspected ONLY for classification — it can embed the signed request URL
- * (HMAC signature / API key), so client-facing text is always rebuilt.
- *
- * - no exchange verdict (timeout/network) → 502 "outcome unknown": the cancel
- *   may or may not have landed; never claim canceled when unknown.
- * - order no longer open (filled / already canceled) → 409.
- * - any other rejection → 502: the cancel did NOT happen, order still open.
- */
-function classifyCancelError(err: unknown, id: string, symbol: string): ProviderError {
-  if (err instanceof ProviderError) return err;
-  const name = err instanceof Error ? err.name : '';
-  const rawMsg = err instanceof Error ? err.message : '';
-  if (
-    err instanceof ccxt.NetworkError ||
-    ['RequestTimeout', 'ExchangeNotAvailable', 'DDoSProtection', 'NetworkError'].includes(name)
-  ) {
-    return new ProviderError(
-      `Cancel outcome UNKNOWN for order ${id} on ${symbol} — the exchange did not confirm (${safeErrorLabel(err)}). ` +
-        'Check the exchange for the true order state before assuming it is open or canceled.',
-      502,
-      symbol,
-      'upstream-unavailable',
-      'cancel-outcome-unknown',
-    );
-  }
-  if (
-    name === 'OrderNotFound' ||
-    name === 'InvalidOrder' ||
-    /already (filled|cancelled|canceled|closed)|order does not exist|unknown order/i.test(rawMsg)
-  ) {
-    return new ProviderError(
-      `Order ${id} on ${symbol} is no longer open — already filled or canceled (it may also rest on another venue of this account).`,
-      409,
-      symbol,
-    );
-  }
-  return new ProviderError(
-    `Cancel rejected by the exchange for order ${id} on ${symbol} (${safeErrorLabel(err)}) — the order should still be open.`,
-    502,
-    symbol,
   );
 }
 
@@ -1142,22 +1086,7 @@ export class CcxtProvider implements DataProvider {
    * Errors are classified WITHOUT leaking the raw ccxt message (signed URLs).
    */
   async cancelOrder(id: string, symbol: string): Promise<CancelResult> {
-    if (!this.exchange.has['cancelOrder']) {
-      throw new ProviderError(`${this.name} does not support order cancellation.`, 501);
-    }
-    const sym = this.normalize(symbol);
-    try {
-      const raw = (await this.exchange.cancelOrder(id, sym)) as unknown as Record<string, unknown> | null;
-      const o = raw ?? {};
-      const strField = (v: unknown): string => (typeof v === 'string' ? v : '');
-      return {
-        id: strField(o.id) || id,
-        symbol: strField(o.symbol) || sym,
-        status: strField(o.status) || 'canceled',
-      };
-    } catch (err) {
-      throw classifyCancelError(err, id, sym);
-    }
+    return cancelOrder(this, id, symbol);
   }
 
   /**
@@ -1168,7 +1097,7 @@ export class CcxtProvider implements DataProvider {
    * (present or future) can execute a live write while the hold stands.
    */
   async placeOrder(_req: OrderRequest): Promise<PlacedOrder> {
-    throw tradingSafetyHold();
+    return placeOrder(_req);
   }
 
   async getFundingHistory(symbol: string, limit: number): Promise<FundingHistoryPoint[]> {
