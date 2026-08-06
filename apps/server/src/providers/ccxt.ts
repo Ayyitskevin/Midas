@@ -91,6 +91,7 @@ import {
   timeframeSeconds,
   toPerpSymbol,
 } from './ccxt/helpers';
+import { baseAsset, fetchDvol, type DeribitOptionQuote } from './ccxt/options';
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
@@ -361,15 +362,6 @@ function ccxtCapability(input: Partial<CapabilityDefinition> & Pick<CapabilityDe
   };
 }
 
-/** The fields the options surface reads off a ccxt option-chain entry. */
-interface DeribitOptionQuote {
-  openInterest?: number;
-  markPrice?: number;
-  underlyingPrice?: number;
-  timestamp?: number;
-  info?: { mark_iv?: number };
-}
-
 /**
  * Live crypto market data via CCXT — one integration, ~100+ exchanges, with
  * public market-data endpoints that require no API keys. This is the cornerstone
@@ -392,7 +384,8 @@ export class CcxtProvider implements DataProvider {
   private readonly userKeyed: boolean;
   private marketsPromise: Promise<unknown> | null = null;
   private compareExchanges: Exchange[] | null = null;
-  private readonly now: () => number;
+  /** Injected clock; public so extracted ccxt/* readers satisfy CcxtReadContext. */
+  readonly now: () => number;
 
   constructor(creds?: CcxtUserCreds, deps: CcxtProviderDeps = {}) {
     const id = (creds?.exchange ?? deps.exchange?.id ?? process.env.MIDAS_CCXT_EXCHANGE ?? 'binance').toLowerCase();
@@ -2047,27 +2040,12 @@ export class CcxtProvider implements DataProvider {
 
   private deribitClient: Exchange | null = null;
 
-  /** The lazy, public Deribit client for the options surface. */
-  private deribit(): Exchange {
+  /** The lazy, public Deribit client for the options surface (CcxtReadContext). */
+  deribit(): Exchange {
     if (!this.deribitClient) {
       this.deribitClient = new (ccxtRegistry()['deribit'])({ enableRateLimit: true });
     }
     return this.deribitClient;
-  }
-
-  /** Base asset of any symbol form — BTC/USDT, BTC-USD or BTC all give BTC. */
-  private baseAsset(symbol: string): string {
-    return this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
-  }
-
-  private async dvolUnavailable(symbol: DvolSymbol, note: string): Promise<DvolSnapshot> {
-    const value: DvolSnapshot = {
-      symbol, value: null, history: [], asOf: null, provenance: 'unavailable', source: 'ccxt:deribit', note,
-    };
-    return { ...value, receipt: providerUnavailableReceipt(this, {
-      datasetFamily: 'options', source: 'ccxt:deribit', instrument: symbol, venue: 'deribit',
-      coverage: 'Deribit DVOL level and history', units: { value: 'annualized-volatility-percent' }, note,
-    }, this.now()) };
   }
 
   /**
@@ -2079,69 +2057,7 @@ export class CcxtProvider implements DataProvider {
    * distinguish them from ordinary lack of support.
    */
   async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
-    const ex = this.deribit() as Exchange & {
-      publicGetGetVolatilityIndexData?: (params: Record<string, unknown>) => Promise<unknown>;
-    };
-    if (typeof ex.publicGetGetVolatilityIndexData !== 'function') {
-      return this.dvolUnavailable(symbol, 'The installed ccxt build exposes no Deribit volatility-index endpoint — DVOL is unavailable.');
-    }
-    try {
-      const end = this.now();
-      const res = (await ex.publicGetGetVolatilityIndexData({
-        currency: symbol,
-        start_timestamp: end - 40 * 86_400_000,
-        end_timestamp: end,
-        resolution: '1D',
-      })) as { result?: { data?: unknown } };
-      // Rows are [timestamp_ms, open, high, low, close] — the daily index fixes.
-      if (!Array.isArray(res?.result?.data)) {
-        throw new ProviderError(
-          `Deribit returned a malformed DVOL response for ${symbol}.`,
-          502,
-          symbol,
-          'malformed-upstream',
-        );
-      }
-      const rows = res.result.data as number[][];
-      const history = rows
-        .filter((r) => Array.isArray(r) && Number.isFinite(r[0]) && Number.isFinite(r[4]) && r[4] > 0)
-        .map((r) => ({ time: r[0], value: r[4] }));
-      const last = history[history.length - 1];
-      if (!last) {
-        if (rows.length > 0) {
-          throw new ProviderError(
-            `Deribit returned malformed DVOL fixes for ${symbol}.`,
-            502,
-            symbol,
-            'malformed-upstream',
-          );
-        }
-        return this.dvolUnavailable(symbol, `Deribit returned no DVOL fixes for ${symbol} — nothing to show.`);
-      }
-      const omitted = rows.length - history.length;
-      const value: DvolSnapshot = {
-        symbol,
-        value: last.value,
-        history,
-        asOf: last.time,
-        provenance: 'live',
-        source: 'ccxt:deribit',
-        note: null,
-      };
-      return withProviderReceipt(this, value, {
-        datasetFamily: 'options', source: 'ccxt:deribit', instrument: symbol, venue: 'deribit',
-        provenance: 'live', sourceAsOf: last.time, coverage: 'Deribit DVOL level and history',
-        units: { value: 'annualized-volatility-percent' },
-        limitations: omitted > 0
-          ? [partialEvidenceLimitation(
-              `DVOL read attempted ${rows.length} fix row(s); ${history.length} returned usable evidence and ${omitted} were malformed and omitted.`,
-            )]
-          : [],
-      }, end);
-    } catch (err) {
-      if (err instanceof ProviderError) throw err;
-      throw new ProviderError(`Deribit DVOL read failed — ${safeErrorLabel(err)}.`, 502, symbol);
-    }
+    return fetchDvol(this, symbol);
   }
 
   /**
@@ -2152,7 +2068,7 @@ export class CcxtProvider implements DataProvider {
    * dated futures is an honest 'unavailable'.
    */
   async getFuturesTermStructure(symbol: string): Promise<TermStructure> {
-    const base = this.baseAsset(symbol);
+    const base = baseAsset(this, symbol);
     const now = this.now();
     const unavailable = (note: string): TermStructure => {
       const value: TermStructure = {
@@ -2290,7 +2206,7 @@ export class CcxtProvider implements DataProvider {
    * reports it (mark_iv) — never implied from the mark.
    */
   async getOptionsChain(symbol: string, expiry: number | 'nearest' = 'nearest'): Promise<OptionsChain> {
-    const base = this.baseAsset(symbol);
+    const base = baseAsset(this, symbol);
     const now = this.now();
     const unavailable = (note: string): OptionsChain => {
       const value: OptionsChain = {
@@ -2609,8 +2525,8 @@ export class CcxtProvider implements DataProvider {
 
   // -- internals -----------------------------------------------------------
 
-  /** BTC-USD → BTC/USD; already-unified symbols pass through. */
-  private normalize(symbol: string): string {
+  /** BTC-USD → BTC/USD; already-unified symbols pass through. Public for CcxtReadContext. */
+  normalize(symbol: string): string {
     const s = symbol.trim().toUpperCase();
     return s.includes('/') ? s : s.replace('-', '/');
   }
