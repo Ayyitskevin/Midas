@@ -94,6 +94,14 @@ import { fetchDvol, fetchFuturesTermStructure, fetchOptionsChain } from './ccxt/
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
 export { compareExchangeIds, isKnownExchange, safeErrorLabel, toPerpSymbol } from './ccxt/helpers';
+import {
+  aggregateCandles,
+  intervalForSeconds,
+  finiteOrNull,
+  nonNegativeFiniteOrNull,
+  positiveFiniteOrNull,
+  sourceTimestampOrNull,
+} from './ccxt/coerce';
 
 const HOUR_MS = 3_600_000;
 
@@ -104,52 +112,6 @@ const HOUR_MS = 3_600_000;
  */
 const LIQUIDATION_THROTTLE_NOTE =
   'Exchange liquidation streams are throttled (~1/sec) and are widely documented to under-report; treat sizes as indicative, not exact.';
-
-/**
- * Aggregate fine-grained candles into larger buckets — standard OHLCV rollup
- * (open=first, high=max, low=min, close=last, volume=sum, time=bucket start).
- * Input must be time-ascending (ccxt's fetchOHLCV contract).
- */
-function aggregateCandles(candles: Candle[], bucketSec: number): Candle[] {
-  const out: Candle[] = [];
-  for (const c of candles) {
-    const bucket = Math.floor(c.time / bucketSec) * bucketSec;
-    const last = out[out.length - 1];
-    if (last && last.time === bucket) {
-      last.high = Math.max(last.high, c.high);
-      last.low = Math.min(last.low, c.low);
-      last.close = c.close;
-      last.volume += c.volume;
-    } else {
-      out.push({ time: bucket, open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume });
-    }
-  }
-  return out;
-}
-
-/** The Interval whose length is exactly `sec` (INTERVAL_SECONDS values are unique), or null. */
-function intervalForSeconds(sec: number): Interval | null {
-  for (const [key, value] of Object.entries(INTERVAL_SECONDS)) {
-    if (value === sec) return key as Interval;
-  }
-  return null;
-}
-
-function finiteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function nonNegativeFiniteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function positiveFiniteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function sourceTimestampOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
-}
 
 /**
  * Parse a ccxt `fetchLiquidations` response into the unified shape.
