@@ -52,15 +52,18 @@ import {
   withProviderReceipt,
   type CapabilityDefinition,
 } from './receipts';
-import { dexscreenerEnabled, fetchDexPools } from './dexscreener';
-import { fetchGeckoPools, geckoterminalEnabled } from './geckoterminal';
-import { fetchSolanaNetwork } from '../solana/network';
-import { fetchSolanaWallet } from '../solana/wallet';
-import { fetchSolanaPools, fetchSolanaTrending } from '../solana/dex';
-import { fetchSolanaStaking, fetchSolanaValidators } from '../solana/staking';
-import { fetchSolanaToken } from '../solana/token';
-import { fetchSolanaQuote } from '../solana/jupiter';
-import { fetchSolanaMarket } from '../solana/market';
+import {
+  getDexPools,
+  getSolanaDexPools,
+  getSolanaMarket,
+  getSolanaNetwork,
+  getSolanaQuote,
+  getSolanaStaking,
+  getSolanaToken,
+  getSolanaTrending,
+  getSolanaValidators,
+  getSolanaWallet,
+} from './ccxt/onchain';
 import { STABLES, ccxtKeysConfigured, mapCcxtBalanceWithDiagnostics, sumValueUsd, unpricedCaveat } from './balances';
 import {
   mapMyTradesWithDiagnostics,
@@ -567,78 +570,52 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getDexPools(symbol: string): Promise<DexPools> {
-    const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
-    // Opt-in live on-chain read (Dexscreener); otherwise honestly unavailable.
-    if (dexscreenerEnabled()) return fetchDexPools(base);
-    if (geckoterminalEnabled()) return fetchGeckoPools(base);
-    return {
-      symbol: base,
-      provenance: 'unavailable',
-      note: `On-chain/DEX pools need an on-chain source; ${this.name} reads centralized exchanges only. Set MIDAS_DEX_SOURCE=dexscreener for a live read.`,
-      pools: [],
-    };
+    return getDexPools(this, symbol);
   }
 
   /** Read-only Solana network health (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaNetwork(): Promise<SolanaNetwork> {
-    const solPriceUsd = await this.solPrice();
-    return fetchSolanaNetwork(solPriceUsd);
+    return getSolanaNetwork(this);
   }
 
   /** Read-only Solana wallet inspector (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaWallet(address: string): Promise<SolanaWallet> {
-    // Price only SOL (from this exchange) + stablecoins (pinned in the mapper);
-    // exotic SPL tokens are honestly left unpriced rather than guessed.
-    const solPriceUsd = await this.solPrice();
-    return fetchSolanaWallet(address, (sym) => (sym === 'SOL' ? solPriceUsd : null));
+    return getSolanaWallet(this, address);
   }
 
   /** Trending Solana tokens (env-gated live GeckoTerminal; honest 'unavailable' otherwise). */
   async getSolanaTrending(): Promise<SolanaTrending> {
-    return fetchSolanaTrending();
+    return getSolanaTrending();
   }
 
   /** Solana-network DEX pools for an asset (env-gated live GeckoTerminal; honest otherwise). */
   async getSolanaDexPools(symbol: string): Promise<DexPools> {
-    const base = this.normalize(symbol).split('/')[0].replace(/:.*$/, '');
-    return fetchSolanaPools(base);
+    return getSolanaDexPools(this, symbol);
   }
 
   /** Solana validator leaderboard (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaValidators(): Promise<SolanaValidators> {
-    return fetchSolanaValidators();
+    return getSolanaValidators();
   }
 
   /** Solana native staking economics (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaStaking(): Promise<SolanaStaking> {
-    return fetchSolanaStaking();
+    return getSolanaStaking();
   }
 
   /** SPL token (mint) explorer (env-gated live RPC; honest 'unavailable' otherwise). */
   async getSolanaToken(mint: string): Promise<SolanaTokenInfo> {
-    // Price only SOL (from this exchange) + stablecoins (pinned in the mapper);
-    // exotic mints are honestly left unpriced rather than guessed.
-    const solPriceUsd = await this.solPrice();
-    return fetchSolanaToken(mint, (sym) => (sym === 'SOL' ? solPriceUsd : null));
+    return getSolanaToken(this, mint);
   }
 
   /** Read-only Jupiter swap quote — QUOTE ONLY, never a swap tx (env-gated; honest otherwise). */
   async getSolanaQuote(input: string, output: string, amount: number): Promise<SolanaSwapQuote> {
-    return fetchSolanaQuote(input, output, amount);
+    return getSolanaQuote(input, output, amount);
   }
 
   /** Solana ecosystem market overview (env-gated live GeckoTerminal; honest otherwise). */
   async getSolanaMarket(): Promise<SolanaMarket> {
-    return fetchSolanaMarket(await this.solPrice());
-  }
-
-  /** Best-effort SOL/USDT spot from this exchange for USD valuation; null on failure. */
-  private async solPrice(): Promise<number | null> {
-    try {
-      return (await this.getQuote('SOL/USDT')).price;
-    } catch {
-      return null;
-    }
+    return getSolanaMarket(this);
   }
 
   async getBalances(): Promise<Balances> {
