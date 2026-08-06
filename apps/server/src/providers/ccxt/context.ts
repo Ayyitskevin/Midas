@@ -32,3 +32,14 @@ export interface CcxtReadContext extends DataProvider {
   /** Lowercased ccxt id of the primary venue (receipt `venue` field). */
   readonly exchangeId: string;
 }
+
+/**
+ * The read context plus the multi-venue compare set — what the cross-venue
+ * fan-outs (liquidations, quotes, venue derivatives, venue screen) need. Kept as
+ * a widening of CcxtReadContext so a module asks for exactly the surface it
+ * uses, and single-venue readers stay unable to reach the compare set.
+ */
+export interface CcxtCompareContext extends CcxtReadContext {
+  /** The lazily built multi-venue compare set (MIDAS_CCXT_COMPARE). */
+  compareExchanges(): Exchange[];
+}
