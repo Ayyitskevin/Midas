@@ -46,9 +46,6 @@ import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import {
   buildProviderCapabilities,
-  providerReceipt,
-  providerUnavailableReceipt,
-  withProviderDerivedReceipt,
   withProviderReceipt,
   type CapabilityDefinition,
 } from './receipts';
@@ -66,18 +63,11 @@ import {
 } from './ccxt/onchain';
 import { ccxtKeysConfigured } from './balances';
 import {
-  mapMyTradesWithDiagnostics,
-  mapOpenOrdersWithDiagnostics,
-  mapPositionsWithDiagnostics,
-  mergeVenueRows,
-  sumUnrealizedPnl,
-} from './accountReads';
-import { mapPlacedOrder } from '../trading';
-import {
-  accountOmissionCaveat,
-  assertUsableAccountMapping,
   fetchBalances,
-  fromSecondary,
+  fetchFills,
+  fetchOpenOrders,
+  fetchOrder,
+  fetchPositions,
   hasAccountKeys,
 } from './ccxt/account';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
@@ -298,16 +288,6 @@ export class CcxtProvider implements DataProvider {
   /** Whether THIS instance can make keyed account reads (creds or operator env). */
   private hasKeys(): boolean {
     return hasAccountKeys(this);
-  }
-
-  /**
-   * Run the same account read against the second venue. A secondary failure
-   * never breaks the primary result — it comes back as an honest note.
-   */
-  private async fromSecondary<Row>(
-    read: (ex: Exchange) => Promise<Row[]>,
-  ): Promise<{ rows: Row[]; note: string | null } | null> {
-    return fromSecondary(this, read);
   }
 
   /**
@@ -602,280 +582,15 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getOpenOrders(): Promise<OpenOrders> {
-    const asOf = this.now();
-    if (!this.hasKeys()) {
-      const value: OpenOrders = {
-        source: this.name,
-        provenance: 'unavailable',
-        note:
-          'Read-only open orders need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
-          '(use read-only keys — Midas never places or cancels orders).',
-        orders: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-orders', venue: this.exchangeId,
-        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
-        note: value.note ?? 'Read-only open orders are not configured.',
-      }, asOf) };
-    }
-    if (!this.exchange.has['fetchOpenOrders']) {
-      const value: OpenOrders = {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `${this.name} does not expose a fetchOpenOrders endpoint.`,
-        orders: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-orders', venue: this.exchangeId,
-        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
-        note: value.note ?? 'Open-orders reads are unsupported.',
-      }, asOf) };
-    }
-    try {
-      // READ-ONLY: fetchOpenOrders only — never createOrder/cancelOrder/editOrder.
-      const raw = await this.exchange.fetchOpenOrders();
-      const primaryMapping = mapOpenOrdersWithDiagnostics(raw);
-      assertUsableAccountMapping(primaryMapping, 'open-orders');
-      let orders = primaryMapping.rows;
-      let secondaryMapping: ReturnType<typeof mapOpenOrdersWithDiagnostics> | null = null;
-      const second = await this.fromSecondary(async (ex) => {
-        if (!ex.has['fetchOpenOrders']) return [];
-        secondaryMapping = mapOpenOrdersWithDiagnostics(await ex.fetchOpenOrders());
-        assertUsableAccountMapping(secondaryMapping, 'open-orders');
-        return secondaryMapping.rows;
-      });
-      if (second) {
-        orders = mergeVenueRows(orders, this.exchangeId, second.rows, this.secondary!.id, (o) => o.timestamp);
-      }
-      const value: OpenOrders = {
-        source: this.name,
-        provenance: 'live',
-        note: [
-          second?.note,
-          accountOmissionCaveat(primaryMapping, 'open-order'),
-          accountOmissionCaveat(secondaryMapping, 'open-order'),
-        ].filter(Boolean).join(' ') || null,
-        orders,
-        asOf,
-      };
-      const rawInput = providerReceipt(this, {
-        datasetFamily: 'account-orders', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
-        coverage: 'raw configured-exchange open-order rows',
-        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
-        note: value.note,
-      }, asOf);
-      return withProviderDerivedReceipt(this, value, {
-        datasetFamily: 'account-orders', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
-        inputReceipts: [rawInput],
-        units: { price: 'quote-asset', amount: 'base-asset', filled: 'base-asset', remaining: 'base-asset' },
-        methodology: {
-          id: 'midas.open-order-normalization', version: '1.0.0',
-          formula: 'remaining = reported remaining or max(amount - filled, 0); value = price * amount',
-        },
-        note: value.note,
-      }, asOf);
-    } catch (err) {
-      if (err instanceof ProviderError) throw err;
-      throw new ProviderError(
-        `Open-orders read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
-        502,
-      );
-    }
+    return fetchOpenOrders(this);
   }
 
   async getPositions(): Promise<AccountPositions> {
-    const asOf = this.now();
-    if (!this.hasKeys()) {
-      const value: AccountPositions = {
-        source: this.name,
-        provenance: 'unavailable',
-        note:
-          'Read-only positions need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
-          '(use read-only keys — Midas never opens or closes positions).',
-        totalUnrealizedPnlUsd: null,
-        positions: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-positions', venue: this.exchangeId,
-        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
-        note: value.note ?? 'Read-only positions are not configured.',
-      }, asOf) };
-    }
-    if (!this.exchange.has['fetchPositions']) {
-      const value: AccountPositions = {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `${this.name} does not expose a fetchPositions endpoint (spot-only account or exchange).`,
-        totalUnrealizedPnlUsd: null,
-        positions: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-positions', venue: this.exchangeId,
-        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
-        note: value.note ?? 'Position reads are unsupported.',
-      }, asOf) };
-    }
-    try {
-      // READ-ONLY: fetchPositions only — never any order/position write method.
-      const raw = await this.exchange.fetchPositions();
-      const primaryMapping = mapPositionsWithDiagnostics(raw);
-      assertUsableAccountMapping(primaryMapping, 'positions');
-      let positions = primaryMapping.rows;
-      let secondaryMapping: ReturnType<typeof mapPositionsWithDiagnostics> | null = null;
-      const second = await this.fromSecondary(async (ex) => {
-        if (!ex.has['fetchPositions']) return [];
-        secondaryMapping = mapPositionsWithDiagnostics(await ex.fetchPositions());
-        assertUsableAccountMapping(secondaryMapping, 'positions');
-        return secondaryMapping.rows;
-      });
-      if (second) {
-        positions = mergeVenueRows(positions, this.exchangeId, second.rows, this.secondary!.id, (p) => p.notionalUsd);
-      }
-      const value: AccountPositions = {
-        source: this.name,
-        provenance: 'live',
-        note: [
-          second?.note,
-          accountOmissionCaveat(primaryMapping, 'position'),
-          accountOmissionCaveat(secondaryMapping, 'position'),
-        ].filter(Boolean).join(' ') || null,
-        totalUnrealizedPnlUsd: sumUnrealizedPnl(positions),
-        positions,
-        asOf,
-      };
-      const rawInput = providerReceipt(this, {
-        datasetFamily: 'account-positions', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
-        coverage: 'raw configured-exchange position rows',
-        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
-        note: value.note,
-      }, asOf);
-      return withProviderDerivedReceipt(this, value, {
-        datasetFamily: 'account-positions', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
-        inputReceipts: [rawInput],
-        units: { contracts: 'contracts-or-base', notionalUsd: 'USD', markPrice: 'quote-asset', unrealizedPnlUsd: 'USD' },
-        methodology: {
-          id: 'midas.position-normalization', version: '1.0.0',
-          formula: 'contracts = abs(reported contracts); totalUnrealizedPnlUsd = sum(known unrealizedPnlUsd)',
-        },
-        note: value.note,
-      }, asOf);
-    } catch (err) {
-      if (err instanceof ProviderError) throw err;
-      throw new ProviderError(
-        `Positions read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
-        502,
-      );
-    }
+    return fetchPositions(this);
   }
 
   async getFills(symbol?: string): Promise<AccountFills> {
-    const asOf = this.now();
-    if (!this.hasKeys()) {
-      const value: AccountFills = {
-        source: this.name,
-        provenance: 'unavailable',
-        note:
-          'Read-only fills need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
-          '(read-only keys are sufficient — Midas never moves funds).',
-        fills: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-fills', instrument: symbol ?? null, venue: this.exchangeId,
-        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
-        note: value.note ?? 'Read-only fills are not configured.',
-      }, asOf) };
-    }
-    if (!this.exchange.has['fetchMyTrades']) {
-      const value: AccountFills = {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `${this.name} does not expose a fetchMyTrades endpoint.`,
-        fills: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-fills', instrument: symbol ?? null, venue: this.exchangeId,
-        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
-        note: value.note ?? 'Fill reads are unsupported.',
-      }, asOf) };
-    }
-    try {
-      // READ-ONLY: fetchMyTrades only. Many venues (e.g. Binance) require a
-      // symbol for this endpoint — surface that honestly instead of guessing.
-      const sym = symbol ? this.normalize(symbol) : undefined;
-      const raw = await this.exchange.fetchMyTrades(sym, undefined, 100);
-      const primaryMapping = mapMyTradesWithDiagnostics(raw);
-      assertUsableAccountMapping(primaryMapping, 'fills');
-      let fills = primaryMapping.rows;
-      let secondaryMapping: ReturnType<typeof mapMyTradesWithDiagnostics> | null = null;
-      const second = await this.fromSecondary(async (ex) => {
-        if (!ex.has['fetchMyTrades']) return [];
-        secondaryMapping = mapMyTradesWithDiagnostics(await ex.fetchMyTrades(sym, undefined, 100));
-        assertUsableAccountMapping(secondaryMapping, 'fills');
-        return secondaryMapping.rows;
-      });
-      if (second) {
-        fills = mergeVenueRows(fills, this.exchangeId, second.rows, this.secondary!.id, (f) => f.timestamp);
-      }
-      const value: AccountFills = {
-        source: this.name,
-        provenance: 'live',
-        note: [
-          second?.note,
-          accountOmissionCaveat(primaryMapping, 'fill'),
-          accountOmissionCaveat(secondaryMapping, 'fill'),
-        ].filter(Boolean).join(' ') || null,
-        fills,
-        asOf,
-      };
-      const rawInput = providerReceipt(this, {
-        datasetFamily: 'account-fills', instrument: sym ?? null, venue: this.exchangeId,
-        provenance: 'live', sourceAsOf: null,
-        coverage: 'raw configured-exchange trade/fill rows',
-        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
-        note: value.note,
-      }, asOf);
-      return withProviderDerivedReceipt(this, value, {
-        datasetFamily: 'account-fills', instrument: sym ?? null, venue: this.exchangeId,
-        provenance: 'live', sourceAsOf: null,
-        inputReceipts: [rawInput],
-        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
-        methodology: {
-          id: 'midas.fill-normalization', version: '1.0.0',
-          formula: 'cost = reported cost or price * amount; fee fields remain null when unreported',
-        },
-        note: value.note,
-      }, asOf);
-    } catch (err) {
-      if (err instanceof ProviderError) throw err;
-      // Inspect the raw message internally to detect the "symbol required" case,
-      // but never place it in the note — it can carry the signed request URL.
-      const rawMsg = err instanceof Error ? err.message : '';
-      const needsSymbol = /symbol|argument/i.test(rawMsg) && !symbol;
-      if (!needsSymbol) {
-        throw new ProviderError(
-          `Fills read failed — ${safeErrorLabel(err)}. Check the API key (read access is sufficient).`,
-          502,
-        );
-      }
-      const value: AccountFills = {
-        source: this.name,
-        provenance: 'unavailable',
-        note: `${this.name} requires a symbol for fills — open FILLS with a symbol (e.g. BTC/USDT FILLS).`,
-        fills: [],
-        asOf,
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'account-fills', instrument: null, venue: this.exchangeId,
-        units: { price: 'quote-asset', amount: 'base-asset', cost: 'quote-asset', fee: 'fee-currency' },
-        note: value.note ?? 'A symbol is required for fill reads.',
-      }, asOf) };
-    }
+    return fetchFills(this, symbol);
   }
 
   /**
@@ -884,19 +599,7 @@ export class CcxtProvider implements DataProvider {
    * The mapPlacedOrder fallbacks only apply to fields the exchange omits.
    */
   async getOrder(id: string, symbol: string): Promise<PlacedOrder> {
-    if (!this.exchange.has['fetchOrder']) {
-      throw new ProviderError(`${this.name} does not support single-order lookup.`, 501);
-    }
-    const sym = this.normalize(symbol);
-    try {
-      const raw = await this.exchange.fetchOrder(id, sym);
-      return mapPlacedOrder(raw, { symbol: sym, side: 'buy', type: 'limit', amount: 0, price: null });
-    } catch (err) {
-      // Sanitize like every other keyed read in this file — a raw ccxt error
-      // embeds the signed request URL (HMAC signature / API key) and response
-      // body; describe()/safeErrorLabel strip it.
-      throw err instanceof ProviderError ? err : new ProviderError(this.describe(err, sym), 502, sym);
-    }
+    return fetchOrder(this, id, symbol);
   }
 
   /**
