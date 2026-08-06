@@ -27,7 +27,6 @@ import type {
   Quote,
   ScreenerRow,
   VenueScreen,
-  VenueScreenRow,
   SearchResult,
   SolanaMarket,
   SolanaNetwork,
@@ -77,12 +76,9 @@ import {
   TIMEFRAME_MAP,
   ccxtRegistry,
   isKnownExchange,
-  readFunding,
-  readOpenInterest,
   safeErrorLabel,
   tickerPrice,
   timeframeSeconds,
-  toPerpSymbol,
 } from './ccxt/helpers';
 import { fetchDvol, fetchFuturesTermStructure, fetchOptionsChain } from './ccxt/options';
 import { fetchOiDelta } from './ccxt/oiDelta';
@@ -94,11 +90,13 @@ import {
 import {
   fetchDerivatives,
   fetchFundingHistory,
-  fundingOmission,
-  openInterestOmission,
 } from './ccxt/derivatives';
-import { buildCompareExchanges, getExchangeQuotes } from './ccxt/venueCompare';
-import { crossVenuePartialLimitation, withRowReceiptLimitation } from './ccxt/crossVenue';
+import {
+  buildCompareExchanges,
+  getExchangeQuotes,
+  getVenueDerivatives,
+  getVenueScreen,
+} from './ccxt/venueCompare';
 
 // Re-exported so existing import sites stay stable: providers/ccxt.test.ts
 // pulls safeErrorLabel + toPerpSymbol, and keys/routes.ts pulls isKnownExchange.
@@ -604,99 +602,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getVenueDerivatives(symbol: string): Promise<VenueDerivatives[]> {
-    const perp = toPerpSymbol(this.normalize(symbol));
-    const settled = await Promise.allSettled(
-      this.compareExchanges().map(async (ex): Promise<VenueDerivatives> => {
-        // Sequential (funding then OI), matching the original single-venue read.
-        const funding = await readFunding(ex, perp);
-        const oi = await readOpenInterest(ex, perp);
-        if ((funding.state === 'error' && oi.state !== 'ok') || (oi.state === 'error' && funding.state !== 'ok')) {
-          throw new ProviderError(`${ex.id} ${perp}: derivatives upstream read failed`, 502, perp);
-        }
-        const sourceTimes = [
-          ...(funding.state === 'ok' ? [funding.sourceAsOf] : []),
-          ...(oi.state === 'ok' ? [oi.sourceAsOf] : []),
-        ];
-        const sourceTimestamp = sourceTimes.length > 0 && sourceTimes.every((timestamp) => timestamp !== null)
-          ? Math.min(...sourceTimes as number[])
-          : null;
-        const value: VenueDerivatives = {
-          exchange: ex.name ?? ex.id,
-          fundingRate: funding.fundingRate,
-          fundingIntervalHours: funding.fundingIntervalHours,
-          nextFundingTime: funding.nextFundingTime,
-          markPrice: funding.markPrice,
-          openInterestValue: oi.openInterestValue,
-          timestamp: sourceTimestamp,
-        };
-        const hasEvidence =
-          value.fundingRate !== null || value.openInterestValue !== null ||
-          value.markPrice !== null || value.nextFundingTime !== null;
-        if (!hasEvidence && (funding.state === 'ok' || oi.state === 'ok')) {
-          throw new ProviderError(
-            `${ex.id} ${perp}: malformed empty derivatives response`,
-            502,
-            perp,
-            'malformed-upstream',
-          );
-        }
-        return withProviderReceipt(this, value, {
-          datasetFamily: 'venue-derivatives',
-          source: `ccxt:${ex.id}`,
-          instrument: perp,
-          venue: ex.id,
-          provenance: 'live',
-          sourceAsOf: sourceTimestamp,
-          units: {
-            fundingRate: 'fraction-per-interval', markPrice: 'quote-asset',
-            openInterestValue: 'quote-asset',
-          },
-          limitations: [
-            ...(funding.state === 'unsupported'
-              ? [partialEvidenceLimitation('The venue does not support unified funding-rate reads.')]
-              : []),
-            ...(funding.state === 'error'
-              ? [partialEvidenceLimitation('The venue funding-rate upstream read failed.')]
-              : []),
-            ...(fundingOmission(funding) ? [fundingOmission(funding)!] : []),
-            ...(oi.state === 'unsupported'
-              ? [partialEvidenceLimitation('The venue does not support unified open-interest reads.')]
-              : []),
-            ...(oi.state === 'error'
-              ? [partialEvidenceLimitation('The venue open-interest upstream read failed.')]
-              : []),
-            ...(openInterestOmission(oi) ? [openInterestOmission(oi)!] : []),
-            ...(sourceTimestamp === null ? ['The venue omitted source timestamps for derivatives evidence.'] : []),
-          ],
-        }, this.now());
-      }),
-    );
-    // Keep venues that reported any perp field (funding, OI, mark or next-funding);
-    // drop only the all-null spot-only venues. A venue can answer fetchFundingRate
-    // with a markPrice/next time but a null fundingRate (the ccxt fields are
-    // independently optional), so don't gate solely on fundingRate/OI.
-    const values = settled
-      .filter((r): r is PromiseFulfilledResult<VenueDerivatives> => r.status === 'fulfilled')
-      .map((r) => r.value)
-      .filter(
-        (v) =>
-          v.fundingRate !== null ||
-          v.openInterestValue !== null ||
-          v.markPrice !== null ||
-          v.nextFundingTime !== null,
-      );
-    if (values.length === 0 && settled.some((result) => result.status === 'rejected')) {
-      const category = settled.every(
-        (result) => result.status === 'rejected' &&
-          result.reason instanceof ProviderError &&
-          result.reason.dataHealthCategory === 'malformed-upstream',
-      ) ? 'malformed-upstream' : 'upstream-unavailable';
-      throw new ProviderError(`${this.name} ${perp}: every configured venue derivatives read failed`, 502, perp, category);
-    }
-    const failures = settled.filter((result) => result.status === 'rejected').length;
-    if (values.length === settled.length) return values;
-    const limitation = crossVenuePartialLimitation('derivatives', settled.length, values.length, failures);
-    return values.map((value) => withRowReceiptLimitation(value, limitation, perp));
+    return getVenueDerivatives(this, symbol);
   }
 
   async getDerivatives(symbol: string): Promise<DerivativesInfo> {
@@ -1347,74 +1253,8 @@ export class CcxtProvider implements DataProvider {
     return fetchOptionsChain(this, symbol, expiry);
   }
 
-  /**
-   * Screen every configured venue in one sweep.
-   *
-   * Cheap by construction: `fetchTickers()` returns a venue's whole ticker set
-   * in ONE call, so this costs one request per venue — not one per symbol. That
-   * is why a cross-venue screener is affordable where a cross-venue per-symbol
-   * board would not be.
-   *
-   * `Promise.allSettled`: a venue that fails drops to `available: false` and
-   * shows up as reduced coverage rather than failing the board.
-   */
   async getVenueScreen(opts: ScreenerOptions): Promise<VenueScreen[]> {
-    const quote = (opts.quote ?? 'USDT').toUpperCase();
-    const settled = await Promise.allSettled(
-      this.compareExchanges().map(async (ex): Promise<VenueScreen> => {
-        // No explicit loadMarkets: ccxt loads them inside fetchTickers, and the
-        // sibling getExchangeQuotes fan-out doesn't either. One fewer upstream
-        // call per venue, per refresh.
-        const tickers = await ex.fetchTickers();
-        const rows: VenueScreenRow[] = [];
-        let newest: number | null = null;
-        for (const [sym, t] of Object.entries(tickers)) {
-          if (!sym.endsWith(`/${quote}`)) continue;
-          const price = tickerPrice(t);
-          // Skip pairs with no usable price rather than admitting a 0 that
-          // would read as a 100% cross-venue dispersion.
-          if (price == null) continue;
-          const timestamp = sourceTimestampOrNull(t.timestamp);
-          if (timestamp !== null && (newest === null || timestamp > newest)) newest = timestamp;
-          rows.push({
-            symbol: sym,
-            name: sym,
-            price,
-            // Unlike the single-venue screener this keeps a row whose 24h change
-            // the venue omitted: the symbol still contributes price, volume and
-            // breadth. Null stays null — a 0 here would read as "flat", a claim
-            // the venue never made.
-            changePercent: finiteOrNull(t.percentage),
-            volume: nonNegativeFiniteOrNull(t.baseVolume),
-            quoteVolume: nonNegativeFiniteOrNull(t.quoteVolume),
-          });
-        }
-        return withProviderReceipt(this, {
-          exchange: ex.id,
-          available: true,
-          rows,
-          timestamp: newest,
-        }, {
-          datasetFamily: 'venue-screener',
-          source: `ccxt:${ex.id}`,
-          venue: ex.id,
-          provenance: 'live',
-          sourceAsOf: newest,
-          coverage: `${rows.length} ${quote} pair(s) from the venue ticker set`,
-          units: { price: 'quote-asset', volume: 'base-asset', quoteVolume: 'quote-asset' },
-          limitations: [
-            'Exchange-reported 24h volume is widely documented as inflated; treat it as a scale signal, not a verified total.',
-          ],
-        }, this.now());
-      }),
-    );
-    const values = settled
-      .filter((result): result is PromiseFulfilledResult<VenueScreen> => result.status === 'fulfilled')
-      .map((result) => result.value);
-    if (values.length === 0 && settled.length > 0) {
-      throw new ProviderError(`${this.name}: every configured venue screener read failed`, 502);
-    }
-    return values;
+    return getVenueScreen(this, opts);
   }
 
   async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
