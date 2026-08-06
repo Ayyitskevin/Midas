@@ -64,7 +64,7 @@ import {
   getSolanaValidators,
   getSolanaWallet,
 } from './ccxt/onchain';
-import { STABLES, ccxtKeysConfigured, mapCcxtBalanceWithDiagnostics, sumValueUsd, unpricedCaveat } from './balances';
+import { ccxtKeysConfigured } from './balances';
 import {
   mapMyTradesWithDiagnostics,
   mapOpenOrdersWithDiagnostics,
@@ -73,6 +73,13 @@ import {
   sumUnrealizedPnl,
 } from './accountReads';
 import { mapPlacedOrder } from '../trading';
+import {
+  accountOmissionCaveat,
+  assertUsableAccountMapping,
+  fetchBalances,
+  fromSecondary,
+  hasAccountKeys,
+} from './ccxt/account';
 import { INTERVAL_SECONDS, RANGE_SECONDS, sortScreener } from './util';
 
 import {
@@ -113,27 +120,6 @@ import {
   positiveFiniteOrNull,
   sourceTimestampOrNull,
 } from './ccxt/coerce';
-
-
-interface MappingSummary {
-  rows: unknown[];
-  inputValid: boolean;
-  attempted: number;
-  omitted: number;
-}
-
-function assertUsableAccountMapping(mapping: MappingSummary, label: string): void {
-  if (!mapping.inputValid || (mapping.attempted > 0 && mapping.rows.length === 0 && mapping.omitted > 0)) {
-    throw new ProviderError(`Malformed ${label} payload from the configured exchange.`, 502, undefined, 'malformed-upstream');
-  }
-}
-
-function accountOmissionCaveat(mapping: MappingSummary | null, label: string): string | null {
-  if (!mapping || mapping.omitted === 0) return null;
-  return partialEvidenceLimitation(
-    `${mapping.omitted} of ${mapping.attempted} ${label} row(s) were malformed and omitted; aggregates are partial.`,
-  );
-}
 
 /** Explicit credentials for a per-user provider instance (hosted-tier groundwork). */
 export interface CcxtUserCreds {
@@ -187,8 +173,8 @@ export class CcxtProvider implements DataProvider {
   // readers can take this provider as their CcxtReadContext (visibility-only).
   readonly exchange: Exchange;
   readonly exchangeId: string;
-  /** True when constructed from explicit per-user creds (vs operator env). */
-  private readonly userKeyed: boolean;
+  /** True when constructed from explicit per-user creds (vs operator env). Public for CcxtReadContext. */
+  readonly userKeyed: boolean;
   private marketsPromise: Promise<unknown> | null = null;
   private compareExchangesCache: Exchange[] | null = null;
   /** Injected clock; public so extracted ccxt/* readers satisfy CcxtReadContext. */
@@ -306,11 +292,12 @@ export class CcxtProvider implements DataProvider {
     });
   }
 
-  private readonly secondary: { ex: Exchange; id: string } | null = null;
+  /** Optional second keyed venue; public so extracted ccxt/* readers satisfy CcxtReadContext. */
+  readonly secondary: { ex: Exchange; id: string } | null = null;
 
   /** Whether THIS instance can make keyed account reads (creds or operator env). */
   private hasKeys(): boolean {
-    return this.userKeyed || ccxtKeysConfigured();
+    return hasAccountKeys(this);
   }
 
   /**
@@ -320,15 +307,7 @@ export class CcxtProvider implements DataProvider {
   private async fromSecondary<Row>(
     read: (ex: Exchange) => Promise<Row[]>,
   ): Promise<{ rows: Row[]; note: string | null } | null> {
-    if (!this.secondary) return null;
-    try {
-      return { rows: await read(this.secondary.ex), note: null };
-    } catch (err) {
-      return {
-        rows: [],
-        note: `Second venue (${this.secondary.id}) unreadable — ${safeErrorLabel(err)}.`,
-      };
-    }
+    return fromSecondary(this, read);
   }
 
   /**
@@ -619,138 +598,7 @@ export class CcxtProvider implements DataProvider {
   }
 
   async getBalances(): Promise<Balances> {
-    if (!this.hasKeys()) {
-      const value: Balances = {
-        source: this.name,
-        provenance: 'unavailable',
-        note:
-          'Read-only balances need exchange API keys. Set MIDAS_CCXT_API_KEY and MIDAS_CCXT_SECRET ' +
-          '(use read-only keys — Midas never places orders and never holds your funds).',
-        totalValueUsd: null,
-        balances: [],
-        asOf: this.now(),
-      };
-      return { ...value, receipt: providerUnavailableReceipt(this, {
-        datasetFamily: 'balances',
-        venue: this.exchangeId,
-        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
-        note: value.note ?? 'Read-only balances are not configured.',
-      }, value.asOf) };
-    }
-    try {
-      // READ-ONLY account read. Midas is non-custodial: this calls only
-      // fetchBalance — never createOrder or any write/withdraw method.
-      let primarySourceAsOf: number | null = null;
-      let secondarySourceAsOf: number | null = null;
-      let primaryMapping: ReturnType<typeof mapCcxtBalanceWithDiagnostics> | null = null;
-      let secondaryMapping: ReturnType<typeof mapCcxtBalanceWithDiagnostics> | null = null;
-      const readBalances = async (ex: Exchange): Promise<ReturnType<typeof mapCcxtBalanceWithDiagnostics>['rows']> => {
-        const raw = await ex.fetchBalance();
-        if (ex === this.exchange) {
-          primarySourceAsOf = sourceTimestampOrNull((raw as { timestamp?: unknown }).timestamp);
-        } else {
-          secondarySourceAsOf = sourceTimestampOrNull((raw as { timestamp?: unknown }).timestamp);
-        }
-        const totals = (raw as { total?: Record<string, unknown> }).total ?? {};
-        const assets = Object.keys(totals).filter((a) => {
-          const n = Number((totals as Record<string, unknown>)[a]);
-          return Number.isFinite(n) && n > 0;
-        });
-        const prices = await this.priceAssetsUsd(assets, ex);
-        const mapping = mapCcxtBalanceWithDiagnostics(raw, (asset) => prices.get(asset.toUpperCase()) ?? null);
-        if (ex === this.exchange) primaryMapping = mapping;
-        else secondaryMapping = mapping;
-        assertUsableAccountMapping(mapping, 'balance');
-        return mapping.rows;
-      };
-      let balances = await readBalances(this.exchange);
-      const second = await this.fromSecondary(readBalances);
-      if (second) {
-        balances = mergeVenueRows(balances, this.exchangeId, second.rows, this.secondary!.id, (b) => b.valueUsd);
-      }
-      const sourceAsOf = second == null
-        ? primarySourceAsOf
-        : primarySourceAsOf !== null && secondarySourceAsOf !== null
-          ? Math.min(primarySourceAsOf, secondarySourceAsOf)
-          : null;
-      const value: Balances = {
-        source: this.name,
-        provenance: 'live',
-        // Honest total: assets with no /USDT market are excluded from the sum,
-        // so when any exist the note must say the total is a floor.
-        note: [
-          second?.note,
-          accountOmissionCaveat(primaryMapping, 'held balance'),
-          accountOmissionCaveat(secondaryMapping, 'held balance'),
-          unpricedCaveat(balances),
-        ].filter(Boolean).join(' ') || null,
-        totalValueUsd: sumValueUsd(balances),
-        balances,
-        asOf: this.now(),
-      };
-      const rawBalanceInput = providerReceipt(this, {
-        datasetFamily: 'balances', venue: this.exchangeId, provenance: 'live', sourceAsOf,
-        coverage: 'raw exchange asset quantities',
-        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units' },
-      }, value.asOf);
-      const pricingInput = providerReceipt(this, {
-        datasetFamily: 'quote', venue: this.exchangeId, provenance: 'live', sourceAsOf: null,
-        coverage: 'USDT ticker prices and explicit USD-stablecoin parity assumptions',
-        units: { price: 'USD-per-asset' },
-        limitations: ['Individual valuation-ticker source timestamps are not retained by this aggregate.'],
-      }, value.asOf);
-      return withProviderDerivedReceipt(this, value, {
-        datasetFamily: 'balances', venue: this.exchangeId, provenance: 'live',
-        inputReceipts: [rawBalanceInput, pricingInput], sourceAsOf: null,
-        units: { free: 'asset-units', used: 'asset-units', total: 'asset-units', valueUsd: 'USD' },
-        methodology: {
-          id: 'midas.balance-usd-valuation', version: '1.0.0',
-          formula: 'valueUsd = total * USD price; totalValueUsd = sum(known valueUsd)',
-        },
-        note: value.note,
-      }, value.asOf);
-    } catch (err) {
-      if (err instanceof ProviderError) throw err;
-      throw new ProviderError(
-        `Balance read failed — ${safeErrorLabel(err)}. Check that the API key is valid and has read access (read-only is sufficient).`,
-        502,
-      );
-    }
-  }
-
-  /** Best-effort USD prices for a set of assets (stables = $1; others via ASSET/USDT tickers). */
-  private async priceAssetsUsd(assets: string[], exchange: Exchange = this.exchange): Promise<Map<string, number>> {
-    const map = new Map<string, number>();
-    const need: string[] = [];
-    for (const a of assets) {
-      const up = a.toUpperCase();
-      if (STABLES.has(up)) map.set(up, 1);
-      else need.push(up);
-    }
-    if (need.length === 0) return map;
-    try {
-      const tickers = await exchange.fetchTickers(need.map((a) => `${a}/USDT`));
-      for (const a of need) {
-        const px = tickerPrice(tickers[`${a}/USDT`] ?? {});
-        if (px != null) map.set(a, px);
-      }
-    } catch {
-      // The batched fetchTickers rejects the WHOLE request when any one symbol
-      // is invalid (a delisted/dust asset with no /USDT market), which would
-      // otherwise leave EVERY balance unpriced. Fall back to per-symbol reads
-      // so one bad asset only unprices itself.
-      await Promise.all(
-        need.map(async (a) => {
-          try {
-            const px = tickerPrice(await exchange.fetchTicker(`${a}/USDT`));
-            if (px != null) map.set(a, px);
-          } catch {
-            // leave this one asset unpriced (valueUsd: null)
-          }
-        }),
-      );
-    }
-    return map;
+    return fetchBalances(this);
   }
 
   async getOpenOrders(): Promise<OpenOrders> {
@@ -1329,7 +1177,8 @@ export class CcxtProvider implements DataProvider {
     return wanted;
   }
 
-  private describe(err: unknown, symbol?: string): string {
+  /** Public so the extracted ccxt/account.ts readers satisfy CcxtAccountContext. */
+  describe(err: unknown, symbol?: string): string {
     if (err instanceof ProviderError) return err.message;
     const ctx = symbol ? ` for ${symbol}` : '';
     // Never interpolate the raw err.message — it can leak the signed request URL
