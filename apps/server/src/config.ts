@@ -16,9 +16,10 @@ export interface Config {
   /** Active data provider id: 'mock' | 'yahoo' | 'ccxt'. */
   provider: string;
   /**
-   * Allowed browser origin. The `*` default is only safe with auth on: with
-   * auth disabled + a wildcard origin, keyed account surfaces fail closed
-   * (403) — see installKeyedAccountGuard in auth/guard.ts.
+   * Allowed browser origin. The `*` default is only safe with auth on: on an
+   * install that actually reaches a keyed account (live provider + operator
+   * keys), auth disabled + a wildcard origin fails those surfaces closed with
+   * 403 — see installKeyedAccountGuard in auth/guard.ts.
    */
   corsOrigin: string;
   /** Claude model used by the AI copilot. */

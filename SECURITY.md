@@ -63,10 +63,10 @@ recommended checklist:
 
 1. `MIDAS_AUTH_ENABLED=true` and a fixed `MIDAS_AUTH_SECRET` (e.g.
    `openssl rand -hex 32` — `scripts/deploy.sh` generates one for you).
-2. Pin `MIDAS_CORS_ORIGIN` to your terminal's exact origin. (Without auth, a
-   wildcard origin fails the keyed account surfaces closed with 403 — ACAO `*`
-   would let any web page read the account and cancel resting orders
-   cross-origin.)
+2. Pin `MIDAS_CORS_ORIGIN` to your terminal's exact origin. (Once real exchange
+   keys are in play, auth off plus a wildcard origin fails the keyed account
+   surfaces closed with 403 — ACAO `*` would let any web page read the account
+   and cancel resting orders cross-origin.)
 3. TLS in front (Caddy/nginx/Traefik); never expose the raw HTTP port.
 4. Use read-only exchange keys. Withdrawal permission is never appropriate:
    Midas has no withdrawal code path, and the blast radius if a key leaks is total.

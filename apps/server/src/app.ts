@@ -6,6 +6,7 @@ import websocket from '@fastify/websocket';
 import { sanitizeReceiptText, type ApiError, type SystemStatus } from '@midas/shared';
 import { config } from './config';
 import { ProviderError, type DataProvider } from './providers';
+import { ccxtKeysConfigured } from './providers/balances';
 import { registerRoutes } from './routes';
 import { MAX_STREAM_FRAME_BYTES, createStreamHub, registerStream } from './streaming';
 import { AlertRepo } from './alerts/repo';
@@ -166,10 +167,16 @@ export async function buildApp(
     );
   }
   installAuthGuard(app, authDeps); // guards /api/* (except public) when enabled
-  // In the insecure default posture (auth off + wildcard CORS), keyed account
+  // In the insecure default posture (auth off + wildcard CORS) keyed account
   // surfaces fail closed with an honest 403 — see auth/guard.ts. Stands down
-  // when auth is on or the origin is pinned.
-  installKeyedAccountGuard(app, { authEnabled: authDeps.enabled, corsOrigin });
+  // when auth is on, the origin is pinned, or no real keyed account is reachable
+  // (mock provider / demo mode / no operator keys), so a keyless install keeps
+  // its own "needs API keys" error instead of a misleading security refusal.
+  installKeyedAccountGuard(app, {
+    authEnabled: authDeps.enabled,
+    corsOrigin,
+    keyedAccountBacked: provider.live && ccxtKeysConfigured(),
+  });
   registerAuthRoutes(app, authDeps);
 
   // Per-user exchange keys (hosted-tier): encrypted store + a provider pool

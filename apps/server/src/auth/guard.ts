@@ -66,22 +66,34 @@ export function corsOriginIsWildcard(corsOrigin: string): boolean {
 export interface KeyedAccountGuardDeps {
   authEnabled: boolean;
   corsOrigin: string;
+  /**
+   * Whether the account surfaces can actually reach real exchange credentials:
+   * a live provider AND operator keys on disk. False for the mock provider
+   * (demo mode forces it) and for any install without keys — there the
+   * surfaces already answer their own honest "needs API keys" error, and a 403
+   * here would only mislabel a missing-credentials state as a security refusal.
+   * Per-user keyed mode cannot apply: it requires auth on, which stands this
+   * guard down anyway.
+   */
+  keyedAccountBacked: boolean;
 }
 
 /**
- * Fail closed in the insecure default posture. When auth is disabled AND CORS
- * is a wildcard, the keyed account surfaces (balances/orders/positions/fills/
- * equity, and cancel-only DELETE /api/orders/:id) are refused with an honest
- * 403: any web page the operator visits could otherwise read the keyed
- * account — and cancel its resting orders — cross-origin. The accepted
- * self-host postures keep working: auth ON (this guard stands down; the auth
- * guard above governs) or auth off with a PINNED non-wildcard origin (no
- * cross-origin page can talk to the API at all). Public market-data routes
- * are never touched. POST /api/orders is deliberately excluded so the 503
- * TradingSafetyHold contract stays canonical.
+ * Fail closed in the insecure default posture. When a real keyed account is
+ * reachable AND auth is disabled AND CORS is a wildcard, the keyed account
+ * surfaces (balances/orders/positions/fills/equity, and cancel-only
+ * DELETE /api/orders/:id) are refused with an honest 403: any web page the
+ * operator visits could otherwise read the keyed account — and cancel its
+ * resting orders — cross-origin. The accepted self-host postures keep working:
+ * auth ON (this guard stands down; the auth guard above governs), auth off with
+ * a PINNED non-wildcard origin (no cross-origin page can talk to the API at
+ * all), or no credentials at all (nothing to protect). Public market-data
+ * routes are never touched. POST /api/orders is deliberately excluded so the
+ * 503 TradingSafetyHold contract stays canonical.
  */
 export function installKeyedAccountGuard(app: FastifyInstance, deps: KeyedAccountGuardDeps): void {
   if (deps.authEnabled) return;
+  if (!deps.keyedAccountBacked) return;
   if (!corsOriginIsWildcard(deps.corsOrigin)) return;
 
   app.addHook('onRequest', async (req, reply) => {
