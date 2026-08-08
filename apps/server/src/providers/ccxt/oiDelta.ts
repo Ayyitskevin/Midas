@@ -1,43 +1,14 @@
-import type { Exchange } from 'ccxt';
 import type { OiDelta, OiDeltaPoint, OiDeltaWindow } from '@midas/shared';
 import { OI_DELTA_WINDOW_MS, partialEvidenceLimitation, summarizeOiDelta } from '@midas/shared';
-import type { DataProvider } from '../types';
 import { ProviderError } from '../types';
 import { providerReceipt, providerUnavailableReceipt, withProviderDerivedReceipt } from '../receipts';
 import { safeErrorLabel, timeframeSeconds, toPerpSymbol } from './helpers';
+import { positiveFiniteOrNull, sourceTimestampOrNull } from './coerce';
+import type { CcxtReadContext } from './context';
 
-/**
- * The slice of CcxtProvider the extracted ccxt/* readers need, beyond the
- * DataProvider surface the receipt helpers already take (receipt identity:
- * `withProviderReceipt(ctx, …)` must keep embedding the provider's own
- * name/capabilities, so functions receive the provider instance, never a bare
- * Exchange). CcxtProvider satisfies this structurally; later decomposition
- * steps extend it (compareExchanges) as their modules land.
- *
- * Convention (decided in step 2a, copied by later steps): ctx exposes
- * `normalize(symbol)` and each module derives its own base/perp forms from
- * it — delegates pass the raw caller symbol, never a pre-normalized one.
- */
-export interface CcxtReadContext extends DataProvider {
-  /** Injected clock (CcxtProviderDeps.now) — extracted code never calls Date.now. */
-  readonly now: () => number;
-  /** BTC-USD → BTC/USD; already-unified symbols pass through. */
-  normalize(symbol: string): string;
-  /** The configured primary venue client. */
-  readonly exchange: Exchange;
-  /** Lowercased ccxt id of the primary venue (receipt `venue` field). */
-  readonly exchangeId: string;
-}
-
-// Local copies of the ccxt.ts module-scope coercion helpers, pending step 1's
-// shared providers/ccxt/coerce.ts (imported from there once it lands on main).
-function positiveFiniteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
-}
-
-function sourceTimestampOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
-}
+// Re-exported so this module's own import sites keep working while the rest of
+// the decomposition lands; `ccxt/context.ts` is the one definition.
+export type { CcxtReadContext };
 
 /**
  * OI-delta positioning for a perp over a lookback window: the venue's OI
