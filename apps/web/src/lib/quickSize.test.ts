@@ -21,28 +21,30 @@ describe('quickSizeAmount', () => {
     expect(quickSizeAmount('sell', 0.5, null, 1000, 50_000)).toBeNull(); // unknown base balance
   });
 
-  it('reserves the venue taker fee on a buy so 100% fits once fees are deducted', () => {
-    // Binance 10 bps: $10,000 / ($50,000 × 1.001) = 0.1998001998... BTC
-    const amt = quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'binance');
+  it("reserves the ticket's own fee bps on a buy so 100% fits once the fee is deducted", () => {
+    // 10 bps: $10,000 / ($50,000 × 1.001) = 0.1998001998... BTC
+    const amt = quickSizeAmount('buy', 1, 0, 10_000, 50_000, 10);
     expect(amt).toBeCloseTo(0.2 / 1.001, 12);
     expect(amt!).toBeLessThan(0.2);
     // Notional + fee equals the full quote budget exactly.
     expect(amt! * 50_000 * 1.001).toBeCloseTo(10_000, 6);
-    // Kraken 80 bps: 0.2 / 1.008
-    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'kraken')).toBeCloseTo(0.2 / 1.008, 12);
-    // Partial fractions reserve proportionally: 25% at Binance.
-    expect(quickSizeAmount('buy', 0.25, 0, 10_000, 50_000, 'Binance')).toBeCloseTo(0.05 / 1.001, 12);
+    // 80 bps: 0.2 / 1.008
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 80)).toBeCloseTo(0.2 / 1.008, 12);
+    // Partial fractions reserve proportionally.
+    expect(quickSizeAmount('buy', 0.25, 0, 10_000, 50_000, 10)).toBeCloseTo(0.05 / 1.001, 12);
   });
 
-  it('keeps the gross-of-fee size when the venue or its fee is unknown', () => {
-    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000)).toBeCloseTo(0.2); // no venue arg
+  it('keeps the gross-of-fee size when no usable fee is supplied', () => {
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000)).toBeCloseTo(0.2); // omitted
     expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, null)).toBeCloseTo(0.2);
-    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'mexc')).toBeCloseTo(0.2); // not in schedule
-    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 'mock')).toBeCloseTo(0.2); // demo provider
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, 0)).toBeCloseTo(0.2); // zero-fee ticket
+    // An empty/garbled fee field arrives as NaN — never poison the size with it.
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, Number.NaN)).toBeCloseTo(0.2);
+    expect(quickSizeAmount('buy', 1, 0, 10_000, 50_000, -5)).toBeCloseTo(0.2);
   });
 
   it('does not fee-reserve a sell (sized from the base asset)', () => {
-    expect(quickSizeAmount('sell', 1, 4, 0, 50_000, 'binance')).toBe(4);
+    expect(quickSizeAmount('sell', 1, 4, 0, 50_000, 10)).toBe(4);
   });
 });
 

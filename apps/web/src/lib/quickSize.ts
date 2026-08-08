@@ -1,4 +1,4 @@
-import { takerFeeBps, type Balances, type TradingStatus } from '@midas/shared';
+import { type Balances, type TradingStatus } from '@midas/shared';
 import { isReceiptActionable } from './receiptView';
 
 /**
@@ -10,9 +10,13 @@ import { isReceiptActionable } from './receiptView';
 /**
  * Amount for a %-of-balance quick-size: a sell sizes from the free base asset;
  * a buy converts a fraction of the free quote balance at the given price,
- * reserving the venue's reference taker fee when it is known so a 100% buy
- * stays within the balance once fees are deducted. An unknown venue/fee keeps
- * the gross-of-fee size (the fee schedule never fabricates a free lunch).
+ * reserving `feeBps` so a 100% buy still fits the balance once the fee is
+ * deducted.
+ *
+ * `feeBps` must be the ticket's OWN fee field — the same number the cost
+ * preview charges. Deriving it from a reference fee schedule instead would size
+ * against a fee the account may not pay (tiers, rebates, maker vs taker) while
+ * the preview showed a different one. Omitted or unusable → gross-of-fee size.
  * Null when it can't be sized (no balance / no usable price).
  */
 export function quickSizeAmount(
@@ -21,14 +25,14 @@ export function quickSizeAmount(
   freeBase: number | null,
   freeQuote: number | null,
   price: number,
-  venue?: string | null,
+  feeBps?: number | null,
 ): number | null {
   if (!(fraction > 0)) return null;
   if (side === 'sell') return freeBase != null && freeBase > 0 ? freeBase * fraction : null;
   if (!(price > 0) || freeQuote == null || !(freeQuote > 0)) return null;
-  const feeBps = takerFeeBps(venue);
-  const feeReserve = feeBps != null ? 1 + feeBps / 10_000 : 1;
-  return (freeQuote * fraction) / (price * feeReserve);
+  const reserve =
+    feeBps != null && Number.isFinite(feeBps) && feeBps > 0 ? 1 + feeBps / 10_000 : 1;
+  return (freeQuote * fraction) / (price * reserve);
 }
 
 /**
