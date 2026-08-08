@@ -85,11 +85,15 @@ export function OidModule({ panel }: ModuleProps) {
           };
   const quadrant = data.classification ? QUADRANT[data.classification] : null;
   const actionable = isReceiptActionable(data.receipt);
-  const spark = sparklinePath(
-    data.points.map((p) => p.openInterestValue),
-    240,
-    48,
-  );
+  // The OI scalar the delta was computed on: contracts when the venue reported
+  // them (price-invariant), notional otherwise — labeled in the footer.
+  const oiScalar = (p: (typeof data.points)[number]): number | null =>
+    (data.oiBasis === 'contracts' ? p.openInterestAmount : p.openInterestValue) ?? null;
+  // Pass the nulls through: a point that lacks the chosen basis breaks the
+  // stroke where it actually sits. Filtering them would slide later
+  // observations left and redraw the window shorter than it is.
+  const spark = sparklinePath(data.points.map(oiScalar), 240, 48);
+  const oiUnit = data.oiBasis === 'contracts' ? '' : '$';
   const lastPrice = [...data.points].reverse().find((p) => p.price != null)?.price ?? null;
 
   return (
@@ -134,12 +138,12 @@ export function OidModule({ panel }: ModuleProps) {
         <div className="scroll-term flex-1 overflow-auto">
           <div className="grid grid-cols-2 gap-x-4 px-2 py-2 text-xs">
             <div className="flex justify-between py-0.5">
-              <span className="text-term-muted">OI NOW</span>
-              <span className="tabular-nums text-term-text">${fmtCompact(data.oiNow)}</span>
+              <span className="text-term-muted">OI NOW{data.oiBasis === 'contracts' ? ' (CONTRACTS)' : ''}</span>
+              <span className="tabular-nums text-term-text">{data.oiNow == null ? '—' : `${oiUnit}${fmtCompact(data.oiNow)}`}</span>
             </div>
             <div className="flex justify-between py-0.5">
-              <span className="text-term-muted">OI {data.window} AGO</span>
-              <span className="tabular-nums text-term-text">{data.oiThen == null ? '—' : `$${fmtCompact(data.oiThen)}`}</span>
+              <span className="text-term-muted">OI {data.window} AGO{data.oiBasis === 'contracts' ? ' (CONTRACTS)' : ''}</span>
+              <span className="tabular-nums text-term-text">{data.oiThen == null ? '—' : `${oiUnit}${fmtCompact(data.oiThen)}`}</span>
             </div>
             <div className="flex justify-between py-0.5">
               <span className="text-term-muted">Δ OI</span>
@@ -171,6 +175,11 @@ export function OidModule({ panel }: ModuleProps) {
       )}
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
+        {data.oiBasis === 'notional' ? (
+          <span className="text-term-amber">ΔOI on notional OI — drifts with price · </span>
+        ) : data.oiBasis === 'contracts' ? (
+          <span>ΔOI on contract OI · </span>
+        ) : null}
         OI↑+price↑ = <span className={actionable ? 'text-term-up' : 'text-term-muted'}>long buildup</span> · OI↑+price↓ ={' '}
         <span className={actionable ? 'text-term-down' : 'text-term-muted'}>short buildup</span> · OI↓ = <span className={actionable ? 'text-term-amber' : 'text-term-muted'}>unwind / covering</span>
       </div>

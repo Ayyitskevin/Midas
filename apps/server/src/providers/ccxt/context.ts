@@ -22,13 +22,34 @@ import type { DataProvider } from '../types';
  * Modules must never import `../ccxt`: the provider imports one-way from
  * `ccxt/*` so the graph stays acyclic.
  */
-export interface CcxtReadContext extends DataProvider {
-  /** Injected clock (CcxtProviderDeps.now) — extracted code never calls Date.now. */
-  readonly now: () => number;
+/**
+ * The narrowest slice: symbol normalization on top of DataProvider. Enough for
+ * modules that only translate a symbol and delegate to fetchers which label
+ * their own provenance (the on-chain wiring) — no clock, because nothing there
+ * stamps an `observedAt`, and no venue client.
+ */
+export interface CcxtSymbolContext extends DataProvider {
   /** BTC-USD → BTC/USD; already-unified symbols pass through. */
   normalize(symbol: string): string;
+}
+
+/** The common case: a clock and the primary venue client on top of the above. */
+export interface CcxtReadContext extends CcxtSymbolContext {
+  /** Injected clock (CcxtProviderDeps.now) — extracted code never calls Date.now. */
+  readonly now: () => number;
   /** The configured primary venue client. */
   readonly exchange: Exchange;
   /** Lowercased ccxt id of the primary venue (receipt `venue` field). */
   readonly exchangeId: string;
+}
+
+/**
+ * The read context plus the multi-venue compare set — what the cross-venue
+ * fan-outs (liquidations, quotes, venue derivatives, venue screen) need. Kept as
+ * a widening of CcxtReadContext so a module asks for exactly the surface it
+ * uses, and single-venue readers stay unable to reach the compare set.
+ */
+export interface CcxtCompareContext extends CcxtReadContext {
+  /** The lazily built multi-venue compare set (MIDAS_CCXT_COMPARE). */
+  compareExchanges(): Exchange[];
 }

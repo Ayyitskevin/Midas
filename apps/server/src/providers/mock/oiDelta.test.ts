@@ -28,8 +28,20 @@ describe('mock getOiDelta', () => {
     const quote = await provider.getQuote('ETH/USDT');
     const last = d.points[d.points.length - 1];
     expect(last.price).toBeCloseTo(quote.price, 2);
-    expect(d.oiNow).toBe(last.openInterestValue);
-    expect(d.oiThen).toBe(d.points[0].openInterestValue);
+    // The mock walks OI in contracts (price-invariant), like venues that
+    // report openInterestAmount — the endpoints are read on that basis.
+    expect(d.oiBasis).toBe('contracts');
+    expect(d.oiNow).toBe(last.openInterestAmount);
+    expect(d.oiThen).toBe(d.points[0].openInterestAmount);
+  });
+
+  it('derives each point’s notional leg from its own price — never a fabricated scalar', async () => {
+    const provider = new MockProvider();
+    const d = await provider.getOiDelta('BTC/USDT', '24h');
+    for (const p of d.points) {
+      expect(p.openInterestAmount).toBeGreaterThan(0);
+      expect(p.openInterestValue).toBe(Math.round(p.openInterestAmount! * p.price!));
+    }
   });
 
   it('always reports a true quadrant of its own series', async () => {
@@ -39,6 +51,7 @@ describe('mock getOiDelta', () => {
         const d = await provider.getOiDelta(symbol, window);
         expect(d.provenance).toBe('synthetic');
         expect(typeof d.note).toBe('string');
+        expect(d.oiBasis).toBe('contracts');
         expect(d.points.length).toBeGreaterThan(1);
         // The classification must be the quadrant the endpoints imply — the
         // mock's per-symbol regime keeps both changes non-flat.

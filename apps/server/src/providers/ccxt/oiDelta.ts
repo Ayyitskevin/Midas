@@ -17,6 +17,13 @@ export type { CcxtReadContext };
  * closes over the same window, then reduced to the ΔOI × Δprice quadrant by
  * the shared summarizeOiDelta helper.
  *
+ * Basis: ccxt's OpenInterest structure carries openInterestAmount
+ * (contracts/base units) alongside openInterestValue (notional). The delta
+ * prefers the contract-denominated scalar — price-invariant positioning — and
+ * falls back to notional with the basis labeled on `oiBasis` plus a receipt
+ * limitation, because notional OI drifts with price and would read a
+ * flat-position rally as a buildup.
+ *
  * Alignment: each OI observation is paired with the close of the price bar
  * whose floor-aligned bucket it falls into — bucket width = the OI timeframe
  * (5m/15m/1h/4h per window). Some venues timestamp OI at the PERIOD END while
@@ -37,6 +44,7 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     const value: OiDelta = {
       symbol: perp,
       window,
+      oiBasis: null,
       oiNow: null,
       oiThen: null,
       oiChangePct: null,
@@ -51,7 +59,7 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     return { ...value, receipt: providerUnavailableReceipt(ctx, {
       datasetFamily: 'open-interest-delta', instrument: perp, venue: ctx.exchangeId,
       coverage: `${window} OI/price alignment`,
-      units: { openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+      units: { openInterestAmount: 'base-asset', openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
       note,
     }, ctx.now()) };
   };
@@ -65,7 +73,7 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
   const oiTimeframe = ({ '1h': '5m', '4h': '15m', '24h': '1h', '7d': '4h' } as Record<OiDeltaWindow, string>)[window];
   const bucketMs = timeframeSeconds(oiTimeframe) * 1000;
   const since = now - OI_DELTA_WINDOW_MS[window];
-  let rows: Array<{ timestamp?: number; openInterestValue?: number }>;
+  let rows: Array<{ timestamp?: number; openInterestAmount?: number; openInterestValue?: number }>;
   try {
     const response = await ctx.exchange.fetchOpenInterestHistory(perp, oiTimeframe, since, 500);
     if (!Array.isArray(response)) {
@@ -78,14 +86,21 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     }
     rows = response as unknown as Array<{
       timestamp?: number;
+      openInterestAmount?: number;
       openInterestValue?: number;
     }>;
   } catch (err) {
     if (err instanceof ProviderError) throw err;
     throw new ProviderError(`OI-history read failed — ${safeErrorLabel(err)}.`, 502, perp);
   }
+  // ccxt's OpenInterest structure carries openInterestAmount (contracts/base
+  // units — Binance, Bybit, Gate report it; OKX reports amount OR value per
+  // its oiCcy mode) alongside openInterestValue (notional). Either scalar is
+  // usable evidence; summarizeOiDelta prefers the price-invariant one.
   const oiRows = rows.filter(
-    (r) => sourceTimestampOrNull(r?.timestamp) !== null && positiveFiniteOrNull(r?.openInterestValue) !== null,
+    (r) =>
+      sourceTimestampOrNull(r?.timestamp) !== null &&
+      (positiveFiniteOrNull(r?.openInterestAmount) !== null || positiveFiniteOrNull(r?.openInterestValue) !== null),
   );
   const omittedOiRows = rows.length - oiRows.length;
   if (rows.length > 0 && oiRows.length === 0) {
@@ -163,14 +178,20 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     // Period-end vs period-start convention: fall back one bucket (see the
     // method doc for the alignment tolerance).
     const price = closeByBucket.get(b) ?? closeByBucket.get(b - bucketMs) ?? null;
-    return { timestamp: ts, openInterestValue: r.openInterestValue as number, price };
+    return {
+      timestamp: ts,
+      openInterestAmount: positiveFiniteOrNull(r.openInterestAmount),
+      openInterestValue: positiveFiniteOrNull(r.openInterestValue),
+      price,
+    };
   });
   points.sort((a, b) => a.timestamp - b.timestamp);
 
+  const summary = summarizeOiDelta(points);
   const value: OiDelta = {
     symbol: perp,
     window,
-    ...summarizeOiDelta(points),
+    ...summary,
     points,
     provenance: 'live',
     source,
@@ -187,7 +208,7 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     expectedCadenceMs: bucketMs,
     maxAgeMs: bucketMs * 2,
     coverage: `${window} requested; ${actualCoverageMs}ms actual OI endpoint coverage`,
-    units: { openInterestValue: 'quote-asset' },
+    units: { openInterestAmount: 'base-asset', openInterestValue: 'quote-asset' },
     limitations: omittedOiRows > 0
       ? [partialEvidenceLimitation(
           `Open-interest history attempted ${rows.length} row(s); ${oiRows.length} returned usable evidence and ${omittedOiRows} were malformed and omitted.`,
@@ -220,10 +241,15 @@ export async function fetchOiDelta(ctx: CcxtReadContext, symbol: string, window:
     expectedCadenceMs: bucketMs,
     maxAgeMs: bucketMs * 2,
     coverage: `${window} requested; ${actualCoverageMs}ms actual aligned endpoint coverage`,
-    units: { openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+    units: { openInterestAmount: 'base-asset', openInterestValue: 'quote-asset', price: 'quote-asset', change: 'percent' },
+    limitations: summary.oiBasis === 'notional'
+      ? [partialEvidenceLimitation(
+          'OI delta computed on notional (quote-denominated) open interest — the venue did not report contract/base-unit OI history; notional OI drifts with price, so the quadrant can read price drift as positioning.',
+        )]
+      : [],
     methodology: {
-      id: 'midas.oi-delta', version: '1.0.0',
-      formula: '(now/then - 1) * 100; quadrant(sign(ΔOI), sign(Δprice))',
+      id: 'midas.oi-delta', version: '1.1.0',
+      formula: '(now/then - 1) * 100 over contract-denominated OI when the venue reports it (notional fallback, labeled on oiBasis); quadrant(sign(ΔOI), sign(Δprice))',
     },
   }, now);
 }

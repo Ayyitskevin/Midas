@@ -14,6 +14,10 @@
  *   point-in-time snapshots and presented as history.
  * - Missing evidence is null, never a fabricated 0: an unknown then-OI or a
  *   price point that cannot be aligned comes back null.
+ * - The OI change is measured on contract/base-unit OI whenever the venue
+ *   reports it (price-invariant positioning), falling back to notional OI —
+ *   which mechanically drifts with price — and the derivation basis is always
+ *   labeled on `oiBasis` so the notional caveat stays visible.
  *
  * Pure types + pure compute helpers only — safe in Node and the browser.
  */
@@ -41,19 +45,36 @@ export function isOiDeltaWindow(raw: string): raw is OiDeltaWindow {
 }
 
 /**
- * One aligned OI/price observation: the open-interest notional (quote units)
- * at a timestamp, paired with the price at that time. `price` is null when no
- * price bar could be aligned to this observation (see the provider's alignment
- * tolerance) — never an interpolated or carried-forward fabrication.
+ * One aligned OI/price observation: the open interest at a timestamp, paired
+ * with the price at that time. A venue may report OI in contracts/base units
+ * (`openInterestAmount`), in notional/quote units (`openInterestValue`), or
+ * both. A LIVE adapter reports exactly what the venue sent and leaves the
+ * other leg null — it never back-fills a missing scalar by multiplying the
+ * reported one by the price, because that would dress a derived number up as
+ * venue evidence. (The synthetic mock provider is not an adapter: both legs
+ * come from one simulated ground truth, so it populates both.) `price` is null
+ * when no price bar could be aligned to this observation (see the provider's
+ * alignment tolerance) — never an interpolated or carried-forward fabrication.
  */
 export interface OiDeltaPoint {
   /** Epoch millis. */
   timestamp: number;
-  /** Open-interest notional in quote units (e.g. USDT). */
-  openInterestValue: number;
+  /** Open interest in contracts/base units; null when the venue reports notional only. */
+  openInterestAmount: number | null;
+  /** Open-interest notional in quote units (e.g. USDT); null when the venue reports contracts only. */
+  openInterestValue: number | null;
   /** The paired price at this timestamp; null when unalignable. */
   price: number | null;
 }
+
+/**
+ * What the OI change is denominated in: 'contracts' (base units — price-
+ * invariant, the rigorous positioning read) is preferred whenever both window
+ * endpoints report it; 'notional' (quote units) is the labeled fallback —
+ * notional OI drifts with price, so a flat-position rally can masquerade as a
+ * buildup on this basis.
+ */
+export type OiDeltaBasis = 'contracts' | 'notional';
 
 /** The four positioning quadrants of ΔOI × Δprice. */
 export type OiDeltaClassification =
@@ -74,9 +95,11 @@ export interface OiDelta {
   symbol: string;
   /** The lookback window the changes are measured over. */
   window: OiDeltaWindow;
-  /** Latest OI notional in the window; null when there is no history. */
+  /** What oiNow/oiThen/oiChangePct are denominated in; null when no OI evidence. */
+  oiBasis: OiDeltaBasis | null;
+  /** Latest OI in the window, in the `oiBasis` unit; null when there is no history. */
   oiNow: number | null;
-  /** Earliest OI notional in the window; null when there is no history. */
+  /** Earliest OI in the window, in the `oiBasis` unit; null when there is no history. */
   oiThen: number | null;
   /** (oiNow/oiThen − 1) × 100; null without a positive then-OI. */
   oiChangePct: number | null;
@@ -143,25 +166,54 @@ export function pctChange(now: number | null, then: number | null): number | nul
 
 /**
  * Reduce an aligned OI/price series to the board's summary fields: the then/now
- * OI endpoints, both percent changes, the classification, and the freshness
- * (`asOf` = the newest observation). Pure; every provider and the demo engine
- * assemble their payloads through this one path so the quadrants agree
- * everywhere. OI and price use the exact same first/last timestamps. If either
- * endpoint lacks a price, price change and classification stay null rather than
- * silently shortening the claimed window to inner priced points.
+ * OI endpoints, both percent changes, the classification, the freshness
+ * (`asOf` = the newest observation), and the derivation basis. Pure; every
+ * provider and the demo engine assemble their payloads through this one path so
+ * the quadrants agree everywhere. OI and price use the exact same first/last
+ * timestamps. If either endpoint lacks a price, price change and classification
+ * stay null rather than silently shortening the claimed window to inner priced
+ * points.
+ *
+ * Basis: the delta is measured on contract/base-unit OI whenever both endpoints
+ * report it — contracts are price-invariant, so a flat-position rally stays a
+ * flat OI change and never reads as a buildup. Notional OI is the labeled
+ * fallback (`oiBasis: 'notional'`): it drifts with price, and consumers must
+ * surface that caveat. When the endpoints share no common basis — or report no
+ * OI at all — the OI fields and the basis come back null, never a cross-unit
+ * comparison and never a fabricated change.
  */
 export function summarizeOiDelta(points: OiDeltaPoint[]): Pick<
   OiDelta,
-  'oiNow' | 'oiThen' | 'oiChangePct' | 'priceChangePct' | 'classification' | 'asOf'
+  'oiBasis' | 'oiNow' | 'oiThen' | 'oiChangePct' | 'priceChangePct' | 'classification' | 'asOf'
 > {
   const first = points.length > 0 ? points[0] : null;
   const last = points.length > 1 ? points[points.length - 1] : null;
-  const oiThen = first?.openInterestValue ?? null;
-  const oiNow = last?.openInterestValue ?? null;
+  // Reported iff the venue gave a finite, non-negative scalar. Zero is real
+  // evidence — a perp CAN have no open interest, and nulling it would report a
+  // genuine drain to zero as "no evidence". `pctChange` separately refuses a
+  // non-positive base, so a zero endpoint yields an honest null percent while
+  // the endpoints themselves still read 0.
+  const usable = (value: number | null | undefined): number | null =>
+    value != null && Number.isFinite(value) && value >= 0 ? value : null;
+  const thenAmount = usable(first?.openInterestAmount);
+  const nowAmount = usable(last?.openInterestAmount);
+  const thenValue = usable(first?.openInterestValue);
+  const nowValue = usable(last?.openInterestValue);
+  // Contracts preferred: usable on both endpoints (or on the only endpoint of a
+  // single-point series). Notional is the labeled fallback on the same rule.
+  const basis: OiDeltaBasis | null =
+    thenAmount !== null && (last === null || nowAmount !== null)
+      ? 'contracts'
+      : thenValue !== null && (last === null || nowValue !== null)
+        ? 'notional'
+        : null;
+  const oiThen = basis === 'contracts' ? thenAmount : basis === 'notional' ? thenValue : null;
+  const oiNow = basis === 'contracts' ? nowAmount : basis === 'notional' ? nowValue : null;
   const oiChangePct = pctChange(oiNow, oiThen);
   const priceChangePct = pctChange(last?.price ?? null, first?.price ?? null);
 
   return {
+    oiBasis: basis,
     oiNow,
     oiThen,
     oiChangePct,

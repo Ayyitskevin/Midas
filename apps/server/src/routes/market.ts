@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import {
   computeFundingDispersion,
   computeCrossVenueScreen,
-  computeLiquidationsAggregate,
   CROSS_VENUE_SCREEN_SORTS,
   sortCrossVenueScreen,
   computeOiConcentration,
@@ -16,17 +15,14 @@ import {
 } from '@midas/shared';
 import type {
   BoardEnvelope,
-  BoardProvenance,
   CoinUniverse,
   CrossVenueScreenerRow,
   CrossVenueScreenSort,
   DvolSnapshot,
   DvolSymbol,
   FundingDispersionRow,
-  FundingRow,
   HealthResponse,
   Interval,
-  LiquidationsFeed,
   OiConcentrationRow,
   OiDelta,
   OiDeltaWindow,
@@ -35,16 +31,13 @@ import type {
   ScreenerRow,
   TermStructure,
   VenueArbRow,
-  VenueLiquidations,
   DataReceipt,
-  TrustDatasetFamily,
 } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import { ProviderError } from '../providers';
 import { config } from '../config';
-import { createTtlCache, type TtlCache } from '../ttlCache';
+import { createTtlCache } from '../ttlCache';
 import { providerStreamsLive } from '../streaming';
-import { normalizeLiquidationsMeta } from '../liquidationsHonesty';
 import { firstStr, normalizeSymbol, normalizeQuote } from './shared';
 import type { DataStatusTracker } from '../dataStatus';
 import { DATA_ROUTE_PATHS } from '../dataCoverage';
@@ -52,13 +45,16 @@ import {
   attachProviderReceipt,
   attachProviderReceiptRows,
   deriveRouteReceipt,
-  receiptHasPartialEvidence,
   trackProviderCall,
   transportDerivedReceipt,
   unavailableReceipt,
-  type ReceiptCarrier,
-  type ReceiptExpectation,
 } from './dataTrust';
+import {
+  registerVenueBoard,
+  serveReceiptPayload,
+  type CachedReceiptPayload,
+} from './boards';
+import { registerFundingBoard, registerLiquidationsBoard } from './marketBoards';
 
 const DEFAULT_INTERVAL: Interval = '1d';
 const DEFAULT_RANGE: Range = '6mo';
@@ -72,13 +68,6 @@ const FUNDING_DISPERSION_TTL_MS = 45_000;
 const VENUE_ARB_TTL_MS = 20_000;
 // OI moves slowly (like funding), so the OI/crowding board reuses a 45s window.
 const OI_CONCENTRATION_TTL_MS = 45_000;
-// The funding board fans screen() + getDerivatives() out over N perps per
-// request — the same cost shape as the venue boards, so it gets a short
-// single-flight window too (funding itself moves slowly).
-const FUNDING_TTL_MS = 15_000;
-// The market-wide liquidations feed has the same N-perp fan-out; a 15s window
-// collapses client polling into one upstream sweep.
-const LIQUIDATIONS_TTL_MS = 15_000;
 // The screener re-reads the full ticker set per request; quote/price data is
 // fresh enough on a 15s window shared across concurrent users.
 const SCREENER_TTL_MS = 15_000;
@@ -105,293 +94,6 @@ const OI_DELTA_TTL_MS = 60_000;
 const DVOL_SYMBOLS = new Set(['BTC', 'ETH']);
 // An explicit expiry must be a plausible epoch-millis (bounded below year 2100).
 const MAX_EXPIRY_MS = 4_102_444_800_000;
-
-/**
- * What a board TTL cache stores: the rows plus the build-time facts the
- * envelope meta needs — when the board was computed (→ `asOf`, and `cachedAt`
- * on a stale serve) and how many symbols failed and were dropped (→ `partial`
- * and the note). Stamping the cache entry means a cached serve reports the
- * board's true age and completeness instead of looking freshly computed.
- */
-interface CachedBoard<Row> {
-  rows: Row[];
-  computedAt: number;
-  failed: number;
-  insufficient: number;
-  partialRows: number;
-  total: number;
-  receipt: DataReceipt;
-}
-
-interface CachedReceiptPayload<T> {
-  payload: T;
-  storedAt: number;
-}
-
-/**
- * Wrap cached board rows in the shared envelope. Provenance comes straight
- * from the provider (ccxt → 'live', mock → 'synthetic' — never claimed live
- * for synthetic data). The note is null only for a fully live, complete
- * board; synthetic provenance and dropped symbols are always stated.
- */
-function boardEnvelope<Row>(
-  entry: CachedBoard<Row>,
-  fromCache: boolean,
-): BoardEnvelope<Row> {
-  const provenance: BoardProvenance = entry.receipt.provenance;
-  const caveats: string[] = [];
-  if (provenance === 'synthetic') {
-    caveats.push(`Synthetic data from ${entry.receipt.source} — not real market data.`);
-  }
-  if (provenance === 'unavailable' && entry.receipt.note) caveats.push(entry.receipt.note);
-  if (entry.failed > 0) caveats.push(`${entry.failed} of ${entry.total} symbols unavailable`);
-  if (entry.insufficient > 0) {
-    caveats.push(`${entry.insufficient} of ${entry.total} symbols lacked the required signal and were omitted`);
-  }
-  if (entry.partialRows > 0) caveats.push(`${entry.partialRows} returned row(s) carry partial evidence`);
-  return {
-    rows: entry.rows,
-    meta: {
-      provenance,
-      source: entry.receipt.source,
-      asOf: entry.computedAt,
-      cachedAt: fromCache ? entry.computedAt : null,
-      partial: entry.failed > 0 || entry.insufficient > 0 || entry.partialRows > 0,
-      note: caveats.length > 0 ? caveats.join(' ') : null,
-      receipt: entry.receipt,
-    },
-  };
-}
-
-/**
- * Serve a fan-out board through its TTL cache and wrap it in a BoardEnvelope.
- * The cache stores the rows stamped with their compute time and drop count;
- * `cachedAt` is set only when this request was served a previously stored
- * entry (a fresh compute, or sharing one in flight, reports null).
- */
-async function serveBoard<Row extends object & { receipt: DataReceipt }>(
-  provider: DataProvider,
-  family: TrustDatasetFamily,
-  cache: TtlCache<CachedBoard<Row>>,
-  key: string,
-  traceId: string,
-  dataStatus: DataStatusTracker,
-  build: () => Promise<{
-    rows: Row[];
-    failed: number;
-    insufficient?: number;
-    evidenceReceipts?: DataReceipt[];
-    total: number;
-  }>,
-): Promise<BoardEnvelope<Row>> {
-  let computed = false;
-  const entry = await cache.get(key, async () => {
-    computed = true;
-    const { rows, failed, insufficient = 0, evidenceReceipts, total } = await build();
-    const computedAt = Date.now();
-    const inputs = evidenceReceipts ?? rows.map((row) => row.receipt);
-    const partialRows = rows.filter((row) => receiptHasPartialEvidence(row.receipt)).length;
-    const limitations = [
-      ...(failed > 0
-        ? [partialEvidenceLimitation(`${failed} of ${total} board input(s) failed.`)]
-        : []),
-      ...(insufficient > 0
-        ? [
-            partialEvidenceLimitation(
-              `${insufficient} of ${total} board input(s) lacked the required signal and were omitted.`,
-            ),
-          ]
-        : []),
-      ...(partialRows > 0
-        ? [partialEvidenceLimitation(`${partialRows} returned board row(s) carry partial evidence.`)]
-        : []),
-    ];
-    const partial = limitations.length > 0;
-    const receipt = inputs.length > 0
-      ? deriveRouteReceipt(
-          provider,
-          {
-            family,
-            coverage: `${rows.length} of ${total} requested board row(s).`,
-            inputReceipts: inputs,
-            methodology:
-              family === 'venue-arbitrage' &&
-              provider.capabilities.capabilities['venue-arbitrage'].methodology
-                ? provider.capabilities.capabilities['venue-arbitrage'].methodology
-                : {
-                    id: `midas.${family}.board-assembly`,
-                    version: '1.0',
-                    formula:
-                      'Assemble successful per-symbol derivations; retain route-defined ranking; report omissions.',
-                  },
-            units: {},
-            limitations,
-            traceId,
-            cache: { status: 'miss', ageMs: 0 },
-          },
-          dataStatus,
-          partial ? 'partial' : null,
-          computedAt,
-        )
-      : unavailableReceipt(
-          provider,
-          {
-            family,
-            coverage: `0 of ${total} requested board row(s).`,
-            limitations: [
-              ...limitations,
-              'No receipted board rows were available.',
-            ],
-            note: 'No receipted board rows are currently available.',
-            traceId,
-          },
-          dataStatus,
-          partial ? 'partial' : 'upstream-unavailable',
-          computedAt,
-        );
-    return { rows, failed, insufficient, partialRows, total, computedAt, receipt };
-  });
-  const now = Date.now();
-  const fromCache = !computed;
-  const rows = entry.rows.map((row) =>
-    suppressStaleArbitrage(
-      family,
-      transportDerivedReceipt(
-        provider,
-        row,
-        traceId,
-        dataStatus,
-        { status: fromCache ? 'hit' : 'miss', ageMs: fromCache ? Math.max(0, now - entry.computedAt) : 0 },
-        now,
-      ),
-    ),
-  );
-  const receipt = transportDerivedReceipt(
-    provider,
-    { receipt: entry.receipt },
-    traceId,
-    dataStatus,
-    { status: fromCache ? 'hit' : 'miss', ageMs: fromCache ? Math.max(0, now - entry.computedAt) : 0 },
-    now,
-  ).receipt;
-  return boardEnvelope({ ...entry, rows, receipt }, fromCache);
-}
-
-/** Cached quote evidence can age out while the numeric row remains cached. */
-function suppressStaleArbitrage<Row extends object & { receipt: DataReceipt }>(
-  family: TrustDatasetFamily,
-  row: Row,
-): Row {
-  if (family !== 'venue-arbitrage' || row.receipt.freshness.state === 'fresh') return row;
-  const arb = row as Row & VenueArbRow;
-  return {
-    ...arb,
-    netSpreadBps: null,
-    netCrossed: false,
-    netLimitations: [
-      ...arb.netLimitations,
-      'Cached quote evidence is no longer fresh enough for an actionable net calculation.',
-    ],
-  };
-}
-
-async function serveReceiptPayload<T extends object & ReceiptCarrier>(
-  provider: DataProvider,
-  family: TrustDatasetFamily,
-  cache: TtlCache<CachedReceiptPayload<T>>,
-  key: string,
-  traceId: string,
-  dataStatus: DataStatusTracker,
-  build: () => Promise<T>,
-  expected: ReceiptExpectation = {},
-): Promise<T & { receipt: DataReceipt }> {
-  let computed = false;
-  const entry = await cache.get(key, async () => {
-    computed = true;
-    return { payload: await build(), storedAt: Date.now() };
-  });
-  const now = Date.now();
-  return attachProviderReceipt(
-    provider,
-    family,
-    entry.payload,
-    traceId,
-    dataStatus,
-    {
-      status: computed ? 'miss' : 'hit',
-      ageMs: computed ? 0 : Math.max(0, now - entry.storedAt),
-    },
-    now,
-    expected,
-  );
-}
-
-/**
- * Register one cross-venue board route (funding dispersion, venue arb, OI
- * concentration). All three share the same shape: for the top-N perps/symbols
- * by volume, fan a per-symbol upstream read out (N×M), compute one row each
- * (dropping any that throw — counted so the envelope can flag a partial
- * board), keep the rows that carry a real signal, and rank them descending.
- * They differ only in the upstream call + row compute (`compute`) and the
- * field that must be non-null and is the sort key (`rank`). A short
- * single-flight TTL cache (per (quote, limit)) bounds the fan-out cost.
- */
-function registerVenueBoard<Row extends object & { receipt: DataReceipt }>(
-  app: FastifyInstance,
-  provider: DataProvider,
-  dataStatus: DataStatusTracker,
-  opts: {
-    path: string;
-    family: TrustDatasetFamily;
-    ttlMs: number;
-    /** Per-symbol upstream read + row compute; a throw drops the symbol. */
-    compute: (symbol: string, traceId: string) => Promise<Row>;
-    /** The signal field: a row is kept only when this is non-null, ranked desc. */
-    rank: (row: Row) => number | null;
-  },
-): void {
-  const cache = createTtlCache<CachedBoard<Row>>(opts.ttlMs);
-  app.get<{ Querystring: { quote?: string; limit?: string } }>(opts.path, async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
-    const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 15;
-    return serveBoard(provider, opts.family, cache, `${quote}|${limit}`, String(req.id), dataStatus, async () => {
-      const rows = await trackProviderCall(provider, opts.family, dataStatus, () =>
-        provider.screen({ quote, sort: 'volume', limit }),
-      );
-      let failed = 0;
-      // Cast the resolved array: for a generic Row, TS widens Promise.all's
-      // result to Awaited<Row>, which it can't prove equals Row. Every call
-      // site's Row is a plain row object (never a promise), so this is sound.
-      const board = (await Promise.all(
-        rows.map(async (r): Promise<Row | null> => {
-          try {
-            return await opts.compute(r.symbol, String(req.id));
-          } catch {
-            failed += 1;
-            return null;
-          }
-        }),
-      )) as (Row | null)[];
-      const successful = board.filter((row): row is Row => row !== null);
-      const ranked = successful
-        .filter((row) => opts.rank(row) !== null)
-        .sort((a, b) => (opts.rank(b) ?? 0) - (opts.rank(a) ?? 0));
-      const omitted = successful.filter((row) => opts.rank(row) === null);
-      return {
-        rows: ranked,
-        failed,
-        insufficient: omitted.length,
-        // Keep returned-row lineage in display order, then append evidence for
-        // rows omitted solely because their required signal was unavailable.
-        evidenceReceipts: [...ranked, ...omitted].map((row) => row.receipt),
-        total: rows.length,
-      };
-    });
-  });
-}
 
 /**
  * Market-data + provider-status routes: health, quotes, history, order books,
@@ -1000,6 +702,7 @@ export function registerMarketRoutes(
         {
           symbol,
           window,
+          oiBasis: null,
           oiNow: null,
           oiThen: null,
           oiChangePct: null,
@@ -1045,103 +748,7 @@ export function registerMarketRoutes(
     );
   });
 
-  // Funding-rates board: the top-N perps by volume with their funding + OI.
-  // Composed from screen() + getDerivatives() so every provider supports it.
-  // Same fan-out cost shape as the venue boards, so it sits behind the same
-  // single-flight TTL cache (per (quote, limit)) and returns the shared
-  // BoardEnvelope — dropped symbols flip meta.partial, never vanish silently.
-  const fundingCache = createTtlCache<CachedBoard<FundingRow & { receipt: DataReceipt }>>(FUNDING_TTL_MS);
-  app.get<{ Querystring: { quote?: string; limit?: string } }>(DATA_ROUTE_PATHS.funding, async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
-    const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 60) : 30;
-    return serveBoard(
-      provider,
-      'funding',
-      fundingCache,
-      `${quote}|${limit}`,
-      String(req.id),
-      dataStatus,
-      async () => {
-        const rows = await trackProviderCall(provider, 'funding', dataStatus, () =>
-          provider.screen({ quote, sort: 'volume', limit }),
-        );
-        let failed = 0;
-        const board = await Promise.all(
-          rows.map(async (r): Promise<(FundingRow & { receipt: DataReceipt }) | null> => {
-            try {
-              const raw = await trackProviderCall(provider, 'derivatives', dataStatus, () =>
-                provider.getDerivatives(r.symbol),
-              );
-              const d = attachProviderReceipt(
-                provider,
-                'derivatives',
-                raw,
-                String(req.id),
-                dataStatus,
-                undefined,
-                undefined,
-                { instrument: r.symbol },
-              );
-              const row: FundingRow = {
-                symbol: r.symbol,
-                fundingRate: d.fundingRate,
-                fundingIntervalHours: d.fundingIntervalHours ?? null,
-                nextFundingTime: d.nextFundingTime,
-                markPrice: d.markPrice,
-                openInterestValue: d.openInterestValue,
-              };
-              const limitations = [
-                ...(d.fundingRate == null ? [partialEvidenceLimitation('Funding rate unavailable.')] : []),
-                ...(d.fundingIntervalHours == null ? [partialEvidenceLimitation('Funding interval unavailable.')] : []),
-                ...(d.markPrice == null ? [partialEvidenceLimitation('Mark price unavailable.')] : []),
-                ...(d.openInterestValue == null
-                  ? [partialEvidenceLimitation('Open-interest value unavailable.')]
-                  : []),
-              ];
-              const receipt = deriveRouteReceipt(
-                provider,
-                {
-                  family: 'funding',
-                  instrument: r.symbol,
-                  coverage: 'Top-perpetual funding board row.',
-                  inputReceipts: [d.receipt],
-                  methodology: {
-                    id: 'midas.funding-board-row',
-                    version: '1.0',
-                    formula: 'Projection of provider funding, cadence, mark and open-interest fields.',
-                  },
-                  units: {
-                    fundingRate: 'fraction/settlement',
-                    fundingIntervalHours: 'hours',
-                    markPrice: 'quote currency',
-                    openInterestValue: 'quote currency',
-                  },
-                  limitations,
-                  traceId: String(req.id),
-                  expectedCadenceMs: FUNDING_TTL_MS,
-                  maxAgeMs: FUNDING_TTL_MS * 2,
-                },
-                dataStatus,
-                limitations.length > 0 ? 'partial' : null,
-              );
-              return withDataReceipt(row, receipt);
-            } catch {
-              failed += 1;
-              return null;
-            }
-          }),
-        );
-        return {
-          rows: board.filter((x): x is FundingRow & { receipt: DataReceipt } => x !== null),
-          failed,
-          total: rows.length,
-        };
-      },
-    );
-  });
+  registerFundingBoard(app, { provider, dataStatus });
 
   // The three cross-venue boards share one fan-out-behind-a-TTL-cache shape
   // (registerVenueBoard). Each keeps only rows whose signal field is non-null
@@ -1325,152 +932,7 @@ export function registerMarketRoutes(
     rank: (row) => row.totalOiValue,
   });
 
-  // Market-wide liquidations feed: the recent liquidations across the top-N
-  // perps merged into one newest-first stream. Composed from screen() +
-  // getDerivatives() so every provider supports it. Cached per quote on a
-  // short single-flight window keyed by quote + requested fan-out. The merged
-  // feed is capped at 120 events; meta.asOf always reports the sweep's real age.
-  const liquidationsCache = createTtlCache<
-    CachedReceiptPayload<LiquidationsFeed & { receipt: DataReceipt }>
-  >(LIQUIDATIONS_TTL_MS);
-  app.get<{ Querystring: { quote?: string; limit?: string } }>(DATA_ROUTE_PATHS.liquidations, async (req) => {
-    const quote = normalizeQuote(req.query.quote);
-    const limitRaw = Number(req.query.limit);
-    // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the feed.
-    // The ceiling matches the cross-venue boards (30) rather than the old
-    // single-source 60: this route now fans each symbol across the configured
-    // venue set, so it carries their cost shape and gets their bound.
-    const limit =
-      Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 30;
-    let computed = false;
-    const entry = await liquidationsCache.get(`${quote}|${limit}`, async () => {
-      computed = true;
-      const provenance = attachProviderReceipt(
-        provider,
-        'liquidations',
-        provider.liquidationsProvenance(),
-        String(req.id),
-        dataStatus,
-      );
-      // The provider's liquidation capability declaration is authoritative.
-      // Do not turn unrelated funding/OI snapshots into a liquidation feed
-      // when that provider explicitly says no public event source exists.
-      const rows = provenance.available
-        ? await trackProviderCall(provider, 'liquidations', dataStatus, () =>
-            provider.screen({ quote, sort: 'volume', limit }),
-          )
-        : [];
-      let failed = 0;
-      // Each symbol is read across the whole configured venue set. A symbol
-      // whose entire fan-out fails drops out and is counted; a single venue
-      // failing inside a fan-out is the provider's business and shows up as
-      // reduced coverage, not as a lost symbol.
-      const perSymbol = await Promise.all(
-        rows.map(async (r): Promise<{ venues: VenueLiquidations[]; symbol: string } | null> => {
-          try {
-            const raw = await trackProviderCall(provider, 'liquidations', dataStatus, () =>
-              provider.getVenueLiquidations(r.symbol),
-            );
-            const venues = attachProviderReceiptRows(
-              provider,
-              'liquidations',
-              raw,
-              String(req.id),
-              dataStatus,
-              undefined,
-              undefined,
-              { instrument: r.symbol },
-            );
-            return { symbol: r.symbol, venues };
-          } catch {
-            failed += 1;
-            return null;
-          }
-        }),
-      );
-      const successful = perSymbol.filter(
-        (result): result is { venues: VenueLiquidations[]; symbol: string } => result !== null,
-      );
-      // Union, never average and never deduplicated: each venue's liquidations
-      // are its own disjoint real events. See computeLiquidationsAggregate.
-      const aggregate = computeLiquidationsAggregate(successful, provenance.sampledSource ?? null);
-      const events = aggregate.events.slice(0, 120);
-      const venueReceipts = successful.flatMap((result) =>
-        result.venues.map((venue) => venue.receipt).filter((r): r is DataReceipt => r !== undefined),
-      );
-      const limitations = [
-        ...(failed > 0
-          ? [partialEvidenceLimitation(`${failed} of ${rows.length} symbol liquidation fan-out(s) failed.`)]
-          : []),
-        ...(aggregate.events.length > events.length
-          ? [
-              partialEvidenceLimitation(
-                `${aggregate.events.length - events.length} older event(s) beyond the 120-event display cap were dropped.`,
-              ),
-            ]
-          : []),
-        'Public exchange liquidation feeds may be throttled or incomplete; event totals are not exhaustive.',
-        'Cross-venue totals are a union of independently throttled feeds — a lower bound, never the market total.',
-      ];
-      const receipt = deriveRouteReceipt(
-        provider,
-        {
-          family: 'liquidations',
-          coverage:
-            `${rows.length} screened perpetual symbol(s) fanned across ` +
-            `${aggregate.observations.length} venue(s); latest 120 events retained.`,
-          inputReceipts: [provenance.receipt, ...venueReceipts],
-          methodology: {
-            id: 'midas.liquidations-feed',
-            version: '2.0',
-            formula:
-              'eventNotional = observedPrice * observedBaseAmount; ' +
-              'cross-venue union (never averaged or deduplicated); merge newest-first; retain 120; ' +
-              'multiple = totalValue / referenceVenueValue (lower bound)',
-          },
-          units: { price: 'quote currency', amount: 'base asset', value: 'quote currency' },
-          limitations,
-          traceId: String(req.id),
-          expectedCadenceMs: LIQUIDATIONS_TTL_MS,
-          maxAgeMs: LIQUIDATIONS_TTL_MS * 2,
-          cache: { status: 'miss', ageMs: 0 },
-        },
-        dataStatus,
-        failed > 0 ? 'partial' : null,
-      );
-      // One observation per venue actually read, counted pre-retention: the
-      // 120-event display cap says nothing about what a venue published. A
-      // venue never reached stays absent here and reports "not sampled" — a
-      // different claim from "sampled, produced zero".
-      const meta = withDataReceipt(
-        normalizeLiquidationsMeta(
-          provenance,
-          Date.now(),
-          aggregate.observations,
-          undefined,
-          {
-            totalValue: aggregate.totalValue,
-            referenceSource: aggregate.referenceSource,
-            referenceValue: aggregate.referenceValue,
-            multiple: aggregate.multiple,
-          },
-        ),
-        receipt,
-      );
-      const feed = withDataReceipt({ events, meta }, receipt);
-      return { payload: feed, storedAt: Date.now() };
-    });
-    const now = Date.now();
-    const transported = transportDerivedReceipt(
-      provider,
-      entry.payload,
-      String(req.id),
-      dataStatus,
-      { status: computed ? 'miss' : 'hit', ageMs: computed ? 0 : Math.max(0, now - entry.storedAt) },
-      now,
-    );
-    return { ...transported, meta: { ...transported.meta, receipt: transported.receipt } };
-  });
+  registerLiquidationsBoard(app, { provider, dataStatus });
 
   app.get<{ Querystring: { q?: string } }>(DATA_ROUTE_PATHS.search, async (req) => {
     const q = firstStr(req.query.q).trim().slice(0, 64);

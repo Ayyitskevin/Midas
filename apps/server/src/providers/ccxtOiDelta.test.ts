@@ -53,11 +53,70 @@ describe('CcxtProvider.getOiDelta', () => {
     expect(d.source).toBe('ccxt:binance');
     expect(d.note).toBeNull();
     expect(d.points).toHaveLength(3);
+    // This stub reports notional only — the fallback stays honestly labeled.
+    expect(d.oiBasis).toBe('notional');
     expect(d.oiChangePct).toBeCloseTo(5, 5);
     expect(d.priceChangePct).toBeCloseTo(2, 5);
     expect(d.classification).toBe('long-buildup');
     expect(d.asOf).toBe(NOW);
     expect(d.receipt?.coverage).toContain('3600000ms actual');
+    // …and the notional caveat rides on the receipt, worst-case rules.
+    expect(d.receipt?.limitations.join(' ')).toMatch(/notional.*drifts with price/i);
+    expect(d.receipt?.methodology?.version).toBe('1.1.0');
+  });
+
+  it('prefers contract-denominated OI when the venue reports it — a flat-position rally is no buildup', async () => {
+    // Binance-shape history: both scalars per row. Positions are FLAT in
+    // contracts across a +2% rally; the notional leg drifts +2% from price
+    // alone. The contracts basis keeps the OI change flat → no quadrant,
+    // where the notional read would have cried 'long-buildup'.
+    const venue = {
+      id: 'binance',
+      name: 'Binance',
+      has: { fetchOpenInterestHistory: true },
+      fetchOpenInterestHistory: async () =>
+        [0, 6, 12].map((i) => ({
+          timestamp: T0 + i * BUCKET,
+          openInterestAmount: 20_000,
+          openInterestValue: 20_000 * 50_000 * (1 + (0.02 * i) / 12),
+        })),
+      fetchOHLCV: async () =>
+        [0, 6, 12].map((i) => [T0 + i * BUCKET, 50_000, 51_000, 49_500, 50_000 * (1 + (0.02 * i) / 12), 10]),
+    };
+    const p = makeProvider(venue);
+    const d = await p.getOiDelta('BTC/USDT', '1h');
+    expect(d.oiBasis).toBe('contracts');
+    expect(d.oiThen).toBe(20_000);
+    expect(d.oiNow).toBe(20_000);
+    expect(d.oiChangePct).toBe(0);
+    expect(d.priceChangePct).toBeCloseTo(2, 5);
+    expect(d.classification).toBeNull();
+    expect(d.points[0].openInterestAmount).toBe(20_000);
+    expect(d.receipt?.limitations.join(' ') ?? '').not.toMatch(/notional/i);
+    expect(d.receipt?.units).toMatchObject({ openInterestAmount: 'base-asset', openInterestValue: 'quote-asset' });
+  });
+
+  it('accepts contract-only rows (the OKX oiCcy shape) and deltas them on the contracts basis', async () => {
+    const venue = {
+      id: 'okx',
+      name: 'OKX',
+      has: { fetchOpenInterestHistory: true },
+      fetchOpenInterestHistory: async () =>
+        [0, 6, 12].map((i) => ({
+          timestamp: T0 + i * BUCKET,
+          openInterestAmount: 20_000 * (1 + (0.05 * i) / 12),
+          // no openInterestValue — the venue reports contracts only
+        })),
+      fetchOHLCV: async () =>
+        [0, 6, 12].map((i) => [T0 + i * BUCKET, 50_000, 51_000, 49_500, 50_000 * (1 + (0.02 * i) / 12), 10]),
+    };
+    const p = makeProvider(venue);
+    const d = await p.getOiDelta('BTC/USDT', '1h');
+    expect(d.oiBasis).toBe('contracts');
+    expect(d.points.every((pt) => pt.openInterestValue === null)).toBe(true);
+    expect(d.oiChangePct).toBeCloseTo(5, 5);
+    expect(d.priceChangePct).toBeCloseTo(2, 5);
+    expect(d.classification).toBe('long-buildup');
   });
 
   it('falls back one bucket for an OI observation whose own bar is missing', async () => {
@@ -92,6 +151,7 @@ describe('CcxtProvider.getOiDelta', () => {
     expect(d.provenance).toBe('unavailable');
     expect(d.note).toContain('open-interest history');
     expect(d.points).toEqual([]);
+    expect(d.oiBasis).toBeNull();
     expect(d.oiChangePct).toBeNull();
     expect(d.classification).toBeNull();
   });

@@ -371,7 +371,9 @@ describe('demo engine', () => {
     expect(a.points.length).toBeGreaterThan(1);
     // Coherent with the demo walk: the last price point is the current quote.
     expect(a.points[a.points.length - 1].price!).toBeCloseTo(quoteFor('BTC/USDT', NOW)!.price, 2);
-    expect(a.oiNow).toBe(a.points[a.points.length - 1].openInterestValue);
+    // The demo walks OI in contracts (price-invariant), read on that basis.
+    expect(a.oiBasis).toBe('contracts');
+    expect(a.oiNow).toBe(a.points[a.points.length - 1].openInterestAmount);
     // The classification is a true quadrant of the returned series.
     expect(a.classification).not.toBeNull();
     expect(Math.sign(a.oiChangePct!)).not.toBe(0);
