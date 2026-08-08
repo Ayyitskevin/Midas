@@ -459,6 +459,10 @@ describe('execution posture routes (placement hold + cancel-only)', () => {
     const noAuthApp = await buildApp(noAuthProvider, {
       auth: { enabled: false, allowSignup: false, secret: 'unused-test-secret' },
       userLoops: null,
+      // Pinned origin = the accepted no-auth self-host posture; with the
+      // default wildcard CORS these keyed surfaces fail closed instead
+      // (keyedAccountGuard.test.ts).
+      corsOrigin: 'http://localhost:8080',
     });
     await noAuthApp.ready();
     try {
@@ -467,9 +471,10 @@ describe('execution posture routes (placement hold + cancel-only)', () => {
       expectHeld(placed);
       expect(noAuthPlace).not.toHaveBeenCalled();
 
-      // A no-auth single-operator deployment reads the base provider as the
-      // caller's own account — so canceling a resting order from that account's
-      // open-orders list is live (the mock book holds demo-1..3)…
+      // A no-auth single-operator deployment with a pinned CORS origin reads
+      // the base provider as the caller's own account — so canceling a resting
+      // order from that account's open-orders list is live (the mock book
+      // holds demo-1..3)…
       const canceled = await noAuthApp.inject({ method: 'DELETE', url: '/api/orders/demo-1?symbol=BTC/USDT' });
       expect(canceled.statusCode).toBe(200);
       expect(noAuthCancel).toHaveBeenCalledWith('demo-1', 'BTC/USDT');
