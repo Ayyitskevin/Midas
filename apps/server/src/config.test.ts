@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { applyDemoMode, authAllowSignupEnv, config, dataProviderEnv, numEnv, type Config } from './config';
+import {
+  applyDemoMode,
+  authAllowSignupEnv,
+  config,
+  dataProviderEnv,
+  numEnv,
+  userWebhooksEnv,
+  type Config,
+} from './config';
 import { createProvider } from './providers';
 
 describe('numEnv', () => {
@@ -80,6 +88,25 @@ describe('dataProviderEnv', () => {
   });
 });
 
+describe('userWebhooksEnv', () => {
+  const KEY = 'MIDAS_USER_WEBHOOKS';
+  const original = process.env[KEY];
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+  });
+
+  it('is disabled by default and requires an explicit true value', () => {
+    delete process.env[KEY];
+    expect(userWebhooksEnv()).toBe(false);
+    process.env[KEY] = 'true';
+    expect(userWebhooksEnv()).toBe(true);
+    process.env[KEY] = '1';
+    expect(userWebhooksEnv()).toBe(false);
+  });
+});
+
 describe('applyDemoMode', () => {
   const risky: Config = {
     ...config,
@@ -88,6 +115,7 @@ describe('applyDemoMode', () => {
     tradingEnabled: true,
     tradingAllowNoAuth: true,
     authAllowSignup: true,
+    userWebhooksEnabled: true,
   };
 
   it('forces the safe public-demo posture no matter what the env says', () => {
@@ -96,6 +124,7 @@ describe('applyDemoMode', () => {
     expect(safe.tradingEnabled).toBe(false);
     expect(safe.tradingAllowNoAuth).toBe(false);
     expect(safe.authAllowSignup).toBe(false);
+    expect(safe.userWebhooksEnabled).toBe(false);
   });
 
   it('is a no-op when demo mode is off', () => {

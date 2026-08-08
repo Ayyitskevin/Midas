@@ -173,6 +173,7 @@ function handle(method: string, url: URL): Response | null {
     if (path.startsWith('/api/orders')) return unavailable('In-browser order cancellation');
     if (path.startsWith('/api/auth')) return unavailable('Accounts');
     if (path.startsWith('/api/account/keys')) return unavailable('Per-user exchange keys');
+    if (path.startsWith('/api/account/webhook')) return unavailable('Personal webhooks');
     // The AI copilot is a POST; without this it fell to the generic 501 below
     // instead of the intended NotConfigured 503 (its GET case never runs).
     if (path.startsWith('/api/ai/')) return aiUnavailable();
@@ -706,6 +707,8 @@ function handle(method: string, url: URL): Response | null {
       return json({ watching: false, note: 'Equity snapshots need a real server — this demo is fully in-browser.', points: [] });
     case path === '/api/account/keys':
       return unavailable('Per-user exchange keys');
+    case path === '/api/account/webhook':
+      return unavailable('Personal webhooks');
     case path === '/api/auth/status':
       return json({ enabled: false, allowSignup: false });
     case path.startsWith('/api/auth/'):

@@ -45,6 +45,14 @@ Before a Midas box is reachable by anyone but you:
    Enabling this store also disables operator-account fallback for authenticated
    account reads; each user must save their own key. The server refuses to start
    the per-user store unless `MIDAS_AUTH_ENABLED=true`.
+8. **Personal webhooks are a separate outbound opt-in.** Keep
+   `MIDAS_USER_WEBHOOKS=false` unless users need fill/digest delivery. It
+   requires the authenticated per-user key posture above and reuses the KMS
+   root for owner-bound encrypted URLs. The application rejects non-public
+   targets and pins public DNS answers, but host-level outbound allowlists and
+   monitoring remain useful defense in depth. Delivery has no retries and no
+   redirect following; a digest crash can leave a visible `pending` outcome,
+   but its durably claimed cadence window is never replayed.
 
 ## Environment-variable security matrix
 
@@ -63,6 +71,8 @@ Before a Midas box is reachable by anyone but you:
 | `MIDAS_MAX_DAILY_USD` | `5000` | Legacy repair target; not an active execution control. |
 | `MIDAS_CCXT_API_KEY` / `_SECRET` | empty | Operator account-read keys. Use read-only scope, never withdrawal. |
 | `MIDAS_KEYS_KMS_SECRET` | empty | Enables strictly isolated per-user keys, AES-256-GCM at rest. Authenticated users without a usable key get unavailable account data, never operator fallback. Back it up; loss = fail-closed. |
+| `MIDAS_USER_WEBHOOKS` | `false` | Explicit outbound gate for authenticated users' personal fill/digest webhooks. Requires auth + per-user key store + KMS; demo mode forces it off. |
+| `MIDAS_USER_WEBHOOKS_FILE` | data dir | Encrypted endpoints plus durable digest claims. Corrupt/unreadable state refuses delivery/startup rather than silently resetting. |
 | `MIDAS_MAX_KEYED_USERS` | `25` | Bounds per-user background loops. |
 | `ANTHROPIC_API_KEY` | empty | AI copilot key. Requests are bounded (12 messages, 32k chars). |
 
@@ -125,6 +135,12 @@ regresses:
   enumerate accounts; passwords are scrypt with a per-user random salt.
 - **Secrets never leave the server.** Stored keys are AES-256-GCM at rest and
   returned only as metadata (exchange + last 4 + canTrade).
+- **Personal outbound delivery is bounded.** Endpoint validation rejects SSRF
+  ranges (including mixed DNS/IPv6 transition forms), the HTTPS connection is
+  pinned and deadline-bound with no redirects, fill batches/queue/payloads are
+  capped with no retry, and replacement generations prevent an old queued job
+  reaching a removed endpoint. URLs are owner-bound ciphertext and API reads,
+  logs, payloads, and status never expose them.
 
 ## What is deliberately *not* in the app
 

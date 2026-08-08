@@ -59,7 +59,8 @@ If blocked on install/CI env, record the limit; still land pure-logic tests.
 ### Later / human-gated
 
 - Public demo VPS + hero GIF (operator)
-- #276 per-user webhooks (design first)
+- ✅ #276 per-user webhooks + digests implemented; merge remains human-gated
+  because the encrypted secret/outbound boundary is security-sensitive
 - Execution re-enable only after `docs/EXECUTION_SAFETY_HOLD.md` gate
 - #277 billing only after beta validation
 
@@ -70,7 +71,7 @@ If blocked on install/CI env, record the limit; still land pure-logic tests.
 | Issue | Disposition |
 |---|---|
 | #278 beta feedback | Process/tracker — green-light docs only |
-| #276 per-user webhooks | Design hold |
+| #276 per-user webhooks | Implemented with owner-bound encrypted URLs, bounded SSRF-safe delivery, and restart-safe per-user digests; human security review before merge |
 | #266 waitlist | Social — no code |
 | #277 billing | **Do not implement** as settled product |
 | Dependabot majors | Review separately; do not auto-merge |

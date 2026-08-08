@@ -1,4 +1,4 @@
-import type { AccountFill, EquityPoint, Quote } from '@midas/shared';
+import { isPartialEvidenceLimitation, type AccountFill, type EquityPoint, type Quote } from '@midas/shared';
 import type { DataProvider } from './providers';
 
 /**
@@ -167,25 +167,72 @@ export interface DigestRecap {
   movers: Mover[] | null;
 }
 
+export type RecapEvidenceState = 'available' | 'empty' | 'partial' | 'unavailable';
+
+/** Rich evidence state for consumers that must not silently omit a section. */
+export interface DigestRecapEvidence {
+  recap: DigestRecap;
+  state: {
+    equity: RecapEvidenceState;
+    fills: RecapEvidenceState;
+    movers: RecapEvidenceState;
+  };
+}
+
+function hasEvidenceLimitations(value: {
+  note?: string | null;
+  receipt?: { limitations?: string[] };
+}): boolean {
+  return (
+    Boolean(value.note?.trim()) ||
+    Boolean(value.receipt?.limitations?.some(isPartialEvidenceLimitation))
+  );
+}
+
 const MOVER_SYMBOL_CAP = 8;
 
 /**
  * Assemble the recap from live account reads. Each section degrades to null
  * independently (a failed read yields an omitted line, never a made-up one).
  */
-export async function composeRecap(
+export async function composeRecapEvidence(
   provider: DataProvider | null,
   equityPoints: (() => EquityPoint[]) | null,
   sinceMs: number,
   nowMs: number,
-): Promise<DigestRecap> {
-  const equity = equityPoints ? equityChange(equityPoints(), sinceMs, nowMs) : null;
+): Promise<DigestRecapEvidence> {
+  let equity: EquityChange | null = null;
+  if (equityPoints) {
+    try {
+      equity = equityChange(equityPoints(), sinceMs, nowMs);
+    } catch {
+      equity = null;
+    }
+  }
+  const state: DigestRecapEvidence['state'] = {
+    equity: equity
+      ? equity.includesLiveUnrealizedPnl && equity.startAt <= sinceMs
+        ? 'available'
+        : 'partial'
+      : 'unavailable',
+    fills: 'unavailable',
+    movers: 'unavailable',
+  };
 
   let fills: FillRecap | null = null;
   if (provider) {
     try {
       const res = await provider.getFills();
-      if (res.provenance === 'live') fills = fillRecap(res.fills, sinceMs, nowMs);
+      if (res.provenance === 'live') {
+        fills = fillRecap(res.fills, sinceMs, nowMs);
+        state.fills = hasEvidenceLimitations(res)
+          ? 'partial'
+          : fills
+            ? fills.untimed > 0
+              ? 'partial'
+              : 'available'
+            : 'empty';
+      }
     } catch {
       /* unreadable → omitted */
     }
@@ -196,14 +243,29 @@ export async function composeRecap(
     try {
       const positions = await provider.getPositions();
       if (positions.provenance === 'live') {
-        const symbols = [...new Set(positions.positions.map((p) => p.symbol))].slice(0, MOVER_SYMBOL_CAP);
-        if (symbols.length > 0) {
+        const allSymbols = [...new Set(positions.positions.map((p) => p.symbol))];
+        const symbols = allSymbols.slice(0, MOVER_SYMBOL_CAP);
+        const positionsPartial =
+          hasEvidenceLimitations(positions) || allSymbols.length > symbols.length;
+        if (symbols.length === 0) {
+          state.movers = positionsPartial ? 'partial' : 'empty';
+        } else {
           const settled = await Promise.allSettled(symbols.map((s) => provider.getQuote(s)));
           const quotes = settled
             .filter((r): r is PromiseFulfilledResult<Quote> => r.status === 'fulfilled')
             .map((r) => r.value);
           const top = topMovers(quotes);
-          if (top.length > 0) movers = top;
+          if (top.length > 0) {
+            movers = top;
+            state.movers =
+              positionsPartial ||
+              quotes.length < symbols.length ||
+              quotes.some((quote) => hasEvidenceLimitations(quote))
+                ? 'partial'
+                : 'available';
+          } else if (positionsPartial) {
+            state.movers = 'partial';
+          }
         }
       }
     } catch {
@@ -211,7 +273,17 @@ export async function composeRecap(
     }
   }
 
-  return { equity, fills, movers };
+  return { recap: { equity, fills, movers }, state };
+}
+
+/** Backward-compatible operator-digest entry: same calculation, compact shape. */
+export async function composeRecap(
+  provider: DataProvider | null,
+  equityPoints: (() => EquityPoint[]) | null,
+  sinceMs: number,
+  nowMs: number,
+): Promise<DigestRecap> {
+  return (await composeRecapEvidence(provider, equityPoints, sinceMs, nowMs)).recap;
 }
 
 const usd = (n: number): string =>

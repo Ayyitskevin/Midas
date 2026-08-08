@@ -47,6 +47,16 @@ Midas is designed to be **self-hosted** and **non-custodial** by default:
   Per-user background loops (fill
   watcher and equity snapshots) only poll that user's client, bounded by
   `MIDAS_MAX_KEYED_USERS`.
+- **Personal webhooks are opt-in and fail closed.** They are off unless the
+  operator sets `MIDAS_USER_WEBHOOKS=true`, which also requires auth, the
+  per-user key store, and a fixed KMS secret. Each endpoint is owner-bound
+  AES-GCM ciphertext and write-only after save. Midas accepts HTTPS port 443
+  only, rejects credentials plus local/private/link-local/metadata/reserved
+  names and every non-public DNS answer, pins the validated address for TLS,
+  follows no redirects, and applies an absolute timeout. Fill delivery is a
+  bounded, no-retry queue; digest cadence windows are durably claimed before
+  account reads or delivery, preventing replay after restart. Logs/status use
+  fixed categories and never include the URL, payload, user id, or raw error.
 
 **For a step-by-step pre-exposure checklist, the full environment-variable
 security matrix, and the execution safety boundary, see
@@ -70,6 +80,9 @@ recommended checklist:
 3. TLS in front (Caddy/nginx/Traefik); never expose the raw HTTP port.
 4. Use read-only exchange keys. Withdrawal permission is never appropriate:
    Midas has no withdrawal code path, and the blast radius if a key leaks is total.
+5. Leave personal webhooks off unless users need them. If enabled, retain
+   outbound egress controls as defense in depth and monitor only the sanitized
+   delivery categories; never paste stored URLs or payloads into logs/issues.
 
 ## Reviewer and demo hygiene
 

@@ -1,5 +1,6 @@
 import { createAccountWatcher, type AccountWatchHandle } from '../accountWatch';
 import { EquityRepo, startEquityLoop, type EquityLoop } from '../equity';
+import type { AccountOrderEvent } from '@midas/shared';
 import type { DataProvider } from '../providers';
 import type { KeyRepo } from './repo';
 
@@ -15,8 +16,8 @@ import type { KeyRepo } from './repo';
  * - Loops only ever run against the user's OWN provider (pool.userFor —
  *   never the base fallback), so a broken key can't poll the operator's
  *   account on a user's behalf.
- * - No operator webhook: user fill events surface only in the user's
- *   in-terminal feed. (Per-user webhooks are a future user setting.)
+ * - No operator webhook: an optional personal webhook is handed only this
+ *   user's bounded fill batch, while the in-terminal feed remains isolated.
  * - The operator's own loops (index.ts) are untouched.
  */
 
@@ -32,6 +33,8 @@ export interface UserLoopsDeps {
   /** Keyed users allowed to run loops (default 25). */
   maxUsers?: number;
   onError?: (userId: string, err: unknown) => void;
+  /** Memory-only handoff of this user's fill semantics to a bounded queue. */
+  onFillBatch?: (userId: string, events: AccountOrderEvent[], omitted: number) => void;
   /** Called when the cap refuses a user's loops (log hook). */
   onRefused?: (userId: string) => void;
 }
@@ -90,10 +93,11 @@ export function createUserLoops(deps: UserLoopsDeps): UserLoops {
 
       const set: LoopSet = { watcher: null, watcherTimer: null, equityRepo: null, equityLoop: null };
       if (deps.watchMs > 0) {
-        // No notify: user events stay in the user's feed, not the operator's
-        // webhook.
         set.watcher = createAccountWatcher({
           provider,
+          notifyEvents: deps.onFillBatch
+            ? (events, omitted) => deps.onFillBatch?.(userId, events, omitted)
+            : undefined,
           onError: (err) => deps.onError?.(userId, err),
         });
         set.watcherTimer = setInterval(() => void set.watcher?.tick(), deps.watchMs);

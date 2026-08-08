@@ -29,6 +29,13 @@ import { createUserLoops, userEquityFileName, type UserLoops } from './keys/loop
 import { CcxtProvider } from './providers/ccxt';
 import { createRateLimiter } from './rateLimit';
 import { SAFE_LOG_REDACT_PATHS, safeErrorFields } from './safeLog';
+import { UserWebhookRepo } from './userWebhooks/repo';
+import { registerUserWebhookRoutes } from './userWebhooks/routes';
+import { createUserWebhookDispatcher } from './userWebhooks/delivery';
+import { buildFillWebhookPayload } from './userWebhooks/payload';
+import { createUserDigestLoop } from './userWebhooks/digest';
+import type { WebhookResolver } from './userWebhooks/url';
+import type { UserWebhookTransport } from './userWebhooks/transport';
 
 export interface BuildAppOptions {
   /** Logger seam for deterministic privacy tests; production uses env level/stdout. */
@@ -63,6 +70,12 @@ export interface BuildAppOptions {
   keyProviderFactory?: (keys: UserExchangeKeys) => DataProvider;
   /** Per-user loop manager override (tests); omitted = derive when keys are on. */
   userLoops?: UserLoops | null;
+  /** Encrypted personal-webhook state; null = feature off, omitted = derive from config. */
+  userWebhookRepo?: UserWebhookRepo | null;
+  /** DNS/transport seams keep tests deterministic and network-free. */
+  userWebhookResolver?: WebhookResolver;
+  userWebhookTransport?: UserWebhookTransport;
+  userWebhookNow?: () => number;
 }
 
 /**
@@ -203,6 +216,40 @@ export async function buildApp(
         new CcxtProvider({ exchange: k.exchange, apiKey: k.apiKey, secret: k.secret, password: k.password })),
   });
 
+  const userWebhookRepo =
+    opts.userWebhookRepo !== undefined
+      ? opts.userWebhookRepo
+      : config.userWebhooksEnabled && config.keysKmsSecret
+        ? new UserWebhookRepo(config.keysKmsSecret, config.userWebhooksFile)
+        : null;
+  if (config.userWebhooksEnabled && opts.userWebhookRepo === undefined && !config.keysKmsSecret) {
+    throw new Error(
+      'Per-user webhooks require MIDAS_KEYS_KMS_SECRET so endpoints and digest claims survive securely.',
+    );
+  }
+  if (userWebhookRepo && !authDeps.enabled) {
+    throw new Error('Per-user webhooks require authentication. Set MIDAS_AUTH_ENABLED=true.');
+  }
+  if (userWebhookRepo && !keyRepo) {
+    throw new Error('Per-user webhooks require the encrypted per-user key store.');
+  }
+  const webhookDispatcher = userWebhookRepo
+    ? createUserWebhookDispatcher({
+        repo: userWebhookRepo,
+        resolver: opts.userWebhookResolver,
+        transport: opts.userWebhookTransport,
+        now: opts.userWebhookNow,
+        isUserActive: (userId) => Boolean(authDeps.users.findById(userId)),
+        maxConcurrent: 4,
+        maxPending: Math.max(4, config.maxKeyedUsers * 2),
+        onResult: ({ kind, outcome, category }) =>
+          app.log.info({ kind, outcome, category }, 'personal webhook delivery result'),
+      })
+    : null;
+  const personalWebhookUserCap = Number.isFinite(config.maxKeyedUsers)
+    ? Math.max(0, Math.floor(config.maxKeyedUsers))
+    : 0;
+
   // Per-user background loops: each keyed user gets their own account watcher
   // + equity snapshots against THEIR client (never the base provider), capped
   // by MIDAS_MAX_KEYED_USERS. Existing keyed users start at boot; key writes
@@ -218,6 +265,12 @@ export async function buildApp(
             equityMs: config.equitySnapMs > 0 ? Math.max(60_000, config.equitySnapMs) : 0,
             equityFileFor: (userId) => join(dirname(config.equityFile), userEquityFileName(userId)),
             maxUsers: config.maxKeyedUsers,
+            onFillBatch: webhookDispatcher
+              ? (userId, events, omitted) => {
+                  const payload = buildFillWebhookPayload(events, omitted);
+                  if (payload) webhookDispatcher.enqueue(userId, payload);
+                }
+              : undefined,
             onError: (_userId, error) =>
               app.log.error(safeErrorFields(error), 'per-user loop error'),
             onRefused: (_userId) =>
@@ -225,7 +278,11 @@ export async function buildApp(
           })
         : null;
   if (userLoops && keyRepo) {
-    for (const userId of keyRepo.userIds()) userLoops.ensure(userId);
+    for (const userId of keyRepo.userIds()) {
+      // A failed historical key purge must not resurrect polling for an auth
+      // identity that no longer exists.
+      if (authDeps.users.findById(userId)) userLoops.ensure(userId);
+    }
     if (userLoops.size() > 0) app.log.info({ users: userLoops.size() }, 'per-user account loops running');
   }
 
@@ -237,15 +294,61 @@ export async function buildApp(
       userLoops?.ensure(userId);
     },
   });
+  registerUserWebhookRoutes(app, {
+    repo: userWebhookRepo,
+    digestHours: config.digestHours,
+    fillNotificationsAvailable: (userId) =>
+      Boolean(
+        userLoops?.watcherFor(userId) &&
+          config.accountWatchMs > 0 &&
+          personalWebhookUserCap > 0,
+      ),
+    maxEnabledUsers: personalWebhookUserCap,
+    isUserActive: (userId) => Boolean(authDeps.users.findById(userId)),
+    now: opts.userWebhookNow,
+    resolver: opts.userWebhookResolver,
+  });
   // Late-bound now that the key store / pool / loops exist: when an admin deletes
   // a user, purge that user's encrypted exchange keys and tear down their cached
   // provider + background loops. Without this, secrets linger on disk and a
   // watcher keeps polling a deleted user's exchange account.
   authDeps.onUserRemoved = (userId) => {
     keyRepo?.remove(userId);
-    pool.invalidate(userId);
-    userLoops?.drop(userId);
+    let webhookCleanupError: unknown;
+    try {
+      userWebhookRepo?.remove(userId);
+    } catch (error) {
+      webhookCleanupError = error;
+    } finally {
+      // A webhook-store failure must not leave the deleted user's exchange
+      // provider or watcher alive. Dispatcher/digest auth checks deny any
+      // retained record while the durable store is repaired.
+      pool.invalidate(userId);
+      userLoops?.drop(userId);
+    }
+    if (webhookCleanupError) throw webhookCleanupError;
   };
+
+  const userDigest =
+    userWebhookRepo && webhookDispatcher && config.digestHours > 0
+      ? createUserDigestLoop({
+          repo: userWebhookRepo,
+          dispatcher: webhookDispatcher,
+          providerFor: (userId) => pool.userFor(userId),
+          equityRepoFor: (userId) => userLoops?.equityRepoFor(userId) ?? null,
+          digestHours: config.digestHours,
+          maxUsers: personalWebhookUserCap,
+          now: opts.userWebhookNow,
+          isUserActive: (userId) => Boolean(authDeps.users.findById(userId)),
+          onError: (error) => app.log.error(safeErrorFields(error), 'personal digest error'),
+          onCapacity: (omittedUsers) =>
+            app.log.warn({ omittedUsers }, 'personal digest capacity reached'),
+        })
+      : null;
+  app.addHook('onClose', () => {
+    userDigest?.stop();
+    userLoops?.stopAll();
+  });
   // The keyed-user resolvers exist whenever the key store does — even with
   // loops off — so a keyed user gets an honest "not running" answer rather
   // than falling through to the operator's feed/curve.

@@ -149,6 +149,51 @@ describe('per-user loops', () => {
     loops.stopAll();
   });
 
+  it('hands fill batches to the matching user only', async () => {
+    const repo = new KeyRepo(KMS);
+    repo.set('alice', keys('binance'), 0);
+    repo.set('bob', keys('kraken'), 0);
+    const stubs = new Map([
+      ['alice', makeAccountStub('ccxt:binance')],
+      ['bob', makeAccountStub('ccxt:kraken')],
+    ]);
+    const delivered: Array<{ userId: string; kinds: string[] }> = [];
+    const loops = createUserLoops({
+      repo,
+      pool: { userFor: (id) => (id && stubs.get(id) ? (stubs.get(id) as unknown as DataProvider) : null) },
+      watchMs: 3600_000,
+      equityMs: 0,
+      onFillBatch: (userId, events) =>
+        delivered.push({ userId, kinds: events.map((event) => event.kind) }),
+    });
+    loops.ensure('alice');
+    loops.ensure('bob');
+    const alice = loops.watcherFor('alice')!;
+    const bob = loops.watcherFor('bob')!;
+    stubs.get('alice')!.setOrders([
+      { id: 'a', symbol: 'BTC/USDT', side: 'buy', price: 100, amount: 1, filled: 0, status: 'open' },
+    ]);
+    stubs.get('bob')!.setOrders([
+      { id: 'b', symbol: 'ETH/USDT', side: 'sell', price: 50, amount: 2, filled: 0, status: 'open' },
+    ]);
+    await alice.tick();
+    await bob.tick();
+
+    stubs.get('alice')!.setOrders([
+      { id: 'a', symbol: 'BTC/USDT', side: 'buy', price: 100, amount: 1, filled: 0.5, status: 'open' },
+    ]);
+    // Bob receives only a new non-execution order; it must not notify anyone.
+    stubs.get('bob')!.setOrders([
+      { id: 'b', symbol: 'ETH/USDT', side: 'sell', price: 50, amount: 2, filled: 0, status: 'open' },
+      { id: 'b2', symbol: 'SOL/USDT', side: 'buy', price: 10, amount: 1, filled: 0, status: 'open' },
+    ]);
+    await alice.tick();
+    await bob.tick();
+
+    expect(delivered).toEqual([{ userId: 'alice', kinds: ['fill'] }]);
+    loops.stopAll();
+  });
+
   it('rebuilds on ensure (key change) and never runs loops without a usable user provider', () => {
     const repo = new KeyRepo(KMS);
     repo.set('alice', keys('binance'), 0);

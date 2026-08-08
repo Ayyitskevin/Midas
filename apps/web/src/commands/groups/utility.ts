@@ -116,7 +116,8 @@ export const UTILITY_COMMANDS: CommandDef[] = [
     title: 'Account',
     module: 'ACCT',
     requiresSymbol: false,
-    description: 'Manage your account — change password, sessions, and (admin) users.',
+    description:
+      'Manage your account — change password, sessions, optional personal webhook delivery, and (admin) users.',
   },
   {
     code: 'PREF',

@@ -411,7 +411,7 @@ over **CCXT Pro** websockets (no API key needed for public market data).
 | `AC` | `ACCEL`, `ACCELERATOR`, `ACCELOSC` | no | Accelerator Oscillator board — Bill Williams' AC, the acceleration of momentum: AC = AO − SMA(AO, 5), where AO = SMA(median, 5) − SMA(median, 34) on the median price ((high + low) ÷ 2). It measures whether the force behind price is speeding up or slowing down — because force precedes price, the AC turns before the AO does, so its zero cross is an earlier signal. Each bar is green when AC rises vs the prior bar, red when it falls (Williams: buy only on green bars, sell only on red). AC is in price units, so the board ranks on AC% = 100·AC ÷ median (scale-invariant); the BAR column shows the rising/falling histogram colour. Signal SMA fixed at 5; default AO 5 / 34, with a slower 8 / 55 preset. Completes the Bill Williams trio with the Alligator (GATOR) and Awesome Oscillator (AO). Sorts highest AC% first. |
 | `CHO` | `CHAIKINOSC`, `CHAIKINOSCILLATOR`, `CHADOSC` | no | Chaikin Oscillator board — Marc Chaikin's oscillator, the momentum of the Accumulation/Distribution Line (ADL): CHO = EMA(ADL, 3) − EMA(ADL, 10), where ADL accumulates moneyFlowMultiplier · volume (the multiplier ((close − low) − (high − close)) ÷ (high − low) weights volume by where the close sits in the range). The MACD idea applied to volume flow instead of price — above zero the ADL's short EMA leads its long EMA (accumulation building), below zero distribution; zero-line crossovers and divergence from price are the signals, and each bar is green when the oscillator rises vs the prior bar, red when it falls. Since the ADL scales with volume, the board ranks on CHO ÷ average volume (the multiplier is already price-scale-free) — the same volume-normalised convention as the Klinger (KVO) board. Default 3 / 10, with a slower 6 / 20 preset. Completes the Chaikin family with Money Flow (CMF) and Volatility (CVOL); distinct from those and from the ADL, KVO and OBV boards. Sorts most bullish first. |
 | `ALERT` | `ALRT`, `AL`   | optional     | Price / funding / 24h%-change alerts (above · below · cross), **local or server-backed** → toast / desktop, and an optional **on-fire action** that opens a panel (chart / description / order book / derivatives) for the symbol. |
-| `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, and (admin) users.|
+| `ACCT`  | `ACCOUNT`      | no           | Manage your account — password, sessions, optional personal webhook delivery, and (admin) users.|
 | `PREF`  | `SETTINGS`, `SET`, `CONFIG` | no | Terminal preferences — density, ticker, default chart timeframe, alert sound/desktop. Saved to your browser. |
 | `REPORT`| `EXPORT`, `CSV` | no         | Export your data to CSV — trade journal, transactions, positions, alert triggers and watchlists. |
 | `NOTE`  | `NOTES`, `JRNL`, `MEMO` | no  | Free-form notes — global or per symbol, synced to your account.|
@@ -490,6 +490,7 @@ module component and registering it.
 | `GET /api/orders` · `GET /api/positions` · `GET /api/fills?symbol=` | read-only open orders / positions / executions |
 | `GET /api/orders/:id?symbol=`      | read-only single-order lookup (TICKET tracking) |
 | `GET /api/account/events?since=`   | account watcher feed (fills/cancels observed) |
+| `GET/PUT/PATCH/DELETE /api/account/webhook` | authenticated user's write-only personal webhook configuration, enablement, and sanitized status |
 | `GET /api/trading/status`          | current execution posture and safety-hold reason |
 | `POST /api/orders`                 | order placement — returns `503 TradingSafetyHold` (fail-closed) |
 | `DELETE /api/orders/:id?symbol=`   | cancel one of YOUR open orders (cancel-only: ownership-gated; `404` not yours, `409` already filled/canceled, `502` outcome unknown) |
@@ -514,6 +515,16 @@ drawdown). The same webhook can carry a periodic **operator digest**
 (`MIDAS_DIGEST_HOURS=24` for a daily P&L recap): equity change since the last
 digest, fills with round-trip realized P&L and fees, the biggest movers among
 your position symbols, plus alerts fired and order flow observed.
+
+On an authenticated multi-user instance, the operator can opt into
+`MIDAS_USER_WEBHOOKS=true`. Each user then configures an optional endpoint in
+**`ACCT`**: the URL is HTTPS-only, validated against public DNS/network ranges,
+encrypted at rest, never displayed after saving, and remains disabled until the
+user explicitly enables it. Eligible `fill`/`filled` watcher events are sent in
+bounded batches with no retries; `MIDAS_DIGEST_HOURS` also schedules that user's
+P&L recap from the same FIFO/equity/mover calculations as the operator digest.
+Digest windows are durably claimed before delivery so a restart cannot replay
+one, and incomplete account evidence stays explicitly partial or unavailable.
 
 With **auth enabled**, the terminal also **syncs each user's workspaces, paper
 portfolio, watchlists and notes** to the server (`GET/PUT /api/workspaces`,
@@ -545,16 +556,18 @@ Server (environment variables):
 | `HOST`                | `0.0.0.0`   | API bind host.                      |
 | `MIDAS_CORS_ORIGIN`   | `*`         | Allowed CORS origin. Once real exchange keys are configured on a live provider, auth OFF + a wildcard fails the keyed account surfaces (`BAL`/`ORD`/`POSN`/`FILLS`/equity, order cancel) closed with 403 — pin it or enable auth. Keyless and mock/demo installs are unaffected. |
 | `MIDAS_KEYS_KMS_SECRET` | _(unset)_ | Enables **per-user exchange keys**: signed-in users store their own keys from the **`KEYS` panel** (or `PUT /api/account/keys`) — encrypted at rest with this secret, never returned after write. Once enabled, account reads require each user's own usable key and never fall back to operator env credentials. The server refuses this mode unless `MIDAS_AUTH_ENABLED=true`. The `canTrade` metadata is retained for compatibility but does not bypass the execution safety hold on placement. |
+| `MIDAS_USER_WEBHOOKS` | `false` | Enables authenticated users' optional personal fill notifications and P&L recaps in **`ACCT`**. Requires auth, the per-user key store, and `MIDAS_KEYS_KMS_SECRET`. URLs are write-only/encrypted, HTTPS/public-network only, and disabled after every save/replace. Forced off in demo mode. |
+| `MIDAS_USER_WEBHOOKS_FILE` | `${MIDAS_DATA_DIR}/user-webhooks.json` | Additive encrypted personal-webhook store, including durable digest-window claims. Back it up with the data directory; corrupt state fails closed rather than resetting/replaying. |
 | `MIDAS_MAX_KEYED_USERS` | `25`      | Keyed users allowed to run per-user background loops (fill watcher + equity snapshots). Beyond the cap, reads still work per-request; the events/equity panels say loops are off. |
 | `MIDAS_RATE_LIMIT_RPM` | `0`        | Per-IP request ceiling (requests/minute). `0` = off; demo mode defaults to `120`. `/api/health` is exempt. |
 | `MIDAS_DEMO_MODE`     | `false`     | **Public-demo posture**: forces mock data and closes signups. Execution is already held globally. |
 | `LOG_LEVEL`           | `info`      | Pino log level.                     |
 | `ANTHROPIC_API_KEY`   | —           | Enables the AI copilot (`AI`).       |
 | `MIDAS_AI_MODEL`      | `claude-sonnet-4-6` | Claude model for the copilot.|
-| `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios, watchlists, notes) is stored.|
+| `MIDAS_DATA_DIR`      | `./data`    | Where server state (alerts, users, workspaces, portfolios, watchlists, notes, keys, equity, and personal webhook claims) is stored.|
 | `MIDAS_ALERT_INTERVAL_MS` | `15000` | Background alert evaluation cadence.  |
 | `MIDAS_ALERT_WEBHOOK` | —           | POST fired alerts here (Discord/Slack/custom).|
-| `MIDAS_DIGEST_HOURS`  | `0`         | Operator digest: every N hours, POST a P&L recap (equity change, fills + round-trip P&L, top movers) plus alerts fired + order flow to the webhook (`24` = daily, `168` = weekly, `0` = off, floored at 1). |
+| `MIDAS_DIGEST_HOURS`  | `0`         | Shared digest cadence: every N hours, send the operator recap to `MIDAS_ALERT_WEBHOOK` and, when personal webhooks are enabled, each eligible user's isolated recap (`24` = daily, `168` = weekly, `0` = off, floored at 1). |
 | `MIDAS_EQUITY_SNAP_MS` | `3600000`  | Account equity snapshot cadence for the `AEQ` curve (read-only; persisted in the data dir). `0` = off; floored at `60000`. |
 | `MIDAS_AUTH_ENABLED`  | `false`     | Require login (bearer token) for the API.|
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | Allow ongoing open registration. The first account can always bootstrap; later signups require an explicit `true`. |

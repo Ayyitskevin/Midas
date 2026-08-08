@@ -78,14 +78,17 @@ reviewed against an agreed shape); the four-gate discipline (zero broken
 merges); honesty-as-a-feature keeps writing itself into every panel.
 
 **What to watch:** the key store and per-user loops are young — treat the
-first hosted incidents as roadmap input, not surprises; the digest is
-operator-only until per-user webhooks exist; no billing code — and none
-planned, Midas stays free and open source.
+first hosted incidents as roadmap input, not surprises; personal webhook
+delivery is intentionally at-most-once and reports a crash-window attempt as
+pending rather than retrying it; no billing code — and none planned, Midas
+stays free and open source.
 
 ## Roadmap v3 (skeleton — filled from user feedback)
 
 1. **User feedback loop** — first handful of self-hosters, weekly friction lists.
-2. **Per-user webhooks + digests** — the recap, per user, to their Discord.
+2. ✅ **Per-user webhooks + digests.** *(Shipped)* Authenticated users opt into
+   isolated fill batches and restart-safe cadence recaps from `ACCT`; endpoints
+   stay write-only/encrypted and outbound delivery is SSRF-hardened and bounded.
 3. **Deeper data core** — more first-class live sources behind the honest
    provider seam (never mislabeling provenance).
 4. **What users demand** — deliberately unplanned until they tell us.

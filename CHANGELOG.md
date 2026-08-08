@@ -7,6 +7,22 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Added
+- **Personal fill webhooks + per-user P&L recaps:** authenticated users can now
+  save an optional write-only endpoint in `ACCT`, explicitly enable/disable it,
+  replace it (disabled again), clear it, and inspect only sanitized delivery
+  status. The operator gate `MIDAS_USER_WEBHOOKS` is off by default and requires
+  auth plus the encrypted per-user key posture. User URLs are owner-bound
+  AES-256-GCM ciphertext; only public HTTPS/443 targets survive save and
+  per-send DNS validation, the connection is address-pinned with no redirects,
+  has an absolute timeout, and carries no credentials, cookies, user id, or
+  unnecessary order metadata. The existing per-user watcher emits one bounded
+  no-retry batch for its already-defined `fill`/`filled` semantics, isolated to
+  that user's provider. `MIDAS_DIGEST_HOURS` now also drives each enabled user's
+  recap from the existing equity/FIFO realized-P&L/mover calculations with
+  explicit available/empty/partial/unavailable evidence; cadence windows are
+  durably claimed before reads/delivery so restarts cannot duplicate one. The
+  static demo remains honest 501 and order placement remains held at
+  `503 TradingSafetyHold`.
 - **Cross-venue screener (`XSCR`):** the market as *every* configured venue sees
   it, not just the configured primary — the last piece of the roadmap's
   cross-exchange aggregation. Volume **sums** across venues (each venue's traded

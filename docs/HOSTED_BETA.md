@@ -24,6 +24,7 @@ MIDAS_DATA_PROVIDER=ccxt          # live markets
 MIDAS_AUTH_ENABLED=true           # every hosted box requires login
 MIDAS_AUTH_ALLOW_SIGNUP=true      # flip to false once your invitees are in
 MIDAS_KEYS_KMS_SECRET=$(openssl rand -hex 32)   # per-user keys, encrypted at rest
+MIDAS_USER_WEBHOOKS=true          # optional personal fill + digest delivery
 MIDAS_MAX_KEYED_USERS=25          # per-user watcher/equity loop cap
 MIDAS_RATE_LIMIT_RPM=240          # per-IP ceiling; keep public surfaces boring
 MIDAS_ACCOUNT_WATCH_MS=10000      # fill events for keyed users
@@ -50,8 +51,10 @@ hosted instance.
    exchange API key (read-only recommended; never withdrawal-enabled).
    Their `BAL / ORD / POSN / FILLS / AEQ` now show *their* account; fill
    toasts and the equity curve are theirs alone.
-3. Set `MIDAS_DIGEST_HOURS=24` + `MIDAS_ALERT_WEBHOOK` if they want the
-   morning P&L recap.
+3. If personal webhooks are enabled, have them open `ACCT`, save their own
+   HTTPS endpoint, and explicitly enable it. Set `MIDAS_DIGEST_HOURS=24` for
+   their daily P&L recap; `MIDAS_ALERT_WEBHOOK` remains the separate optional
+   operator alert/digest endpoint.
 4. Confirm the `TICKET` panel says preview-only and `ORD` says read-only. Existing
    exchange orders are managed at the exchange.
 

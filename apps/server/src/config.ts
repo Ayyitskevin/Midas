@@ -74,6 +74,10 @@ export interface Config {
   keysKmsSecret: string;
   /** JSON file backing the per-user key store. */
   keysFile: string;
+  /** Explicit operator gate for encrypted per-user webhook delivery. */
+  userWebhooksEnabled: boolean;
+  /** JSON file backing per-user webhook configuration and digest claims. */
+  userWebhooksFile: string;
   /** Per-IP request ceiling in requests/minute (0 = off; demo mode defaults to 120). */
   rateLimitRpm: number;
   /** Keyed users allowed to run per-user background loops (watcher/equity). */
@@ -101,6 +105,11 @@ export function authAllowSignupEnv(): boolean {
  */
 export function dataProviderEnv(): string {
   return env('MIDAS_DATA_PROVIDER', '').trim().toLowerCase();
+}
+
+/** Personal outbound delivery is a deliberate, disabled-by-default operator opt-in. */
+export function userWebhooksEnv(): boolean {
+  return env('MIDAS_USER_WEBHOOKS', 'false').toLowerCase() === 'true';
 }
 
 /**
@@ -135,6 +144,9 @@ export function applyDemoMode(cfg: Config): Config {
     tradingEnabled: false,
     tradingAllowNoAuth: false,
     authAllowSignup: false,
+    // The static/public demo never owns authenticated user endpoints and must
+    // never gain an outbound surface from a stray environment variable.
+    userWebhooksEnabled: false,
     // A public box gets a request ceiling even when the operator forgot one.
     rateLimitRpm: cfg.rateLimitRpm > 0 ? cfg.rateLimitRpm : 120,
   };
@@ -178,6 +190,11 @@ const baseConfig: Config = {
   demoMode: env('MIDAS_DEMO_MODE', 'false').toLowerCase() === 'true',
   keysKmsSecret: env('MIDAS_KEYS_KMS_SECRET', ''),
   keysFile: env('MIDAS_KEYS_FILE', `${env('MIDAS_DATA_DIR', './data')}/user-keys.json`),
+  userWebhooksEnabled: userWebhooksEnv(),
+  userWebhooksFile: env(
+    'MIDAS_USER_WEBHOOKS_FILE',
+    `${env('MIDAS_DATA_DIR', './data')}/user-webhooks.json`,
+  ),
   rateLimitRpm: numEnv('MIDAS_RATE_LIMIT_RPM', 0),
   maxKeyedUsers: numEnv('MIDAS_MAX_KEYED_USERS', 25),
   version: MIDAS_VERSION,

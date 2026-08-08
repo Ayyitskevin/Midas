@@ -486,6 +486,11 @@ describe('demo shim', () => {
     expect(cancel.status).toBe(501);
     const keys = await fetch('/api/account/keys');
     expect(keys.status).toBe(501);
+    for (const method of ['GET', 'PUT', 'PATCH', 'DELETE']) {
+      const webhook = await fetch('/api/account/webhook', { method });
+      expect(webhook.status).toBe(501);
+      expect((await webhook.json()).message).toMatch(/personal webhooks.*static demo/i);
+    }
     const trading = await (await fetch('/api/trading/status')).json();
     expect(trading.enabled).toBe(false);
     expect(trading.cancelEnabled).toBe(false);

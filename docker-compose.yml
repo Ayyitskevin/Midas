@@ -27,6 +27,9 @@ services:
       MIDAS_DEMO_MODE: ${MIDAS_DEMO_MODE:-false}
       # Per-user exchange keys (encrypted at rest; needs auth). Blank = off.
       MIDAS_KEYS_KMS_SECRET: ${MIDAS_KEYS_KMS_SECRET:-}
+      # Optional personal fill/digest webhooks (auth + KMS required).
+      MIDAS_USER_WEBHOOKS: ${MIDAS_USER_WEBHOOKS:-false}
+      MIDAS_USER_WEBHOOKS_FILE: ${MIDAS_USER_WEBHOOKS_FILE:-/app/data/user-webhooks.json}
       # Keyed users allowed to run per-user background loops.
       MIDAS_MAX_KEYED_USERS: ${MIDAS_MAX_KEYED_USERS:-25}
       # Per-IP request ceiling in rpm (0 = off; demo defaults to 120).
@@ -58,7 +61,7 @@ services:
       MIDAS_CCXT_PASSWORD_2: ${MIDAS_CCXT_PASSWORD_2:-}
       # Fill notifications: open-order watch cadence in ms (0 = off).
       MIDAS_ACCOUNT_WATCH_MS: ${MIDAS_ACCOUNT_WATCH_MS:-10000}
-      # Operator digest cadence in hours (0 = off; 168 = weekly).
+      # Operator + enabled personal digest cadence in hours (0 = off).
       MIDAS_DIGEST_HOURS: ${MIDAS_DIGEST_HOURS:-0}
       # Account equity snapshot cadence in ms (0 = off; default hourly).
       MIDAS_EQUITY_SNAP_MS: ${MIDAS_EQUITY_SNAP_MS:-3600000}
