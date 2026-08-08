@@ -2,12 +2,12 @@ import * as ccxt from 'ccxt';
 import type { Exchange } from 'ccxt';
 import type { Interval } from '@midas/shared';
 import { ProviderError } from '../types';
+import { finiteOrNull, nonNegativeFiniteOrNull, positiveFiniteOrNull } from './coerce';
 
 /**
  * Stateless helpers extracted from the CcxtProvider module: the client-facing
- * error sanitizer, the interval map, the exchange-id allowlist, small numeric
- * coercion, the ccxt constructor registry, the perp-symbol derivation, and the
- * read-only funding / open-interest readers. None touch provider instance
+ * error sanitizer, the interval map, the exchange-id allowlist, the ccxt
+ * constructor registry, the perp-symbol derivation, and the read-only funding / open-interest readers. None touch provider instance
  * state, so they live here and the provider (with its two exchange writes)
  * stays whole in ccxt.ts.
  */
@@ -217,12 +217,12 @@ export async function readFunding(ex: Exchange, perp: string): Promise<FundingSn
       f.interval ?? (f as unknown as { fundingInterval?: unknown }).fundingInterval ?? null;
     return {
       state: 'ok',
-      sourceAsOf: finiteNonNegativeOrNull(f.timestamp),
+      sourceAsOf: nonNegativeFiniteOrNull(f.timestamp),
       fundingRate: finiteOrNull(f.fundingRate),
       fundingIntervalHours: fundingIntervalHours(rawInterval),
-      nextFundingTime: finiteNonNegativeOrNull(f.fundingTimestamp ?? f.nextFundingTimestamp),
-      markPrice: finitePositiveOrNull(f.markPrice),
-      indexPrice: finitePositiveOrNull(f.indexPrice),
+      nextFundingTime: nonNegativeFiniteOrNull(f.fundingTimestamp ?? f.nextFundingTimestamp),
+      markPrice: positiveFiniteOrNull(f.markPrice),
+      indexPrice: positiveFiniteOrNull(f.indexPrice),
     };
   } catch {
     return { ...empty, state: 'error' };
@@ -248,23 +248,11 @@ export async function readOpenInterest(
     const oi = await ex.fetchOpenInterest(perp);
     return {
       state: 'ok',
-      sourceAsOf: finiteNonNegativeOrNull(oi.timestamp),
-      openInterest: finiteNonNegativeOrNull(oi.openInterestAmount),
-      openInterestValue: finiteNonNegativeOrNull(oi.openInterestValue),
+      sourceAsOf: nonNegativeFiniteOrNull(oi.timestamp),
+      openInterest: nonNegativeFiniteOrNull(oi.openInterestAmount),
+      openInterestValue: nonNegativeFiniteOrNull(oi.openInterestValue),
     };
   } catch {
     return { ...empty, state: 'error' as const };
   }
-}
-
-function finiteOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-function finiteNonNegativeOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-function finitePositiveOrNull(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
