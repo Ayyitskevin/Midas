@@ -123,6 +123,32 @@ describe('summarizeOiDelta', () => {
     expect(s.asOf).toBe(2_000);
   });
 
+  // A perp CAN drain to no open interest. Treating 0 as "not reported" would
+  // report a real drain to zero as absent evidence and lose the basis label.
+  it('keeps a zero endpoint as real evidence, with an honest null percent', () => {
+    const s = summarizeOiDelta([
+      { timestamp: 1_000, openInterestAmount: 10_000, openInterestValue: null, price: 50_000 },
+      { timestamp: 2_000, openInterestAmount: 0, openInterestValue: null, price: 45_000 },
+    ]);
+    expect(s.oiBasis).toBe('contracts');
+    expect(s.oiThen).toBe(10_000);
+    expect(s.oiNow).toBe(0);
+    expect(s.oiChangePct).toBe(-100);
+    expect(s.classification).toBe('long-unwind');
+  });
+
+  it('reports a zero then-OI without fabricating a percent off a zero base', () => {
+    const s = summarizeOiDelta([
+      { timestamp: 1_000, openInterestAmount: 0, openInterestValue: null, price: 50_000 },
+      { timestamp: 2_000, openInterestAmount: 5_000, openInterestValue: null, price: 55_000 },
+    ]);
+    expect(s.oiBasis).toBe('contracts');
+    expect(s.oiThen).toBe(0);
+    expect(s.oiNow).toBe(5_000);
+    expect(s.oiChangePct).toBeNull(); // pctChange refuses a non-positive base
+    expect(s.classification).toBeNull();
+  });
+
   it('never mixes bases across endpoints — a contracts-then vs notional-now is null', () => {
     const s = summarizeOiDelta([
       { timestamp: 1_000, openInterestAmount: 10_000, openInterestValue: null, price: 50_000 },

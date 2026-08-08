@@ -48,10 +48,13 @@ export function isOiDeltaWindow(raw: string): raw is OiDeltaWindow {
  * One aligned OI/price observation: the open interest at a timestamp, paired
  * with the price at that time. A venue may report OI in contracts/base units
  * (`openInterestAmount`), in notional/quote units (`openInterestValue`), or
- * both — each is null when the venue did not report it, never derived by
- * multiplying one by the price. `price` is null when no price bar could be
- * aligned to this observation (see the provider's alignment tolerance) —
- * never an interpolated or carried-forward fabrication.
+ * both. A LIVE adapter reports exactly what the venue sent and leaves the
+ * other leg null — it never back-fills a missing scalar by multiplying the
+ * reported one by the price, because that would dress a derived number up as
+ * venue evidence. (The synthetic mock provider is not an adapter: both legs
+ * come from one simulated ground truth, so it populates both.) `price` is null
+ * when no price bar could be aligned to this observation (see the provider's
+ * alignment tolerance) — never an interpolated or carried-forward fabrication.
  */
 export interface OiDeltaPoint {
   /** Epoch millis. */
@@ -185,8 +188,13 @@ export function summarizeOiDelta(points: OiDeltaPoint[]): Pick<
 > {
   const first = points.length > 0 ? points[0] : null;
   const last = points.length > 1 ? points[points.length - 1] : null;
+  // Reported iff the venue gave a finite, non-negative scalar. Zero is real
+  // evidence — a perp CAN have no open interest, and nulling it would report a
+  // genuine drain to zero as "no evidence". `pctChange` separately refuses a
+  // non-positive base, so a zero endpoint yields an honest null percent while
+  // the endpoints themselves still read 0.
   const usable = (value: number | null | undefined): number | null =>
-    value != null && Number.isFinite(value) && value > 0 ? value : null;
+    value != null && Number.isFinite(value) && value >= 0 ? value : null;
   const thenAmount = usable(first?.openInterestAmount);
   const nowAmount = usable(last?.openInterestAmount);
   const thenValue = usable(first?.openInterestValue);

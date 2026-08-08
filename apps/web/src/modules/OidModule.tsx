@@ -89,11 +89,10 @@ export function OidModule({ panel }: ModuleProps) {
   // them (price-invariant), notional otherwise — labeled in the footer.
   const oiScalar = (p: (typeof data.points)[number]): number | null =>
     (data.oiBasis === 'contracts' ? p.openInterestAmount : p.openInterestValue) ?? null;
-  const spark = sparklinePath(
-    data.points.map(oiScalar).filter((v): v is number => v != null),
-    240,
-    48,
-  );
+  // Pass the nulls through: a point that lacks the chosen basis breaks the
+  // stroke where it actually sits. Filtering them would slide later
+  // observations left and redraw the window shorter than it is.
+  const spark = sparklinePath(data.points.map(oiScalar), 240, 48);
   const oiUnit = data.oiBasis === 'contracts' ? '' : '$';
   const lastPrice = [...data.points].reverse().find((p) => p.price != null)?.price ?? null;
 
