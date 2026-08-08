@@ -76,13 +76,14 @@ apps/server/src/providers/
   ccxt/
     helpers.ts                (unchanged — existing)
     coerce.ts                 finiteOrNull family, aggregateCandles, intervalForSeconds
+    context.ts                CcxtSymbolContext → CcxtReadContext → CcxtCompareContext
+    crossVenue.ts             crossVenuePartialLimitation, withRowReceiptLimitation
     capabilities.ts           ccxtCapability + buildCcxtCapabilities factory
     options.ts                deribit client access, getDvol, term structure, chain
     liquidations.ts           parseLiquidationRows, venue liquidations, provenance
     derivatives.ts            getDerivatives, getFundingHistory, omission helpers
     oiDelta.ts                getOiDelta
     venueCompare.ts           getExchangeQuotes, getVenueDerivatives, getVenueScreen,
-                              crossVenuePartialLimitation, withRowReceiptLimitation,
                               compare-set construction
     account.ts                balances/orders/positions/fills/getOrder, priceAssetsUsd,
                               fromSecondary, MappingSummary helpers
@@ -95,10 +96,22 @@ Every module imports only from `../types`, `../receipts`, `./helpers`,
 `../dexscreener`, `../geckoterminal`, `../../solana/*`. **None imports
 `../ccxt`** — that is the one rule that keeps the graph acyclic.
 
-Extracted functions take the provider instance (typed as `DataProvider` plus
-the few ccxt-specific fields they need via a small internal `CcxtReadContext`
-interface: `exchange`, `exchangeId`, `now`, `normalize`, `compareExchanges()`).
-The class satisfies it; delegates look like:
+Extracted functions take the provider instance, typed through ONE shared
+context hierarchy in `ccxt/context.ts` — never a per-module copy:
+
+| Interface | Adds | Used by |
+| --- | --- | --- |
+| `CcxtSymbolContext` | `normalize` | `onchain.ts` (no clock, no venue client) |
+| `CcxtReadContext` | `now`, `exchange`, `exchangeId` | most readers |
+| `CcxtCompareContext` | `compareExchanges()` | `liquidations.ts`, `venueCompare.ts` |
+
+`account.ts` widens `CcxtReadContext` locally with `userKeyed`, `secondary` and
+`describe` — those three stay out of the base so a market-data module cannot
+reach the account surface. A module asks for the narrowest context it uses.
+
+The class satisfies these structurally (which is why `exchange`, `exchangeId`,
+`now` and `describe` are public on it — visibility only, no new behavior).
+Delegates look like:
 
 ```ts
 async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
@@ -106,8 +119,8 @@ async getDvol(symbol: DvolSymbol): Promise<DvolSnapshot> {
 }
 ```
 
-End-state `ccxt.ts`: ~700–800 lines (construction, manifest assembly, market
-core, internals, delegates).
+End-state `ccxt.ts`: 821 lines as shipped, down from 2,333 (construction,
+manifest assembly, market core, internals, delegates).
 
 ## 3. Sequenced steps
 
@@ -117,29 +130,50 @@ adjusted. Existing tests must pass **unmodified** — that is the definition of
 
 | # | Step | Lines moved | Type |
 | --- | --- | --- | --- |
-| 1 | `coerce.ts`: finite-or-null family + `aggregateCandles` + `intervalForSeconds`; delete the duplicate private copies in `helpers.ts` and import from `coerce.ts` | ~60 | pure move + trivial internal dedupe in helpers.ts |
-| 2a | `options.ts`: `deribit()` accessor, `baseAsset`, `dvolUnavailable`, `getDvol`, `DeribitOptionQuote` | ~130 | pure move (keeps `deps.deribit` seam) |
-| 2b | `options.ts`: `getFuturesTermStructure` | ~135 | pure move |
-| 2c | `options.ts`: `getOptionsChain` + `optionOiScore` | ~200 | pure move |
-| 3 | `liquidations.ts`: `parseLiquidationRows`, `LIQUIDATION_THROTTLE_NOTE`, `getVenueLiquidations`, `liquidationSourceCapabilities`, `liquidationsProvenance` | ~165 | pure move (needs `compareExchanges()` on ctx) |
-| 4 | `derivatives.ts`: `getFundingHistory` + `normalizedFieldOmission`/`fundingOmission`/`openInterestOmission`; then `getDerivatives` | ~220 | pure move |
-| 5 | `oiDelta.ts`: `getOiDelta` | ~215 | pure move |
-| 6a | `venueCompare.ts`: `crossVenuePartialLimitation`, `withRowReceiptLimitation`, compare-set construction (`getCompareExchanges`), `getExchangeQuotes` | ~140 | pure move |
-| 6b | `venueCompare.ts`: `getVenueScreen`, `getVenueDerivatives` | ~155 | pure move |
-| 7a | `account.ts`: `MappingSummary` helpers, `fromSecondary`, `hasKeys`, `getBalances`, `priceAssetsUsd` | ~170 | pure move |
-| 7b | `account.ts`: `getOpenOrders`, `getPositions`, `getFills`, `getOrder` | ~290 | pure move |
-| 8 | `trading.ts`: `placeOrder`, `cancelOrder`, `classifyCancelError`, `tradingSafetyHold` | ~85 | pure move |
-| 9 | `onchain.ts`: `getDexPools`, `getSolana*`, `solPrice` | ~75 | pure move (thin already) |
-| 10 | `capabilities.ts`: `ccxtCapability` + manifest factory `buildCcxtCapabilities({ id, name, keyed, has })` | ~105 | **small interface change**: constructor's `conditional`/`account` closures become a factory taking `{ id, keyed, has }`; manifest output must be byte-identical (conformance + `capabilities.test` snapshots will catch drift) |
+Order matters — see the dependency column. This is the order that shipped
+(PR numbers are the Midas PRs that landed each step).
 
-Do them in numeric order; each leaves ccxt.ts smaller, so later moves get
-easier. Steps 2a–9 are order-independent if a worktree already touches one
-region.
+| # | PR | Step | Depends on |
+| --- | --- | --- | --- |
+| 1 | #361 | `coerce.ts`: finite-or-null family + `aggregateCandles` + `intervalForSeconds`; delete the duplicate private copies in `helpers.ts` and import from `coerce.ts` | — |
+| 2a–c | #362 | `options.ts`: `deribit()` accessor, `baseAsset`, `dvolUnavailable`, `getDvol`, term structure, `getOptionsChain` + `optionOiScore` | — |
+| 3 | #363 | `oiDelta.ts`: `getOiDelta`. **Creates `context.ts`** — pulled ahead of liquidations/derivatives because it is the first step needing a context, and every later step imports it | 1 |
+| 4 | #365 | `liquidations.ts`: `parseLiquidationRows`, `LIQUIDATION_THROTTLE_NOTE`, `getVenueLiquidations`, `liquidationSourceCapabilities`, `liquidationsProvenance`. **Creates `crossVenue.ts`** and `CcxtCompareContext` | 1, 3 |
+| 5 | #364 | `derivatives.ts`: `getFundingHistory` + the omission helpers; then `getDerivatives`. Imports `parseLiquidationRows` — it must NOT keep a second copy | 1, 3, 4 |
+| 6 | #368 | `venueCompare.ts`: compare-set construction, `getExchangeQuotes`, `getVenueScreen`, `getVenueDerivatives` | 1, 3, 4, 5 |
+| 7 | #367 | `trading.ts`: `placeOrder`, `cancelOrder`, `classifyCancelError`, `tradingSafetyHold` | 3 |
+| 8 | #366 | `onchain.ts`: `getDexPools`, `getSolana*`, `solPrice` (takes the narrow `CcxtSymbolContext`) | 3 |
+| 9 | #369 | `account.ts`: `MappingSummary` helpers, `fromSecondary`, `hasKeys`, `getBalances`, `priceAssetsUsd`, then `getOpenOrders`/`getPositions`/`getFills`/`getOrder` | 1, 3 |
+| 10 | #370 | `capabilities.ts`: `ccxtCapability` + manifest factory `buildCcxtCapabilities({ id, name, keyed, has })` | — | 
+| 11 | #371 | `routes/market.ts`: board machinery + composed boards (see §5) | — |
 
-**Only step 10 changes an interface** (internal, constructor-local). Everything
-else is a pure move. `streamAccountNudge` (534–574) stays in the class — it
-reads `process.env` directly and is entangled with construction; not worth a
-PR of its own.
+Step 10 is the only **interface change**: the constructor's
+`conditional`/`account` closures become a factory taking `{ id, keyed, has }`;
+manifest output must stay byte-identical (conformance + `capabilities.test`
+snapshots catch drift). Everything else is a pure move.
+
+### These steps are NOT order-independent
+
+An earlier draft of this plan said steps 2a–9 could be done in any order in
+parallel worktrees. That is wrong, and acting on it cost a rework: eight
+branches were cut from the same base, and each independently redeclared what it
+shared — seven copies of `CcxtReadContext`, the coercion helpers in five files,
+`parseLiquidationRows` and the cross-venue receipt helpers twice each, several
+carrying comments like "pending step 1's `coerce.ts`". Merging them in sequence
+conflicted in five of ten, because every step edits the same import block and
+class body in `ccxt.ts`.
+
+None of it was caught by CI: each branch typechecked, built and passed the full
+suite on its own. Duplication and unmergeability are not test failures.
+
+So: **each step branches off the previous one**, as a stack. A step that needs a
+shared helper imports it from the step that owns it rather than copying it, and
+new shared surface goes in `context.ts` / `crossVenue.ts` / `coerce.ts` — widen
+those, never fork them. Steps 1, 2, 10 and 11 touch disjoint regions and are the
+only ones that can genuinely go in parallel.
+
+`streamAccountNudge` stays in the class — it reads `process.env` directly and is
+entangled with construction; not worth a PR of its own.
 
 ## 4. Risks
 
@@ -181,6 +215,8 @@ PR of its own.
 
 ## 5. `routes/market.ts` (1,485 lines) — lighter touch
 
+**Shipped as step 11 (#371).** Recorded here as specified.
+
 Don't fully decompose it; do one extraction. The file is a route table plus
 two fat composed boards. Move the board machinery — `boardEnvelope`,
 `serveBoard`, `serveReceiptPayload`, `registerVenueBoard`,
@@ -191,5 +227,5 @@ two composed cross-symbol boards — funding (`DATA_ROUTE_PATHS.funding`,
 called from `registerMarketRoutes`. That removes ~600 lines without touching a
 single route contract, TTL, or envelope shape, and leaves the remaining
 quote/history/screener/options routes as the thin one-provider-call handlers
-ARCHITECTURE.md already describes. Two PRs (helpers first, boards second), no
-behavior change, no new abstractions.
+ARCHITECTURE.md already describes. No behavior change, no new abstractions.
+(It landed as a single PR rather than the two sketched here.)
