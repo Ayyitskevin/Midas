@@ -4,6 +4,9 @@ import type {
   AccountKeysInput,
   AccountKeysMeta,
   AccountKeysResponse,
+  AccountWebhookEnabledInput,
+  AccountWebhookInput,
+  AccountWebhookResponse,
   AccountFills,
   AccountPositions,
   Alert,
@@ -205,6 +208,16 @@ export const api = {
     apiSend<AccountKeysMeta>('PUT', '/api/account/keys', input, signal),
   deleteAccountKeys: (signal?: AbortSignal) =>
     apiSend<{ ok: boolean }>('DELETE', '/api/account/keys', undefined, signal),
+  // Personal delivery webhook (ACCT). The URL is write-only: PUT sends it
+  // exactly once, while GET/PUT/PATCH responses expose metadata only.
+  accountWebhook: (signal?: AbortSignal) =>
+    apiGet<AccountWebhookResponse>('/api/account/webhook', signal),
+  saveAccountWebhook: (input: AccountWebhookInput, signal?: AbortSignal) =>
+    apiSend<AccountWebhookResponse>('PUT', '/api/account/webhook', input, signal),
+  setAccountWebhookEnabled: (input: AccountWebhookEnabledInput, signal?: AbortSignal) =>
+    apiSend<AccountWebhookResponse>('PATCH', '/api/account/webhook', input, signal),
+  deleteAccountWebhook: (signal?: AbortSignal) =>
+    apiSend<{ ok: boolean }>('DELETE', '/api/account/webhook', undefined, signal),
   // Read-only single-order lookup — TICKET tracks a placement with this.
   getOrder: (id: string, symbol: string, signal?: AbortSignal) =>
     apiGet<PlacedOrder>(

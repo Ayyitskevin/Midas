@@ -49,13 +49,14 @@ override** the “hosted value” column.
 | `MIDAS_AUTH_ALLOW_SIGNUP` | `false` | `true` only while onboarding | Open registration; close after invites |
 | `MIDAS_CORS_ORIGIN` | `*` | exact site origin | Pin browser origin; never `*` on public multi-user |
 | `MIDAS_KEYS_KMS_SECRET` | empty | `openssl rand -hex 32` | AES per-user keys; backup or keys unrecoverable |
+| `MIDAS_USER_WEBHOOKS` | `false` | `true` only if users need outbound delivery | Personal fill/digest gate; auth + KMS required |
 | `MIDAS_MAX_KEYED_USERS` | `25` | `25` (or lower) | Cap per-user background loops |
 | `MIDAS_RATE_LIMIT_RPM` | `0` (off) | e.g. `240` | Per-IP ceiling on public surfaces |
 | `MIDAS_TRUST_PROXY` | `0` | `1` behind one reverse proxy | Real client IP for rate limits |
 | `MIDAS_ACCOUNT_WATCH_MS` | `10000` | as needed | Fill-watch loop for keyed users |
 | `MIDAS_EQUITY_SNAP_MS` | `3600000` | as needed | Equity snapshots for keyed users |
-| `MIDAS_DIGEST_HOURS` | `0` (off) | `24` if morning recap | Needs `MIDAS_ALERT_WEBHOOK` |
-| `MIDAS_ALERT_WEBHOOK` | empty | Discord/webhook URL optional | Digest + alert delivery |
+| `MIDAS_DIGEST_HOURS` | `0` (off) | `24` if morning recap | Operator and enabled personal cadence |
+| `MIDAS_ALERT_WEBHOOK` | empty | Discord/webhook URL optional | Operator digest + alert delivery |
 | `MIDAS_TRADING_ENABLED` | `false` | `false` (legacy) | **Does not** enable execution under hold |
 | `MIDAS_MAX_ORDER_USD` | `1000` | legacy only | Not an active execution control under hold |
 | `MIDAS_MAX_DAILY_USD` | `5000` | legacy only | Not an active execution control under hold |

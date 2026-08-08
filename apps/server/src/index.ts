@@ -16,6 +16,7 @@ import { WatchlistRepo } from './watchlists/repo';
 import { NotesRepo } from './notes/repo';
 import { UserRepo } from './auth/users';
 import { safeErrorFields } from './safeLog';
+import { UserWebhookRepo } from './userWebhooks/repo';
 
 async function main(): Promise<void> {
   const provider = createProvider(config.provider);
@@ -51,6 +52,15 @@ async function main(): Promise<void> {
   // Per-user exchange keys (encrypted at rest) — file-backed so they survive
   // restarts; off entirely until the operator sets the KMS secret.
   const keyRepo = config.keysKmsSecret ? new KeyRepo(config.keysKmsSecret, config.keysFile) : null;
+  if (config.userWebhooksEnabled && !config.keysKmsSecret) {
+    throw new Error(
+      'MIDAS_USER_WEBHOOKS=true requires MIDAS_KEYS_KMS_SECRET for encrypted, restart-safe storage.',
+    );
+  }
+  const userWebhookRepo =
+    config.userWebhooksEnabled && config.keysKmsSecret
+      ? new UserWebhookRepo(config.keysKmsSecret, config.userWebhooksFile)
+      : null;
 
   // Filled in as the loops start below; the SYS route reads them at request time.
   let nudgeActive = false;
@@ -66,6 +76,7 @@ async function main(): Promise<void> {
     accountWatch,
     accountEquity,
     keyRepo,
+    userWebhookRepo,
     systemInfo: () => ({
       provider: provider.name,
       live: provider.live,
@@ -92,6 +103,7 @@ async function main(): Promise<void> {
   });
   if (config.authEnabled) app.log.info('auth enabled — login required');
   if (keyRepo) app.log.info('per-user exchange keys enabled (encrypted at rest)');
+  if (userWebhookRepo) app.log.info('personal webhook delivery enabled (encrypted at rest)');
   if (config.rateLimitRpm > 0) app.log.info({ rpm: config.rateLimitRpm }, 'rate limiting on');
   if (accountWatch) {
     app.log.info(

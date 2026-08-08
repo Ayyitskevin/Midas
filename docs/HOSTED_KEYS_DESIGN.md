@@ -61,11 +61,27 @@ their own exchange account, on shared infrastructure).
 - Background loops (watcher, equity) become per-user loop sets, started on
   key write (and at boot for existing keyed users), stopped on key delete —
   bounded by a `MIDAS_MAX_KEYED_USERS` cap so a hosted box degrades
-  predictably. *(As built: the **digest stays operator-only** — a per-user
-  digest is meaningless without per-user webhooks, which are a future user
-  setting. User fill events surface in the user's in-terminal feed only.
-  A keyed user whose loops aren't running gets an honest "not running"
-  answer from the events/equity routes — never the operator's feed.)*
+  predictably. A keyed user whose loops are not running gets an honest "not
+  running" answer from the events/equity routes — never the operator's feed.
+  When the separate `MIDAS_USER_WEBHOOKS` gate is on, that same isolated
+  watcher may enqueue only its owner's bounded `fill`/`filled` batch.
+
+### Personal webhooks and digests
+
+- `GET/PUT/PATCH/DELETE /api/account/webhook` is an authenticated, narrow
+  settings surface. PUT validates and stores an owner-bound encrypted HTTPS
+  URL, but always leaves it disabled; GET/PUT/PATCH return metadata only.
+- User-controlled targets are re-resolved on every send, every answer must be
+  public, and the chosen address is pinned while the original hostname remains
+  the TLS/Host identity. Port 443 only, no redirects, absolute timeout, bounded
+  payload/queue/concurrency, and no retries.
+- `fill` and `filled` retain the existing watcher semantics. One user's loop
+  never sees another user's provider, URL, event, or status.
+- `MIDAS_DIGEST_HOURS` defines fixed Unix/UTC cadence windows. Each user's
+  window is durably claimed before account reads and delivery, so a restart may
+  leave an honest pending/unknown outcome but cannot send the same window
+  twice. P&L math reuses `composeRecapEvidence`/the operator recap authority;
+  partial or unavailable evidence is stated, never converted to empty/zero.
 
 ### Trading
 
@@ -94,6 +110,8 @@ their own exchange account, on shared infrastructure).
 3. ✅ PR 3: per-user watcher/equity loops and the historical execution
    prototype. The loops remain; the execution portion is retired behind the
    safety hold. The `KEYS` panel now exposes the encrypted key store.
+4. ✅ Personal webhooks + per-user digest: opt-in encrypted settings in `ACCT`,
+   isolated fill batches, and durable cadence claims under the existing cap.
 
 ### Open questions
 

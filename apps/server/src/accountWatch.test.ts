@@ -134,6 +134,47 @@ describe('account watcher engine', () => {
     expect(notified[0]).toMatch(/⚡ Fill/);
   });
 
+  it('emits one bounded fill batch per tick and reports the omitted count', async () => {
+    const baseline = Array.from({ length: 12 }, (_, i) => order(`fill-${i}`));
+    const next = baseline.map((value) => ({ ...value, filled: 0.25, remaining: 0.75 }));
+    const batches: Array<{ events: string[]; omitted: number }> = [];
+    const w = createAccountWatcher({
+      provider: stubProvider([snap(baseline), snap(next)]),
+      maxNotificationEvents: 10,
+      notifyEvents: (events, omitted) =>
+        batches.push({ events: events.map((event) => event.kind), omitted }),
+    });
+    await w.tick();
+    await w.tick();
+
+    expect(w.eventsSince(0)).toHaveLength(12);
+    expect(batches).toEqual([{ events: Array(10).fill('fill'), omitted: 2 }]);
+  });
+
+  it('isolates throwing notification callbacks from the account event feed', async () => {
+    let batchCalls = 0;
+    const w = createAccountWatcher({
+      provider: stubProvider([
+        snap([order('a')]),
+        snap([order('a', { filled: 0.5 }), order('new')]),
+        snap([order('a', { filled: 0.75 }), order('new')]),
+      ]),
+      notify: () => {
+        throw new Error('must stay isolated');
+      },
+      notifyEvents: () => {
+        batchCalls += 1;
+        throw new Error('must stay isolated');
+      },
+    });
+    await w.tick();
+    await w.tick();
+    await w.tick();
+
+    expect(batchCalls).toBe(2);
+    expect(w.eventsSince(0).map((event) => event.kind)).toEqual(['fill', 'new', 'fill']);
+  });
+
   it('resolves a vanished order via provider.getOrder (canceled vs filled)', async () => {
     const lookups: string[] = [];
     const w = createAccountWatcher({

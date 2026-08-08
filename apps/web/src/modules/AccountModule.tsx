@@ -4,6 +4,7 @@ import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { useAuth } from '@/store/useAuth';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { WebhookSettings } from './WebhookSettings';
 import type { ModuleProps } from './types';
 
 type Msg = { kind: 'ok' | 'err'; text: string } | null;
@@ -158,6 +159,8 @@ export function AccountModule(_props: ModuleProps) {
           {sessionMsg && <span className={`text-2xs ${msgClass(sessionMsg)}`}>{sessionMsg.text}</span>}
         </div>
       </section>
+
+      <WebhookSettings />
 
       {/* Admin: users */}
       {account?.isAdmin && <AdminUsers selfId={account.id} />}

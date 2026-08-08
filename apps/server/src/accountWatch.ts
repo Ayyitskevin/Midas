@@ -101,11 +101,18 @@ export interface AccountWatchDeps {
    * by the write path, so pushing them here would double-notify.
    */
   notify?: (text: string) => void;
+  /**
+   * One bounded execution batch per snapshot. Personal-webhook callers must
+   * keep this callback memory-only; outbound I/O belongs to their queue.
+   */
+  notifyEvents?: (events: AccountOrderEvent[], omitted: number) => void;
   onError?: (err: unknown) => void;
   /** Injected clock (tests). */
   now?: () => number;
   /** Ring-buffer bound (tests). */
   maxEvents?: number;
+  /** Maximum fill/filled events passed to notifyEvents per tick. */
+  maxNotificationEvents?: number;
 }
 
 export interface AccountWatchHandle {
@@ -122,9 +129,10 @@ export interface AccountWatchHandle {
  * {@link startAccountWatch} adds the interval for production).
  */
 export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle {
-  const { provider, notify, onError } = deps;
+  const { provider, notify, notifyEvents, onError } = deps;
   const now = deps.now ?? Date.now;
   const maxEvents = deps.maxEvents ?? 200;
+  const maxNotificationEvents = Math.max(1, Math.floor(deps.maxNotificationEvents ?? 10));
 
   // null until the first LIVE snapshot: the baseline pass records what is
   // already on the book without emitting events, so a restart never replays
@@ -138,7 +146,12 @@ export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle
     events.push(event);
     if (events.length > maxEvents) events.splice(0, events.length - maxEvents);
     if ((event.kind === 'fill' || event.kind === 'filled') && notify) {
-      notify(formatAccountEvent(event));
+      try {
+        notify(formatAccountEvent(event));
+      } catch {
+        // Notifications are observability only. A broken callback cannot stop
+        // account polling or prevent later transitions reaching the feed.
+      }
     }
   };
 
@@ -158,6 +171,7 @@ export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle
       const deltas = diffOpenOrders(prev, snap.orders);
       prev = snap.orders;
       const at = now();
+      const executions: AccountOrderEvent[] = [];
       for (const d of deltas) {
         let kind: AccountOrderEventKind = d.kind;
         let status: string | null = d.order.status || null;
@@ -181,7 +195,7 @@ export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle
             filledDelta = filled - d.order.filled;
           }
         }
-        record({
+        const event: AccountOrderEvent = {
           id: nextId++,
           at,
           kind,
@@ -193,7 +207,20 @@ export function createAccountWatcher(deps: AccountWatchDeps): AccountWatchHandle
           filled,
           filledDelta,
           status,
-        });
+        };
+        record(event);
+        if (event.kind === 'fill' || event.kind === 'filled') executions.push(event);
+      }
+      if (notifyEvents && executions.length > 0) {
+        try {
+          notifyEvents(
+            executions.slice(0, maxNotificationEvents),
+            Math.max(0, executions.length - maxNotificationEvents),
+          );
+        } catch {
+          // Same isolation boundary as the legacy operator notifier. The
+          // per-user implementation only enqueues here and performs no I/O.
+        }
       }
     } catch (err) {
       onError?.(err);

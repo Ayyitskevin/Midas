@@ -318,6 +318,60 @@ export interface AccountKeysInput {
   canTrade?: boolean;
 }
 
+/** The only delivery failure categories exposed by the per-user webhook API. */
+export type AccountWebhookFailureCategory =
+  | 'blocked-target'
+  | 'capacity'
+  | 'configuration'
+  | 'dns'
+  | 'http-4xx'
+  | 'http-5xx'
+  | 'malformed-response'
+  | 'network'
+  | 'queue-full'
+  | 'redirect'
+  | 'timeout';
+
+/** Sanitized status for the most recent personal-webhook delivery attempt. */
+export interface AccountWebhookDeliveryStatus {
+  kind: 'fills' | 'digest';
+  outcome: 'pending' | 'delivered' | 'failed';
+  /** Fixed taxonomy only; never an endpoint, payload, or raw upstream error. */
+  failureCategory: AccountWebhookFailureCategory | null;
+  /** Epoch millis when this status was recorded. */
+  at: number;
+}
+
+/**
+ * Metadata about a user's stored webhook. The URL is deliberately absent:
+ * after PUT it is write-only, just like exchange-key secret material.
+ */
+export interface AccountWebhookMeta {
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+  lastDelivery: AccountWebhookDeliveryStatus | null;
+}
+
+/** GET /api/account/webhook — configuration plus operator-owned cadence state. */
+export interface AccountWebhookResponse {
+  webhook: AccountWebhookMeta | null;
+  /** Whether the account watcher cadence permits personal fill pushes. */
+  fillNotificationsAvailable: boolean;
+  /** Shared operator/user digest cadence; null means personal digests are off. */
+  digestHours: number | null;
+}
+
+/** PUT /api/account/webhook — the URL is validated, encrypted, and never echoed. */
+export interface AccountWebhookInput {
+  url: string;
+}
+
+/** PATCH /api/account/webhook — enabling is explicit after every save/replace. */
+export interface AccountWebhookEnabledInput {
+  enabled: boolean;
+}
+
 /** The account event feed: what the server-side order watcher has observed. */
 export interface AccountEventsResponse {
   /** Whether the watcher loop is running (keys + live provider + interval > 0). */

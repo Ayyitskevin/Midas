@@ -217,6 +217,19 @@ as a lower bound and never as a recovered total. When the primary venue observed
 nothing the ratio is undefined and reported as unknown rather than as an
 unbounded or invented value.
 
+## Personal digest evidence
+
+Personal P&L webhooks reuse the operator recap's `equityChange`, FIFO
+`fillRecap`, and `topMovers` calculations; there is no second P&L authority.
+The outbound envelope adds an explicit `available | empty | partial |
+unavailable` state per section. A live account response with result-specific
+partial-evidence limitations (omitted rows, unreadable secondary venue, or
+missing quotes) is never summarized as “none,” and an equity series whose first
+point falls inside the cadence window is partial rather than a claimed
+full-window change. Synthetic/non-live account evidence remains unavailable in
+the digest. Cadence claims preserve timing truth too: a restart can leave an
+attempt `pending`, but never relabel it delivered or replay the window.
+
 ## Static demo
 
 The browser-only demo uses deterministic synthetic receipts. The same fixture

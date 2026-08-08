@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { createProvider } from './providers';
 import { buildApp } from './app';
@@ -14,6 +14,7 @@ import { createLoginThrottle } from './auth/throttle';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { UserWebhookRepo } from './userWebhooks/repo';
 
 describe('auth guard public-path matching', () => {
   it('is public only on segment boundaries', () => {
@@ -325,16 +326,35 @@ describe('admin user deletion purges per-user state', () => {
   const KMS = 'test-kms-secret-that-is-plenty-long-enough';
   const loopStub = () => {
     const dropped: string[] = [];
+    const ensured: string[] = [];
     const loops: UserLoops = {
-      ensure: () => {},
+      ensure: (id) => ensured.push(id),
       drop: (id) => dropped.push(id),
       watcherFor: () => null,
       equityRepoFor: () => null,
       size: () => 0,
       stopAll: () => {},
     };
-    return { loops, dropped };
+    return { loops, dropped, ensured };
   };
+
+  it('does not restart keyed account polling for an auth owner that no longer exists', async () => {
+    process.env.LOG_LEVEL = 'silent';
+    const keyRepo = new KeyRepo(KMS);
+    keyRepo.set('deleted-owner', { exchange: 'binance', apiKey: 'stale-key', secret: 's', canTrade: false }, 1);
+    const { loops, ensured } = loopStub();
+    const app = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+      keyRepo,
+      userLoops: loops,
+    });
+    await app.ready();
+
+    expect(ensured).toEqual([]);
+    await app.close();
+  });
 
   it('removes the deleted user’s keys and drops their loops; leaves others intact', async () => {
     process.env.LOG_LEVEL = 'silent';
@@ -403,6 +423,37 @@ describe('admin user deletion purges per-user state', () => {
     expect(keyRepo.metaFor(bob.user.id)).not.toBeNull();
     expect(dropped).toHaveLength(0);
 
+    await app.close();
+  });
+
+  it('still drops account loops when encrypted webhook cleanup fails closed', async () => {
+    process.env.LOG_LEVEL = 'silent';
+    const keyRepo = new KeyRepo(KMS);
+    const { loops, dropped } = loopStub();
+    const webhookRepo = new UserWebhookRepo(KMS);
+    vi.spyOn(webhookRepo, 'remove').mockImplementation(() => {
+      throw new Error('simulated durable cleanup failure');
+    });
+    const app = await buildApp(createProvider('mock'), {
+      auth: { enabled: true, allowSignup: true, secret: 'test-secret' },
+      userRepo: new UserRepo(),
+      alertRepo: new AlertRepo(),
+      keyRepo,
+      userLoops: loops,
+      userWebhookRepo: webhookRepo,
+    });
+    await app.ready();
+
+    const admin = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'root', password: 'hunter2' } })).json();
+    const victim = (await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { username: 'victim', password: 'hunter2' } })).json();
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/api/auth/users/${victim.user.id}`,
+      headers: { authorization: `Bearer ${admin.token}` },
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(dropped).toContain(victim.user.id);
     await app.close();
   });
 });
