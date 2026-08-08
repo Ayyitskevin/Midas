@@ -49,7 +49,7 @@ jobs:
       - run: mkdir -p site/demo && cp -r apps/web/dist-demo/* site/demo/
       - name: Upload Pages artifact
         if: ${{ github.ref == 'refs/heads/main' && vars.MIDAS_PAGES_ENABLED == 'true' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
 
