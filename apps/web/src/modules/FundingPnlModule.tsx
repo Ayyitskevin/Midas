@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, fmtTimeAgo } from '@/lib/format';
-import { projectFunding, type PerpSide } from '@/lib/fundingPnl';
+import { projectFunding, validIntervalHours, type PerpSide } from '@/lib/fundingPnl';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import type { ModuleProps } from './types';
 
@@ -41,13 +41,22 @@ export function FundingPnlModule({ panel }: ModuleProps) {
   const [side, setSide] = useState<PerpSide>('long');
   const [notionalStr, setNotionalStr] = useState('10000');
   const [horizonStr, setHorizonStr] = useState('30');
-  const [intervalHours, setIntervalHours] = useState(8);
+  // Venue-reported cadence; null until seeded (never assume 8h). A manual pick
+  // via the interval buttons sticks until the symbol changes.
+  const [intervalHours, setIntervalHours] = useState<number | null>(null);
   const [rateStr, setRateStr] = useState(''); // % per interval, seeds from live
 
-  useEffect(() => setRateStr(''), [symbol]);
+  useEffect(() => {
+    setRateStr('');
+    setIntervalHours(null);
+  }, [symbol]);
   useEffect(() => {
     if (deriv?.fundingRate != null) {
       setRateStr((prev) => (prev === '' ? String(+(deriv.fundingRate! * 100).toFixed(5)) : prev));
+    }
+    const cadence = validIntervalHours(deriv?.fundingIntervalHours);
+    if (cadence != null) {
+      setIntervalHours((prev) => (prev == null ? cadence : prev));
     }
   }, [deriv]);
 
@@ -121,7 +130,10 @@ export function FundingPnlModule({ panel }: ModuleProps) {
           ))}
         </div>
         <span className="ml-auto text-term-dim">
-          live {liveRate != null ? `${(liveRate * 100).toFixed(4)}%/${intervalHours}h` : '—'}
+          live{' '}
+          {liveRate != null
+            ? `${(liveRate * 100).toFixed(4)}%/${intervalHours != null ? `${intervalHours}h` : 'settlement, cadence unknown'}`
+            : '—'}
           {deriv?.nextFundingTime ? ` · next ${fmtTimeAgo(deriv.nextFundingTime)}` : ''}
         </span>
       </div>
@@ -180,7 +192,9 @@ export function FundingPnlModule({ panel }: ModuleProps) {
         </>
       ) : (
         <div className="rounded-sm border border-term-border bg-term-panel/40 px-3 py-3 text-center text-2xs text-term-muted">
-          Enter a notional, rate and horizon to project the carry.
+          {intervalHours == null
+            ? 'Settlement cadence unknown for this venue — pick an interval above to project the carry.'
+            : 'Enter a notional, rate and horizon to project the carry.'}
         </div>
       )}
 

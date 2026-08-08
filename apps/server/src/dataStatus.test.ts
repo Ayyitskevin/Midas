@@ -573,7 +573,12 @@ describe('GET /api/data/status', () => {
       { exchange: 'binance', apiKey: 'configured-test-key', secret: 'configured-test-secret' },
       { exchange, now: () => NOW },
     );
-    const app = await buildApp(provider, { auth: { enabled: false } });
+    const app = await buildApp(provider, {
+      auth: { enabled: false },
+      // Pinned origin keeps the no-auth keyed account reads open (wildcard
+      // CORS would fail them closed — see keyedAccountGuard.test.ts).
+      corsOrigin: 'http://localhost:8080',
+    });
     try {
       const positions = await app.inject({ method: 'GET', url: '/api/positions' });
       expect(positions.statusCode).toBe(200);
