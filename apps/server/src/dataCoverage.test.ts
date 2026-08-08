@@ -28,6 +28,10 @@ async function expectMalformedRoute(
     auth: { enabled: false },
     keyRepo: null,
     logger: { level: 'silent' },
+    // Pinned origin keeps no-auth keyed routes (e.g. /api/fills) reachable
+    // for the malformed-upstream assertions (keyedAccountGuard.test.ts covers
+    // the wildcard fail-closed posture).
+    corsOrigin: 'http://localhost:8080',
   });
   try {
     const response = await app.inject({ method: 'GET', url });
@@ -113,6 +117,9 @@ describe('data receipt route coverage', () => {
     const app = await buildApp(new MockProvider(), {
       auth: { enabled: false },
       keyRepo: null,
+      // Pinned origin: the probes include keyed account reads, which fail
+      // closed under the default wildcard CORS (keyedAccountGuard.test.ts).
+      corsOrigin: 'http://localhost:8080',
     });
     const assertReceipt = (candidate: unknown, path: DataRoutePath) => {
       const checked = validateDataReceipt(candidate);

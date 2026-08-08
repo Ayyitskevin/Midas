@@ -19,7 +19,10 @@ describe('dependency wave regressions (fastify / websocket / mock honesty)', () 
 
   beforeAll(async () => {
     process.env.LOG_LEVEL = 'silent';
-    app = await buildApp(createProvider('mock'));
+    // Pinned CORS = the accepted no-auth posture, so the cancel-only DELETE
+    // assertions below stay live (wildcard CORS fails closed — see
+    // keyedAccountGuard.test.ts).
+    app = await buildApp(createProvider('mock'), { corsOrigin: 'http://localhost:8080' });
     await app.ready();
   });
 
