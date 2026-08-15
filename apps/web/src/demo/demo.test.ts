@@ -154,11 +154,18 @@ describe('demo engine', () => {
     expect(bal.totalValueUsd).toBeGreaterThan(0);
   });
 
-  it('screener covers the universe and sorts', () => {
+  it('screener covers the universe and sorts, ranking unknown change last', () => {
     const rows = screenerRows('USDT', 'gainers', 10, NOW);
     expect(rows).toHaveLength(10);
-    for (let i = 1; i < rows.length; i++) {
-      expect(rows[i].changePercent).toBeLessThanOrEqual(rows[i - 1].changePercent);
+    const measured = rows.filter((r) => r.changePercent !== null);
+    for (let i = 1; i < measured.length; i++) {
+      expect(measured[i].changePercent!).toBeLessThanOrEqual(measured[i - 1].changePercent!);
+    }
+    // Any unknown-change row sorts after every measured one — never interleaved
+    // as if it were a real 0%.
+    const firstUnknown = rows.findIndex((r) => r.changePercent === null);
+    if (firstUnknown !== -1) {
+      expect(rows.slice(firstUnknown).every((r) => r.changePercent === null)).toBe(true);
     }
     expect(DEMO_SYMBOLS.length).toBeGreaterThanOrEqual(30);
   });
@@ -651,8 +658,8 @@ describe('demo shim', () => {
     installDemoShim();
     // Number('xyz') is NaN → slice(0, NaN) / a NaN depth would have returned nothing;
     // numParam guards both back to the default.
-    const rows = await (await fetch('/api/screener?sort=price&limit=xyz')).json();
-    expect(rows.length).toBeGreaterThan(0);
+    const screener = await (await fetch('/api/screener?sort=price&limit=xyz')).json();
+    expect(screener.rows.length).toBeGreaterThan(0);
     const book = await (await fetch('/api/orderbook/BTC%2FUSDT?depth=xyz')).json();
     expect(book.bids.length).toBeGreaterThan(0);
   });

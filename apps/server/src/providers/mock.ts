@@ -18,7 +18,7 @@ import type {
   OptionsChain,
   OrderBook,
   Quote,
-  ScreenerRow,
+  Screen,
   SearchResult,
   SolanaMarket,
   SolanaNetwork,
@@ -34,6 +34,7 @@ import type {
   VenueScreen,
   VenueQuote,
 } from '@midas/shared';
+import { partialEvidenceLimitation } from '@midas/shared';
 import type { DataProvider, HistoryOptions, ScreenerOptions } from './types';
 import { ProviderError } from './types';
 import {
@@ -116,6 +117,7 @@ const MOCK_CAPABILITIES = buildProviderCapabilities({
     derivatives: syntheticCapability('getDerivatives', 'funding, OI and liquidation bundle', 60_000, 120_000),
     'venue-derivatives': syntheticCapability('getVenueDerivatives', 'configured mock compare venues', 60_000, 120_000),
     liquidations: syntheticCapability('liquidationsProvenance|getDerivatives', 'fabricated recent events for panel exercise', 60_000, 120_000),
+    screener: syntheticCapability('screen', 'synthetic roster filtered to the requested quote', 60_000, 120_000),
     'venue-screener': syntheticCapability('getVenueScreen', 'configured mock compare venues', 60_000, 120_000),
     'venue-quotes': syntheticCapability('getExchangeQuotes', 'configured mock compare venues', 60_000, 120_000),
     'venue-arbitrage': {
@@ -462,8 +464,22 @@ export class MockProvider implements DataProvider {
       note: value.note,
     }, this.now());
   }
-  screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
-    return mockScreen(opts);
+  async screen(opts: ScreenerOptions): Promise<Screen> {
+    const value = await mockScreen(opts);
+    const quote = (opts.quote ?? 'USDT').toUpperCase();
+    return withProviderReceipt(this, value, {
+      datasetFamily: 'screener',
+      provenance: 'synthetic',
+      sourceAsOf: value.timestamp,
+      coverage:
+        `${value.eligible} of ${value.scanned} synthetic ticker(s) matched ${quote}; ` +
+        `${value.rows.length} returned, ranked by ${opts.sort ?? 'volume'}.`,
+      units: { price: quote, changePercent: 'percent', volume: 'base-asset', quoteVolume: quote },
+      limitations: value.unknownChange > 0
+        ? [partialEvidenceLimitation(`${value.unknownChange} of ${value.eligible} eligible ticker(s) reported no 24h change; those rows carry an unknown change and rank last under the change sort.`)]
+        : [],
+      note: 'Synthetic screener for offline/demo use — not real market data.',
+    }, this.now());
   }
   async getHistory(symbol: string, opts: HistoryOptions): Promise<HistoryResponse> {
     const value = await mockHistory(symbol, opts);

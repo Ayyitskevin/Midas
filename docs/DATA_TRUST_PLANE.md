@@ -156,6 +156,7 @@ The bounded v1 slice covers:
 | OI history / OI delta | Observations plus versioned positioning derivation |
 | Liquidations | Observed events where supported; estimates remain explicitly derived |
 | Venue arbitrage | Versioned net-of-fees derivation with input lineage |
+| Screener | Single-venue ticker sweep with scan coverage and unknown-change counts |
 | Cross-venue screener | Per-venue ticker sweeps unioned with a named aggregation basis |
 | Options analytics | DVOL, term structure, and chain where provider capability allows |
 | Read-only accounts | Balances, open orders, positions, and fills; no secret or value data in status |
@@ -163,9 +164,9 @@ The bounded v1 slice covers:
 The structural route registry records every numeric market/read-only-account
 observation GET in the trust boundary as covered, not-applicable, or a temporary
 exemption. Funding-history remains a legacy bare array for compatibility, but
-each point carries an additive receipt. V1 leaves on-chain, the single-venue screener,
-coin-universe, persisted account-event/equity projections, and single-order
-lookup as explicit follow-up work. Those exemptions carry a reason and concrete
+each point carries an additive receipt. V1 leaves on-chain, coin-universe,
+persisted account-event/equity projections, and single-order lookup as explicit
+follow-up work. Those exemptions carry a reason and concrete
 removal condition. They are not permission to claim live evidence without a
 receipt. Account-key configuration metadata is outside the numeric evidence
 boundary and remains protected by its existing authentication/privacy contract.
@@ -205,6 +206,17 @@ depth, levels dropped for unusable price or size, and a one-sided book that
 makes spread and imbalance incomputable. The panels that walk the book for TWAP
 and slippage estimates carry that same snapshot receipt rather than presenting a
 derived fill price as independent evidence.
+
+A ticker that reports no 24h change is kept, not dropped. The listing is real
+and its price and volume are evidence, so the row stays in the universe with an
+unknown change, ranks last under the change sort rather than being treated as a
+zero, and is counted in the board receipt alongside how many tickers were
+scanned and how many matched the requested quote. Silently omitting those rows
+would have been honest about the individual number while quietly misrepresenting
+the breadth of the market. Downstream, unknown change is excluded from breadth
+ratios and averages instead of being folded into "unchanged", the heatmap paints
+those tiles neutral rather than the faint green a zero would produce, and the
+mover boards exclude them because a ranking claim needs a measurement.
 
 The cross-venue screener sums reported volume across venues but never sums
 price: venues are repeated observations of one quantity, so the aggregate is a

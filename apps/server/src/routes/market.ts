@@ -28,6 +28,7 @@ import type {
   OiDeltaWindow,
   OptionsChain,
   Range,
+  Screen,
   ScreenerRow,
   TermStructure,
   VenueArbRow,
@@ -356,7 +357,7 @@ export function registerMarketRoutes(
   // The screener re-reads the whole ticker set per request; a short
   // single-flight window per (quote, sort, limit) shares one read across
   // concurrent users and client polling.
-  const screenerCache = createTtlCache<ScreenerRow[]>(SCREENER_TTL_MS);
+  const screenerCache = createTtlCache<{ screen: Screen; storedAt: number }>(SCREENER_TTL_MS);
   app.get<{ Querystring: { quote?: string; sort?: string; limit?: string } }>(
     DATA_ROUTE_PATHS.screener,
     async (req) => {
@@ -371,9 +372,46 @@ export function registerMarketRoutes(
       // Floor then clamp to ≥ 1: limit=0.5 would otherwise silently empty the board.
       const limit =
         Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 200) : 50;
-      return screenerCache.get(`${quote}|${sortRaw || 'volume'}|${limit}`, () =>
-        provider.screen({ quote, sort: sortRaw || undefined, limit }),
+      let computed = false;
+      const entry = await screenerCache.get(`${quote}|${sortRaw || 'volume'}|${limit}`, async () => {
+        computed = true;
+        const screen = await trackProviderCall(provider, 'screener', dataStatus, () =>
+          provider.screen({ quote, sort: sortRaw || undefined, limit }),
+        );
+        return { screen, storedAt: Date.now() };
+      });
+      const now = Date.now();
+      const attached = attachProviderReceipt(
+        provider,
+        'screener',
+        entry.screen,
+        String(req.id),
+        dataStatus,
+        { status: computed ? 'miss' : 'hit', ageMs: computed ? 0 : Math.max(0, now - entry.storedAt) },
+        now,
       );
+      // The board envelope carries what a bare row array could not: how much of
+      // the venue was scanned, how many rows carry an unknown 24h change, and
+      // whether the rows were served from cache.
+      const envelope: BoardEnvelope<ScreenerRow & { receipt: DataReceipt }> & { receipt: DataReceipt } = {
+        rows: attached.rows.map((row) => withDataReceipt(row, attached.receipt)),
+        meta: {
+          provenance: attached.receipt.provenance,
+          source: attached.receipt.source,
+          asOf: entry.storedAt,
+          cachedAt: computed ? null : entry.storedAt,
+          partial: attached.unknownChange > 0 || attached.eligible === 0,
+          note:
+            attached.eligible === 0
+              ? `No ${quote} ticker on ${attached.receipt.source} reported a usable price.`
+              : attached.unknownChange > 0
+                ? `${attached.unknownChange} of ${attached.eligible} ${quote} ticker(s) reported no 24h change.`
+                : null,
+          receipt: attached.receipt,
+        },
+        receipt: attached.receipt,
+      };
+      return envelope;
     },
   );
 

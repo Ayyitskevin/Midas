@@ -760,14 +760,20 @@ export function venueScreenerRows(
   return sortCrossVenueScreen(computeCrossVenueScreen(venueScreenRows(quote, now)), sort).slice(0, limit);
 }
 
+/** The one demo listing that withholds 24h change. */
+const SILENT_CHANGE_INDEX = 1;
+
 export function screenerRows(quote: string, sort: string, limit: number, now: number): ScreenerRow[] {
-  const rows = ASSETS.map((a) => {
+  const rows: ScreenerRow[] = ASSETS.map((a, index) => {
     const q = quoteFor(`${a.base}/${quote}`, now)!;
     return {
       symbol: q.symbol,
       name: a.name,
       price: q.price,
-      changePercent: q.changePercent,
+      // One deterministic listing withholds 24h change, mirroring a real venue
+      // that reports price and volume but no daily change — so the demo
+      // exercises unknown-change rendering, sorting and coverage counting.
+      changePercent: index === SILENT_CHANGE_INDEX ? null : q.changePercent,
       volume: q.volume,
       quoteVolume: q.volume != null ? q.volume * q.price : null,
     };
@@ -775,15 +781,38 @@ export function screenerRows(quote: string, sort: string, limit: number, now: nu
   // Mirror the server's sortScreener (providers/util.ts): price/change sort on
   // their own field, everything else on quote volume. Without the price branch a
   // PRICE sort (offered by the Screener panel) silently returned volume order.
-  const field = (r: { price: number; changePercent: number; quoteVolume: number | null }): number =>
+  // An unknown sort key ranks LAST in either direction — it is not a 0.
+  const field = (r: ScreenerRow): number | null =>
     sort === 'gainers' || sort === 'change'
       ? r.changePercent
       : sort === 'price'
         ? r.price
         : (r.quoteVolume ?? 0);
-  rows.sort((a, b) => field(b) - field(a));
-  if (sort === 'losers') rows.reverse();
-  return rows.slice(0, limit);
+  const descending = [...rows].sort((a, b) => {
+    const left = field(a);
+    const right = field(b);
+    if (left === null) return right === null ? 0 : 1;
+    if (right === null) return -1;
+    return right - left;
+  });
+  if (sort === 'losers') {
+    // Reverse only the measured rows; unknowns stay pinned at the end rather
+    // than being promoted to the top of a "biggest losers" board.
+    const measured = descending.filter((r) => field(r) !== null).reverse();
+    const unknown = descending.filter((r) => field(r) === null);
+    return [...measured, ...unknown].slice(0, limit);
+  }
+  return descending.slice(0, limit);
+}
+
+/** Screener coverage counts, mirroring the server's `Screen` evidence. */
+export function screenerCoverage(quote: string, now: number): { scanned: number; eligible: number; unknownChange: number } {
+  const rows = screenerRows(quote, 'volume', ASSETS.length, now);
+  return {
+    scanned: ASSETS.length,
+    eligible: rows.length,
+    unknownChange: rows.filter((r) => r.changePercent === null).length,
+  };
 }
 
 export function searchFor(query: string): SearchResult[] {

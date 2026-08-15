@@ -4,6 +4,7 @@ import { useFetch } from '@/lib/hooks';
 import { changeClass, fmtCompact, fmtPrice, fmtSignedPercent } from '@/lib/format';
 import { navigate } from '@/commands/execute';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { BoardMetaBadge, BoardMetaNote } from '@/components/BoardMeta';
 import type { ModuleProps } from './types';
 
 const SORTS: Array<{ key: string; label: string }> = [
@@ -54,12 +55,13 @@ export function ScreenerModule({ panel }: ModuleProps) {
             </button>
           ))}
         </div>
+        {data && <BoardMetaBadge meta={data.meta} />}
       </div>
       <div className="scroll-term flex-1 overflow-auto">
         {loading && !data && <Loading label="Screening" />}
         {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
-        {data && data.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
-        {data && data.length > 0 && (
+        {data && data.rows.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
+        {data && data.rows.length > 0 && (
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-term-panel">
               <tr className="text-2xs text-term-muted">
@@ -70,7 +72,7 @@ export function ScreenerModule({ panel }: ModuleProps) {
               </tr>
             </thead>
             <tbody>
-              {data.map((r) => (
+              {data.rows.map((r) => (
                 <tr key={r.symbol} className="border-b border-term-border/30 hover:bg-term-header/60">
                   <td className="px-2 py-1">
                     <button
@@ -81,7 +83,14 @@ export function ScreenerModule({ panel }: ModuleProps) {
                     </button>
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums">{fmtPrice(r.price)}</td>
-                  <td className={`px-2 py-1 text-right tabular-nums ${changeClass(r.changePercent)}`}>
+                  {/* An unreported 24h change renders as unknown, never as a
+                    * flat 0% in the neutral colour a real 0 would get. */}
+                  <td
+                    className={`px-2 py-1 text-right tabular-nums ${
+                      r.changePercent === null ? 'text-term-dim' : changeClass(r.changePercent)
+                    }`}
+                    title={r.changePercent === null ? 'The venue reported no 24h change for this market' : undefined}
+                  >
                     {fmtSignedPercent(r.changePercent)}
                   </td>
                   <td className="px-2 py-1 text-right tabular-nums text-term-muted">
@@ -93,6 +102,7 @@ export function ScreenerModule({ panel }: ModuleProps) {
           </table>
         )}
       </div>
+      {data && <BoardMetaNote meta={data.meta} />}
     </div>
   );
 }

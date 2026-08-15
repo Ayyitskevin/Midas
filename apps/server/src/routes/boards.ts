@@ -275,7 +275,7 @@ export function registerVenueBoard<Row extends object & { receipt: DataReceipt }
       Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.max(1, Math.floor(limitRaw)), 30) : 15;
     return serveBoard(provider, opts.family, cache, `${quote}|${limit}`, String(req.id), dataStatus, async () => {
       const rows = await trackProviderCall(provider, opts.family, dataStatus, () =>
-        provider.screen({ quote, sort: 'volume', limit }),
+        provider.screen({ quote, sort: 'volume', limit }).then((screen) => screen.rows),
       );
       let failed = 0;
       // Cast the resolved array: for a generic Row, TS widens Promise.all's

@@ -44,12 +44,20 @@ export async function buildContext(provider: DataProvider, symbol?: string): Pro
   }
 
   try {
-    const movers = await provider.screen({ sort: 'change', limit: 8 });
+    const { rows: movers } = await provider.screen({ sort: 'change', limit: 8 });
     if (movers.length) {
       lines.push(
         `Top movers (24h):\n` +
           movers
-            .map((m) => `- ${m.symbol} ${m.changePercent >= 0 ? '+' : ''}${m.changePercent.toFixed(2)}% @ ${m.price}`)
+            .map((m) => {
+              // An unknown 24h change is reported as unknown; the copilot must
+              // not read it to the model as a flat 0.00%.
+              const change =
+                m.changePercent === null
+                  ? 'change unknown'
+                  : `${m.changePercent >= 0 ? '+' : ''}${m.changePercent.toFixed(2)}%`;
+              return `- ${m.symbol} ${change} @ ${m.price}`;
+            })
             .join('\n'),
       );
     }

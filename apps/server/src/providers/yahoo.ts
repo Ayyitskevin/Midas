@@ -12,7 +12,7 @@ import type {
   OpenOrders,
   OrderBook,
   Quote,
-  ScreenerRow,
+  Screen,
   SearchResult,
   SolanaMarket,
   SolanaNetwork,
@@ -548,7 +548,7 @@ export class YahooProvider implements DataProvider {
     }, this.now()) };
   }
 
-  async screen(_opts: ScreenerOptions): Promise<ScreenerRow[]> {
+  async screen(_opts: ScreenerOptions): Promise<Screen> {
     throw new ProviderError('The screener is a crypto feature — use the ccxt provider', 501);
   }
 

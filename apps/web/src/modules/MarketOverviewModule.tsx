@@ -71,7 +71,7 @@ export function MarketOverviewModule({ panel }: ModuleProps) {
     { intervalMs: 15_000 },
   );
 
-  const overview = data ? buildOverview(data, TOP_N) : null;
+  const overview = data ? buildOverview(data.rows, TOP_N) : null;
   const pick = (symbol: string) => navigate(panel, symbol);
 
   return (
@@ -95,9 +95,9 @@ export function MarketOverviewModule({ panel }: ModuleProps) {
 
       {loading && !data && <Loading label="Loading market" />}
       {error && !data && <ErrorMsg message={error} onRetry={refresh} />}
-      {data && data.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
+      {data && data.rows.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
 
-      {overview && data && data.length > 0 && (
+      {overview && data && data.rows.length > 0 && (
         <>
           {/* Breadth band */}
           <div className="border-b border-term-border px-2 py-1.5">
@@ -106,6 +106,16 @@ export function MarketOverviewModule({ panel }: ModuleProps) {
                 <span className="text-term-up">{overview.breadth.advancers} adv</span>
                 <span className="mx-1 text-term-dim">·</span>
                 <span className="text-term-down">{overview.breadth.decliners} dec</span>
+                {overview.breadth.unknown > 0 && (
+                  <>
+                    <span className="mx-1 text-term-dim">·</span>
+                    {/* Distinct from "unch": these markets reported no change
+                      * at all, so they are excluded from the ratio and mean. */}
+                    <span className="text-term-dim" title="No 24h change reported; excluded from the ratio and average">
+                      {overview.breadth.unknown} unknown
+                    </span>
+                  </>
+                )}
                 {overview.breadth.unchanged > 0 && (
                   <>
                     <span className="mx-1 text-term-dim">·</span>

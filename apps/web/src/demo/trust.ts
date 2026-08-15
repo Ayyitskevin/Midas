@@ -26,6 +26,7 @@ const METHOD_BY_FAMILY: Record<TrustDatasetFamily, string> = {
   quote: 'quoteFor',
   history: 'historyFor',
   'order-book': 'orderBookFor',
+  screener: 'screenerRows',
   funding: 'fundingRows',
   'funding-history': 'fundingHistoryFor',
   'open-interest': 'derivativesFor',

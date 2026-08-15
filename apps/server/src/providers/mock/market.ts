@@ -6,6 +6,7 @@ import type {
   OrderBook,
   OrderBookLevel,
   Quote,
+  Screen,
   ScreenerRow,
   SearchResult,
   VenueQuote,
@@ -100,22 +101,32 @@ export async function mockFundingHistory(symbol: string, limit: number): Promise
   return out;
 }
 
-export async function mockScreen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+export async function mockScreen(opts: ScreenerOptions): Promise<Screen> {
   const quote = (opts.quote ?? 'USDT').toUpperCase();
-  const rows: ScreenerRow[] = ROSTER.filter(
-    (e) => e.type === 'CRYPTOCURRENCY' && e.symbol.includes('/') && e.symbol.split('/')[1] === quote,
-  ).map((e) => {
-    const q = buildQuote(e);
-    return {
-      symbol: e.symbol,
-      name: e.name,
-      price: q.price,
-      changePercent: q.changePercent,
-      volume: q.volume,
-      quoteVolume: q.volume != null ? Math.floor(q.volume * q.price) : null,
-    };
-  });
-  return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+  const universe = ROSTER.filter((e) => e.type === 'CRYPTOCURRENCY' && e.symbol.includes('/'));
+  const rows: ScreenerRow[] = universe
+    .filter((e) => e.symbol.split('/')[1] === quote)
+    .map((e, index) => {
+      const q = buildQuote(e);
+      return {
+        symbol: e.symbol,
+        name: e.name,
+        // One deterministic row withholds 24h change so the unknown-change path
+        // — muted rendering, null-last sorting, coverage counting — is exercised
+        // by the demo and the mock provider, not only by unit fixtures.
+        changePercent: index === 1 ? null : q.changePercent,
+        price: q.price,
+        volume: q.volume,
+        quoteVolume: q.volume != null ? Math.floor(q.volume * q.price) : null,
+      };
+    });
+  return {
+    rows: sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50),
+    scanned: universe.length,
+    eligible: rows.length,
+    unknownChange: rows.filter((r) => r.changePercent === null).length,
+    timestamp: Date.now(),
+  };
 }
 
 /**

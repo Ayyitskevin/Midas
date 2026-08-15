@@ -90,8 +90,9 @@ describe('fan-out board envelopes', () => {
 
   it('returns an honest unavailable assembly receipt when no board row exists', async () => {
     class EmptyProvider extends MockProvider {
-      override async screen() {
-        return [];
+      override async screen(opts: Parameters<MockProvider['screen']>[0]) {
+        const screen = await super.screen(opts);
+        return { ...screen, rows: [], eligible: 0, unknownChange: 0 };
       }
     }
     const emptyApp = await appWith(new EmptyProvider());
@@ -114,7 +115,7 @@ describe('fan-out board envelopes', () => {
 
 describe('partial boards surface dropped symbols', () => {
   it('/api/funding flags partial when a symbol fails and its row is dropped', async () => {
-    const victim = (await new MockProvider().screen({ quote: 'USDT', sort: 'volume', limit: 5 }))[0]!.symbol;
+    const victim = (await new MockProvider().screen({ quote: 'USDT', sort: 'volume', limit: 5 })).rows[0]!.symbol;
     class FailingProvider extends MockProvider {
       override async getDerivatives(symbol: string) {
         if (symbol === victim) throw new ProviderError('injected test failure', 502);
@@ -138,7 +139,7 @@ describe('partial boards surface dropped symbols', () => {
   });
 
   it('/api/funding-dispersion flags partial when a venue read fails', async () => {
-    const victim = (await new MockProvider().screen({ quote: 'USDT', sort: 'volume', limit: 5 }))[0]!.symbol;
+    const victim = (await new MockProvider().screen({ quote: 'USDT', sort: 'volume', limit: 5 })).rows[0]!.symbol;
     class FailingProvider extends MockProvider {
       override async getVenueDerivatives(symbol: string) {
         if (symbol === victim) throw new ProviderError('injected test failure', 502);
@@ -404,14 +405,39 @@ describe('/api/screener edge validation', () => {
   it('clamps a fractional limit to at least 1 row instead of an empty board', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/screener?limit=0.5' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toHaveLength(1);
+    expect(res.json().rows).toHaveLength(1);
   });
 
   it('routes the quote through normalizeQuote (junk falls back to USDT)', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/screener?quote=US%2FDT&limit=3' });
     expect(res.statusCode).toBe(200);
-    const rows = res.json() as Array<{ symbol: string }>;
+    const { rows } = res.json() as BoardEnvelope<{ symbol: string }>;
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((r) => r.symbol.endsWith('/USDT'))).toBe(true);
+  });
+
+  it('reports screener coverage in the envelope instead of silently dropping unknown-change rows', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/screener?quote=USDT&limit=100' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as BoardEnvelope<{ symbol: string; changePercent: number | null }>;
+    // The mock roster deliberately withholds one row's 24h change. It must be
+    // present with a null change, not filtered out of the universe.
+    const unknown = body.rows.filter((r) => r.changePercent === null);
+    expect(unknown.length).toBe(1);
+    // ...and the omission is disclosed rather than left for the reader to notice.
+    expect(body.meta.partial).toBe(true);
+    expect(body.meta.note).toMatch(/1 of \d+ USDT ticker\(s\) reported no 24h change/);
+    expect(body.meta.receipt?.limitations.some((l) => l.includes('reported no 24h change'))).toBe(true);
+    expect(body.meta.receipt?.coverage).toMatch(/of \d+ synthetic ticker\(s\) matched USDT/);
+  });
+
+  it('ranks an unknown 24h change last under the change sort rather than as a zero', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/screener?quote=USDT&sort=change&limit=100' });
+    const { rows } = res.json() as BoardEnvelope<{ changePercent: number | null }>;
+    const firstUnknown = rows.findIndex((r) => r.changePercent === null);
+    expect(firstUnknown).toBeGreaterThan(-1);
+    // Every row after the first unknown is also unknown; no measured row —
+    // including a negative one — is outranked by an unmeasured symbol.
+    expect(rows.slice(firstUnknown).every((r) => r.changePercent === null)).toBe(true);
   });
 });

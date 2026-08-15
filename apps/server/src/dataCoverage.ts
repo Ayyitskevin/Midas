@@ -117,14 +117,7 @@ export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
     coverage: receipt('funding-history'),
   },
   { path: DATA_ROUTE_PATHS.venueScreener, coverage: receipt('venue-screener') },
-  {
-    path: DATA_ROUTE_PATHS.screener,
-    coverage: exempt(
-      ['screener'],
-      'The broad screener is outside the bounded v1 receipt slice.',
-      'Add a screener dataset receipt that records ticker coverage and partial failures.',
-    ),
-  },
+  { path: DATA_ROUTE_PATHS.screener, coverage: receipt('screener') },
   {
     path: DATA_ROUTE_PATHS.coins,
     coverage: exempt(

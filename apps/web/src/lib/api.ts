@@ -294,7 +294,7 @@ export const api = {
     apiGet<OiDelta>(`/api/oi-delta?symbol=${encodeURIComponent(symbol)}&window=${window}`, signal),
 
   screener: (quote = 'USDT', sort = 'volume', limit = 50, signal?: AbortSignal) =>
-    apiGet<ScreenerRow[]>(
+    apiGet<BoardEnvelope<ScreenerRow>>(
       `/api/screener?quote=${encodeURIComponent(quote)}&sort=${sort}&limit=${limit}`,
       signal,
     ),

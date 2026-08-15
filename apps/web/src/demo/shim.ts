@@ -4,6 +4,7 @@ import type {
   DataMethodology,
   DataReceipt,
   HealthResponse,
+  ScreenerRow,
   SystemStatus,
   TradingStatus,
   TrustDatasetFamily,
@@ -32,6 +33,7 @@ import {
   orderBookFor,
   positionsFor,
   quoteFor,
+  screenerCoverage,
   screenerRows,
   searchFor,
   solanaDexPoolsFor,
@@ -603,14 +605,35 @@ function handle(method: string, url: URL): Response | null {
           400,
         );
       }
-      return json(
-        screenerRows(
-          url.searchParams.get('quote') ?? 'USDT',
-          sort,
-          numParam(url.searchParams.get('limit'), 50),
-          now,
-        ),
-      );
+      const quote = url.searchParams.get('quote') ?? 'USDT';
+      const rows = screenerRows(quote, sort, numParam(url.searchParams.get('limit'), 50), now);
+      const coverage = screenerCoverage(quote, now);
+      const receipt = demoReceipt('screener', null, now, {
+        sourceAsOf: now,
+        coverage:
+          `${coverage.eligible} of ${coverage.scanned} synthetic ticker(s) matched ${quote}; ` +
+          `${rows.length} returned, ranked by ${sort}.`,
+        units: { price: quote, changePercent: 'percent', volume: 'base-asset', quoteVolume: quote },
+        limitations: coverage.unknownChange > 0
+          ? [`Partial evidence: ${coverage.unknownChange} of ${coverage.eligible} eligible ticker(s) reported no 24h change; those rows carry an unknown change and rank last under the change sort.`]
+          : [],
+      });
+      const envelope: BoardEnvelope<ScreenerRow> & { receipt: DataReceipt } = {
+        rows,
+        meta: {
+          provenance: 'synthetic',
+          source: DEMO_SOURCE,
+          asOf: now,
+          cachedAt: null,
+          partial: coverage.unknownChange > 0,
+          note: coverage.unknownChange > 0
+            ? `${coverage.unknownChange} of ${coverage.eligible} ${quote} ticker(s) reported no 24h change.`
+            : null,
+          receipt,
+        },
+        receipt,
+      };
+      return json(envelope);
     }
     case path === '/api/coins':
       return json(coinUniverseFor(numParam(url.searchParams.get('limit'), 100), now));

@@ -1038,11 +1038,40 @@ export interface ScreenerRow {
   symbol: string;
   name: string;
   price: number;
-  changePercent: number;
+  /**
+   * 24h change, or null when the venue did not report one.
+   *
+   * Null means UNKNOWN, never flat. A row whose change cannot be established is
+   * still a real listing with a real price and volume, so it stays on the board
+   * and is ranked last under the change sort rather than being dropped from the
+   * universe or fabricated as 0.
+   */
+  changePercent: number | null;
   /** 24h base-asset volume. */
   volume: number | null;
   /** 24h quote (notional) volume. */
   quoteVolume: number | null;
+}
+
+/**
+ * One provider's screener sweep, with the coverage evidence the board needs.
+ *
+ * Only the provider can say how much of the venue it actually looked at, so the
+ * counts travel with the rows rather than being inferred downstream from a
+ * truncated list.
+ */
+export interface Screen {
+  /** The ranked, limited rows the board renders. */
+  rows: ScreenerRow[];
+  /** Tickers the venue returned, across every quote currency. */
+  scanned: number;
+  /** Tickers matching the requested quote with a usable price, before the limit. */
+  eligible: number;
+  /** Of the eligible tickers, how many reported no 24h change. */
+  unknownChange: number;
+  /** Upstream observation time; null when the venue omits it. */
+  timestamp: number | null;
+  receipt?: DataReceipt;
 }
 
 /** One venue's ticker view of a screened symbol. */
@@ -1059,14 +1088,13 @@ export interface VenueScreenPoint {
 /**
  * A screener row as one venue reported it.
  *
- * `changePercent` is nullable here, unlike {@link ScreenerRow}: a venue that
- * omits 24h change still contributes price, volume and breadth to the
- * cross-venue aggregate, and a fabricated 0 would read as "flat" — a claim the
- * venue never made.
+ * Identical in shape to {@link ScreenerRow} — both carry a nullable
+ * `changePercent`, because a venue that omits 24h change still contributes
+ * price, volume and breadth, and a fabricated 0 would read as "flat", a claim
+ * the venue never made. Kept as a distinct name so per-venue reads stay
+ * readable at call sites.
  */
-export interface VenueScreenRow extends Omit<ScreenerRow, 'changePercent'> {
-  changePercent: number | null;
-}
+export type VenueScreenRow = ScreenerRow;
 
 /** One venue's whole screener sweep — a single `fetchTickers`-shaped read. */
 export interface VenueScreen {

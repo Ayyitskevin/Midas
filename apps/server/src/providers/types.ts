@@ -23,7 +23,7 @@ import type {
   OrderBook,
   Quote,
   Range,
-  ScreenerRow,
+  Screen,
   SearchResult,
   SolanaMarket,
   SolanaNetwork,
@@ -192,7 +192,7 @@ export interface DataProvider {
    * before calling this; providers that omit it cannot cancel.
    */
   cancelOrder?(id: string, symbol: string): Promise<CancelResult>;
-  screen(opts: ScreenerOptions): Promise<ScreenerRow[]>;
+  screen(opts: ScreenerOptions): Promise<Screen>;
   search(query: string): Promise<SearchResult[]>;
   getNews(symbol?: string): Promise<NewsItem[]>;
   /**

@@ -6,7 +6,27 @@ highlights; this file is the complete record. Versions follow semver;
 
 ## [Unreleased]
 
+### Changed
+- **`GET /api/screener` now returns a `BoardEnvelope`** (`{ rows, meta }`)
+  instead of a bare `ScreenerRow[]`, and `ScreenerRow.changePercent` is now
+  `number | null`. Pre-release wire break; every in-repo consumer is updated.
+  The provider `screen()` contract likewise returns a `Screen` carrying the
+  rows plus scan-coverage counts.
+
 ### Fixed
+- **The screener no longer silently drops markets with an unknown 24h change.**
+  The ccxt reader skipped every ticker whose change the venue did not report, so
+  a real listing with a real price and volume vanished from the universe with no
+  record that it had. Those rows are now kept with a null change, rank last
+  under the change sort instead of being treated as a zero, and the board's
+  receipt reports how many tickers were scanned, how many matched the quote, and
+  how many carry an unknown change — closing the second v1 trust-plane
+  exemption. Downstream honesty follows the same rule: `SCR` renders `—`,
+  `HEAT` paints those tiles neutral grey rather than the faint green a zero
+  produced, and `MOV` counts them as *unknown* rather than *unchanged*,
+  excluding them from the advancing ratio, the average change, and both mover
+  boards. `screen()` also drops a redundant `loadMarkets` call — ccxt loads
+  markets inside `fetchTickers` — saving one upstream call per refresh.
 - **Order-book snapshots no longer fabricate their own freshness.** The ccxt
   reader stamped the server clock over a missing venue snapshot time, so a book
   of unknown age rendered as current. `OrderBook.timestamp` is now

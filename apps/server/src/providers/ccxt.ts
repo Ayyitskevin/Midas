@@ -25,6 +25,7 @@ import type {
   PlacedOrder,
   ProviderCapabilityManifest,
   Quote,
+  Screen,
   ScreenerRow,
   VenueScreen,
   SearchResult,
@@ -686,18 +687,29 @@ export class CcxtProvider implements DataProvider {
     return getVenueScreen(this, opts);
   }
 
-  async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+  async screen(opts: ScreenerOptions): Promise<Screen> {
     const quote = (opts.quote ?? 'USDT').toUpperCase();
     try {
-      await this.ensureMarkets();
+      const observedAt = this.now();
+      // No explicit loadMarkets: ccxt loads them inside fetchTickers, and this
+      // read only consumes the returned ticker set (unlike search(), which
+      // walks exchange.symbols). One fewer upstream call per refresh.
       const tickers = await this.exchange.fetchTickers();
+      const entries = Object.entries(tickers);
       const rows: ScreenerRow[] = [];
-      for (const [sym, t] of Object.entries(tickers)) {
+      let unknownChange = 0;
+      let latest: number | null = null;
+      for (const [sym, t] of entries) {
         if (!sym.endsWith(`/${quote}`)) continue;
         const price = tickerPrice(t);
         if (price == null) continue; // skip pairs with no usable price, not price 0
+        // An unreported 24h change is unknown, not absent: the listing is real
+        // and its price and volume are evidence, so it stays in the universe
+        // and ranks last under the change sort instead of vanishing from it.
         const changePercent = finiteOrNull(t.percentage);
-        if (changePercent === null) continue;
+        if (changePercent === null) unknownChange += 1;
+        const ts = positiveFiniteOrNull(t.timestamp);
+        if (ts !== null && (latest === null || ts > latest)) latest = ts;
         rows.push({
           symbol: sym,
           name: sym,
@@ -707,8 +719,34 @@ export class CcxtProvider implements DataProvider {
           quoteVolume: nonNegativeFiniteOrNull(t.quoteVolume),
         });
       }
-      return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+      const value: Screen = {
+        rows: sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50),
+        scanned: entries.length,
+        eligible: rows.length,
+        unknownChange,
+        timestamp: latest,
+      };
+      return withProviderReceipt(this, value, {
+        datasetFamily: 'screener',
+        venue: this.exchangeId,
+        provenance: 'live',
+        sourceAsOf: latest,
+        coverage:
+          `${value.eligible} of ${value.scanned} venue ticker(s) matched ${quote} with a usable price; ` +
+          `${value.rows.length} returned, ranked by ${opts.sort ?? 'volume'}.`,
+        units: { price: quote, changePercent: 'percent', volume: 'base-asset', quoteVolume: quote },
+        limitations: [
+          ...(latest === null ? ['The venue ticker set omitted its source timestamp.'] : []),
+          ...(unknownChange > 0
+            ? [partialEvidenceLimitation(`${unknownChange} of ${value.eligible} eligible ticker(s) reported no 24h change; those rows carry an unknown change and rank last under the change sort.`)]
+            : []),
+          ...(value.eligible === 0
+            ? [partialEvidenceLimitation(`No venue ticker matched ${quote} with a usable price.`)]
+            : []),
+        ],
+      }, observedAt);
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(this.describe(err), 502);
     }
   }
