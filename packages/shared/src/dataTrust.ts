@@ -15,6 +15,7 @@ export const PROVIDER_CAPABILITY_SCHEMA_VERSION = '1.0' as const;
 export const TRUST_DATASET_FAMILIES = [
   'quote',
   'history',
+  'order-book',
   'funding',
   'funding-history',
   'open-interest',

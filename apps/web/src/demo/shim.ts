@@ -246,8 +246,18 @@ function handle(method: string, url: URL): Response | null {
         : notFound(seg(3));
     }
     case path.startsWith('/api/orderbook/'): {
-      const b = orderBookFor(seg(3), numParam(url.searchParams.get('depth'), 20), now);
-      return b ? json(b) : notFound(seg(3));
+      const depth = numParam(url.searchParams.get('depth'), 20);
+      const b = orderBookFor(seg(3), depth, now);
+      return b
+        ? json(
+            withDemoReceipt(b, 'order-book', seg(3), now, {
+              sourceAsOf: b.timestamp,
+              coverage: `${b.bids.length} bid and ${b.asks.length} ask level(s) at depth ${depth}`,
+              units: { price: 'quote-asset', amount: 'base-asset' },
+              limitations: b.timestamp === null ? ['The demo order book omitted its snapshot timestamp.'] : [],
+            }),
+          )
+        : notFound(seg(3));
     }
     case path === '/api/search':
       return json(searchFor(url.searchParams.get('q') ?? ''));

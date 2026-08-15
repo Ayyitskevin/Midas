@@ -4,6 +4,7 @@ import { useFetch } from '@/lib/hooks';
 import { fmtPrice, fmtCompact, changeClass } from '@/lib/format';
 import { walkBook, cumulativeDepth, type Level, type FillResult, type SizeMode, type DepthPoint } from '@/lib/slippage';
 import { Loading, ErrorMsg } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const num = (s: string): number => (s.trim() === '' ? NaN : Number(s));
@@ -153,9 +154,15 @@ export function SlippageModule({ panel }: ModuleProps) {
         </div>
       )}
 
-      <p className="px-1 text-2xs leading-relaxed text-term-dim">
+      <p className="flex flex-wrap items-center gap-1.5 px-1 text-2xs leading-relaxed text-term-dim">
         Walks the live L2 book: a market buy lifts asks, a sell hits bids. Slippage is the average fill vs the touch.
         Gross of fees; snapshot depth only.
+        {data?.receipt && (
+          <>
+            <span>Estimated from one order-book snapshot:</span>
+            <SourceBadge receipt={data.receipt} compact />
+          </>
+        )}
       </p>
     </div>
   );

@@ -98,8 +98,17 @@ export interface OrderBook {
   bids: OrderBookLevel[];
   /** Best (lowest) ask first. */
   asks: OrderBookLevel[];
-  /** Epoch millis of the snapshot. */
-  timestamp: number;
+  /**
+   * Epoch millis of the upstream snapshot, or null when the venue omitted it.
+   *
+   * Null means the snapshot time is UNKNOWN — never that the book is current.
+   * Substituting the server clock here would manufacture freshness for a book
+   * of unknown age, so readers must render null as unknown and the receipt
+   * carries an explicit limitation instead.
+   */
+  timestamp: number | null;
+  /** Evidence for this snapshot; optional so legacy clients may ignore it. */
+  receipt?: DataReceipt;
 }
 
 /** A single venue's top-of-book quote, for the multi-exchange compare view. */

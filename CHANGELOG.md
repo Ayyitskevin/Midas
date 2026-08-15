@@ -6,6 +6,23 @@ highlights; this file is the complete record. Versions follow semver;
 
 ## [Unreleased]
 
+### Fixed
+- **Order-book snapshots no longer fabricate their own freshness.** The ccxt
+  reader stamped the server clock over a missing venue snapshot time, so a book
+  of unknown age rendered as current. `OrderBook.timestamp` is now
+  `number | null` and a venue that omits the time yields unknown freshness with
+  an explicit limitation. This is a deliberate compile-time migration, matching
+  the `Quote.asOf` precedent. Depth is now a receipted `order-book` dataset
+  family — closing the v1 trust-plane exemption — declared with a tighter
+  freshness window than any other market family, and recording truncation to the
+  requested depth, levels dropped for unusable price or size, and one-sided
+  books. `BOOK`, the depth heatmap, `LIQUIDITY`, `IMB`, and the `TWAP`/`SLIP`
+  execution estimates now surface that evidence instead of rendering
+  unreceipted depth. Two panels deduplicated streamed books by snapshot time and
+  would have silently discarded every update from a venue that omits it; they
+  now dedupe only on a known time. A venue that declares no depth endpoint
+  returns an honest 501 rather than a runtime error.
+
 ### Added
 - **Personal fill webhooks + per-user P&L recaps:** authenticated users can now
   save an optional write-only endpoint in `ACCT`, explicitly enable/disable it,

@@ -8,7 +8,8 @@
 import type { OrderBook, OrderBookLevel } from '@midas/shared';
 
 export interface ImbalanceSnapshot {
-  t: number;
+  /** Upstream snapshot time, or null when the venue omitted one. */
+  t: number | null;
   bidDepth: number;
   askDepth: number;
   imbalance: number; // (bid − ask) / (bid + ask), 0 when the book is empty
@@ -32,7 +33,7 @@ export function bookImbalance(book: OrderBook, levels: number): ImbalanceSnapsho
   const askDepth = sumDepth(book.asks, levels);
   const tot = bidDepth + askDepth;
   return {
-    t: book.timestamp || 0,
+    t: book.timestamp,
     bidDepth,
     askDepth,
     imbalance: tot > 0 ? (bidDepth - askDepth) / tot : 0,

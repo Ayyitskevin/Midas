@@ -12,6 +12,7 @@ import {
   type DepthSnapshot,
 } from '@/lib/depthmap';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const BUFFER_CAP = 120; // snapshots retained in memory
@@ -46,7 +47,9 @@ export function OrderBookDepthHeatmapModule({ panel }: ModuleProps) {
       const s = toSnapshot(d as OrderBook);
       if (!s) return;
       setSnaps((prev) => {
-        if (prev.length && prev[prev.length - 1].t === s.t) return prev;
+        // Dedupe by snapshot time only when the venue supplied one; two books
+        // with unknown times are not evidence of the same book.
+        if (prev.length && s.t !== null && prev[prev.length - 1].t === s.t) return prev;
         const next = [...prev, s];
         return next.length > BUFFER_CAP ? next.slice(next.length - BUFFER_CAP) : next;
       });
@@ -155,6 +158,9 @@ export function OrderBookDepthHeatmapModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col text-2xs">
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1">
         <span className="text-term-dim">depth heatmap · green bid / red ask · bright = size</span>
+        {/* Evidence for the REST seed book; streamed columns are separate
+         * observations the receipt does not cover. */}
+        {seed?.receipt && <SourceBadge receipt={seed.receipt} compact />}
         <div className="ml-auto flex items-center gap-2 tabular-nums">
           {latest && (
             <>

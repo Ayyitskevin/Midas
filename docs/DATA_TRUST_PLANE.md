@@ -151,6 +151,7 @@ The bounded v1 slice covers:
 | Family | Evidence boundary |
 | --- | --- |
 | Quote and history | Provider observations with source time and units |
+| Order book | Level-2 depth snapshots with venue snapshot time, truncation and dropped-level evidence |
 | Funding and open interest | Snapshots and cross-venue derived boards |
 | OI history / OI delta | Observations plus versioned positioning derivation |
 | Liquidations | Observed events where supported; estimates remain explicitly derived |
@@ -162,7 +163,7 @@ The bounded v1 slice covers:
 The structural route registry records every numeric market/read-only-account
 observation GET in the trust boundary as covered, not-applicable, or a temporary
 exemption. Funding-history remains a legacy bare array for compatibility, but
-each point carries an additive receipt. V1 leaves order-book, on-chain, the single-venue screener,
+each point carries an additive receipt. V1 leaves on-chain, the single-venue screener,
 coin-universe, persisted account-event/equity projections, and single-order
 lookup as explicit follow-up work. Those exemptions carry a reason and concrete
 removal condition. They are not permission to claim live evidence without a
@@ -193,6 +194,17 @@ unknown freshness rather than fresh. The staleness boundary is the `liquidations
 family's declared `maxAgeMs`, not an independent constant. Aggregate event totals
 remain a lower bound across sampled venues; no correction factor is applied to
 estimate unobserved liquidations.
+
+Order-book depth reports the venue's own snapshot time or nothing. A venue that
+omits it leaves the age unknown, and the server clock is never substituted:
+depth decays in milliseconds, so a stamped-on receive time would present a book
+of unknown age as current — the one claim an execution estimate cannot survive.
+The declared freshness window is correspondingly tighter than any other market
+family. A snapshot also records what it is missing: truncation to the requested
+depth, levels dropped for unusable price or size, and a one-sided book that
+makes spread and imbalance incomputable. The panels that walk the book for TWAP
+and slippage estimates carry that same snapshot receipt rather than presenting a
+derived fill price as independent evidence.
 
 The cross-venue screener sums reported volume across venues but never sums
 price: venues are repeated observations of one quantity, so the aggregate is a

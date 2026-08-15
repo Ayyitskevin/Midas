@@ -89,6 +89,7 @@ describe('data receipt route coverage', () => {
       [DATA_ROUTE_PATHS.quote, { url: '/api/quote/BTC-USDT', location: 'direct' }],
       [DATA_ROUTE_PATHS.quotes, { url: '/api/quotes?symbols=BTC-USDT,ETH-USDT', location: 'array' }],
       [DATA_ROUTE_PATHS.history, { url: '/api/history/BTC-USDT?interval=1d&range=5d', location: 'direct' }],
+      [DATA_ROUTE_PATHS.orderBook, { url: '/api/orderbook/BTC-USDT?depth=5', location: 'direct' }],
       [DATA_ROUTE_PATHS.exchangeQuotes, { url: '/api/exchange-quotes/BTC-USDT', location: 'array' }],
       [DATA_ROUTE_PATHS.venueDerivatives, { url: '/api/venue-derivatives/BTC-USDT', location: 'array' }],
       [DATA_ROUTE_PATHS.derivatives, { url: '/api/derivatives/BTC-USDT', location: 'direct' }],

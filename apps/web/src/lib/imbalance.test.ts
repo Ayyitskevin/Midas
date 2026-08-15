@@ -68,3 +68,14 @@ describe('meanImbalance', () => {
     expect(meanImbalance([])).toBe(0);
   });
 });
+
+describe('bookImbalance snapshot-time honesty', () => {
+  it('carries an unknown snapshot time as null rather than epoch 0', () => {
+    const timeless = { ...book([[100, 5]], [[101, 5]]), timestamp: null };
+    expect(bookImbalance(timeless, 5)?.t).toBeNull();
+  });
+
+  it('preserves a real venue snapshot time', () => {
+    expect(bookImbalance(book([[100, 5]], [[101, 5]], 1_700_000_000_000), 5)?.t).toBe(1_700_000_000_000);
+  });
+});

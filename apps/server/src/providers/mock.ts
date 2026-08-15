@@ -107,6 +107,7 @@ const MOCK_CAPABILITIES = buildProviderCapabilities({
   capabilities: {
     quote: syntheticCapability('getQuote', 'curated symbols plus deterministic symbol fallback', 60_000, 120_000),
     history: syntheticCapability('getHistory', 'requested symbol, interval and range', null, null),
+    'order-book': syntheticCapability('getOrderBook', 'deterministic synthetic depth to the requested limit', 1_000, 15_000),
     funding: syntheticCapability('getDerivatives', 'funding projection from synthetic derivatives snapshot', 3_600_000, 7_200_000),
     'funding-history': syntheticCapability('getFundingHistory', 'up to 500 synthetic 8h settlements', 28_800_000, 57_600_000),
     'open-interest': syntheticCapability('getDerivatives', 'OI projection from synthetic derivatives snapshot', 3_600_000, 7_200_000),
@@ -176,8 +177,17 @@ export class MockProvider implements DataProvider {
       note: 'Synthetic quote for offline/demo use — not real market data.',
     }, this.now()));
   }
-  getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
-    return mockOrderBook(symbol, depth);
+  async getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
+    const book = await mockOrderBook(symbol, depth);
+    return withProviderReceipt(this, book, {
+      datasetFamily: 'order-book',
+      instrument: book.symbol,
+      provenance: 'synthetic',
+      sourceAsOf: book.timestamp,
+      coverage: `${book.bids.length} bid and ${book.asks.length} ask level(s) at depth ${depth}.`,
+      units: { price: 'quote-asset', amount: 'base-asset' },
+      note: 'Synthetic order book for offline/demo use — not real market depth.',
+    }, this.now());
   }
   async getExchangeQuotes(symbol: string): Promise<VenueQuote[]> {
     const rows = await mockExchangeQuotes(symbol);

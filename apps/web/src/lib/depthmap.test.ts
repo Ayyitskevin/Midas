@@ -115,3 +115,27 @@ describe('priceToY', () => {
     expect(priceToY(105, 100, 100, 200)).toBe(0);
   });
 });
+
+// A venue that omits its snapshot time leaves `t` unknown. The heatmap dedupes
+// consecutive columns by `t`, so collapsing unknown to 0 would make every
+// timeless book look like the same book and freeze the panel after one column.
+describe('toSnapshot snapshot-time honesty', () => {
+  it('carries an unknown snapshot time as null rather than epoch 0', () => {
+    const timeless = { ...book([[100, 5]], [[101, 5]]), timestamp: null };
+    expect(toSnapshot(timeless)?.t).toBeNull();
+  });
+
+  it('keeps distinct timeless snapshots distinguishable', () => {
+    const a = toSnapshot({ ...book([[100, 5]], [[101, 5]]), timestamp: null })!;
+    const b = toSnapshot({ ...book([[100, 9]], [[101, 1]]), timestamp: null })!;
+    // Equal (null) times must not be read as "same book" — the panel's dedupe
+    // guards on null before comparing, and the payloads differ.
+    expect(a.t).toBeNull();
+    expect(b.t).toBeNull();
+    expect(a.bids).not.toEqual(b.bids);
+  });
+
+  it('preserves a real venue snapshot time', () => {
+    expect(toSnapshot(book([[100, 5]], [[101, 5]], 1_700_000_000_000))?.t).toBe(1_700_000_000_000);
+  });
+});

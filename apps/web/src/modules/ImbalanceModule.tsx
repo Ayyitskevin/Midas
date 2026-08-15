@@ -6,6 +6,7 @@ import { useStream, useStreamStatus } from '@/lib/stream';
 import { fmtCompact } from '@/lib/format';
 import { bookImbalance, meanImbalance } from '@/lib/imbalance';
 import { EmptyState } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const BUFFER_CAP = 120;
@@ -34,7 +35,10 @@ export function ImbalanceModule({ panel }: ModuleProps) {
     useCallback((d: unknown) => {
       const b = d as OrderBook;
       setBooks((prev) => {
-        if (prev.length && prev[prev.length - 1].timestamp === b.timestamp) return prev;
+        // Dedupe by snapshot time only when the venue supplied one. Two books
+        // with unknown times are not evidence of the same book, so treating
+        // null === null as a duplicate would discard real updates.
+        if (prev.length && b.timestamp !== null && prev[prev.length - 1].timestamp === b.timestamp) return prev;
         const next = [...prev, b];
         return next.length > BUFFER_CAP ? next.slice(next.length - BUFFER_CAP) : next;
       });
@@ -94,6 +98,9 @@ export function ImbalanceModule({ panel }: ModuleProps) {
     <div className="flex h-full flex-col text-2xs">
       <div className="flex items-center gap-2 border-b border-term-border px-2 py-1">
         <span className="text-term-dim">book imbalance · top {levels}</span>
+        {/* Evidence for the REST seed book; streamed updates are separate
+         * observations the receipt does not cover. */}
+        {seed?.receipt && <SourceBadge receipt={seed.receipt} compact />}
         <div className="ml-auto flex items-center gap-1">
           {LEVEL_OPTS.map((l) => (
             <button

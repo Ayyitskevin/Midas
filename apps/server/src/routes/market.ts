@@ -238,7 +238,19 @@ export function registerMarketRoutes(
     const depthRaw = Number(req.query.depth);
     const depth =
       Number.isFinite(depthRaw) && depthRaw > 0 ? Math.min(Math.floor(depthRaw), 100) : 25;
-    return provider.getOrderBook(symbol, depth);
+    const book = await trackProviderCall(provider, 'order-book', dataStatus, () =>
+      provider.getOrderBook(symbol, depth),
+    );
+    return attachProviderReceipt(
+      provider,
+      'order-book',
+      book,
+      String(req.id),
+      dataStatus,
+      undefined,
+      undefined,
+      { instrument: symbol },
+    );
   });
 
   app.get<{ Params: { symbol: string } }>(DATA_ROUTE_PATHS.exchangeQuotes, async (req) => {

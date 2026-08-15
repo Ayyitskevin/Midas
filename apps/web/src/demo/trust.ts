@@ -25,6 +25,7 @@ const DEMO_NOTE = 'Static demo — deterministic synthetic data generated in you
 const METHOD_BY_FAMILY: Record<TrustDatasetFamily, string> = {
   quote: 'quoteFor',
   history: 'historyFor',
+  'order-book': 'orderBookFor',
   funding: 'fundingRows',
   'funding-history': 'fundingHistoryFor',
   'open-interest': 'derivativesFor',

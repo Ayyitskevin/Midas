@@ -6,6 +6,7 @@ import { emitPricePick } from '@/lib/accountBus';
 import { useStream, useStreamStatus } from '@/lib/stream';
 import { Loading, ErrorMsg, EmptyState } from '@/components/Feedback';
 import { FreshnessAge } from '@/components/Freshness';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const DISPLAY_LEVELS = 14;
@@ -101,6 +102,10 @@ export function OrderBookModule({ panel }: ModuleProps) {
       <div className="grid grid-cols-2 border-b border-term-border px-2 py-1 text-term-muted">
         <span>PRICE</span>
         <span className="flex items-center justify-end gap-2">
+          {/* The receipt covers the REST snapshot only; a streamed book is a
+           * different observation, so the badge is withheld while the stream
+           * owns the panel rather than vouching for a book it did not cover. */}
+          {!live && fetched?.receipt && <SourceBadge receipt={fetched.receipt} compact />}
           {/* Stream book age once live, else the REST snapshot age. 10s ≈ 2x
            * the REST fallback cadence. */}
           <FreshnessAge

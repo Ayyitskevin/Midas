@@ -69,6 +69,10 @@ export function buildCcxtCapabilities(input: {
     capabilities: {
       quote: ccxtCapability({ method: 'getQuote', support: 'supported', auth: 'public', mode: 'live', venue: id, coverage: 'configured exchange markets', expectedCadenceMs: 5_000, maxAgeMs: 30_000, caveats: ['Ticker timestamps are venue-dependent and may be absent.'] }),
       history: conditional('getHistory', Boolean(has['fetchOHLCV']), 'configured exchange OHLCV/timeframes', 60_000, 300_000),
+      // Depth decays in milliseconds, so the freshness window is deliberately
+      // tighter than any other market family: a 15s-old book is not evidence
+      // for an execution estimate.
+      'order-book': conditional('getOrderBook', Boolean(has['fetchOrderBook']), 'configured exchange Level-2 depth to the requested limit', 1_000, 15_000, ['Depth is a point-in-time snapshot truncated to the requested limit; it is not the full book.', 'Order book timestamps are venue-dependent and may be absent.']),
       funding: conditional('getDerivatives', Boolean(has['fetchFundingRate']), 'funding projection from configured-exchange derivatives snapshot', 60_000, 300_000),
       'funding-history': conditional('getFundingHistory', Boolean(has['fetchFundingRateHistory']), 'configured exchange funding settlements', 28_800_000, 57_600_000),
       'open-interest': conditional('getDerivatives', Boolean(has['fetchOpenInterest']), 'OI projection from configured-exchange derivatives snapshot', 60_000, 300_000),

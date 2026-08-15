@@ -463,6 +463,22 @@ describe('demo shim', () => {
     expect(JSON.stringify(status)).not.toMatch(/api[_-]?key|password|authorization/i);
   });
 
+  it('receipts the demo order book so depth-derived panels have evidence', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
+    installDemoShim();
+
+    const book = await (await fetch('/api/orderbook/BTC%2FUSDT?depth=5')).json();
+    expect(book.symbol).toBe('BTC/USDT');
+    expect(book.receipt.datasetFamily).toBe('order-book');
+    expect(book.receipt.provenance).toBe('synthetic');
+    // The demo always knows when it generated the book, so the snapshot time is
+    // real evidence here rather than the unknown case the contract allows.
+    expect(book.timestamp).not.toBeNull();
+    expect(book.receipt.sourceAsOf).toBe(new Date(book.timestamp).toISOString());
+    expect(validateDataReceipt(book.receipt).ok).toBe(true);
+  });
+
   it('fails closed instead of returning unreceipted empty arrays', async () => {
     window.fetch = vi.fn(async () => new Response('x')) as typeof fetch;
     installDemoShim();
