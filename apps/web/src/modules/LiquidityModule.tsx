@@ -121,6 +121,9 @@ export function LiquidityModule({ panel }: ModuleProps) {
 
       <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
         Spread = (ask − bid) ÷ mid in bps (tighter = cheaper) · depth = resting notional in the top {levels} levels
+        {data && data.length > rows.length && (
+          <> · {data.length - rows.length} of {data.length} book(s) unavailable or one-sided and not ranked</>
+        )}
       </div>
     </div>
   );

@@ -81,18 +81,30 @@ export const RANGE_SECONDS: Record<Range, number> = {
  * sensible default when an upstream doesn't report state.
  */
 interface ScreenerSortable {
-  changePercent: number;
+  changePercent: number | null;
   price: number;
   volume: number | null;
   quoteVolume: number | null;
 }
 
-/** Sort screener rows descending by the requested key. */
+/**
+ * Sort screener rows descending by the requested key.
+ *
+ * A row whose sort key is unknown ranks LAST rather than being coerced to 0:
+ * treating unknown as zero would let an unmeasured symbol outrank one measured
+ * at a real negative change, which reads as evidence the venue never supplied.
+ */
 export function sortScreener<T extends ScreenerSortable>(rows: T[], sort?: string): T[] {
   const key = sort ?? 'volume';
-  const value = (r: T): number =>
+  const value = (r: T): number | null =>
     key === 'change' ? r.changePercent : key === 'price' ? r.price : (r.quoteVolume ?? r.volume ?? 0);
-  return [...rows].sort((a, b) => value(b) - value(a));
+  return [...rows].sort((a, b) => {
+    const left = value(a);
+    const right = value(b);
+    if (left === null) return right === null ? 0 : 1;
+    if (right === null) return -1;
+    return right - left;
+  });
 }
 
 export function usMarketState(now = Date.now()): 'PRE' | 'REGULAR' | 'POST' | 'CLOSED' {

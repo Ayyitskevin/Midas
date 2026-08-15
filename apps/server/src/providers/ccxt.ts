@@ -25,6 +25,7 @@ import type {
   PlacedOrder,
   ProviderCapabilityManifest,
   Quote,
+  Screen,
   ScreenerRow,
   VenueScreen,
   SearchResult,
@@ -412,20 +413,58 @@ export class CcxtProvider implements DataProvider {
 
   async getOrderBook(symbol: string, depth = 25): Promise<OrderBook> {
     const s = this.normalize(symbol);
+    // Capability-gated like every other conditional read: a venue that declares
+    // no depth endpoint says so, rather than surfacing a runtime type error.
+    if (!this.exchange.has['fetchOrderBook']) {
+      throw new ProviderError(
+        `Order book (Level 2) is not available from ${this.exchangeId}`,
+        501,
+        s,
+      );
+    }
     try {
+      const observedAt = this.now();
       const ob = await this.exchange.fetchOrderBook(s, depth);
+      const countLevels = (rows: unknown): number => (Array.isArray(rows) ? rows.length : 0);
       const toLevels = (rows: number[][]) =>
         rows
           .slice(0, depth)
           .map(([price, amount]) => ({ price: positiveFiniteOrNull(price), amount: positiveFiniteOrNull(amount) }))
           .filter((level): level is { price: number; amount: number } => level.price !== null && level.amount !== null);
-      return {
-        symbol: s,
-        bids: toLevels(ob.bids as number[][]),
-        asks: toLevels(ob.asks as number[][]),
-        timestamp: ob.timestamp ?? this.now(),
-      };
+      // A venue that omits its snapshot time leaves the age UNKNOWN. Stamping
+      // the server clock here would claim the book is current when it may be
+      // arbitrarily old, so the null rides through to the receipt as an
+      // explicit unknown-freshness limitation.
+      const sourceAsOf = positiveFiniteOrNull(ob.timestamp);
+      const bids = toLevels(ob.bids as number[][]);
+      const asks = toLevels(ob.asks as number[][]);
+      const value: OrderBook = { symbol: s, bids, asks, timestamp: sourceAsOf };
+      const requestedBids = countLevels(ob.bids);
+      const requestedAsks = countLevels(ob.asks);
+      const truncated = requestedBids > depth || requestedAsks > depth;
+      const droppedBids = Math.min(requestedBids, depth) - bids.length;
+      const droppedAsks = Math.min(requestedAsks, depth) - asks.length;
+      return withProviderReceipt(this, value, {
+        datasetFamily: 'order-book',
+        instrument: s,
+        venue: this.exchangeId,
+        provenance: 'live',
+        sourceAsOf,
+        coverage: `${bids.length} bid and ${asks.length} ask level(s) at depth ${depth}.`,
+        units: { price: 'quote-asset', amount: 'base-asset' },
+        limitations: [
+          ...(sourceAsOf === null ? ['The venue order book omitted its snapshot timestamp.'] : []),
+          ...(truncated ? [`The venue returned more than ${depth} level(s) per side; the book was truncated to the requested depth.`] : []),
+          ...(droppedBids > 0 || droppedAsks > 0
+            ? [partialEvidenceLimitation(`${droppedBids + droppedAsks} level(s) had no usable price or size and were dropped.`)]
+            : []),
+          ...(bids.length === 0 || asks.length === 0
+            ? [partialEvidenceLimitation('One side of the book returned no usable levels; spread and imbalance are not computable.')]
+            : []),
+        ],
+      }, observedAt);
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(this.describe(err, s), 502, s);
     }
   }
@@ -648,18 +687,29 @@ export class CcxtProvider implements DataProvider {
     return getVenueScreen(this, opts);
   }
 
-  async screen(opts: ScreenerOptions): Promise<ScreenerRow[]> {
+  async screen(opts: ScreenerOptions): Promise<Screen> {
     const quote = (opts.quote ?? 'USDT').toUpperCase();
     try {
-      await this.ensureMarkets();
+      const observedAt = this.now();
+      // No explicit loadMarkets: ccxt loads them inside fetchTickers, and this
+      // read only consumes the returned ticker set (unlike search(), which
+      // walks exchange.symbols). One fewer upstream call per refresh.
       const tickers = await this.exchange.fetchTickers();
+      const entries = Object.entries(tickers);
       const rows: ScreenerRow[] = [];
-      for (const [sym, t] of Object.entries(tickers)) {
+      let unknownChange = 0;
+      let latest: number | null = null;
+      for (const [sym, t] of entries) {
         if (!sym.endsWith(`/${quote}`)) continue;
         const price = tickerPrice(t);
         if (price == null) continue; // skip pairs with no usable price, not price 0
+        // An unreported 24h change is unknown, not absent: the listing is real
+        // and its price and volume are evidence, so it stays in the universe
+        // and ranks last under the change sort instead of vanishing from it.
         const changePercent = finiteOrNull(t.percentage);
-        if (changePercent === null) continue;
+        if (changePercent === null) unknownChange += 1;
+        const ts = positiveFiniteOrNull(t.timestamp);
+        if (ts !== null && (latest === null || ts > latest)) latest = ts;
         rows.push({
           symbol: sym,
           name: sym,
@@ -669,8 +719,34 @@ export class CcxtProvider implements DataProvider {
           quoteVolume: nonNegativeFiniteOrNull(t.quoteVolume),
         });
       }
-      return sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50);
+      const value: Screen = {
+        rows: sortScreener(rows, opts.sort).slice(0, opts.limit ?? 50),
+        scanned: entries.length,
+        eligible: rows.length,
+        unknownChange,
+        timestamp: latest,
+      };
+      return withProviderReceipt(this, value, {
+        datasetFamily: 'screener',
+        venue: this.exchangeId,
+        provenance: 'live',
+        sourceAsOf: latest,
+        coverage:
+          `${value.eligible} of ${value.scanned} venue ticker(s) matched ${quote} with a usable price; ` +
+          `${value.rows.length} returned, ranked by ${opts.sort ?? 'volume'}.`,
+        units: { price: quote, changePercent: 'percent', volume: 'base-asset', quoteVolume: quote },
+        limitations: [
+          ...(latest === null ? ['The venue ticker set omitted its source timestamp.'] : []),
+          ...(unknownChange > 0
+            ? [partialEvidenceLimitation(`${unknownChange} of ${value.eligible} eligible ticker(s) reported no 24h change; those rows carry an unknown change and rank last under the change sort.`)]
+            : []),
+          ...(value.eligible === 0
+            ? [partialEvidenceLimitation(`No venue ticker matched ${quote} with a usable price.`)]
+            : []),
+        ],
+      }, observedAt);
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(this.describe(err), 502);
     }
   }

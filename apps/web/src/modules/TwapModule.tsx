@@ -5,6 +5,7 @@ import { fmtPrice, fmtCompact } from '@/lib/format';
 import type { Level, Side } from '@/lib/slippage';
 import { planTwap, type TwapPlan } from '@/lib/twap';
 import { Loading, ErrorMsg } from '@/components/Feedback';
+import { SourceBadge } from '@/components/SourceInspector';
 import type { ModuleProps } from './types';
 
 const num = (s: string): number => (s.trim() === '' ? NaN : Number(s));
@@ -217,9 +218,15 @@ export function TwapModule({ panel }: ModuleProps) {
         </div>
       )}
 
-      <p className="px-1 text-2xs leading-relaxed text-term-dim">
+      <p className="flex flex-wrap items-center gap-1.5 px-1 text-2xs leading-relaxed text-term-dim">
         Compares filling the whole size now (deep into the book) vs. slicing it over time, assuming the book refills
         between slices. Best-case for impact — it ignores price drift / timing risk while you wait. Snapshot depth, gross of fees.
+        {data?.receipt && (
+          <>
+            <span>Estimated from one order-book snapshot:</span>
+            <SourceBadge receipt={data.receipt} compact />
+          </>
+        )}
       </p>
     </div>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { treemap, heatColor, type TreemapTile } from '@/lib/heatmap';
+import { treemap, heatColor, HEAT_UNKNOWN_COLOR, type TreemapTile } from '@/lib/heatmap';
 
 const area = (t: TreemapTile) => t.w * t.h;
 const within = (t: TreemapTile, w: number, h: number) =>
@@ -69,8 +69,17 @@ describe('heatColor', () => {
     expect(alpha(heatColor(100))).toBeCloseTo(alpha(heatColor(8)));
   });
 
-  it('treats 0 / non-finite as a faint gain colour', () => {
+  it('treats a real 0% as a faint gain colour', () => {
     expect(heatColor(0)).toContain('38,194,129');
-    expect(heatColor(NaN)).toContain('38,194,129');
+  });
+
+  it('paints an unknown change neutral grey rather than a faint gain', () => {
+    // The heatmap speaks in colour, so a tile for a market that reported no
+    // change must not be tinted green — that would state the one thing the
+    // venue never said. Grey is the absence of a claim, not a flat reading.
+    expect(heatColor(null)).toBe(HEAT_UNKNOWN_COLOR);
+    expect(heatColor(NaN)).toBe(HEAT_UNKNOWN_COLOR);
+    expect(heatColor(null)).not.toContain('38,194,129');
+    expect(heatColor(null)).not.toContain('239,77,86');
   });
 });

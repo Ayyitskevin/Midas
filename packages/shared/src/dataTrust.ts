@@ -15,6 +15,7 @@ export const PROVIDER_CAPABILITY_SCHEMA_VERSION = '1.0' as const;
 export const TRUST_DATASET_FAMILIES = [
   'quote',
   'history',
+  'order-book',
   'funding',
   'funding-history',
   'open-interest',
@@ -25,6 +26,7 @@ export const TRUST_DATASET_FAMILIES = [
   'liquidations',
   'venue-quotes',
   'venue-arbitrage',
+  'screener',
   'venue-screener',
   'options',
   'balances',

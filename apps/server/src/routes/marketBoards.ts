@@ -63,7 +63,7 @@ export function registerFundingBoard(app: FastifyInstance, deps: MarketBoardDeps
       dataStatus,
       async () => {
         const rows = await trackProviderCall(provider, 'funding', dataStatus, () =>
-          provider.screen({ quote, sort: 'volume', limit }),
+          provider.screen({ quote, sort: 'volume', limit }).then((screen) => screen.rows),
         );
         let failed = 0;
         const board = await Promise.all(
@@ -176,7 +176,7 @@ export function registerLiquidationsBoard(app: FastifyInstance, deps: MarketBoar
       // when that provider explicitly says no public event source exists.
       const rows = provenance.available
         ? await trackProviderCall(provider, 'liquidations', dataStatus, () =>
-            provider.screen({ quote, sort: 'volume', limit }),
+            provider.screen({ quote, sort: 'volume', limit }).then((screen) => screen.rows),
           )
         : [];
       let failed = 0;

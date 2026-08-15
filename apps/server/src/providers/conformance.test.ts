@@ -77,6 +77,8 @@ function ccxtFixture(): { provider: CcxtProvider; malformed: CcxtProvider } {
     timeframes: { '5m': 1 },
     has: {
       fetchOHLCV: true,
+      fetchOrderBook: true,
+      fetchTickers: true,
       fetchFundingRate: true,
       fetchFundingRateHistory: true,
       fetchOpenInterest: true,
@@ -97,6 +99,12 @@ function ccxtFixture(): { provider: CcxtProvider; malformed: CcxtProvider } {
       askVolume: 3,
       baseVolume: 100,
       timestamp: NOW - 1_000,
+    }),
+    fetchOrderBook: async (symbol: string, limit?: number) => ({
+      symbol,
+      bids: [[64_990, 2], [64_980, 3]].slice(0, limit ?? 25),
+      asks: [[65_010, 1.5], [65_020, 4]].slice(0, limit ?? 25),
+      timestamp: NOW - 500,
     }),
     // The whole-ticker-set read the cross-venue screener fans across venues.
     fetchTickers: async () => ({
@@ -241,11 +249,13 @@ describe('provider capability conformance', () => {
     const probes: ProviderConformanceProbe[] = [
       { label: 'quote', methods: ['getQuote'], datasetFamily: 'quote', expectation: 'receipt', run: () => provider.getQuote('BTC/USDT') },
       { label: 'history', methods: ['getHistory'], datasetFamily: 'history', expectation: 'receipt', run: () => provider.getHistory('BTC/USDT', { interval: '5m', range: '1d' }) },
+      { label: 'order book', methods: ['getOrderBook'], datasetFamily: 'order-book', expectation: 'receipt', run: () => provider.getOrderBook('BTC/USDT', 5) },
       { label: 'derivatives', methods: ['getDerivatives'], datasetFamily: 'derivatives', expectation: 'receipt', run: () => provider.getDerivatives('BTC/USDT') },
       { label: 'liquidations declaration', methods: ['liquidationsProvenance'], datasetFamily: 'liquidations', expectation: 'receipt', run: () => provider.liquidationsProvenance() },
       { label: 'venue derivatives', methods: ['getVenueDerivatives'], datasetFamily: 'venue-derivatives', expectation: 'receipt', run: () => provider.getVenueDerivatives('BTC/USDT') },
       { label: 'venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'receipt', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
+      { label: 'screener', methods: ['screen'], datasetFamily: 'screener', expectation: 'receipt', run: () => provider.screen({ quote: 'USDT', limit: 5 }) },
       { label: 'venue screener', methods: ['getVenueScreen'], datasetFamily: 'venue-screener', expectation: 'receipt', run: () => provider.getVenueScreen({ quote: 'USDT', limit: 5 }) },
       { label: 'funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '24h') },
@@ -324,6 +334,7 @@ describe('provider capability conformance', () => {
     const probes: ProviderConformanceProbe[] = [
       { label: 'CCXT quote', methods: ['getQuote'], datasetFamily: 'quote', expectation: 'receipt', run: () => provider.getQuote('BTC/USDT') },
       { label: 'CCXT history', methods: ['getHistory'], datasetFamily: 'history', expectation: 'receipt', run: () => provider.getHistory('BTC/USDT', { interval: '5m', range: '1d' }) },
+      { label: 'CCXT order book', methods: ['getOrderBook'], datasetFamily: 'order-book', expectation: 'receipt', run: () => provider.getOrderBook('BTC/USDT', 5) },
       { label: 'CCXT derivatives', methods: ['getDerivatives'], datasetFamily: 'derivatives', expectation: 'receipt', run: () => provider.getDerivatives('BTC/USDT') },
       { label: 'CCXT liquidation declaration', methods: ['liquidationsProvenance'], datasetFamily: 'liquidations', expectation: 'unavailable', run: () => provider.liquidationsProvenance() },
       { label: 'CCXT venue derivatives', methods: ['getVenueDerivatives'], datasetFamily: 'venue-derivatives', expectation: 'receipt', run: () => provider.getVenueDerivatives('BTC/USDT') },
@@ -331,6 +342,7 @@ describe('provider capability conformance', () => {
       // in the fan-out must come back honestly unavailable rather than empty-but-live.
       { label: 'CCXT venue liquidations', methods: ['getVenueLiquidations'], datasetFamily: 'liquidations', expectation: 'unavailable', run: () => provider.getVenueLiquidations('BTC/USDT') },
       { label: 'CCXT venue quotes', methods: ['getExchangeQuotes'], datasetFamily: 'venue-quotes', expectation: 'receipt', run: () => provider.getExchangeQuotes('BTC/USDT') },
+      { label: 'CCXT screener', methods: ['screen'], datasetFamily: 'screener', expectation: 'receipt', run: () => provider.screen({ quote: 'USDT', limit: 5 }) },
       { label: 'CCXT venue screener', methods: ['getVenueScreen'], datasetFamily: 'venue-screener', expectation: 'receipt', run: () => provider.getVenueScreen({ quote: 'USDT', limit: 5 }) },
       { label: 'CCXT funding history', methods: ['getFundingHistory'], datasetFamily: 'funding-history', expectation: 'receipt', run: () => provider.getFundingHistory('BTC/USDT', 2) },
       { label: 'CCXT OI delta', methods: ['getOiDelta'], datasetFamily: 'open-interest-delta', expectation: 'receipt', run: () => provider.getOiDelta('BTC/USDT', '1h') },

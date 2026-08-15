@@ -10,7 +10,8 @@ import type { OrderBook, OrderBookLevel } from '@midas/shared';
 
 /** One order-book snapshot reduced to what the heatmap needs. */
 export interface DepthSnapshot {
-  t: number;
+  /** Upstream snapshot time, or null when the venue omitted one. */
+  t: number | null;
   mid: number;
   bids: OrderBookLevel[];
   asks: OrderBookLevel[];
@@ -24,7 +25,8 @@ export interface DepthCell {
 
 /** One time-slice (a vertical strip) of the heatmap. */
 export interface DepthColumn {
-  t: number;
+  /** Upstream snapshot time, or null when the venue omitted one. */
+  t: number | null;
   mid: number;
   cells: DepthCell[];
 }
@@ -45,7 +47,7 @@ export function toSnapshot(book: OrderBook): DepthSnapshot | null {
   const bestAsk = book.asks[0]?.price ?? 0;
   if (!(bestBid > 0) || !(bestAsk > 0)) return null;
   return {
-    t: book.timestamp || 0,
+    t: book.timestamp,
     mid: (bestBid + bestAsk) / 2,
     bids: book.bids,
     asks: book.asks,

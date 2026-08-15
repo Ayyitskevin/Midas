@@ -94,14 +94,7 @@ export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
   { path: DATA_ROUTE_PATHS.quote, coverage: receipt('quote') },
   { path: DATA_ROUTE_PATHS.quotes, coverage: receipt('quote') },
   { path: DATA_ROUTE_PATHS.history, coverage: receipt('history') },
-  {
-    path: DATA_ROUTE_PATHS.orderBook,
-    coverage: exempt(
-      ['order-book'],
-      'Level-2 depth is outside the bounded v1 receipt slice.',
-      'Add an order-book capability plus per-snapshot receipt before treating depth as trusted evidence.',
-    ),
-  },
+  { path: DATA_ROUTE_PATHS.orderBook, coverage: receipt('order-book') },
   { path: DATA_ROUTE_PATHS.exchangeQuotes, coverage: receipt('venue-quotes') },
   {
     path: DATA_ROUTE_PATHS.venueDerivatives,
@@ -124,14 +117,7 @@ export const DATA_ROUTE_COVERAGE: readonly DataRouteCoverageEntry[] = [
     coverage: receipt('funding-history'),
   },
   { path: DATA_ROUTE_PATHS.venueScreener, coverage: receipt('venue-screener') },
-  {
-    path: DATA_ROUTE_PATHS.screener,
-    coverage: exempt(
-      ['screener'],
-      'The broad screener is outside the bounded v1 receipt slice.',
-      'Add a screener dataset receipt that records ticker coverage and partial failures.',
-    ),
-  },
+  { path: DATA_ROUTE_PATHS.screener, coverage: receipt('screener') },
   {
     path: DATA_ROUTE_PATHS.coins,
     coverage: exempt(

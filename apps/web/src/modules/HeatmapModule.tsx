@@ -31,12 +31,17 @@ export function HeatmapModule({ panel }: ModuleProps) {
     return () => ro.disconnect();
   }, []);
 
-  const rows = data ?? [];
+  const rows = data?.rows ?? [];
   const byKey = useMemo(() => {
     const m = new Map<string, (typeof rows)[number]>();
     for (const r of rows) m.set(r.symbol, r);
     return m;
   }, [rows]);
+
+  // Tiles are sized by volume and coloured by change. A market with no
+  // reported change still has real volume, so it keeps its size and is painted
+  // neutral grey rather than the faint green a fabricated 0 would produce.
+  const unknownCount = useMemo(() => rows.filter((r) => r.changePercent === null).length, [rows]);
 
   const tiles = useMemo(
     () =>
@@ -78,7 +83,7 @@ export function HeatmapModule({ panel }: ModuleProps) {
             <ErrorMsg message={error} onRetry={refresh} />
           </div>
         )}
-        {data && data.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
+        {data && data.rows.length === 0 && <EmptyState>No {quote} markets.</EmptyState>}
 
         <div ref={wrapRef} className="absolute inset-0">
           {tiles.map((t) => {
@@ -90,7 +95,11 @@ export function HeatmapModule({ panel }: ModuleProps) {
               <button
                 key={t.key}
                 onClick={() => navigate(panel, t.key)}
-                title={`${t.key}  ${fmtSignedPercent(row.changePercent)}`}
+                title={
+                  row.changePercent === null
+                    ? `${t.key}  24h change not reported`
+                    : `${t.key}  ${fmtSignedPercent(row.changePercent)}`
+                }
                 className="no-drag absolute overflow-hidden border border-term-bg text-left hover:border-term-amber"
                 style={{
                   left: t.x,
@@ -115,6 +124,11 @@ export function HeatmapModule({ panel }: ModuleProps) {
           })}
         </div>
       </div>
+      {unknownCount > 0 && (
+        <div className="border-t border-term-border px-2 py-1 text-2xs text-term-dim">
+          {unknownCount} of {rows.length} market(s) reported no 24h change — shown grey, sized by volume only.
+        </div>
+      )}
     </div>
   );
 }

@@ -3,11 +3,13 @@
  * cross-venue fan-out boards (funding, funding dispersion, venue arb, OI
  * concentration, liquidations, screener).
  *
- * Rationale: these boards are assembled from N upstream calls and may be served
- * from a short-TTL cache, so a bare row array cannot express the three things a
- * trader needs to know — where the data came from, how old it is, and whether
- * any symbols/venues were dropped along the way. Every fan-out board returns
- * this envelope; missing evidence is surfaced, never smoothed over.
+ * Rationale: these boards are assembled from one or more upstream calls and may
+ * be served from a short-TTL cache, so a bare row array cannot express the
+ * three things a trader needs to know — where the data came from, how old it
+ * is, and what is missing from it. For fan-out boards "missing" is a dropped
+ * symbol or venue; for the single-sweep screener it is how much of the venue
+ * was scanned and how many rows carry an unknown 24h change. Every board
+ * returns this envelope; missing evidence is surfaced, never smoothed over.
  */
 
 import type { DataReceipt } from './dataTrust';

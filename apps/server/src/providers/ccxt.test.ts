@@ -245,6 +245,92 @@ describe('CcxtProvider.getQuote zero-price honesty', () => {
   });
 });
 
+// The order book's own timestamp is the only evidence of how old the depth is.
+// Substituting the server clock for a missing one would manufacture freshness
+// for a book of unknown age — the exact failure the trust plane exists to stop.
+describe('CcxtProvider.getOrderBook snapshot-time honesty', () => {
+  const bookExchange = (book: Record<string, unknown>): Record<string, unknown> => ({
+    id: 'binance',
+    name: 'Binance',
+    has: { fetchOrderBook: true },
+    fetchOrderBook: async () => book,
+  });
+
+  it('reports an omitted venue snapshot time as unknown, never as the server clock', async () => {
+    const serverNow = 1_700_000_500_000;
+    const p = makeProvider(bookExchange({
+      bids: [[64_990, 2]],
+      asks: [[65_010, 1.5]],
+      // No timestamp field — the venue did not say when this book was taken.
+    }));
+    (p as unknown as { now: () => number }).now = () => serverNow;
+
+    const book = await p.getOrderBook('BTC/USDT', 25);
+    expect(book.timestamp).toBeNull();
+    expect(book.timestamp).not.toBe(serverNow);
+    expect(book.receipt?.sourceAsOf).toBeNull();
+    expect(book.receipt?.freshness.state).toBe('unknown');
+    expect(book.receipt?.limitations).toContain('The venue order book omitted its snapshot timestamp.');
+  });
+
+  it('keeps a real venue snapshot time and reports fresh evidence', async () => {
+    const sourceAsOf = 1_700_000_000_000;
+    const p = makeProvider(bookExchange({
+      bids: [[64_990, 2]],
+      asks: [[65_010, 1.5]],
+      timestamp: sourceAsOf,
+    }));
+    (p as unknown as { now: () => number }).now = () => sourceAsOf + 1_000;
+
+    const book = await p.getOrderBook('BTC/USDT', 25);
+    expect(book.timestamp).toBe(sourceAsOf);
+    expect(book.receipt?.sourceAsOf).toBe(new Date(sourceAsOf).toISOString());
+    expect(book.receipt?.freshness.state).toBe('fresh');
+    expect(validateDataReceipt(book.receipt).ok).toBe(true);
+  });
+
+  it('treats a zero or malformed venue timestamp as unknown rather than epoch 0', async () => {
+    const p = makeProvider(bookExchange({
+      bids: [[64_990, 2]],
+      asks: [[65_010, 1.5]],
+      timestamp: 0,
+    }));
+    const book = await p.getOrderBook('BTC/USDT', 25);
+    expect(book.timestamp).toBeNull();
+    expect(book.receipt?.freshness.state).toBe('unknown');
+  });
+
+  it('drops unusable levels and records the loss as partial evidence', async () => {
+    const p = makeProvider(bookExchange({
+      bids: [[64_990, 2], [Number.NaN, 5], [64_970, 0]],
+      asks: [[65_010, 1.5]],
+      timestamp: 1_700_000_000_000,
+    }));
+    const book = await p.getOrderBook('BTC/USDT', 25);
+    expect(book.bids).toHaveLength(1);
+    expect(book.receipt?.limitations.some((l) => l.includes('2 level(s) had no usable price or size'))).toBe(true);
+  });
+
+  it('records truncation when the venue returns more levels than the requested depth', async () => {
+    const p = makeProvider(bookExchange({
+      bids: [[64_990, 2], [64_980, 3], [64_970, 4]],
+      asks: [[65_010, 1.5], [65_020, 2], [65_030, 3]],
+      timestamp: 1_700_000_000_000,
+    }));
+    const book = await p.getOrderBook('BTC/USDT', 2);
+    expect(book.bids).toHaveLength(2);
+    expect(book.receipt?.limitations.some((l) => l.includes('truncated to the requested depth'))).toBe(true);
+  });
+
+  it('declares depth unavailable rather than failing opaquely when the venue has no endpoint', async () => {
+    const p = makeProvider({ id: 'binance', name: 'Binance', has: {} });
+    await expect(p.getOrderBook('BTC/USDT', 25)).rejects.toMatchObject({
+      name: 'ProviderError',
+      statusCode: 501,
+    });
+  });
+});
+
 describe('CcxtProvider venue evidence honesty', () => {
   const providerWithVenue = (ticker: Record<string, unknown>): CcxtProvider => {
     const primary = { id: 'binance', name: 'Binance', has: {} } as unknown as Exchange;

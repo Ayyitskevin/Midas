@@ -73,10 +73,18 @@ function split(
   }
 }
 
-/** Up (#26c281) / down (#ef4d56) tile colour, opacity scaled by |change|. */
-export function heatColor(changePct: number, cap = 8): string {
-  const pct = Number.isFinite(changePct) ? changePct : 0;
-  const t = Math.max(-1, Math.min(1, pct / cap)); // −1 … 1
+/**
+ * Up (#26c281) / down (#ef4d56) tile colour, opacity scaled by |change|.
+ *
+ * An unknown change gets a neutral grey rather than the faint green a 0 would
+ * produce: the heatmap's whole language is colour, so painting an unmeasured
+ * symbol as flat would state the one thing the venue never reported.
+ */
+export const HEAT_UNKNOWN_COLOR = 'rgba(122,127,135,0.18)';
+
+export function heatColor(changePct: number | null, cap = 8): string {
+  if (changePct === null || !Number.isFinite(changePct)) return HEAT_UNKNOWN_COLOR;
+  const t = Math.max(-1, Math.min(1, changePct / cap)); // −1 … 1
   const alpha = (0.12 + 0.6 * Math.abs(t)).toFixed(3);
   return t >= 0 ? `rgba(38,194,129,${alpha})` : `rgba(239,77,86,${alpha})`;
 }
