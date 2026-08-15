@@ -22,6 +22,16 @@ description: >-
 
 # Campaign: Honest cross-exchange derivatives (the liquidations trust wedge)
 
+> **STATUS: SHIPPED (2026-08).** The core campaign landed and merged — per-source
+> status/coverage (PR #352), multi-venue liquidation fan-out + union aggregate
+> (PR #353), and the cross-venue screener (PR #354). All five metrics (M1-M5)
+> closed. The file:line anchors and baselines below describe the PRE-campaign
+> tree and are stale; treat this skill as the campaign's design record, not a
+> current map. The follow-up campaign is `midas-evidence-completion-campaign`
+> (order-book + screener receipts). The unshipped remainder here is Option 4
+> (liquidation history/heatmap), which stays human-gated on a persistence
+> decision.
+
 You are executing the owner's hardest, highest-value problem. This is a **runbook**,
 not an essay. Follow the phases in order. Every gate tells you the number to expect
 and where to branch if you see something else. **Do not judge success by eye** — every
