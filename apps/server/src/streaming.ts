@@ -295,6 +295,49 @@ const MAX_SUBS_PER_SOCKET = 60; // a 20-panel desk × 3 channels still fits
  */
 const MAX_SUBS_PER_IP = 120;
 
+/** The outcome of admitting one new subscription on one socket. */
+export type SubscriptionAdmission =
+  | { ok: true }
+  | { ok: false; reason: 'per-socket' | 'per-ip'; message: string };
+
+/**
+ * Decide whether one more subscription may be admitted on a socket.
+ *
+ * Pure but for the quota it is handed, and exported so the enforcement itself
+ * is under test. Both ceilings live here rather than inline in the socket
+ * handler because a guard that only exists at an unreachable call site is
+ * indistinguishable, to the test suite, from no guard at all: removing either
+ * check from the handler used to leave all 856 tests passing, even though
+ * `createIpQuota` had thorough unit tests of its own.
+ *
+ * Order matters. The per-socket ledger is checked BEFORE the per-IP quota is
+ * acquired, so a socket already at its own ceiling never consumes a slot from
+ * the shared per-IP budget it would then have to release.
+ */
+export function admitSubscription(
+  heldOnSocket: number,
+  ip: string,
+  ipQuota: { tryAcquire(key: string): boolean },
+  maxPerSocket: number = MAX_SUBS_PER_SOCKET,
+  maxPerIp: number = MAX_SUBS_PER_IP,
+): SubscriptionAdmission {
+  if (heldOnSocket >= maxPerSocket) {
+    return {
+      ok: false,
+      reason: 'per-socket',
+      message: `Subscription limit reached (${maxPerSocket} per connection).`,
+    };
+  }
+  if (!ipQuota.tryAcquire(ip)) {
+    return {
+      ok: false,
+      reason: 'per-ip',
+      message: `Subscription limit reached (${maxPerIp} per client).`,
+    };
+  }
+  return { ok: true };
+}
+
 /**
  * A per-key (client IP) budget over the shared, globally-bounded source pool.
  * `tryAcquire` returns false once a key is at its cap; `release` returns a slot.
@@ -414,15 +457,14 @@ export function registerStream(
 
       if (req.type === 'subscribe') {
         if (held.has(key)) return; // idempotent re-subscribe
-        if (held.size >= MAX_SUBS_PER_SOCKET) {
+        // Both ceilings are decided by one pure, exported function so the
+        // ENFORCEMENT is testable, not just the quota helper it consults. The
+        // per-IP quota was previously exercised only as a standalone unit:
+        // deleting its call site here left every test green.
+        const admission = admitSubscription(held.size, ip, ipQuota);
+        if (!admission.ok) {
           // The one violation a legitimate power user could hit — tell them.
-          sendError(socket, `Subscription limit reached (${MAX_SUBS_PER_SOCKET} per connection).`);
-          return;
-        }
-        // Per-IP fairness: keep one client from monopolizing the shared pool and
-        // starving other clients, even across many sockets.
-        if (!ipQuota.tryAcquire(ip)) {
-          sendError(socket, `Subscription limit reached (${MAX_SUBS_PER_IP} per client).`);
+          sendError(socket, admission.message);
           return;
         }
         const acquired = hub.subscribe(socket, req.channel, req.symbol, () => {
