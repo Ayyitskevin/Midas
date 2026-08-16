@@ -1,8 +1,65 @@
 # Dependency migration plan
 
-Classification of open Dependabot PRs (as of **2026-07-20**) and the single
-coherent upgrade wave implemented on `grok/midas-release-governance`. Majors are
-**not** merged together just to clear the queue.
+Classification of open Dependabot PRs and the coherent upgrade waves
+implemented in-repo. Majors are **not** merged together just to clear the queue.
+
+## Wave 2 (2026-08-15) — npm patch/minor + first-party Actions majors
+
+Second wave. Group A refreshed within current majors, and the Actions majors
+that CI can actually prove on the pull request itself.
+
+| Change | From → To | Evidence |
+| --- | --- | --- |
+| `ccxt` | 4.5.67 → 4.5.73 | server suite + `depWave.regression.test.ts` |
+| `fastify` | 5.10.0 → 5.12.0 | same; real `buildApp` registration path |
+| `tsx` | 4.23.1 → 4.23.12 | dev/start runner; typecheck + build |
+| `ws` | 8.21.1 → 8.21.3 | websocket frame-cap regression |
+| `postcss` | 8.5.20 → 8.5.26 | web build + bundle budget |
+| `react-grid-layout` | 1.5.3 → **1.5.4** | see supply-chain note below |
+| `actions/checkout` | v4 → **v7** | exercised by CI on the PR |
+| `actions/setup-node` | v4 → **v7** | exercised by CI on the PR (Node 22 + pnpm cache) |
+| `actions/setup-python` | v5 → **v7** | exercised by the Docs job on the PR |
+
+### Supply-chain note: `react-grid-layout` 1.5.3
+
+1.5.0–1.5.3 shipped files that were never in the upstream repository: an
+`ip_fetcher` executable, its C source, and (in 1.5.3) a 374 KB `yarn-error.log`
+containing a maintainer's local paths. Upstream deprecated 1.5.3 for exactly
+this and published 1.5.4, byte-identical apart from removing them.
+
+Inspected before upgrading, and it was **inert** in this repo: the C source is
+curl's own generated sample fetching `https://ifconfig.me`, the compiled binary
+is Mach-O arm64 (it cannot execute on the Linux CI or a Linux host), it embeds
+no host other than the one in the source, nothing in the package references it,
+and the package declares no install/postinstall hook. An accidental publish, not
+an attack. The floor moved to `^1.5.4` regardless: an unreferenced executable in
+`node_modules` is not something to keep on the grounds that it happens to be
+harmless here.
+
+### Why `actions/checkout` v7 is safe for this repo
+
+v7's breaking change blocks checking out a fork PR under `pull_request_target`
+and `workflow_run` ([GitHub changelog][checkout-v7]). Midas triggers on `push`,
+`pull_request`, `workflow_dispatch`, `issue_comment` and
+`pull_request_review_comment` only — **neither affected trigger appears in any
+workflow** — so the change is inapplicable rather than merely tolerated. Re-check
+this if a workflow ever adopts `pull_request_target`.
+
+[checkout-v7]: https://github.blog/changelog/2026-06-18-safer-pull_request_target-defaults-for-github-actions-checkout/
+
+### Deliberately excluded from this wave
+
+| Deferred | Why |
+| --- | --- |
+| `actions/upload-pages-artifact` 3 → 5, `actions/deploy-pages` 4 → 5 | Both steps are gated on `github.ref == 'refs/heads/main'`, so a pull request **cannot** exercise them. Bumping them here would land two unverifiable majors on the strength of a green CI run that never ran them. They need their own PR, merged when the maintainer can watch the next Pages deploy. |
+| `@fastify/cors` 10 → 11 | Dedicated server PR — it moves the CORS boundary that the keyed-account guard's fail-closed posture depends on. |
+| `vite` 5 → 8 + `@vitejs/plugin-react` 4 → 6 | Toolchain majors; one controlled PR with build, demo build and bundle budget. |
+| `lightweight-charts` 4 → 5 | Chart API migration; needs chart-module coverage first. |
+
+## Wave 1 (2026-07-20)
+
+Classification as of 2026-07-20; the wave implemented on
+`grok/midas-release-governance`.
 
 ## Classification of open PRs
 

@@ -7,6 +7,25 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Changed
+- **Dependency wave:** `ccxt`, `fastify`, `tsx`, `ws` and `postcss` refreshed
+  within their current majors, and the first-party GitHub Actions majors that CI
+  can prove on the pull request itself — `actions/checkout` v4→v7,
+  `actions/setup-node` v4→v7, `actions/setup-python` v5→v7. checkout v7's
+  breaking change blocks fork-PR checkout under `pull_request_target` and
+  `workflow_run`; no Midas workflow uses either trigger, so it is inapplicable
+  rather than merely tolerated. The Pages actions are **deliberately excluded** —
+  their steps are gated on `refs/heads/main`, so no pull request can exercise
+  them, and they get their own PR. `@fastify/cors` 11, Vite 8 and
+  lightweight-charts 5 likewise remain separate per
+  `docs/DEPENDENCY_MIGRATION.md`.
+- **`react-grid-layout` floored to ^1.5.4 (supply-chain hygiene).** 1.5.0–1.5.3
+  shipped files that were never in the upstream repo — an `ip_fetcher`
+  executable, its C source, and a 374 KB `yarn-error.log` of a maintainer's
+  local paths — and upstream deprecated 1.5.3 for exactly that. Inspected before
+  upgrading and found inert here (curl's own sample fetching `ifconfig.me`,
+  compiled Mach-O arm64 so it cannot run on Linux CI, unreferenced by the
+  package, no install hook), but an unreferenced executable does not get to stay
+  in `node_modules` on the grounds that it happens to be harmless.
 - **`GET /api/screener` now returns a `BoardEnvelope`** (`{ rows, meta }`)
   instead of a bare `ScreenerRow[]`, and `ScreenerRow.changePercent` is now
   `number | null`. Pre-release wire break; every in-repo consumer is updated.
