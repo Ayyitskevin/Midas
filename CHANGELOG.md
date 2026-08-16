@@ -6,7 +6,23 @@ highlights; this file is the complete record. Versions follow semver;
 
 ## [Unreleased]
 
+### Fixed
+- **Cross-origin `DELETE` would have broken on the `@fastify/cors` 11 upgrade.**
+  v11 narrows its default `methods` to the CORS-safelisted `GET,HEAD,POST`, so
+  the preflight response stopped advertising `DELETE` — and cancel-only order
+  DELETE is a real cross-origin call from the terminal. Nothing server-side
+  could see it, because the block happens in the browser. `app.ts` now states
+  the allowed methods explicitly, derived from the routes the server actually
+  registers, so no future plugin default can move that boundary again. Caught
+  by `corsBoundary.test.ts`, which characterizes the boundary and was made green
+  against v10 *before* the upgrade.
+
 ### Changed
+- **`@fastify/cors` 10 → 11**, in its own reviewed PR per
+  `docs/DEPENDENCY_MIGRATION.md`. The origin contract is unchanged across the
+  major: a string origin is a static allow-list of one, emitted verbatim with
+  enforcement left to the browser — never `*` when pinned, never the caller's
+  origin reflected back.
 - **Dependency wave:** `ccxt`, `fastify`, `tsx`, `ws` and `postcss` refreshed
   within their current majors, and the first-party GitHub Actions majors that CI
   can prove on the pull request itself — `actions/checkout` v4→v7,
@@ -15,9 +31,8 @@ highlights; this file is the complete record. Versions follow semver;
   `workflow_run`; no Midas workflow uses either trigger, so it is inapplicable
   rather than merely tolerated. The Pages actions are **deliberately excluded** —
   their steps are gated on `refs/heads/main`, so no pull request can exercise
-  them, and they get their own PR. `@fastify/cors` 11, Vite 8 and
-  lightweight-charts 5 likewise remain separate per
-  `docs/DEPENDENCY_MIGRATION.md`.
+  them, and they get their own PR. `@fastify/cors` 11 likewise took its own PR
+  (see above); Vite 8 remains separate per `docs/DEPENDENCY_MIGRATION.md`.
 - **`react-grid-layout` floored to ^1.5.4 (supply-chain hygiene).** 1.5.0–1.5.3
   shipped files that were never in the upstream repo — an `ip_fetcher`
   executable, its C source, and a 374 KB `yarn-error.log` of a maintainer's

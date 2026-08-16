@@ -123,7 +123,18 @@ export async function buildApp(
   });
 
   const corsOrigin = opts.corsOrigin ?? config.corsOrigin;
-  await app.register(cors, { origin: corsOrigin });
+  // `methods` is pinned to what this API actually serves rather than left to
+  // the plugin default. @fastify/cors v11 narrowed that default to the
+  // CORS-safelisted set (GET,HEAD,POST), which silently drops DELETE from the
+  // preflight response — and cancel-only order DELETE is a real cross-origin
+  // call from the terminal. Every server-side test still passes when that
+  // breaks, because the block happens in the browser; corsBoundary.test.ts
+  // pins it instead. Stating the list explicitly also means a future plugin
+  // default cannot move this boundary again in either direction.
+  await app.register(cors, {
+    origin: corsOrigin,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  });
   // Cap WS frames at the protocol layer. /api/stream is public even with auth
   // on, and a real subscribe message is ~70 bytes; without this, ws defaults to
   // buffering up to 100 MiB per frame into the heap BEFORE the app-level check

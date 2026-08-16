@@ -47,6 +47,54 @@ this if a workflow ever adopts `pull_request_target`.
 
 [checkout-v7]: https://github.blog/changelog/2026-06-18-safer-pull_request_target-defaults-for-github-actions-checkout/
 
+## Wave 3 (2026-08-16) — `@fastify/cors` 10 → 11
+
+Dedicated PR, as the classification required. This one **found a real
+regression**, so the method matters as much as the result.
+
+`MIDAS_CORS_ORIGIN` feeds two independent consumers — the plugin, which decides
+the browser-visible `access-control-allow-origin`, and `installKeyedAccountGuard`,
+which parses the same string itself to decide whether keyed account surfaces
+fail closed. Nothing forces those two to agree, and the entire server suite
+asserted the emitted header exactly once, as `toBeTruthy()`.
+
+So the boundary was **characterized before it was touched**:
+`apps/server/src/corsBoundary.test.ts` was written and made green against v10,
+then re-run unchanged against v11. Passing after an upgrade only means something
+if the tests passed before it.
+
+### What the upgrade broke
+
+v11 narrows the default `methods` to the [CORS-safelisted set][safelist]
+`GET,HEAD,POST`. Midas serves `GET/POST/PUT/PATCH/DELETE`, so the preflight
+response silently stopped advertising `DELETE` — and **cancel-only order
+DELETE is a real cross-origin call from the terminal**. Every server-side test
+still passed, because the block happens in the browser; only a preflight
+assertion could see it.
+
+Fixed by stating `methods` explicitly in `app.ts`, derived from the routes the
+server actually registers, so no future plugin default can move this boundary in
+either direction.
+
+[safelist]: https://fetch.spec.whatwg.org/#methods
+
+### Evidence
+
+| Configuration | Result |
+| --- | --- |
+| v10, tests as written | 9/9 pass — the baseline |
+| v11, no fix | 2 fail: `GET,HEAD,POST` missing `DELETE` and `PUT` |
+| v11 + explicit `methods` | 10/10 pass |
+
+### Behavior confirmed unchanged across the major
+
+A string `origin` is a **static** allow-list of one: the plugin emits it verbatim
+and performs no server-side matching, leaving enforcement to the browser, which
+compares ACAO against its own origin. That holds in both majors — worth
+recording because it is easy to misread the pinned posture as server-side
+rejection. What matters is what ACAO is *not*: never `*` when pinned, and never
+the caller's own origin reflected back.
+
 ### Deliberately excluded from this wave
 
 | Deferred | Why |
