@@ -51,10 +51,9 @@ this if a workflow ever adopts `pull_request_target`.
 
 | Deferred | Why |
 | --- | --- |
-| `actions/upload-pages-artifact` 3 → 5, `actions/deploy-pages` 4 → 5 | Both steps are gated on `github.ref == 'refs/heads/main'`, so a pull request **cannot** exercise them. Bumping them here would land two unverifiable majors on the strength of a green CI run that never ran them. They need their own PR, merged when the maintainer can watch the next Pages deploy. |
+| `actions/upload-pages-artifact` 3 → 5, `actions/deploy-pages` 4 → 5 | Both steps are gated on `github.ref == 'refs/heads/main'`, so a pull request **cannot** exercise them. Bumping them here would land two unverifiable majors on the strength of a green CI run that never ran them. They need their own PR. Confirmed dormant afterwards: on the post-merge `main` run for `de461fd`, `Upload Pages artifact` and the `deploy` job are both `skipped` because `vars.MIDAS_PAGES_ENABLED` is not `'true'`, so these actions do not run on `main` either. Bump them **together** (the artifact format must stay compatible with the consumer) at the moment Pages is enabled, so the first real deploy exercises both. Dependabot PRs #272/#273 were closed with this reasoning. |
 | `@fastify/cors` 10 → 11 | Dedicated server PR — it moves the CORS boundary that the keyed-account guard's fail-closed posture depends on. |
 | `vite` 5 → 8 + `@vitejs/plugin-react` 4 → 6 | Toolchain majors; one controlled PR with build, demo build and bundle budget. |
-| `lightweight-charts` 4 → 5 | Chart API migration; needs chart-module coverage first. |
 
 ## Wave 1 (2026-07-20)
 
@@ -92,7 +91,7 @@ Dependabot is acceptable once CI is green.
 | --- | --- | --- | --- |
 | #280 | `vite` 5 → 8 | Ecosystem break (config, env, dep optimizer); must move with plugin-react | After #283 plan; migrate Vite 5→6 then 6→8 or follow Vite migration guides in one controlled PR with `build` + `build:demo` + bundle budget |
 | #283 | `@vitejs/plugin-react` 4 → 6 | Peer dependency on Vite major | Same PR as Vite major |
-| #281 | `lightweight-charts` 4 → 5 | Chart API v5 migration (series/types); visual + unit coverage for chart modules | Dedicated PR after Vite wave or independent if chart imports isolated — audit `apps/web` chart usage first |
+| #281 | `lightweight-charts` 4 → 5 | Chart API v5 migration (series/types); visual + unit coverage for chart modules | **Resolved** — landed separately; `apps/web` is on `^5.2.0`. Classification below is the 2026-07-20 snapshot, not current state. |
 | #282 | `@fastify/cors` 10 → 11 | Major; verify CORS origin pinning + preflight still match `SECURITY_HARDENING` matrix | Dedicated server PR; re-run `app.test.ts` / hardening tests |
 
 **Do not** land Vite 8 + plugin-react 6 + lightweight-charts 5 + `@fastify/cors` 11
