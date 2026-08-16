@@ -106,7 +106,12 @@ at the exchange.
 ## Guarantees the codebase enforces (verified by tests)
 
 These are invariants, not aspirations — each has a test that fails CI if it
-regresses:
+regresses. That claim is itself checked: every guarantee below was verified by
+**mutation** — the boundary was deliberately broken in the source and the suite
+re-run — and the five that did not go red are now pinned by
+`apps/server/src/securityBoundaries.test.ts`. See
+[`docs/DEPENDENCY_MIGRATION.md`](DEPENDENCY_MIGRATION.md) for the same method
+applied to a dependency upgrade.
 
 - **Placement fails closed.** Runtime flags, credentials, key metadata, request
   shape, and retry timing cannot make the HTTP API reach `provider.placeOrder`.
@@ -115,7 +120,9 @@ regresses:
   operator-account fallback), and ambiguous outcomes are reported honestly.
 - **The input edges are bounded.** Symbols are charset+length checked at every
   route; the public WebSocket validates channel/symbol, caps frame size,
-  bounds subscriptions per socket, and ceilings total upstream sources;
+  bounds subscriptions per socket and per client IP (both decided by the
+  exported `admitSubscription`, so the enforcement is testable and not just the
+  quota helper it consults), and ceilings total upstream sources;
   per-user snapshot blobs are size-capped (413); the AI endpoint bounds
   message count and volume.
 - **Exchange ids are allowlisted.** Keys can only be stored for a real ccxt
@@ -132,7 +139,10 @@ regresses:
   Public market data is untouched.
 - **Auth is timing-safe.** Tokens verify with `timingSafeEqual`; login runs a
   scrypt compare whether or not the username exists, so response time can't
-  enumerate accounts; passwords are scrypt with a per-user random salt.
+  enumerate accounts; passwords are scrypt with a per-user random salt. The
+  constant-time guards are pinned structurally (asserting the primitive is
+  still in use), because asserting wall-clock timing would be flaky; the
+  no-enumeration guard is pinned behaviorally via `DUMMY_PASSWORD_HASH`.
 - **Secrets never leave the server.** Stored keys are AES-256-GCM at rest and
   returned only as metadata (exchange + last 4 + canTrade).
 - **Personal outbound delivery is bounded.** Endpoint validation rejects SSRF
@@ -141,6 +151,34 @@ regresses:
   capped with no retry, and replacement generations prevent an old queued job
   reaching a removed endpoint. URLs are owner-bound ciphertext and API reads,
   logs, payloads, and status never expose them.
+
+### How these are verified
+
+Claiming a test exists is not the same as the test failing when the boundary
+breaks. Each guarantee above was checked by **mutation**: the boundary was
+deliberately removed or weakened in the source, and the whole server suite
+re-run. A boundary is only "pinned" if the suite went red.
+
+The first pass over sixteen mutations found **five that no test caught** — the
+suite stayed fully green with the boundary gone:
+
+| Mutation | Was |
+| --- | --- |
+| Token `timingSafeEqual` → string compare | missed |
+| Password `timingSafeEqual` → string compare | missed |
+| Login short-circuits for an unknown user | missed |
+| Per-socket subscription ceiling deleted | missed |
+| Per-IP subscription quota **call site** deleted | missed |
+
+The last is the one worth remembering: `createIpQuota` had thorough unit tests,
+so the quota *logic* was well covered while the fact that the server *uses* it
+was not. A tool can be tested carefully and still not be installed.
+
+All five — plus raising either ceiling constant, which a later pass showed was
+also unpinned — are now caught by
+`apps/server/src/securityBoundaries.test.ts`. Re-run the method when adding a
+boundary: break it on purpose, and only believe the guarantee once you have
+watched a test fail.
 
 ## What is deliberately *not* in the app
 

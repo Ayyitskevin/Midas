@@ -7,6 +7,19 @@ highlights; this file is the complete record. Versions follow semver;
 ## [Unreleased]
 
 ### Fixed
+- **Five security guarantees the docs called "verified by tests" were not.**
+  Every invariant in `SECURITY_HARDENING.md` was checked by mutation — the
+  boundary deliberately broken in the source, the suite re-run. Eleven went red
+  as they should. Five did not: token and password `timingSafeEqual` could each
+  be swapped for a short-circuiting string compare, login could be
+  short-circuited for an unknown user (restoring account enumeration by
+  response time), and both the per-socket subscription ceiling and the per-IP
+  quota's **call site** could be deleted outright — all with the full suite
+  still green. `createIpQuota` had thorough unit tests, so the quota logic was
+  covered while the fact that the server *used* it was not. The WS admission
+  decision is now one exported `admitSubscription`, making the enforcement
+  testable rather than unreachable inline code, and
+  `securityBoundaries.test.ts` pins all five plus the two ceiling constants.
 - **Cross-origin `DELETE` would have broken on the `@fastify/cors` 11 upgrade.**
   v11 narrows its default `methods` to the CORS-safelisted `GET,HEAD,POST`, so
   the preflight response stopped advertising `DELETE` — and cancel-only order
