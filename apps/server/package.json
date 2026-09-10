@@ -16,9 +16,9 @@
     "@fastify/cors": "^11.3.0",
     "@fastify/websocket": "^11.3.0",
     "@midas/shared": "workspace:*",
-    "ccxt": "^4.5.71",
-    "fastify": "^5.11.3",
-    "tsx": "^4.23.12",
+    "ccxt": "^4.5.78",
+    "fastify": "^5.12.3",
+    "tsx": "^4.23.13",
     "ws": "^8.21.3"
   },
   "devDependencies": {
