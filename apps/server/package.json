@@ -13,17 +13,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@fastify/cors": "^11.3.0",
-    "@fastify/websocket": "^11.3.0",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/websocket": "^11.3.4",
     "@midas/shared": "workspace:*",
-    "ccxt": "^4.5.71",
-    "fastify": "^5.11.3",
-    "tsx": "^4.23.12",
-    "ws": "^8.21.3"
+    "ccxt": "^4.5.85",
+    "fastify": "^5.12.5",
+    "tsx": "^4.23.15",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
-    "@types/ws": "^8.5.12",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.9"
   }
